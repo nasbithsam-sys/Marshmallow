@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,11 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, Shield, Eye } from 'lucide-react';
+import { Plus, Shield, Eye, KeyRound, Trash2, Mail, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from '@/lib/constants';
 import type { AppRole } from '@/types';
+import MFAEnroll from '@/components/auth/MFAEnroll';
 
 const NAV_SECTION_LABELS: Record<string, string> = {
   leads: 'All Leads',
@@ -32,14 +38,21 @@ const roleColors: Record<string, string> = {
 };
 
 const Settings = () => {
+  const { role: currentRole } = useAuth();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserName, setSelectedUserName] = useState('');
+  const [selectedUserEmail, setSelectedUserEmail] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState<AppRole>('no_role');
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'nav_permissions' | 'status_permissions'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'nav_permissions' | 'status_permissions' | 'security'>('users');
+
+  const isAdmin = currentRole === 'admin';
 
   const { data: users = [] } = useQuery({
     queryKey: ['settings-users'],
@@ -131,6 +144,27 @@ const Settings = () => {
     queryClient.invalidateQueries({ queryKey: ['settings-users'] });
   };
 
+  const handleSendPasswordReset = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/login',
+    });
+    if (error) toast.error(error.message);
+    else toast.success(`Password reset email sent to ${email}`);
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    // Delete user data (profile, roles, permissions, etc.)
+    await Promise.all([
+      supabase.from('user_roles').delete().eq('user_id', userId),
+      supabase.from('navigation_permissions').delete().eq('user_id', userId),
+      supabase.from('status_permissions').delete().eq('user_id', userId),
+      supabase.from('notifications').delete().eq('user_id', userId),
+      supabase.from('profiles').delete().eq('id', userId),
+    ]);
+    toast.success('User data deleted');
+    queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+  };
+
   const getNavPermission = (userId: string, section: string) => {
     const perm = navPermissions.find((p: any) => p.user_id === userId && p.nav_section === section);
     return (perm as any)?.allowed ?? false;
@@ -138,7 +172,7 @@ const Settings = () => {
 
   const getStatusPermission = (userId: string, status: string) => {
     const perm = statusPermissions.find((p: any) => p.user_id === userId && p.status === status);
-    return (perm as any)?.allowed ?? true; // Default to allowed
+    return (perm as any)?.allowed ?? true;
   };
 
   const getInitials = (name: string) =>
@@ -151,31 +185,35 @@ const Settings = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage users, navigation, and status permissions</p>
+          <p className="text-sm text-muted-foreground mt-1">Manage users, permissions, and security</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Create User
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => setCreateOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Create User
+          </Button>
+        )}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
+      <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit flex-wrap">
         {([
-          { key: 'users', label: 'Users' },
-          { key: 'nav_permissions', label: 'Tab Permissions' },
-          { key: 'status_permissions', label: 'Status Permissions' },
+          { key: 'users', label: 'Users', icon: null },
+          { key: 'nav_permissions', label: 'Tab Permissions', icon: null },
+          { key: 'status_permissions', label: 'Status Permissions', icon: null },
+          { key: 'security', label: 'Security', icon: ShieldCheck },
         ] as const).map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              'px-4 py-1.5 rounded-md text-sm font-medium transition-colors',
+              'px-4 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5',
               activeTab === tab.key
                 ? 'bg-card text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
+            {tab.icon && <tab.icon className="h-3.5 w-3.5" />}
             {tab.label}
           </button>
         ))}
@@ -197,15 +235,49 @@ const Settings = () => {
                 <span className={cn('px-2.5 py-1 rounded-full text-xs font-medium capitalize', roleColors[u.role] || roleColors.no_role)}>
                   {u.role.replace('_', ' ')}
                 </span>
-                <Select value={u.role} onValueChange={v => updateRole.mutate({ userId: u.id, role: v as AppRole })}>
-                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="processor">Processor</SelectItem>
-                    <SelectItem value="customer_service">Customer Service</SelectItem>
-                    <SelectItem value="no_role">No Role</SelectItem>
-                  </SelectContent>
-                </Select>
+                {isAdmin && (
+                  <>
+                    <Select value={u.role} onValueChange={v => updateRole.mutate({ userId: u.id, role: v as AppRole })}>
+                      <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="processor">Processor</SelectItem>
+                        <SelectItem value="customer_service">Customer Service</SelectItem>
+                        <SelectItem value="no_role">No Role</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs"
+                      onClick={() => handleSendPasswordReset(u.email)}
+                    >
+                      <Mail className="h-3 w-3" />
+                      Reset Password
+                    </Button>
+                    {u.role !== 'admin' && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete user "{u.full_name}"?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will remove the user's profile, roles, and permissions. The authentication account will be deactivated.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -313,6 +385,13 @@ const Settings = () => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Security Tab - MFA */}
+      {activeTab === 'security' && (
+        <div className="space-y-6">
+          <MFAEnroll />
+        </div>
       )}
 
       {/* Create User Dialog */}

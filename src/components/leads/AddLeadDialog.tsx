@@ -7,12 +7,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, MessageSquare } from 'lucide-react';
 import { LEAD_STATUS_CONFIG, type LeadStatus } from '@/types';
 import { useDuplicatePhoneCheck } from '@/hooks/useDuplicatePhoneCheck';
 import { formatUSPhone } from '@/lib/phone';
@@ -33,7 +32,6 @@ const generateJobId = () => {
 const sendNotifications = async (leadName: string, status: string, leadId: string) => {
   if (status !== 'urgent_job' && status !== 'need_tech') return;
 
-  // Get all admin and processor users
   const { data: roles } = await supabase
     .from('user_roles')
     .select('user_id, role')
@@ -66,8 +64,6 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
     scheduled_hour: '12',
     scheduled_minute: '00',
     scheduled_ampm: 'AM',
-    cs_notes: '',
-    processor_notes: '',
   });
 
   const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone);
@@ -93,7 +89,6 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
     setLoading(true);
 
-    // Build scheduled time
     let scheduled_time_start: string | null = null;
     let scheduled_time_end: string | null = null;
     if (form.scheduled_date) {
@@ -115,8 +110,6 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       scheduled_date: form.scheduled_date || null,
       scheduled_time_start,
       scheduled_time_end,
-      cs_notes: form.cs_notes || null,
-      processor_notes: !isCS ? (form.processor_notes || null) : null,
       created_by: user.id,
       assigned_cs: isCS ? user.id : null,
     }).select().single();
@@ -124,11 +117,10 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
     if (error) {
       toast.error('Failed to create lead: ' + error.message);
     } else {
-      // Send notifications for urgent/need_tech
       if (data) {
         await sendNotifications(form.customer_name, form.status, data.id);
       }
-      toast.success('Lead created');
+      toast.success('Lead created! You can now add notes from the lead detail page.');
       onSuccess();
       onOpenChange(false);
       setForm({
@@ -136,7 +128,6 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
         address: '', service_type: '',
         status: 'waiting_complete_details', scheduled_date: '',
         scheduled_hour: '12', scheduled_minute: '00', scheduled_ampm: 'AM',
-        cs_notes: '', processor_notes: '',
       });
     }
     setLoading(false);
@@ -192,7 +183,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(LEAD_STATUS_CONFIG)
-                  .filter(([key]) => key !== 'paid') // Can't create a lead as paid
+                  .filter(([key]) => key !== 'paid')
                   .map(([key, cfg]) => (
                     <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
                   ))}
@@ -237,29 +228,16 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
             </div>
           </div>
 
-          {/* CS Notes */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-primary">Customer Service Notes</Label>
-            <Textarea
-              value={form.cs_notes}
-              onChange={e => update('cs_notes', e.target.value)}
-              placeholder="Notes for customer service..."
-              rows={3}
-            />
-          </div>
-
-          {/* Processor Notes - hidden from CS */}
-          {!isCS && (
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-primary">Processor Notes</Label>
-              <Textarea
-                value={form.processor_notes}
-                onChange={e => update('processor_notes', e.target.value)}
-                placeholder="Notes for processor..."
-                rows={3}
-              />
+          {/* Notes guidance */}
+          <div className="rounded-lg border border-border/60 bg-muted/30 p-3 flex items-start gap-2.5">
+            <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div>
+              <p className="text-xs font-medium text-foreground">Notes</p>
+              <p className="text-[11px] text-muted-foreground">
+                Create the lead first, then add notes from the lead detail page using the threaded notes system.
+              </p>
             </div>
-          )}
+          </div>
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

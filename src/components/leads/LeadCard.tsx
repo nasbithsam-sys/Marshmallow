@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import NoteThread from "./NoteThread";
 import PaymentDialog from "./PaymentDialog";
+import LeadShareDialog from "./LeadShareDialog";
 import { motion } from "framer-motion";
 import { cardHover, cardTap } from "@/lib/motion";
 
@@ -40,7 +41,6 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
   const isProcessor = role === "processor";
 
   const handleStatusChange = async (newStatus: string) => {
-    // If changing to paid, show payment dialog
     if (newStatus === 'paid') {
       setPendingStatus(newStatus);
       setPaymentOpen(true);
@@ -56,7 +56,6 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
     if (error) toast.error("Failed to update status");
     else {
       toast.success(`Status → ${STATUS_LABELS[newStatus as LeadStatus]}`);
-      // Send notifications for urgent/need_tech
       if (newStatus === 'urgent_job' || newStatus === 'need_tech') {
         const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'processor']);
         if (roles) {
@@ -160,7 +159,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
           )}
         </div>
 
-        {/* Note Threads */}
+        {/* Note Threads - CS Notes visible to CS and Admin */}
         {(isCS || isAdmin) && (
           <div className="mx-3 sm:mx-4 mt-3">
             <Collapsible open={csOpen} onOpenChange={setCsOpen}>
@@ -179,6 +178,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
           </div>
         )}
 
+        {/* Processor Notes - hidden from CS */}
         {(isProcessor || isAdmin) && (
           <div className="mx-3 sm:mx-4 mt-2">
             <Collapsible open={processorOpen} onOpenChange={setProcessorOpen}>
@@ -231,6 +231,10 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
             <Button variant="outline" size="sm" className="flex-1 h-8 text-[12px]" onClick={() => navigate(`/leads/${lead.id}`)}>
               <Pencil className="h-3 w-3 mr-1" /> Edit
             </Button>
+            {/* Share button for admin */}
+            {isAdmin && (
+              <LeadShareDialog leadId={lead.id} customerName={lead.customer_name} />
+            )}
             {/* Only admin can delete */}
             {isAdmin && (
               <AlertDialog>

@@ -32,16 +32,23 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
   }, [open]);
 
   const fetchCSRUsers = async () => {
-    const [profilesRes, sharesRes] = await Promise.all([
-      supabase.from("profiles").select("id, full_name, email"),
+    // Only fetch CS users for sharing
+    const [rolesRes, sharesRes] = await Promise.all([
+      supabase.from("user_roles").select("user_id, role").eq("role", "customer_service"),
       supabase.from("lead_shares").select("shared_with_user_id").eq("lead_id", leadId),
     ]);
 
-    if (profilesRes.data) {
+    if (rolesRes.data) {
+      const csUserIds = rolesRes.data.map((r: any) => r.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", csUserIds);
+
       const sharedIds = new Set((sharesRes.data || []).map((s: any) => s.shared_with_user_id));
 
       setCsrUsers(
-        profilesRes.data
+        (profiles || [])
           .filter((p: any) => p.id !== user?.id)
           .map((p: any) => ({
             user_id: p.id,
@@ -61,29 +68,38 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
         shared_with_user_id: userId,
         shared_by: user!.id,
       });
+      // Send notification to the CS user
+      const csUser = csrUsers.find(c => c.user_id === userId);
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        title: "📋 Lead Shared with You",
+        message: `"${customerName}" has been shared with you by admin`,
+        lead_id: leadId,
+        read: false,
+      });
     } else {
       await supabase.from("lead_shares").delete().eq("lead_id", leadId).eq("shared_with_user_id", userId);
     }
     await fetchCSRUsers();
-    toast.success(share ? "Lead shared" : "Share removed");
+    toast.success(share ? "Lead shared & notification sent" : "Share removed");
     setSaving(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
-          <Share2 className="h-3.5 w-3.5" /> Share
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+          <Share2 className="h-3.5 w-3.5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle className="text-base">Share "{customerName}"</DialogTitle>
         </DialogHeader>
-        <p className="text-xs text-muted-foreground">Select users who should see this lead.</p>
+        <p className="text-xs text-muted-foreground">Select CS users who should see this lead. They'll receive a notification.</p>
         <div className="space-y-2 max-h-64 overflow-y-auto mt-2">
           {csrUsers.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">No users found.</p>
+            <p className="text-sm text-muted-foreground text-center py-4">No CS users found.</p>
           )}
           {csrUsers.map((csr, i) => (
             <motion.div
