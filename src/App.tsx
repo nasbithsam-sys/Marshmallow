@@ -6,16 +6,20 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
 import Login from "@/pages/Login";
-import AllLeads from "@/pages/AllLeads";
+import LeadsPage from "@/pages/LeadsPage";
+import LeadDetailPage from "@/pages/LeadDetailPage";
+import SchedulePage from "@/pages/SchedulePage";
 import Analytics from "@/pages/Analytics";
-import Settings from "@/pages/Settings";
+import AreasPage from "@/pages/AreasPage";
+import MapPage from "@/pages/MapPage";
 import ActivityLogs from "@/pages/ActivityLogs";
+import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children, adminOnly }: { children: React.ReactNode; adminOnly?: boolean }) => {
-  const { session, loading, role } = useAuth();
+function ProtectedRoutes() {
+  const { session, loading } = useAuth();
   if (loading) return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="flex flex-col items-center gap-3">
@@ -25,30 +29,15 @@ const ProtectedRoute = ({ children, adminOnly }: { children: React.ReactNode; ad
     </div>
   );
   if (!session) return <Navigate to="/login" replace />;
-  if (adminOnly && role !== 'admin') return <Navigate to="/" replace />;
-  return <AppLayout>{children}</AppLayout>;
-};
+  return <AppLayout />;
+}
 
-const AppRoutes = () => {
+function LoginRoute() {
   const { session, loading } = useAuth();
-
-  if (loading) return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 border-t-foreground animate-spin" />
-    </div>
-  );
-
-  return (
-    <Routes>
-      <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/" element={<ProtectedRoute><AllLeads /></ProtectedRoute>} />
-      <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute adminOnly><Settings /></ProtectedRoute>} />
-      <Route path="/activity-logs" element={<ProtectedRoute><ActivityLogs /></ProtectedRoute>} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
-};
+  if (loading) return null;
+  if (session) return <Navigate to="/leads" replace />;
+  return <Login />;
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -57,7 +46,21 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <Routes>
+            <Route path="/login" element={<LoginRoute />} />
+            <Route path="/" element={<ProtectedRoutes />}>
+              <Route index element={<Navigate to="/leads" replace />} />
+              <Route path="leads" element={<LeadsPage />} />
+              <Route path="leads/:id" element={<LeadDetailPage />} />
+              <Route path="schedule" element={<SchedulePage />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="areas" element={<AreasPage />} />
+              <Route path="map" element={<MapPage />} />
+              <Route path="activity-logs" element={<ActivityLogs />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
