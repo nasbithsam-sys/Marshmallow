@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Download, Share2 } from "lucide-react";
+import { Plus, Search, Download, Share2, Sparkles } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
-import { staggerContainer, staggerItem } from "@/lib/motion";
+import { staggerContainer, staggerItem, heroTitle, fadeUp } from "@/lib/motion";
 
 const PAGE_SIZES = [20, 40, 60, 100];
 
@@ -84,7 +84,7 @@ export default function LeadsPage() {
   const currentLeads = activeTab === 'shared' ? sharedLeads : leads;
 
   const filtered = useMemo(() => {
-    let result = currentLeads;
+    let result = [...currentLeads];
     if (statusFilter !== "all") result = result.filter((l) => l.status === statusFilter);
     if (search) {
       const s = search.toLowerCase();
@@ -110,6 +110,10 @@ export default function LeadsPage() {
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
 
+  const urgentCount = leads.filter(l => l.status === 'urgent_job').length;
+  const scheduledCount = leads.filter(l => l.status === 'scheduled').length;
+  const activeCount = leads.filter(l => l.status !== 'cancelled' && l.status !== 'paid' && l.status !== 'job_done').length;
+
   const exportData = (format: "csv" | "xlsx") => {
     const data = filtered.map((l) => ({
       "Job ID": l.job_id,
@@ -118,26 +122,16 @@ export default function LeadsPage() {
       "Address": l.address || "",
       "Service Type": l.service_type || "",
       "Status": STATUS_LABELS[l.status],
-      "CS Notes": l.cs_notes || "",
-      "Processor Notes": l.processor_notes || "",
       "Scheduled Date": l.scheduled_date || "",
       "Created At": new Date(l.created_at).toLocaleString(),
-      "Updated At": new Date(l.updated_at).toLocaleString(),
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Leads");
-
-    const statusLabel = statusFilter !== "all" ? `_${statusFilter}` : "";
-    const filename = `leads${statusLabel}_${new Date().toISOString().slice(0, 10)}`;
-
-    if (format === "csv") {
-      XLSX.writeFile(wb, `${filename}.csv`, { bookType: "csv" });
-    } else {
-      XLSX.writeFile(wb, `${filename}.xlsx`);
-    }
-    toast.success(`Exported ${data.length} leads as ${format.toUpperCase()}`);
+    const filename = `leads_${new Date().toISOString().slice(0, 10)}`;
+    XLSX.writeFile(wb, `${filename}.${format}`, format === "csv" ? { bookType: "csv" } : undefined);
+    toast.success(`Exported ${data.length} leads`);
   };
 
   const handleRefresh = () => {
@@ -146,10 +140,10 @@ export default function LeadsPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <motion.div variants={heroTitle} initial="initial" animate="animate">
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
             {statusFilter !== "all" ? (
               <span className="flex items-center gap-2">
@@ -162,63 +156,113 @@ export default function LeadsPage() {
             {filtered.length} lead{filtered.length !== 1 ? "s" : ""}
             {totalPages > 1 && ` · Page ${page + 1} of ${totalPages}`}
           </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2, duration: 0.4 }}
+          className="flex items-center gap-2 flex-wrap"
+        >
           {isAdmin && (
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs" onClick={() => exportData("csv")}>
+              <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs rounded-xl border-border/50 hover:border-primary/30 transition-all" onClick={() => exportData("csv")}>
                 <Download className="h-3.5 w-3.5" /> CSV
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs" onClick={() => exportData("xlsx")}>
+              <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs rounded-xl border-border/50 hover:border-primary/30 transition-all" onClick={() => exportData("xlsx")}>
                 <Download className="h-3.5 w-3.5" /> XLSX
               </Button>
             </div>
           )}
           <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-            <Button onClick={() => navigate("/leads/new")} className="gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-shadow">
+            <Button onClick={() => navigate("/leads/new")} className="gap-2 rounded-xl shadow-brand hover:shadow-brand-lg transition-all duration-300 btn-glow">
               <Plus className="h-4 w-4" /> New Lead
             </Button>
           </motion.div>
-        </div>
+        </motion.div>
       </div>
 
-      {/* Tabs for CS: My Leads / Shared with me */}
+      {/* Summary chips */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="flex gap-3 flex-wrap"
+      >
+        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border/50 text-sm shadow-premium-sm hover:shadow-premium-md transition-all duration-200">
+          <span className="w-2 h-2 rounded-full bg-primary" />
+          <span className="font-semibold text-foreground">{activeCount}</span>
+          <span className="text-muted-foreground text-xs">Active</span>
+        </div>
+        {urgentCount > 0 && (
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-50 border border-red-100 text-sm shadow-premium-sm">
+            <span className="w-2 h-2 rounded-full bg-red-500 status-pulse" />
+            <span className="font-semibold text-red-700">{urgentCount}</span>
+            <span className="text-red-600 text-xs">Urgent</span>
+          </div>
+        )}
+        {scheduledCount > 0 && (
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border/50 text-sm shadow-premium-sm">
+            <Sparkles className="h-3.5 w-3.5 text-primary/60" />
+            <span className="font-semibold">{scheduledCount}</span>
+            <span className="text-muted-foreground text-xs">Scheduled</span>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Tabs for CS */}
       {isCS && (
-        <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="flex gap-1 bg-muted/50 rounded-xl p-1 w-fit border border-border/30"
+        >
           <button
             onClick={() => { setActiveTab('my'); setPage(0); }}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'my' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+              activeTab === 'my' ? 'bg-card text-foreground shadow-premium-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             My Leads
           </button>
           <button
             onClick={() => { setActiveTab('shared'); setPage(0); }}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
-              activeTab === 'shared' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
+              activeTab === 'shared' ? 'bg-card text-foreground shadow-premium-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Share2 className="h-3.5 w-3.5" />
             Shared with me
             {sharedLeads.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-brand text-brand-foreground text-[10px] font-bold">
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
                 {sharedLeads.length}
               </span>
             )}
           </button>
-        </div>
+        </motion.div>
       )}
 
       {/* Search & Filter bar */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search by name, phone, address, job ID..." className="pl-9 bg-card border-border/60 focus-visible:ring-primary/30" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+        className="flex flex-col gap-3 sm:flex-row"
+      >
+        <div className="relative flex-1 group">
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50 transition-colors group-focus-within:text-primary" />
+          <Input
+            placeholder="Search by name, phone, address, job ID..."
+            className="pl-10 h-10 bg-card border-border/50 rounded-xl shadow-premium-sm focus:shadow-premium-md focus:border-primary/30 transition-all duration-200"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+          />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[220px] bg-card border-border/60"><SelectValue placeholder="Filter by status" /></SelectTrigger>
-          <SelectContent>
+          <SelectTrigger className="w-full sm:w-[220px] h-10 bg-card border-border/50 rounded-xl shadow-premium-sm">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
             <SelectItem value="all">All Statuses</SelectItem>
             {ALL_LEAD_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
@@ -231,22 +275,34 @@ export default function LeadsPage() {
           </SelectContent>
         </Select>
         <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(0); }}>
-          <SelectTrigger className="w-full sm:w-[120px] bg-card border-border/60"><SelectValue /></SelectTrigger>
-          <SelectContent>
+          <SelectTrigger className="w-full sm:w-[120px] h-10 bg-card border-border/50 rounded-xl shadow-premium-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
             {PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>Show {s}</SelectItem>)}
           </SelectContent>
         </Select>
-      </div>
+      </motion.div>
 
       {/* Lead card grid */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => <Card key={i} className="h-64 animate-pulse bg-muted/40 border-border/40 rounded-xl" />)}
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Card key={i} className="h-64 animate-pulse bg-muted/30 border-border/30 rounded-2xl shimmer" />
+          ))}
         </div>
       ) : paged.length === 0 ? (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
-          <Card className="flex h-44 items-center justify-center text-muted-foreground border-dashed border-2">
-            {activeTab === 'shared' ? 'No leads have been shared with you yet' : 'No leads found'}
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }}>
+          <Card className="flex flex-col h-52 items-center justify-center text-muted-foreground border-dashed border-2 border-border/50 rounded-2xl gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center">
+              <Search className="h-6 w-6 text-muted-foreground/40" />
+            </div>
+            <p className="font-medium text-foreground">
+              {activeTab === 'shared' ? 'No leads have been shared with you yet' : 'No leads found'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {search || statusFilter !== 'all' ? 'Try adjusting your search or filter' : 'Click "New Lead" to get started'}
+            </p>
           </Card>
         </motion.div>
       ) : (
@@ -273,10 +329,10 @@ export default function LeadsPage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.4 }}
           className="flex items-center justify-center gap-2 pt-2"
         >
-          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded-xl">Previous</Button>
           <div className="flex gap-1">
             {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
               let p = i;
@@ -286,13 +342,19 @@ export default function LeadsPage() {
                 else p = page - 3 + i;
               }
               return (
-                <Button key={p} variant={p === page ? "default" : "outline"} size="sm" className="w-9" onClick={() => setPage(p)}>
+                <Button
+                  key={p}
+                  variant={p === page ? "default" : "outline"}
+                  size="sm"
+                  className={`w-9 rounded-xl ${p === page ? 'shadow-brand' : ''}`}
+                  onClick={() => setPage(p)}
+                >
                   {p + 1}
                 </Button>
               );
             })}
           </div>
-          <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="rounded-xl">Next</Button>
         </motion.div>
       )}
     </div>

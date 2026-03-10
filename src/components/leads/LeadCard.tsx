@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { UserCircle, Phone, MapPin, Wrench, Trash2, Pencil, MessageSquare, ChevronDown } from "lucide-react";
+import { UserCircle, Phone, MapPin, Wrench, Trash2, Pencil, MessageSquare, ChevronDown, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -17,8 +17,8 @@ import {
 import NoteThread from "./NoteThread";
 import PaymentDialog from "./PaymentDialog";
 import LeadShareDialog from "./LeadShareDialog";
+import StatusBadge from "./StatusBadge";
 import { motion } from "framer-motion";
-import { cardHover, cardTap } from "@/lib/motion";
 
 interface LeadCardProps {
   lead: Lead;
@@ -120,51 +120,54 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
   const isUrgent = lead.status === "urgent_job";
 
   return (
-    <motion.div whileHover={cardHover} whileTap={cardTap}>
-      <Card className={`overflow-hidden rounded-xl border-border/60 flex flex-col transition-colors ${isUrgent ? "ring-2 ring-destructive/30 shadow-destructive/5" : ""}`}>
-        {isUrgent && <div className="h-1 w-full bg-gradient-to-r from-destructive to-destructive/60" />}
+    <motion.div
+      whileHover={{ y: -4, transition: { type: "spring", stiffness: 400, damping: 30 } }}
+      whileTap={{ scale: 0.98, transition: { duration: 0.1 } }}
+    >
+      <Card className={`overflow-hidden rounded-2xl border-border/50 flex flex-col transition-all duration-300 shadow-premium-sm hover:shadow-premium-lg ${isUrgent ? "ring-2 ring-destructive/20 shadow-red-100" : ""}`}>
+        {isUrgent && (
+          <div className="h-1 w-full bg-gradient-to-r from-destructive via-red-400 to-destructive/40" />
+        )}
 
         {/* Header */}
-        <div className="flex items-center justify-between p-3 sm:p-4 pb-2">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+        <div className="flex items-center justify-between p-4 pb-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center shrink-0 border border-primary/10">
               <UserCircle className="h-5 w-5 text-primary" />
             </div>
             <div className="min-w-0">
               <p className="font-semibold text-foreground truncate text-sm">{lead.customer_name}</p>
-              <p className="font-mono text-[10px] text-muted-foreground">{lead.job_id}</p>
+              <p className="font-mono text-[10px] text-muted-foreground/60">{lead.job_id}</p>
             </div>
           </div>
-          <Badge className={`shrink-0 text-[10px] font-medium px-2.5 py-0.5 rounded-full ${STATUS_COLORS[lead.status]}`}>
-            {STATUS_LABELS[lead.status]}
-          </Badge>
+          <StatusBadge status={lead.status} size="sm" />
         </div>
 
         {/* Meta info */}
-        <div className="px-3 sm:px-4 space-y-1.5 text-[12px] text-muted-foreground">
+        <div className="px-4 space-y-1.5 text-[12px] text-muted-foreground">
           {lead.customer_phone && (
-            <span className="flex items-center gap-1.5">
-              <Phone className="h-3 w-3 text-muted-foreground/60" /> {lead.customer_phone}
+            <span className="flex items-center gap-2">
+              <Phone className="h-3 w-3 text-muted-foreground/40" /> {lead.customer_phone}
             </span>
           )}
           {lead.address && (
-            <span className="flex items-center gap-1.5">
-              <MapPin className="h-3 w-3 text-muted-foreground/60" /> <span className="truncate">{lead.address}</span>
+            <span className="flex items-center gap-2">
+              <MapPin className="h-3 w-3 text-muted-foreground/40" /> <span className="truncate">{lead.address}</span>
             </span>
           )}
           {lead.service_type && (
-            <span className="flex items-center gap-1.5">
-              <Wrench className="h-3 w-3 text-muted-foreground/60" /> {lead.service_type}
+            <span className="flex items-center gap-2">
+              <Wrench className="h-3 w-3 text-muted-foreground/40" /> {lead.service_type}
             </span>
           )}
         </div>
 
-        {/* Note Threads - CS Notes visible to CS and Admin */}
+        {/* Note Threads */}
         {(isCS || isAdmin) && (
-          <div className="mx-3 sm:mx-4 mt-3">
+          <div className="mx-4 mt-3">
             <Collapsible open={csOpen} onOpenChange={setCsOpen}>
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-full justify-between h-8 text-[12px] text-muted-foreground hover:text-foreground px-2">
+                <Button variant="ghost" size="sm" className="w-full justify-between h-8 text-[12px] text-muted-foreground hover:text-foreground rounded-lg px-2">
                   <span className="flex items-center gap-1.5"><MessageSquare className="h-3 w-3" /> CS Notes Thread</span>
                   <motion.span animate={{ rotate: csOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
                     <ChevronDown className="h-3.5 w-3.5" />
@@ -178,13 +181,12 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
           </div>
         )}
 
-        {/* Processor Notes - hidden from CS */}
         {(isProcessor || isAdmin) && (
-          <div className="mx-3 sm:mx-4 mt-2">
+          <div className="mx-4 mt-2">
             <Collapsible open={processorOpen} onOpenChange={setProcessorOpen}>
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-full justify-between h-8 text-[12px] text-muted-foreground hover:text-foreground px-2">
-                  <span className="flex items-center gap-1.5"><MessageSquare className="h-3 w-3" /> Processor Notes Thread</span>
+                <Button variant="ghost" size="sm" className="w-full justify-between h-8 text-[12px] text-muted-foreground hover:text-foreground rounded-lg px-2">
+                  <span className="flex items-center gap-1.5"><MessageSquare className="h-3 w-3" /> Processor Notes</span>
                   <motion.span animate={{ rotate: processorOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
                     <ChevronDown className="h-3.5 w-3.5" />
                   </motion.span>
@@ -199,8 +201,8 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
 
         {/* Last edited */}
         {lead.last_edited_by && (
-          <div className="mx-3 sm:mx-4 mt-3 rounded-lg bg-orange-100 dark:bg-orange-950/30 px-3 py-1.5">
-            <p className="text-[11px] text-orange-700 dark:text-orange-400">
+          <div className="mx-4 mt-3 rounded-xl bg-amber-50 border border-amber-100 px-3 py-1.5">
+            <p className="text-[11px] text-amber-700">
               Last edited {new Date(lead.updated_at).toLocaleDateString()} by{" "}
               <span className="font-semibold">{profiles[lead.last_edited_by] || "Unknown"}</span>
             </p>
@@ -208,16 +210,16 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
         )}
 
         {/* Created by */}
-        <div className="px-3 sm:px-4 pt-2 pb-1">
-          <p className="text-[10px] text-muted-foreground/60">
+        <div className="px-4 pt-2 pb-1">
+          <p className="text-[10px] text-muted-foreground/50">
             Created by {profiles[lead.created_by] || "Unknown"} · {new Date(lead.created_at).toLocaleDateString()}
           </p>
         </div>
 
         {/* Actions */}
-        <div className="mt-auto p-3 sm:p-4 pt-2 space-y-2">
+        <div className="mt-auto p-4 pt-2 space-y-2">
           <Select value={lead.status} onValueChange={handleStatusChange} disabled={changingStatus}>
-            <SelectTrigger className="w-full h-8 text-[12px]">
+            <SelectTrigger className="w-full h-9 text-[12px] rounded-xl bg-muted/30 border-border/40 hover:bg-muted/50 transition-colors">
               <SelectValue placeholder="Change Status" />
             </SelectTrigger>
             <SelectContent>
@@ -228,29 +230,30 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
           </Select>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="flex-1 h-8 text-[12px]" onClick={() => navigate(`/leads/${lead.id}`)}>
-              <Pencil className="h-3 w-3 mr-1" /> Edit
-            </Button>
-            {/* Share button for admin */}
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
+              <Button variant="outline" size="sm" className="w-full h-9 text-[12px] rounded-xl gap-1.5 border-border/50 hover:border-primary/30 hover:bg-primary/5 transition-all" onClick={() => navigate(`/leads/${lead.id}`)}>
+                <Pencil className="h-3 w-3" /> Edit
+                <ArrowUpRight className="h-3 w-3 ml-auto opacity-40" />
+              </Button>
+            </motion.div>
             {isAdmin && (
               <LeadShareDialog leadId={lead.id} customerName={lead.customer_name} />
             )}
-            {/* Only admin can delete */}
             {isAdmin && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
+                  <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl text-destructive/60 hover:text-destructive hover:bg-destructive/5 hover:border-destructive/20 transition-all">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent>
+                <AlertDialogContent className="rounded-2xl">
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete lead?</AlertDialogTitle>
                     <AlertDialogDescription>This will permanently delete "{lead.customer_name}". This action cannot be undone.</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                    <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground rounded-xl">Delete</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
