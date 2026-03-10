@@ -2,9 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Lead, LeadStatus, STATUS_LABELS, STATUS_COLORS, ALL_LEAD_STATUSES } from "@/lib/constants";
+import { Lead, LeadStatus, STATUS_LABELS, ALL_LEAD_STATUSES } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -121,43 +120,42 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
 
   return (
     <motion.div
-      whileHover={{ y: -4, transition: { type: "spring", stiffness: 400, damping: 30 } }}
-      whileTap={{ scale: 0.98, transition: { duration: 0.1 } }}
+      whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 30 } }}
     >
-      <Card className={`overflow-hidden rounded-2xl border-border/50 flex flex-col transition-all duration-300 shadow-premium-sm hover:shadow-premium-lg ${isUrgent ? "ring-2 ring-destructive/20 shadow-red-100" : ""}`}>
+      <Card className={`overflow-hidden flex flex-col group ${isUrgent ? "ring-1 ring-destructive/15" : ""}`}>
         {isUrgent && (
-          <div className="h-1 w-full bg-gradient-to-r from-destructive via-red-400 to-destructive/40" />
+          <div className="h-0.5 w-full bg-gradient-to-r from-destructive via-destructive/60 to-transparent" />
         )}
 
         {/* Header */}
         <div className="flex items-center justify-between p-4 pb-2">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center shrink-0 border border-primary/10">
-              <UserCircle className="h-5 w-5 text-primary" />
+            <div className="h-9 w-9 rounded-lg bg-primary/6 flex items-center justify-center shrink-0 border border-primary/8">
+              <UserCircle className="h-4.5 w-4.5 text-primary/70" />
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-foreground truncate text-sm">{lead.customer_name}</p>
-              <p className="font-mono text-[10px] text-muted-foreground/60">{lead.job_id}</p>
+              <p className="font-semibold text-foreground truncate text-[13px] tracking-[-0.01em]">{lead.customer_name}</p>
+              <p className="font-mono text-[10px] text-muted-foreground/50">{lead.job_id}</p>
             </div>
           </div>
           <StatusBadge status={lead.status} size="sm" />
         </div>
 
-        {/* Meta info */}
-        <div className="px-4 space-y-1.5 text-[12px] text-muted-foreground">
+        {/* Meta */}
+        <div className="px-4 space-y-1 text-[12px] text-muted-foreground">
           {lead.customer_phone && (
             <span className="flex items-center gap-2">
-              <Phone className="h-3 w-3 text-muted-foreground/40" /> {lead.customer_phone}
+              <Phone className="h-3 w-3 text-muted-foreground/30" /> {lead.customer_phone}
             </span>
           )}
           {lead.address && (
             <span className="flex items-center gap-2">
-              <MapPin className="h-3 w-3 text-muted-foreground/40" /> <span className="truncate">{lead.address}</span>
+              <MapPin className="h-3 w-3 text-muted-foreground/30" /> <span className="truncate">{lead.address}</span>
             </span>
           )}
           {lead.service_type && (
             <span className="flex items-center gap-2">
-              <Wrench className="h-3 w-3 text-muted-foreground/40" /> {lead.service_type}
+              <Wrench className="h-3 w-3 text-muted-foreground/30" /> {lead.service_type}
             </span>
           )}
         </div>
@@ -168,7 +166,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
             <Collapsible open={csOpen} onOpenChange={setCsOpen}>
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="sm" className="w-full justify-between h-8 text-[12px] text-muted-foreground hover:text-foreground rounded-lg px-2">
-                  <span className="flex items-center gap-1.5"><MessageSquare className="h-3 w-3" /> CS Notes Thread</span>
+                  <span className="flex items-center gap-1.5"><MessageSquare className="h-3 w-3" /> CS Notes</span>
                   <motion.span animate={{ rotate: csOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
                     <ChevronDown className="h-3.5 w-3.5" />
                   </motion.span>
@@ -201,17 +199,17 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
 
         {/* Last edited */}
         {lead.last_edited_by && (
-          <div className="mx-4 mt-3 rounded-xl bg-amber-50 border border-amber-100 px-3 py-1.5">
-            <p className="text-[11px] text-amber-700">
+          <div className="mx-4 mt-3 rounded-lg bg-warning/6 border border-warning/10 px-3 py-1.5">
+            <p className="text-[10px] text-muted-foreground">
               Last edited {new Date(lead.updated_at).toLocaleDateString()} by{" "}
-              <span className="font-semibold">{profiles[lead.last_edited_by] || "Unknown"}</span>
+              <span className="font-semibold text-foreground">{profiles[lead.last_edited_by] || "Unknown"}</span>
             </p>
           </div>
         )}
 
         {/* Created by */}
         <div className="px-4 pt-2 pb-1">
-          <p className="text-[10px] text-muted-foreground/50">
+          <p className="text-[10px] text-muted-foreground/40">
             Created by {profiles[lead.created_by] || "Unknown"} · {new Date(lead.created_at).toLocaleDateString()}
           </p>
         </div>
@@ -219,7 +217,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
         {/* Actions */}
         <div className="mt-auto p-4 pt-2 space-y-2">
           <Select value={lead.status} onValueChange={handleStatusChange} disabled={changingStatus}>
-            <SelectTrigger className="w-full h-9 text-[12px] rounded-xl bg-muted/30 border-border/40 hover:bg-muted/50 transition-colors">
+            <SelectTrigger className="w-full h-9 text-[12px] rounded-lg">
               <SelectValue placeholder="Change Status" />
             </SelectTrigger>
             <SelectContent>
@@ -230,30 +228,28 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
           </Select>
 
           <div className="flex items-center gap-2">
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-              <Button variant="outline" size="sm" className="w-full h-9 text-[12px] rounded-xl gap-1.5 border-border/50 hover:border-primary/30 hover:bg-primary/5 transition-all" onClick={() => navigate(`/leads/${lead.id}`)}>
-                <Pencil className="h-3 w-3" /> Edit
-                <ArrowUpRight className="h-3 w-3 ml-auto opacity-40" />
-              </Button>
-            </motion.div>
+            <Button variant="outline" size="sm" className="flex-1 h-9 text-[12px] gap-1.5" onClick={() => navigate(`/leads/${lead.id}`)}>
+              <Pencil className="h-3 w-3" /> Edit
+              <ArrowUpRight className="h-3 w-3 ml-auto opacity-30" />
+            </Button>
             {isAdmin && (
               <LeadShareDialog leadId={lead.id} customerName={lead.customer_name} />
             )}
             {isAdmin && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl text-destructive/60 hover:text-destructive hover:bg-destructive/5 hover:border-destructive/20 transition-all">
+                  <Button variant="outline" size="icon" className="h-9 w-9 text-destructive/50 hover:text-destructive hover:bg-destructive/5 hover:border-destructive/20">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent className="rounded-2xl">
+                <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete lead?</AlertDialogTitle>
                     <AlertDialogDescription>This will permanently delete "{lead.customer_name}". This action cannot be undone.</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground rounded-xl">Delete</AlertDialogAction>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>

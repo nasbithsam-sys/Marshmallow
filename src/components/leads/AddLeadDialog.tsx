@@ -140,15 +140,13 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
           <DialogTitle>Add New Lead</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Customer Name */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Customer Name *</Label>
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Customer Name *</Label>
             <Input value={form.customer_name} onChange={e => update('customer_name', e.target.value)} required placeholder="John Doe" />
           </div>
 
-          {/* Phone Number */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Phone Number</Label>
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Phone Number</Label>
             <Input
               value={form.customer_phone}
               onChange={e => update('customer_phone', e.target.value)}
@@ -157,28 +155,25 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
               className={isDuplicate ? 'border-destructive ring-1 ring-destructive' : ''}
             />
             {isDuplicate && (
-              <div className="flex items-center gap-1.5 text-destructive text-xs mt-1">
-                <AlertCircle className="h-3.5 w-3.5" />
+              <div className="flex items-center gap-1.5 text-destructive text-[11px] mt-1">
+                <AlertCircle className="h-3 w-3" />
                 <span>A lead already exists with this number: <strong>{duplicateLeadName}</strong></span>
               </div>
             )}
           </div>
 
-          {/* Address */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Address</Label>
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Address</Label>
             <Input value={form.address} onChange={e => update('address', e.target.value)} placeholder="123 Main St, City, State" />
           </div>
 
-          {/* Service Type */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Service Type</Label>
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Service Type</Label>
             <Input value={form.service_type} onChange={e => update('service_type', e.target.value)} placeholder="HVAC Repair, Plumbing, etc." />
           </div>
 
-          {/* Status */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Status</Label>
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Status</Label>
             <Select value={form.status} onValueChange={v => update('status', v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -191,9 +186,8 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
             </Select>
           </div>
 
-          {/* Job Scheduled For */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Job Scheduled For</Label>
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Job Scheduled For</Label>
             <div className="flex items-center gap-2">
               <Input
                 type="date"
@@ -202,16 +196,16 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                 className="flex-1"
               />
               <Select value={form.scheduled_hour} onValueChange={v => update('scheduled_hour', v)}>
-                <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-[65px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
                     <SelectItem key={h} value={String(h)}>{h}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <span className="text-muted-foreground">:</span>
+              <span className="text-muted-foreground/40">:</span>
               <Select value={form.scheduled_minute} onValueChange={v => update('scheduled_minute', v)}>
-                <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-[65px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {['00', '15', '30', '45'].map(m => (
                     <SelectItem key={m} value={m}>{m}</SelectItem>
@@ -219,7 +213,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                 </SelectContent>
               </Select>
               <Select value={form.scheduled_ampm} onValueChange={v => update('scheduled_ampm', v)}>
-                <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-[65px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="AM">AM</SelectItem>
                   <SelectItem value="PM">PM</SelectItem>
@@ -228,12 +222,11 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
             </div>
           </div>
 
-          {/* Notes guidance */}
-          <div className="rounded-lg border border-border/60 bg-muted/30 p-3 flex items-start gap-2.5">
-            <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 flex items-start gap-2.5">
+            <MessageSquare className="h-4 w-4 text-muted-foreground/40 mt-0.5 shrink-0" />
             <div>
-              <p className="text-xs font-medium text-foreground">Notes</p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[12px] font-medium text-foreground">Notes</p>
+              <p className="text-[11px] text-muted-foreground/60">
                 Create the lead first, then add notes from the lead detail page using the threaded notes system.
               </p>
             </div>

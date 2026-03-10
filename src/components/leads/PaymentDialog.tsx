@@ -5,7 +5,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign, Upload, ImageIcon } from 'lucide-react';
+import { DollarSign, Upload } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -45,7 +45,9 @@ export default function PaymentDialog({ open, onOpenChange, onConfirm, loading }
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-green-600" />
+            <div className="w-8 h-8 rounded-lg bg-[hsl(var(--success)/0.08)] flex items-center justify-center">
+              <DollarSign className="h-4 w-4 text-[hsl(var(--success))]" />
+            </div>
             Payment Confirmation
           </DialogTitle>
           <DialogDescription>
@@ -55,9 +57,9 @@ export default function PaymentDialog({ open, onOpenChange, onConfirm, loading }
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">Amount Paid *</Label>
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Amount Paid *</Label>
             <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
               <Input
                 type="number"
                 step="0.01"
@@ -72,8 +74,8 @@ export default function PaymentDialog({ open, onOpenChange, onConfirm, loading }
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">Payment Screenshot</Label>
-            <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Payment Screenshot</Label>
+            <div className="border-2 border-dashed border-border/40 rounded-xl p-4 text-center transition-colors hover:border-border/60">
               {preview ? (
                 <div className="space-y-2">
                   <img src={preview} alt="Payment screenshot" className="max-h-40 mx-auto rounded-lg" />
@@ -83,11 +85,11 @@ export default function PaymentDialog({ open, onOpenChange, onConfirm, loading }
                 </div>
               ) : (
                 <label className="cursor-pointer flex flex-col items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center">
                     <Upload className="h-5 w-5" />
                   </div>
-                  <span className="text-sm">Click to upload screenshot</span>
-                  <span className="text-[10px]">PNG, JPG up to 5MB</span>
+                  <span className="text-[13px] font-medium">Click to upload screenshot</span>
+                  <span className="text-[10px] text-muted-foreground/50">PNG, JPG up to 5MB</span>
                   <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                 </label>
               )}
@@ -100,7 +102,7 @@ export default function PaymentDialog({ open, onOpenChange, onConfirm, loading }
           <Button
             onClick={handleConfirm}
             disabled={!amount || parseFloat(amount) <= 0 || loading}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            className="bg-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.9)] text-[hsl(var(--success-foreground))]"
           >
             {loading ? 'Saving...' : 'Confirm Payment'}
           </Button>
