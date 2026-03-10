@@ -6,31 +6,32 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ChevronLeft, ChevronRight, Clock, MapPin, Phone, User, Calendar, Wrench } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, MapPin, Phone, User, Calendar, Wrench, ArrowUpRight } from "lucide-react";
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import StatusBadge from "@/components/leads/StatusBadge";
 
 const EMPLOYEE_COLORS = [
-  "bg-blue-600 text-white",
-  "bg-amber-700 text-white",
-  "bg-rose-600 text-white",
-  "bg-emerald-600 text-white",
-  "bg-violet-600 text-white",
-  "bg-cyan-600 text-white",
-  "bg-orange-600 text-white",
-  "bg-pink-600 text-white",
+  "bg-gradient-to-br from-blue-500 to-blue-600 text-white",
+  "bg-gradient-to-br from-amber-500 to-amber-600 text-white",
+  "bg-gradient-to-br from-rose-500 to-rose-600 text-white",
+  "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white",
+  "bg-gradient-to-br from-violet-500 to-violet-600 text-white",
+  "bg-gradient-to-br from-cyan-500 to-cyan-600 text-white",
+  "bg-gradient-to-br from-orange-500 to-orange-600 text-white",
+  "bg-gradient-to-br from-pink-500 to-pink-600 text-white",
 ];
 
 const BLOCK_COLORS = [
-  "bg-blue-500/80 border-blue-600",
-  "bg-amber-600/80 border-amber-700",
-  "bg-rose-500/80 border-rose-600",
-  "bg-emerald-500/80 border-emerald-600",
-  "bg-violet-500/80 border-violet-600",
-  "bg-cyan-500/80 border-cyan-600",
-  "bg-orange-500/80 border-orange-600",
-  "bg-pink-500/80 border-pink-600",
+  "bg-gradient-to-r from-blue-500 to-blue-600 border-blue-700/20",
+  "bg-gradient-to-r from-amber-500 to-amber-600 border-amber-700/20",
+  "bg-gradient-to-r from-rose-500 to-rose-600 border-rose-700/20",
+  "bg-gradient-to-r from-emerald-500 to-emerald-600 border-emerald-700/20",
+  "bg-gradient-to-r from-violet-500 to-violet-600 border-violet-700/20",
+  "bg-gradient-to-r from-cyan-500 to-cyan-600 border-cyan-700/20",
+  "bg-gradient-to-r from-orange-500 to-orange-600 border-orange-700/20",
+  "bg-gradient-to-r from-pink-500 to-pink-600 border-pink-700/20",
 ];
 
 export default function SchedulePage() {
@@ -146,70 +147,97 @@ export default function SchedulePage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Job Schedule</h1>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={handlePrev}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" className="px-4 font-medium" onClick={handleToday}>
-            Today
-          </Button>
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={handleNext}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+        <motion.h1
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-xl sm:text-2xl font-bold tracking-tight"
+        >
+          Job Schedule
+        </motion.h1>
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+          className="flex items-center gap-2 flex-wrap"
+        >
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl border-border/50" onClick={handlePrev}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+            <Button variant="outline" size="sm" className="px-4 font-medium rounded-xl border-border/50" onClick={handleToday}>
+              Today
+            </Button>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl border-border/50" onClick={handleNext}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </motion.div>
 
           <span className="text-sm font-medium text-muted-foreground ml-2">
             {format(viewMode === 'day' ? selectedDay : weekStart, "MMMM yyyy")}
           </span>
 
-          <div className="flex items-center ml-4 bg-muted rounded-lg p-0.5">
+          <div className="flex items-center ml-4 bg-muted/50 rounded-xl p-0.5 border border-border/30">
             <button
               onClick={() => setViewMode('day')}
-              className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${viewMode === 'day' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+              className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all duration-200 ${viewMode === 'day' ? 'bg-card text-foreground shadow-premium-sm' : 'text-muted-foreground hover:text-foreground'}`}
             >
               Day
             </button>
             <button
               onClick={() => setViewMode('week')}
-              className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${viewMode === 'week' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+              className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all duration-200 ${viewMode === 'week' ? 'bg-card text-foreground shadow-premium-sm' : 'text-muted-foreground hover:text-foreground'}`}
             >
               Week
             </button>
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      {/* Day/Week Schedule Grid */}
-      {displayDays.map(day => {
+      {/* Schedule Grid */}
+      {displayDays.map((day, dayIdx) => {
         const dayEmployees = employees.filter(emp =>
           getLeadsForEmployeeAndDay(emp.id, day).length > 0
         );
 
         return (
-          <motion.div key={day.toISOString()} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }}>
+          <motion.div
+            key={day.toISOString()}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: dayIdx * 0.05 + 0.15, duration: 0.4 }}
+          >
             {/* Day header */}
             <div className="mb-3 flex items-center gap-3">
-              <span className="text-lg font-bold text-foreground">{format(day, "dd")}</span>
-              <span className="text-lg font-medium text-muted-foreground">{format(day, "EEE")}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold text-foreground">{format(day, "dd")}</span>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-foreground">{format(day, "EEEE")}</span>
+                  <span className="text-[10px] text-muted-foreground">{format(day, "MMMM yyyy")}</span>
+                </div>
+              </div>
             </div>
 
-            <Card className="border-border/60 overflow-hidden">
+            <Card className="border-border/40 overflow-hidden rounded-2xl shadow-premium-sm hover:shadow-premium-md transition-all duration-300">
               <CardContent className="p-0 overflow-x-auto">
                 <div className="min-w-[900px]">
                   {/* Time header */}
-                  <div className="flex border-b border-border/60 bg-muted/30">
-                    <div className="w-[100px] shrink-0 p-3 border-r border-border/40">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <div className="flex border-b border-border/30 bg-gradient-to-r from-muted/20 to-transparent">
+                    <div className="w-[110px] shrink-0 p-3 border-r border-border/20">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                         GMT {new Date().getTimezoneOffset() / -60 > 0 ? '+' : ''}{new Date().getTimezoneOffset() / -60}
                       </span>
                     </div>
                     <div className="flex-1 flex">
                       {hours.map(h => (
-                        <div key={h} className="flex-1 px-2 py-3 text-center border-r border-border/30 last:border-r-0">
-                          <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
+                        <div key={h} className="flex-1 px-2 py-3 text-center border-r border-border/15 last:border-r-0">
+                          <span className="text-[11px] font-medium text-muted-foreground/60 tabular-nums">
                             {h > 12 ? `${h - 12} PM` : h === 12 ? '12 PM' : `${h} AM`}
                           </span>
                         </div>
@@ -219,9 +247,15 @@ export default function SchedulePage() {
 
                   {/* Employee rows */}
                   {loading ? (
-                    <div className="p-8 text-center text-muted-foreground text-sm">Loading schedule...</div>
+                    <div className="p-10 text-center text-muted-foreground/50 text-sm">
+                      <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin mx-auto mb-3" />
+                      Loading schedule...
+                    </div>
                   ) : dayEmployees.length === 0 ? (
-                    <div className="p-8 text-center text-muted-foreground text-sm">No scheduled jobs for this day</div>
+                    <div className="p-10 text-center text-muted-foreground/50 text-sm">
+                      <Calendar className="h-8 w-8 mx-auto mb-2 text-muted-foreground/20" />
+                      No scheduled jobs for this day
+                    </div>
                   ) : (
                     dayEmployees.map((emp, empIndex) => {
                       const colorClass = EMPLOYEE_COLORS[empIndex % EMPLOYEE_COLORS.length];
@@ -229,13 +263,19 @@ export default function SchedulePage() {
                       const dayLeads = getLeadsForEmployeeAndDay(emp.id, day);
 
                       return (
-                        <div key={emp.id} className="flex border-b border-border/40 last:border-b-0">
+                        <motion.div
+                          key={emp.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: empIndex * 0.05 }}
+                          className="flex border-b border-border/20 last:border-b-0 hover:bg-muted/5 transition-colors duration-200"
+                        >
                           {/* Employee info */}
-                          <div className="w-[100px] shrink-0 p-3 border-r border-border/40 flex flex-col items-center justify-center gap-1.5">
-                            <span className="text-[11px] font-medium text-foreground truncate max-w-full text-center">
+                          <div className="w-[110px] shrink-0 p-3 border-r border-border/20 flex flex-col items-center justify-center gap-2">
+                            <span className="text-[11px] font-semibold text-foreground truncate max-w-full text-center">
                               {emp.name.split(' ')[0]}{emp.name.split(' ').length > 1 ? ` ${emp.name.split(' ')[1][0]}.` : ''}
                             </span>
-                            <Avatar className="h-8 w-8">
+                            <Avatar className="h-9 w-9 shadow-premium-sm">
                               <AvatarFallback className={`text-[10px] font-bold ${colorClass}`}>
                                 {getInitials(emp.name)}
                               </AvatarFallback>
@@ -243,31 +283,29 @@ export default function SchedulePage() {
                           </div>
 
                           {/* Timeline */}
-                          <div className="flex-1 relative h-16">
-                            {/* Grid lines */}
+                          <div className="flex-1 relative h-[68px]">
                             <div className="absolute inset-0 flex">
                               {hours.map(h => (
-                                <div key={h} className="flex-1 border-r border-border/20 last:border-r-0" />
+                                <div key={h} className="flex-1 border-r border-border/10 last:border-r-0" />
                               ))}
                             </div>
 
-                            {/* Lead blocks */}
                             {dayLeads.map(lead => {
                               const pos = getLeadPosition(lead);
                               if (!pos) return null;
                               return (
                                 <motion.div
                                   key={lead.id}
-                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  initial={{ opacity: 0, scale: 0.85 }}
                                   animate={{ opacity: 1, scale: 1 }}
-                                  whileHover={{ scale: 1.02, zIndex: 10 }}
-                                  className={`absolute top-1.5 bottom-1.5 rounded-lg px-2 py-1 cursor-pointer border text-white shadow-sm hover:shadow-lg transition-shadow flex items-center gap-1.5 ${blockColor}`}
+                                  whileHover={{ scale: 1.03, zIndex: 10, y: -1 }}
+                                  className={`absolute top-2 bottom-2 rounded-xl px-3 py-1.5 cursor-pointer border text-white shadow-premium-md hover:shadow-premium-xl transition-all flex items-center gap-2 ${blockColor}`}
                                   style={{ left: pos.left, width: pos.width }}
                                   onClick={() => setSelectedLead(lead)}
                                 >
                                   <Wrench className="h-3 w-3 shrink-0 opacity-80" />
                                   <span className="text-[11px] font-semibold truncate">{lead.customer_name}</span>
-                                  <Avatar className="h-5 w-5 shrink-0 ml-auto">
+                                  <Avatar className="h-5 w-5 shrink-0 ml-auto ring-1 ring-white/20">
                                     <AvatarFallback className={`text-[7px] font-bold ${colorClass}`}>
                                       {getInitials(emp.name)}
                                     </AvatarFallback>
@@ -276,7 +314,7 @@ export default function SchedulePage() {
                               );
                             })}
                           </div>
-                        </div>
+                        </motion.div>
                       );
                     })
                   )}
@@ -289,46 +327,44 @@ export default function SchedulePage() {
 
       {/* Lead detail dialog */}
       <Dialog open={!!selectedLead} onOpenChange={(open) => !open && setSelectedLead(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg rounded-2xl">
           {selectedLead && (
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-3">
-                  <span>{selectedLead.customer_name}</span>
-                  <Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[selectedLead.status]}`}>
-                    {STATUS_LABELS[selectedLead.status]}
-                  </Badge>
+                  <span className="text-lg">{selectedLead.customer_name}</span>
+                  <StatusBadge status={selectedLead.status} size="sm" />
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-2">
                 <div className="grid gap-3 text-sm">
-                  <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded w-fit">{selectedLead.job_id}</span>
+                  <span className="text-[10px] font-mono bg-muted/50 px-2.5 py-1 rounded-lg w-fit">{selectedLead.job_id}</span>
                   {selectedLead.customer_phone && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="flex items-center gap-2.5 text-muted-foreground">
                       <Phone className="h-4 w-4" /> <span className="text-foreground">{selectedLead.customer_phone}</span>
                     </div>
                   )}
                   {selectedLead.address && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="flex items-center gap-2.5 text-muted-foreground">
                       <MapPin className="h-4 w-4" /> <span className="text-foreground">{selectedLead.address}</span>
                     </div>
                   )}
                   {selectedLead.service_type && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="flex items-center gap-2.5 text-muted-foreground">
                       <Wrench className="h-4 w-4" /> <span className="text-foreground font-medium">{selectedLead.service_type}</span>
                     </div>
                   )}
-                  <div className="border rounded-xl p-4 bg-muted/20 space-y-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Schedule</p>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-brand" />
+                  <div className="border border-border/40 rounded-2xl p-4 bg-gradient-to-br from-muted/20 to-transparent space-y-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Schedule</p>
+                    <div className="flex items-center gap-2.5">
+                      <Calendar className="h-4 w-4 text-primary" />
                       <span className="font-medium">
                         {selectedLead.scheduled_date && format(new Date(selectedLead.scheduled_date + "T00:00:00"), "EEEE, MMMM d, yyyy")}
                       </span>
                     </div>
                     {selectedLead.scheduled_time_start && (
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-brand" />
+                      <div className="flex items-center gap-2.5">
+                        <Clock className="h-4 w-4 text-primary" />
                         <span>
                           {formatTime(selectedLead.scheduled_time_start)}
                           {selectedLead.scheduled_time_end && ` – ${formatTime(selectedLead.scheduled_time_end)}`}
@@ -336,14 +372,17 @@ export default function SchedulePage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 pt-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 pt-2 text-xs text-muted-foreground/60">
                     <User className="h-3.5 w-3.5" />
                     Created by <strong className="text-foreground">{profiles[selectedLead.created_by] || "Unknown"}</strong>
                   </div>
                 </div>
-                <Button className="w-full gap-2" onClick={() => { setSelectedLead(null); navigate(`/leads/${selectedLead.id}`); }}>
-                  Open Lead Details
-                </Button>
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button className="w-full gap-2 rounded-xl shadow-brand btn-glow" onClick={() => { setSelectedLead(null); navigate(`/leads/${selectedLead.id}`); }}>
+                    Open Lead Details
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Button>
+                </motion.div>
               </div>
             </>
           )}
