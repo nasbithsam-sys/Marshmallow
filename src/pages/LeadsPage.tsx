@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Download } from "lucide-react";
+import { Plus, Search, Download, Share2 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
 import { toast } from "sonner";
@@ -21,11 +21,13 @@ export default function LeadsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [sharedLeads, setSharedLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(0);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState<'my' | 'shared'>('my');
 
   const statusFilter = searchParams.get("status") || "all";
   const isAdmin = role === "admin";
@@ -40,6 +42,7 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads();
     fetchProfiles();
+    if (isCS) fetchSharedLeads();
   }, []);
 
   const fetchProfiles = async () => {
@@ -54,7 +57,6 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     setLoading(true);
     let query = supabase.from("leads").select("*").order("created_at", { ascending: false });
-    // CS can only see their own leads
     if (isCS && user) {
       query = query.eq("created_by", user.id);
     }
@@ -63,8 +65,26 @@ export default function LeadsPage() {
     setLoading(false);
   };
 
+  const fetchSharedLeads = async () => {
+    if (!user) return;
+    const { data: shares } = await supabase
+      .from("lead_shares")
+      .select("lead_id")
+      .eq("shared_with_user_id", user.id);
+    if (!shares || shares.length === 0) { setSharedLeads([]); return; }
+    const leadIds = shares.map((s: any) => s.lead_id);
+    const { data: leadsData } = await supabase
+      .from("leads")
+      .select("*")
+      .in("id", leadIds)
+      .order("created_at", { ascending: false });
+    if (leadsData) setSharedLeads(leadsData as Lead[]);
+  };
+
+  const currentLeads = activeTab === 'shared' ? sharedLeads : leads;
+
   const filtered = useMemo(() => {
-    let result = leads;
+    let result = currentLeads;
     if (statusFilter !== "all") result = result.filter((l) => l.status === statusFilter);
     if (search) {
       const s = search.toLowerCase();
@@ -85,7 +105,7 @@ export default function LeadsPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return result;
-  }, [leads, search, statusFilter]);
+  }, [currentLeads, search, statusFilter]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
@@ -120,6 +140,11 @@ export default function LeadsPage() {
     toast.success(`Exported ${data.length} leads as ${format.toUpperCase()}`);
   };
 
+  const handleRefresh = () => {
+    fetchLeads();
+    if (isCS) fetchSharedLeads();
+  };
+
   return (
     <div className="space-y-5">
       {/* Page header */}
@@ -139,7 +164,6 @@ export default function LeadsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Only admin can export */}
           {isAdmin && (
             <div className="flex items-center gap-1">
               <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs" onClick={() => exportData("csv")}>
@@ -157,6 +181,34 @@ export default function LeadsPage() {
           </motion.div>
         </div>
       </div>
+
+      {/* Tabs for CS: My Leads / Shared with me */}
+      {isCS && (
+        <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
+          <button
+            onClick={() => { setActiveTab('my'); setPage(0); }}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'my' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            My Leads
+          </button>
+          <button
+            onClick={() => { setActiveTab('shared'); setPage(0); }}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              activeTab === 'shared' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Shared with me
+            {sharedLeads.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-brand text-brand-foreground text-[10px] font-bold">
+                {sharedLeads.length}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Search & Filter bar */}
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -193,7 +245,9 @@ export default function LeadsPage() {
         </div>
       ) : paged.length === 0 ? (
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
-          <Card className="flex h-44 items-center justify-center text-muted-foreground border-dashed border-2">No leads found</Card>
+          <Card className="flex h-44 items-center justify-center text-muted-foreground border-dashed border-2">
+            {activeTab === 'shared' ? 'No leads have been shared with you yet' : 'No leads found'}
+          </Card>
         </motion.div>
       ) : (
         <motion.div
@@ -207,7 +261,7 @@ export default function LeadsPage() {
               <LeadCard
                 lead={lead}
                 profiles={profiles}
-                onRefresh={fetchLeads}
+                onRefresh={handleRefresh}
               />
             </motion.div>
           ))}
