@@ -16,7 +16,14 @@ const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children, adminOnly }: { children: React.ReactNode; adminOnly?: boolean }) => {
   const { session, loading, role } = useAuth();
-  if (loading) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Loading...</div>;
+  if (loading) return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 border-t-foreground animate-spin" />
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  );
   if (!session) return <Navigate to="/login" replace />;
   if (adminOnly && role !== 'admin') return <Navigate to="/" replace />;
   return <AppLayout>{children}</AppLayout>;
@@ -25,7 +32,11 @@ const ProtectedRoute = ({ children, adminOnly }: { children: React.ReactNode; ad
 const AppRoutes = () => {
   const { session, loading } = useAuth();
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Loading...</div>;
+  if (loading) return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 border-t-foreground animate-spin" />
+    </div>
+  );
 
   return (
     <Routes>
