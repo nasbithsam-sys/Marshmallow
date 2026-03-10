@@ -26,10 +26,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 const navItems = [
   { title: "All Leads", url: "/leads", icon: Users, navKey: "leads" },
-  { title: "Lead Map", url: "/map", icon: MapPin, navKey: "leads" },
+  { title: "Lead Map", url: "/map", icon: MapPin, navKey: "map" },
   { title: "Schedule", url: "/schedule", icon: Calendar, navKey: "schedule" },
   { title: "Analytics", url: "/analytics", icon: BarChart3, navKey: "analytics" },
-  { title: "Area Insights", url: "/areas", icon: MapPin, navKey: "analytics" },
+  { title: "Area Insights", url: "/areas", icon: MapPin, navKey: "areas" },
   { title: "Activity Logs", url: "/activity-logs", icon: ScrollText, navKey: "activity_logs" },
   { title: "Settings", url: "/settings", icon: Settings, navKey: "settings" },
 ];
@@ -67,45 +67,45 @@ export default function AppSidebar() {
 
       <SidebarSeparator />
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 font-semibold">
-            Navigation
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname.startsWith(item.url) && !currentStatus}
-                    tooltip={item.title}
-                  >
-                    <NavLink
-                      to={item.url}
-                      className="group/nav rounded-lg px-3 py-2 transition-all duration-150 hover:bg-sidebar-accent/60"
-                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-sm"
+      <SidebarContent className="overflow-y-auto">
+        <ScrollArea className="flex-1">
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 font-semibold">
+              Navigation
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location.pathname.startsWith(item.url) && !currentStatus}
+                      tooltip={item.title}
                     >
-                      <item.icon className="h-4 w-4 shrink-0 transition-colors" />
-                      {!collapsed && <span className="text-[13px]">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                      <NavLink
+                        to={item.url}
+                        className="group/nav rounded-lg px-3 py-2 transition-all duration-150 hover:bg-sidebar-accent/60"
+                        activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-sm"
+                      >
+                        <item.icon className="h-4 w-4 shrink-0 transition-colors" />
+                        {!collapsed && <span className="text-[13px]">{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
 
-        {/* Status filter section */}
-        {canAccess("leads") && !collapsed && (
-          <>
-            <SidebarSeparator />
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 font-semibold">
-                By Status
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <ScrollArea className="max-h-[calc(100vh-320px)]">
+          {/* Status filter section */}
+          {canAccess("leads") && !collapsed && (
+            <>
+              <SidebarSeparator />
+              <SidebarGroup>
+                <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 font-semibold">
+                  By Status
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
                   <SidebarMenu>
                     {ALL_LEAD_STATUSES.map((status) => (
                       <SidebarMenuItem key={status}>
@@ -126,11 +126,11 @@ export default function AppSidebar() {
                       </SidebarMenuItem>
                     ))}
                   </SidebarMenu>
-                </ScrollArea>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </>
-        )}
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </>
+          )}
+        </ScrollArea>
       </SidebarContent>
 
       <SidebarFooter className="p-3">

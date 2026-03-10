@@ -5,11 +5,33 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Clock, MapPin, Phone, User, Calendar, Wrench, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ChevronLeft, ChevronRight, Clock, MapPin, Phone, User, Calendar, Wrench } from "lucide-react";
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isToday } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { staggerContainer, staggerItem } from "@/lib/motion";
+
+const EMPLOYEE_COLORS = [
+  "bg-blue-600 text-white",
+  "bg-amber-700 text-white",
+  "bg-rose-600 text-white",
+  "bg-emerald-600 text-white",
+  "bg-violet-600 text-white",
+  "bg-cyan-600 text-white",
+  "bg-orange-600 text-white",
+  "bg-pink-600 text-white",
+];
+
+const BLOCK_COLORS = [
+  "bg-blue-500/80 border-blue-600",
+  "bg-amber-600/80 border-amber-700",
+  "bg-rose-500/80 border-rose-600",
+  "bg-emerald-500/80 border-emerald-600",
+  "bg-violet-500/80 border-violet-600",
+  "bg-cyan-500/80 border-cyan-600",
+  "bg-orange-500/80 border-orange-600",
+  "bg-pink-500/80 border-pink-600",
+];
 
 export default function SchedulePage() {
   const navigate = useNavigate();
@@ -18,9 +40,23 @@ export default function SchedulePage() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
 
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
-  const hours = useMemo(() => Array.from({ length: 13 }, (_, i) => i + 7), []);
+  const currentDay = useMemo(() => {
+    const today = new Date();
+    const ws = weekStart;
+    for (let i = 0; i < 7; i++) {
+      if (isSameDay(addDays(ws, i), today)) return today;
+    }
+    return weekStart;
+  }, [weekStart]);
+
+  const weekDays = useMemo(() => {
+    if (viewMode === 'day') return [currentDay];
+    return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  }, [weekStart, viewMode, currentDay]);
+
+  const hours = useMemo(() => Array.from({ length: 10 }, (_, i) => i + 7), []); // 7AM - 4PM
 
   useEffect(() => { fetchData(); }, [weekStart]);
 
@@ -43,8 +79,24 @@ export default function SchedulePage() {
     setLoading(false);
   };
 
-  const getLeadsForDay = (day: Date) =>
-    leads.filter((l) => l.scheduled_date && isSameDay(new Date(l.scheduled_date + "T00:00:00"), day));
+  // Group leads by assigned CS / created_by (as "employees")
+  const employees = useMemo(() => {
+    const empMap = new Map<string, { id: string; name: string; leads: Lead[] }>();
+    leads.forEach(lead => {
+      const empId = lead.assigned_cs || lead.created_by;
+      if (!empMap.has(empId)) {
+        empMap.set(empId, { id: empId, name: profiles[empId] || 'Unknown', leads: [] });
+      }
+      empMap.get(empId)!.leads.push(lead);
+    });
+    return Array.from(empMap.values());
+  }, [leads, profiles]);
+
+  const getLeadsForEmployeeAndDay = (empId: string, day: Date) =>
+    leads.filter(l => {
+      const lid = l.assigned_cs || l.created_by;
+      return lid === empId && l.scheduled_date && isSameDay(new Date(l.scheduled_date + "T00:00:00"), day);
+    });
 
   const getLeadPosition = (lead: Lead) => {
     if (!lead.scheduled_time_start) return null;
@@ -55,9 +107,9 @@ export default function SchedulePage() {
       const [eh, em] = lead.scheduled_time_end.split(":").map(Number);
       duration = (eh + em / 60) - startHour;
     }
-    const top = ((startHour - 7) / 13) * 100;
-    const height = (duration / 13) * 100;
-    return { top: `${top}%`, height: `${Math.max(height, 5)}%` };
+    const top = ((startHour - 7) / 10) * 100;
+    const width = (duration / 10) * 100;
+    return { left: `${top}%`, width: `${Math.max(width, 8)}%` };
   };
 
   const formatTime = (t: string | null) => {
@@ -68,29 +120,15 @@ export default function SchedulePage() {
     return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
   };
 
-  const todayJobs = leads.filter((l) => l.scheduled_date && isToday(new Date(l.scheduled_date + "T00:00:00"))).length;
-  const urgentJobs = leads.filter((l) => l.status === "urgent_job").length;
-  const completedJobs = leads.filter((l) => l.status === "job_done" || l.status === "paid").length;
-
-  const stats = [
-    { label: "This Week", value: leads.length, icon: Calendar, color: "text-primary bg-primary/10" },
-    { label: "Today", value: todayJobs, icon: Clock, color: "text-emerald-600 bg-emerald-500/10" },
-    { label: "Urgent", value: urgentJobs, icon: AlertTriangle, color: "text-destructive bg-destructive/10" },
-    { label: "Completed", value: completedJobs, icon: CheckCircle2, color: "text-sky-600 bg-sky-500/10" },
-  ];
+  const getInitials = (name: string) =>
+    name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Calendar className="h-6 w-6 text-primary" /> Schedule
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {format(weekStart, "MMMM d")} – {format(addDays(weekStart, 6), "MMMM d, yyyy")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Dispatching</h1>
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setWeekStart(subWeeks(weekStart, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -100,109 +138,122 @@ export default function SchedulePage() {
           <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setWeekStart(addWeeks(weekStart, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
+
+          <span className="text-sm font-medium text-muted-foreground ml-2">
+            {format(weekStart, "MMMM yyyy")}
+          </span>
+
+          <div className="flex items-center ml-4 bg-muted rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode('week')}
+              className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${viewMode === 'week' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+            >
+              Week
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {stats.map((stat) => (
-          <motion.div key={stat.label} variants={staggerItem}>
-            <motion.div whileHover={{ y: -2, scale: 1.02 }} transition={{ type: "spring", stiffness: 400, damping: 25 }}>
-              <Card className="p-3 sm:p-4 border-border/60">
-                <div className="flex items-center gap-3">
-                  <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${stat.color}`}>
-                    <stat.icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{stat.label}</p>
-                    <p className="text-xl sm:text-2xl font-bold text-foreground leading-tight">{stat.value}</p>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-          </motion.div>
-        ))}
-      </motion.div>
-
-      {/* Calendar grid */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.5 }}>
+      {/* Dispatching Grid - Employee Rows */}
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }}>
         <Card className="border-border/60 overflow-hidden">
           <CardContent className="p-0 overflow-x-auto">
             <div className="min-w-[900px]">
-              {/* Day headers */}
-              <div className="grid grid-cols-8 border-b border-border/60 bg-muted/30">
-                <div className="p-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/40">Time</div>
-                {weekDays.map((day) => {
-                  const today = isToday(day);
-                  const dayLeadCount = getLeadsForDay(day).length;
-                  return (
-                    <div key={day.toISOString()} className={`p-3 text-center border-r border-border/40 last:border-r-0 transition-colors ${today ? "bg-primary/5" : ""}`}>
-                      <p className={`text-[10px] font-semibold uppercase tracking-wider ${today ? "text-primary" : "text-muted-foreground"}`}>
-                        {format(day, "EEE")}
-                      </p>
-                      <div className={`mt-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-all ${
-                        today ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25" : "text-foreground"
-                      }`}>
-                        {format(day, "d")}
-                      </div>
-                      {dayLeadCount > 0 && (
-                        <p className={`text-[9px] mt-0.5 font-medium ${today ? "text-primary" : "text-muted-foreground"}`}>
-                          {dayLeadCount} job{dayLeadCount > 1 ? "s" : ""}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Time grid */}
-              <div className="grid grid-cols-8 relative">
-                <div className="border-r border-border/40">
-                  {hours.map((h) => (
-                    <div key={h} className="h-16 border-b border-border/30 px-3 py-1 flex items-start">
-                      <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
-                        {h > 12 ? `${h - 12} PM` : h === 12 ? "12 PM" : `${h} AM`}
+              {/* Time header */}
+              <div className="flex border-b border-border/60 bg-muted/30">
+                <div className="w-[120px] shrink-0 p-3 border-r border-border/40">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    GMT {new Date().getTimezoneOffset() / -60 > 0 ? '+' : ''}{new Date().getTimezoneOffset() / -60}
+                  </span>
+                </div>
+                <div className="flex-1 flex">
+                  {hours.map(h => (
+                    <div key={h} className="flex-1 px-2 py-3 text-center border-r border-border/30 last:border-r-0">
+                      <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
+                        {h > 12 ? `${h - 12} PM` : h === 12 ? '12 PM' : `${h} AM`}
                       </span>
                     </div>
                   ))}
                 </div>
-
-                {weekDays.map((day) => {
-                  const dayLeads = getLeadsForDay(day);
-                  const today = isToday(day);
-                  return (
-                    <div key={day.toISOString()} className={`relative border-r border-border/40 last:border-r-0 ${today ? "bg-primary/[0.02]" : ""}`}>
-                      {hours.map((h) => (
-                        <div key={h} className="h-16 border-b border-border/30 border-dashed" />
-                      ))}
-                      {dayLeads.map((lead) => {
-                        const pos = getLeadPosition(lead);
-                        if (!pos) return null;
-                        return (
-                          <motion.div
-                            key={lead.id}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            whileHover={{ scale: 1.03, zIndex: 10 }}
-                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                            className={`absolute left-1 right-1 rounded-lg px-2 py-1.5 text-xs cursor-pointer shadow-sm hover:shadow-lg border ${STATUS_COLORS[lead.status]}`}
-                            style={{ top: pos.top, height: pos.height, minHeight: "32px" }}
-                            onClick={() => setSelectedLead(lead)}
-                          >
-                            <p className="font-semibold truncate text-[11px]">{lead.customer_name}</p>
-                            {lead.scheduled_time_start && (
-                              <p className="opacity-70 text-[9px] flex items-center gap-0.5">
-                                <Clock className="h-2.5 w-2.5" />
-                                {formatTime(lead.scheduled_time_start)}
-                              </p>
-                            )}
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
               </div>
+
+              {/* Employee rows */}
+              {loading ? (
+                <div className="p-8 text-center text-muted-foreground text-sm">Loading schedule...</div>
+              ) : employees.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground text-sm">No scheduled leads this week</div>
+              ) : (
+                employees.map((emp, empIndex) => {
+                  const colorClass = EMPLOYEE_COLORS[empIndex % EMPLOYEE_COLORS.length];
+                  const blockColor = BLOCK_COLORS[empIndex % BLOCK_COLORS.length];
+
+                  // For week view, show one row per employee per day that has leads
+                  const daysWithLeads = weekDays.filter(day => getLeadsForEmployeeAndDay(emp.id, day).length > 0);
+
+                  if (daysWithLeads.length === 0) return null;
+
+                  return daysWithLeads.map((day, dayIndex) => {
+                    const dayLeads = getLeadsForEmployeeAndDay(emp.id, day);
+                    return (
+                      <div key={`${emp.id}-${day.toISOString()}`} className="flex border-b border-border/40 last:border-b-0">
+                        {/* Employee info */}
+                        <div className="w-[120px] shrink-0 p-3 border-r border-border/40 flex flex-col items-center justify-center gap-1.5">
+                          {dayIndex === 0 && (
+                            <>
+                              <span className="text-[11px] font-medium text-foreground truncate max-w-full">
+                                {emp.name.split(' ').map(n => n[0] + n.slice(1, 2)).join(' ') + '.'}
+                              </span>
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback className={`text-[10px] font-bold ${colorClass}`}>
+                                  {getInitials(emp.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                            </>
+                          )}
+                          <span className="text-[9px] text-muted-foreground font-medium">
+                            {format(day, 'EEE dd')}
+                          </span>
+                        </div>
+
+                        {/* Timeline */}
+                        <div className="flex-1 relative h-16">
+                          {/* Grid lines */}
+                          <div className="absolute inset-0 flex">
+                            {hours.map(h => (
+                              <div key={h} className="flex-1 border-r border-border/20 last:border-r-0" />
+                            ))}
+                          </div>
+
+                          {/* Lead blocks */}
+                          {dayLeads.map(lead => {
+                            const pos = getLeadPosition(lead);
+                            if (!pos) return null;
+                            return (
+                              <motion.div
+                                key={lead.id}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                whileHover={{ scale: 1.02, zIndex: 10 }}
+                                className={`absolute top-1.5 bottom-1.5 rounded-lg px-2 py-1 cursor-pointer border text-white shadow-sm hover:shadow-lg transition-shadow flex items-center gap-1.5 ${blockColor}`}
+                                style={{ left: pos.left, width: pos.width }}
+                                onClick={() => setSelectedLead(lead)}
+                              >
+                                <Wrench className="h-3 w-3 shrink-0 opacity-80" />
+                                <span className="text-[11px] font-semibold truncate">{lead.customer_name}</span>
+                                <Avatar className="h-5 w-5 shrink-0 ml-auto">
+                                  <AvatarFallback className={`text-[7px] font-bold ${colorClass}`}>
+                                    {getInitials(emp.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  });
+                })
+              )}
             </div>
           </CardContent>
         </Card>

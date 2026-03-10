@@ -2,7 +2,6 @@ export type AppRole = 'admin' | 'processor' | 'customer_service' | 'no_role';
 
 export type LeadStatus =
   | 'waiting_complete_details'
-  | 'exclude_mature_lead'
   | 'urgent_job'
   | 'quote_sent_waiting'
   | 'quote_sent_need_follow_up'
@@ -19,7 +18,6 @@ export type LeadStatus =
 
 export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: string }> = {
   waiting_complete_details: { label: 'Waiting Complete Details', color: 'status-amber' },
-  exclude_mature_lead: { label: 'Exclude Mature Lead', color: 'status-muted' },
   urgent_job: { label: 'Urgent Job', color: 'status-red' },
   quote_sent_waiting: { label: 'Quote Sent - Waiting', color: 'status-blue' },
   quote_sent_need_follow_up: { label: 'Quote Sent - Need Follow Up', color: 'status-amber' },
@@ -72,6 +70,9 @@ export interface Lead {
   last_edited_at: string | null;
   created_at: string;
   updated_at: string;
+  // Payment fields
+  payment_amount: number | null;
+  payment_screenshot_url: string | null;
   // Joined fields
   creator_name?: string;
   editor_name?: string;
@@ -102,5 +103,22 @@ export interface NavigationPermission {
   id: string;
   user_id: string;
   nav_section: string;
+  allowed: boolean;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  lead_id: string | null;
+  read: boolean;
+  created_at: string;
+}
+
+export interface StatusPermission {
+  id: string;
+  user_id: string;
+  status: LeadStatus;
   allowed: boolean;
 }

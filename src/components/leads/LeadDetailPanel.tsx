@@ -5,13 +5,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, User, MapPin, Clock, DollarSign, MessageSquare, FileText, Check } from 'lucide-react';
+import { X, User, MapPin, Clock, MessageSquare, FileText, Check, AlertCircle } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import LeadUpdatesSection from './LeadUpdatesSection';
+import NoteThread from './NoteThread';
+import PaymentDialog from './PaymentDialog';
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from '@/types';
 import { toast } from 'sonner';
+import { useDuplicatePhoneCheck } from '@/hooks/useDuplicatePhoneCheck';
 
 interface Props {
   leadId: string;
@@ -32,6 +34,9 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
+  const [profiles, setProfiles] = useState<Record<string, string>>({});
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ['lead', leadId],
@@ -52,34 +57,116 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     if (lead) setForm(lead);
   }, [lead]);
 
-  const update = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      const { data } = await supabase.from("profiles").select("id, full_name");
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach((p: any) => (map[p.id] = p.full_name));
+        setProfiles(map);
+      }
+    };
+    fetchProfiles();
+  }, []);
+
+  const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(
+    form.customer_phone || '', leadId
+  );
+
+  const update = (key: string, value: any) => {
+    if (key === 'status' && value === 'paid') {
+      setPaymentOpen(true);
+      return;
+    }
+    setForm(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
+    setPaymentLoading(true);
+    let screenshotUrl: string | null = null;
+
+    if (screenshotFile) {
+      const ext = screenshotFile.name.split('.').pop();
+      const path = `payments/${leadId}_${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('lead-photos').upload(path, screenshotFile);
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
+        screenshotUrl = urlData.publicUrl;
+      }
+    }
+
+    setForm(prev => ({ ...prev, status: 'paid' as LeadStatus, amount, payment_amount: amount, payment_screenshot_url: screenshotUrl }));
+
+    const { error } = await supabase.from('leads').update({
+      status: 'paid',
+      amount,
+      payment_amount: amount,
+      payment_screenshot_url: screenshotUrl,
+      last_edited_by: user?.id,
+      last_edited_at: new Date().toISOString(),
+    }).eq('id', leadId);
+
+    setPaymentLoading(false);
+    setPaymentOpen(false);
+
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Payment recorded");
+      queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+      onUpdate();
+    }
+  };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!user) return;
+      if (isDuplicate) throw new Error(`Duplicate phone: ${duplicateLeadName}`);
+
+      const updateData: any = {
+        customer_name: form.customer_name,
+        customer_email: form.customer_email,
+        customer_phone: form.customer_phone,
+        service_type: form.service_type,
+        address: form.address,
+        city: form.city,
+        state: form.state,
+        zip_code: form.zip_code,
+        status: form.status,
+        scheduled_date: form.scheduled_date,
+        scheduled_time_start: form.scheduled_time_start,
+        scheduled_time_end: form.scheduled_time_end,
+        cs_notes: role !== 'processor' ? form.cs_notes : lead?.cs_notes,
+        processor_notes: role !== 'customer_service' ? form.processor_notes : lead?.processor_notes,
+        last_edited_by: user.id,
+        last_edited_at: new Date().toISOString(),
+      };
+
+      // Only include amount if status is paid
+      if (form.status === 'paid') {
+        updateData.amount = form.amount;
+      }
+
       const { error } = await supabase
         .from('leads')
-        .update({
-          customer_name: form.customer_name,
-          customer_email: form.customer_email,
-          customer_phone: form.customer_phone,
-          service_type: form.service_type,
-          address: form.address,
-          city: form.city,
-          state: form.state,
-          zip_code: form.zip_code,
-          status: form.status,
-          amount: form.amount,
-          scheduled_date: form.scheduled_date,
-          scheduled_time_start: form.scheduled_time_start,
-          scheduled_time_end: form.scheduled_time_end,
-          cs_notes: role !== 'processor' ? form.cs_notes : lead?.cs_notes,
-          processor_notes: role !== 'customer_service' ? form.processor_notes : lead?.processor_notes,
-          last_edited_by: user.id,
-          last_edited_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', leadId);
       if (error) throw error;
+
+      // Notify for urgent/need_tech
+      if (lead?.status !== form.status && (form.status === 'urgent_job' || form.status === 'need_tech')) {
+        const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'processor']);
+        if (roles) {
+          const statusLabel = form.status === 'urgent_job' ? 'Urgent Job' : 'Need Tech';
+          const notifs = roles.map((r: any) => ({
+            user_id: r.user_id,
+            title: `🚨 ${statusLabel}`,
+            message: `Lead "${form.customer_name}" changed to ${statusLabel}`,
+            lead_id: leadId,
+            read: false,
+          }));
+          await supabase.from('notifications').insert(notifs);
+        }
+      }
     },
     onSuccess: () => {
       setSaved(true);
@@ -123,20 +210,13 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           <div className="flex items-center gap-2">
             <Button
               onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
+              disabled={saveMutation.isPending || isDuplicate}
               size="sm"
               className="gap-1.5 min-w-[80px]"
             >
               {saved ? (
-                <>
-                  <Check className="h-3.5 w-3.5" />
-                  Saved
-                </>
-              ) : saveMutation.isPending ? (
-                'Saving...'
-              ) : (
-                'Save'
-              )}
+                <><Check className="h-3.5 w-3.5" /> Saved</>
+              ) : saveMutation.isPending ? 'Saving...' : 'Save'}
             </Button>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
               <X className="h-5 w-5 text-muted-foreground" />
@@ -168,7 +248,18 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Phone</Label>
-                <Input value={form.customer_phone ?? ''} onChange={e => update('customer_phone', e.target.value)} readOnly={isProcessor} />
+                <Input
+                  value={form.customer_phone ?? ''}
+                  onChange={e => update('customer_phone', e.target.value)}
+                  readOnly={isProcessor}
+                  className={isDuplicate ? 'border-destructive ring-1 ring-destructive' : ''}
+                />
+                {isDuplicate && (
+                  <div className="flex items-center gap-1.5 text-destructive text-xs">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    <span>Duplicate: <strong>{duplicateLeadName}</strong></span>
+                  </div>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Email</Label>
@@ -187,7 +278,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Street</Label>
-                <Input value={form.address ?? ''} onChange={e => update('address', e.target.value)} placeholder="Street address" readOnly={isProcessor} />
+                <Input value={form.address ?? ''} onChange={e => update('address', e.target.value)} readOnly={isProcessor} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">City</Label>
@@ -206,10 +297,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </div>
           </div>
 
-          {/* Schedule & Amount */}
+          {/* Schedule */}
           <div className="bg-card border rounded-lg p-5">
-            <SectionHeader icon={Clock} title="Schedule & Amount" />
-            <div className="grid grid-cols-3 gap-4 mb-4">
+            <SectionHeader icon={Clock} title="Schedule" />
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Date</Label>
                 <Input type="date" value={form.scheduled_date ?? ''} onChange={e => update('scheduled_date', e.target.value)} />
@@ -223,40 +314,28 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <Input type="time" value={form.scheduled_time_end ?? ''} onChange={e => update('scheduled_time_end', e.target.value)} />
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center">
-                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-              </div>
-              <div className="space-y-1.5 w-[180px]">
+            {/* Amount only shows when paid */}
+            {form.status === 'paid' && (
+              <div className="mt-4 space-y-1.5 w-[180px]">
                 <Label className="text-xs text-muted-foreground">Amount ($)</Label>
                 <Input type="number" step="0.01" value={form.amount ?? ''} onChange={e => update('amount', parseFloat(e.target.value) || null)} />
               </div>
+            )}
+          </div>
+
+          {/* CS Notes Thread */}
+          {!isProcessor && (
+            <div className="bg-card border rounded-lg p-5">
+              <SectionHeader icon={MessageSquare} title="CS Notes Thread" />
+              <NoteThread leadId={leadId} noteType="cs" label="CS Notes" profiles={profiles} />
             </div>
-          </div>
+          )}
 
-          {/* CS Notes */}
-          <div className="bg-card border rounded-lg p-5">
-            <SectionHeader icon={MessageSquare} title="CS Notes" />
-            <Textarea
-              value={form.cs_notes ?? ''}
-              onChange={e => update('cs_notes', e.target.value)}
-              readOnly={isProcessor}
-              rows={4}
-              placeholder="Customer service notes..."
-              className={isProcessor ? 'opacity-60' : ''}
-            />
-          </div>
-
-          {/* Processor Notes */}
+          {/* Processor Notes Thread */}
           {!isCS && (
             <div className="bg-card border rounded-lg p-5">
-              <SectionHeader icon={FileText} title="Processor Notes" />
-              <Textarea
-                value={form.processor_notes ?? ''}
-                onChange={e => update('processor_notes', e.target.value)}
-                rows={4}
-                placeholder="Processor notes..."
-              />
+              <SectionHeader icon={FileText} title="Processor Notes Thread" />
+              <NoteThread leadId={leadId} noteType="processor" label="Processor Notes" profiles={profiles} />
             </div>
           )}
 
@@ -265,6 +344,13 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             <LeadUpdatesSection leadId={leadId} />
           </div>
         </div>
+
+        <PaymentDialog
+          open={paymentOpen}
+          onOpenChange={setPaymentOpen}
+          onConfirm={handlePaymentConfirm}
+          loading={paymentLoading}
+        />
       </div>
     </div>
   );
