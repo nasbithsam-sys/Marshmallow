@@ -6,12 +6,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { Plus, Shield } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { AppRole } from '@/types';
 
 const NAV_SECTIONS = ['analytics', 'activity_logs'];
+
+const roleColors: Record<string, string> = {
+  admin: 'bg-blue-50 text-blue-700',
+  processor: 'bg-green-50 text-green-700',
+  customer_service: 'bg-amber-50 text-amber-700',
+  no_role: 'bg-muted text-muted-foreground',
+};
 
 const Settings = () => {
   const queryClient = useQueryClient();
@@ -21,8 +30,8 @@ const Settings = () => {
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState<AppRole>('no_role');
   const [creating, setCreating] = useState(false);
+  const [activeTab, setActiveTab] = useState<'users' | 'permissions'>('users');
 
-  // Fetch users with roles
   const { data: users = [] } = useQuery({
     queryKey: ['settings-users'],
     queryFn: async () => {
@@ -35,7 +44,6 @@ const Settings = () => {
     },
   });
 
-  // Fetch nav permissions
   const { data: permissions = [] } = useQuery({
     queryKey: ['settings-permissions'],
     queryFn: async () => {
@@ -46,13 +54,7 @@ const Settings = () => {
 
   const updateRole = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
-      // Upsert role
-      const { data: existing } = await supabase
-        .from('user_roles')
-        .select('id')
-        .eq('user_id', userId)
-        .single();
-
+      const { data: existing } = await supabase.from('user_roles').select('id').eq('user_id', userId).single();
       if (existing) {
         await supabase.from('user_roles').update({ role }).eq('user_id', userId);
       } else {
@@ -81,40 +83,19 @@ const Settings = () => {
 
   const handleCreateUser = async () => {
     setCreating(true);
-    // Use Supabase admin invite (requires service role on backend)
-    // For now, use signUp which works with anon key
     const { data, error } = await supabase.auth.signUp({
       email: newEmail,
       password: newPassword,
       options: { data: { full_name: newName } },
     });
-
-    if (error) {
-      toast.error(error.message);
-      setCreating(false);
-      return;
-    }
-
+    if (error) { toast.error(error.message); setCreating(false); return; }
     if (data.user) {
-      // Insert profile
-      await supabase.from('profiles').insert({
-        id: data.user.id,
-        full_name: newName,
-        email: newEmail,
-      });
-      // Insert role
-      await supabase.from('user_roles').insert({
-        user_id: data.user.id,
-        role: newRole,
-      });
+      await supabase.from('profiles').insert({ id: data.user.id, full_name: newName, email: newEmail });
+      await supabase.from('user_roles').insert({ user_id: data.user.id, role: newRole });
     }
-
     toast.success('User created');
     setCreateOpen(false);
-    setNewEmail('');
-    setNewPassword('');
-    setNewName('');
-    setNewRole('no_role');
+    setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('no_role');
     setCreating(false);
     queryClient.invalidateQueries({ queryKey: ['settings-users'] });
   };
@@ -124,56 +105,103 @@ const Settings = () => {
     return (perm as any)?.allowed ?? false;
   };
 
+  const getInitials = (name: string) =>
+    name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Settings</h1>
-        <Button onClick={() => setCreateOpen(true)}>Create User</Button>
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage users and permissions</p>
+        </div>
+        <Button onClick={() => setCreateOpen(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Create User
+        </Button>
       </div>
 
-      {/* Users table */}
-      <div className="border rounded-md">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              {NAV_SECTIONS.map(s => (
-                <TableHead key={s} className="text-center capitalize">{s.replace('_', ' ')}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((u: any) => (
-              <TableRow key={u.id}>
-                <TableCell className="font-medium">{u.full_name}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
-                <TableCell>
-                  <Select value={u.role} onValueChange={v => updateRole.mutate({ userId: u.id, role: v as AppRole })}>
-                    <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="processor">Processor</SelectItem>
-                      <SelectItem value="customer_service">Customer Service</SelectItem>
-                      <SelectItem value="no_role">No Role</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                {NAV_SECTIONS.map(section => (
-                  <TableCell key={section} className="text-center">
-                    <Switch
-                      checked={u.role === 'admin' || getPermission(u.id, section)}
-                      disabled={u.role === 'admin'}
-                      onCheckedChange={checked => togglePermission.mutate({ userId: u.id, section, allowed: checked })}
-                    />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
+        {(['users', 'permissions'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              'px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors',
+              activeTab === tab
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
+
+      {activeTab === 'users' && (
+        <div className="grid gap-3">
+          {users.map((u: any) => (
+            <Card key={u.id} className="border">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-semibold text-muted-foreground shrink-0">
+                  {getInitials(u.full_name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">{u.full_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                </div>
+                <span className={cn('px-2.5 py-1 rounded-full text-xs font-medium capitalize', roleColors[u.role] || roleColors.no_role)}>
+                  {u.role.replace('_', ' ')}
+                </span>
+                <Select value={u.role} onValueChange={v => updateRole.mutate({ userId: u.id, role: v as AppRole })}>
+                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="processor">Processor</SelectItem>
+                    <SelectItem value="customer_service">Customer Service</SelectItem>
+                    <SelectItem value="no_role">No Role</SelectItem>
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'permissions' && (
+        <Card className="border">
+          <CardContent className="p-0">
+            <div className="px-5 py-3 border-b flex items-center gap-2">
+              <Shield className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Navigation Access</span>
+            </div>
+            <div className="divide-y">
+              {users.map((u: any) => (
+                <div key={u.id} className="px-5 py-3 flex items-center gap-4">
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0">
+                    {getInitials(u.full_name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">{u.full_name}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{u.role.replace('_', ' ')}</p>
+                  </div>
+                  {NAV_SECTIONS.map(section => (
+                    <div key={section} className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground capitalize">{section.replace('_', ' ')}</span>
+                      <Switch
+                        checked={u.role === 'admin' || getPermission(u.id, section)}
+                        disabled={u.role === 'admin'}
+                        onCheckedChange={checked => togglePermission.mutate({ userId: u.id, section, allowed: checked })}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Create User Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -182,20 +210,20 @@ const Settings = () => {
             <DialogTitle>Create New User</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Full Name</Label>
-              <Input value={newName} onChange={e => setNewName(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Full Name</Label>
+              <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="John Doe" />
             </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Email</Label>
+              <Input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="john@company.com" />
             </div>
-            <div className="space-y-2">
-              <Label>Password</Label>
-              <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Password</Label>
+              <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" />
             </div>
-            <div className="space-y-2">
-              <Label>Role</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Role</Label>
               <Select value={newRole} onValueChange={v => setNewRole(v as AppRole)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>

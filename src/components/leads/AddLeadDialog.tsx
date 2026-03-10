@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { User, MapPin, FileText } from 'lucide-react';
 import { LEAD_STATUS_CONFIG, type LeadStatus } from '@/types';
 
 interface Props {
@@ -26,6 +27,15 @@ const generateJobId = () => {
   for (let i = 0; i < 6; i++) result += chars[Math.floor(Math.random() * chars.length)];
   return result;
 };
+
+const SectionLabel = ({ icon: Icon, title }: { icon: React.ElementType; title: string }) => (
+  <div className="flex items-center gap-2 pt-2 pb-1">
+    <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
+      <Icon className="h-3 w-3 text-muted-foreground" />
+    </div>
+    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+  </div>
+);
 
 const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   const { user, role } = useAuth();
@@ -91,53 +101,53 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
         <DialogHeader>
           <DialogTitle>Add New Lead</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Customer Info */}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <SectionLabel icon={User} title="Customer Info" />
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Customer Name *</Label>
-              <Input value={form.customer_name} onChange={e => update('customer_name', e.target.value)} required />
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Customer Name *</Label>
+              <Input value={form.customer_name} onChange={e => update('customer_name', e.target.value)} required placeholder="John Doe" />
             </div>
-            <div className="space-y-2">
-              <Label>Phone *</Label>
-              <Input value={form.customer_phone} onChange={e => update('customer_phone', e.target.value)} required />
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Phone *</Label>
+              <Input value={form.customer_phone} onChange={e => update('customer_phone', e.target.value)} required placeholder="(555) 000-0000" />
             </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input type="email" value={form.customer_email} onChange={e => update('customer_email', e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Email</Label>
+              <Input type="email" value={form.customer_email} onChange={e => update('customer_email', e.target.value)} placeholder="john@example.com" />
             </div>
-            <div className="space-y-2">
-              <Label>Service Type *</Label>
-              <Input value={form.service_type} onChange={e => update('service_type', e.target.value)} required />
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Service Type *</Label>
+              <Input value={form.service_type} onChange={e => update('service_type', e.target.value)} required placeholder="e.g. Plumbing" />
             </div>
           </div>
 
-          {/* Address */}
+          <SectionLabel icon={MapPin} title="Address" />
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-2">
-              <Label>Address</Label>
-              <Input value={form.address} onChange={e => update('address', e.target.value)} />
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Street</Label>
+              <Input value={form.address} onChange={e => update('address', e.target.value)} placeholder="123 Main St" />
             </div>
-            <div className="space-y-2">
-              <Label>City</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">City</Label>
               <Input value={form.city} onChange={e => update('city', e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>State</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">State</Label>
                 <Input value={form.state} onChange={e => update('state', e.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label>Zip</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Zip</Label>
                 <Input value={form.zip_code} onChange={e => update('zip_code', e.target.value)} />
               </div>
             </div>
           </div>
 
-          {/* Status & Amount */}
+          <SectionLabel icon={FileText} title="Details" />
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Status</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Status</Label>
               <Select value={form.status} onValueChange={v => update('status', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -147,15 +157,14 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Amount ($)</Label>
-              <Input type="number" step="0.01" value={form.amount} onChange={e => update('amount', e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Amount ($)</Label>
+              <Input type="number" step="0.01" value={form.amount} onChange={e => update('amount', e.target.value)} placeholder="0.00" />
             </div>
           </div>
 
-          {/* CS Notes */}
-          <div className="space-y-2">
-            <Label>CS Notes</Label>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">CS Notes</Label>
             <Textarea
               value={form.cs_notes}
               onChange={e => update('cs_notes', e.target.value)}
@@ -164,10 +173,9 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
             />
           </div>
 
-          {/* Processor Notes - hidden from CS */}
           {role !== 'customer_service' && (
-            <div className="space-y-2">
-              <Label>Processor Notes</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Processor Notes</Label>
               <Textarea
                 value={form.processor_notes}
                 onChange={e => update('processor_notes', e.target.value)}

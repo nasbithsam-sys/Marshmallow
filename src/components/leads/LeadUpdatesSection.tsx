@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import type { LeadUpdate } from '@/types';
 
@@ -47,9 +48,20 @@ const LeadUpdatesSection = ({ leadId }: Props) => {
     },
   });
 
+  const getInitials = (name: string) =>
+    name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-foreground">Updated Details</h3>
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center">
+          <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
+        </div>
+        <h3 className="text-sm font-semibold text-foreground">Updates</h3>
+        {updates.length > 0 && (
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{updates.length}</span>
+        )}
+      </div>
 
       {/* Add update */}
       <div className="flex gap-2">
@@ -73,20 +85,25 @@ const LeadUpdatesSection = ({ leadId }: Props) => {
       {/* Feed */}
       <div className="space-y-3">
         {updates.map((u) => (
-          <div key={u.id} className="border rounded-md p-3 space-y-1">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{u.author_name}</span>
-              <span className="capitalize px-1.5 py-0.5 rounded bg-muted text-[10px]">
-                {u.author_role.replace('_', ' ')}
-              </span>
-              <span>·</span>
-              <span>{format(new Date(u.created_at), 'MMM d, yyyy h:mm a')}</span>
+          <div key={u.id} className="flex gap-3">
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0 mt-0.5">
+              {getInitials(u.author_name)}
             </div>
-            <p className="text-sm text-foreground">{u.content}</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{u.author_name}</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-medium uppercase tracking-wider">
+                  {u.author_role.replace('_', ' ')}
+                </span>
+                <span>·</span>
+                <span>{format(new Date(u.created_at), 'MMM d, h:mm a')}</span>
+              </div>
+              <p className="text-sm text-foreground mt-1">{u.content}</p>
+            </div>
           </div>
         ))}
         {updates.length === 0 && (
-          <p className="text-sm text-muted-foreground">No updates yet.</p>
+          <p className="text-sm text-muted-foreground text-center py-4">No updates yet.</p>
         )}
       </div>
     </div>
