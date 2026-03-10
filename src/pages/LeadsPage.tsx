@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Download, Share2, Sparkles } from "lucide-react";
+import { Plus, Search, Download, Share2 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
-import { staggerContainer, staggerItem, heroTitle, fadeUp } from "@/lib/motion";
+import { staggerContainer, staggerItem, heroTitle } from "@/lib/motion";
 
 const PAGE_SIZES = [20, 40, 60, 100];
 
@@ -140,14 +140,14 @@ export default function LeadsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page header */}
+    <div className="space-y-6 max-w-[1600px] mx-auto">
+      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <motion.div variants={heroTitle} initial="initial" animate="animate">
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
             {statusFilter !== "all" ? (
-              <span className="flex items-center gap-2">
-                <span className={`h-3 w-3 rounded-full ${STATUS_DOT_COLORS[statusFilter as LeadStatus]}`} />
+              <span className="flex items-center gap-2.5">
+                <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT_COLORS[statusFilter as LeadStatus]}`} />
                 {STATUS_LABELS[statusFilter as LeadStatus]}
               </span>
             ) : "All Leads"}
@@ -158,77 +158,75 @@ export default function LeadsPage() {
           </p>
         </motion.div>
         <motion.div
-          initial={{ opacity: 0, x: 20 }}
+          initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2, duration: 0.4 }}
+          transition={{ delay: 0.15, duration: 0.35 }}
           className="flex items-center gap-2 flex-wrap"
         >
           {isAdmin && (
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs rounded-xl border-border/50 hover:border-primary/30 transition-all" onClick={() => exportData("csv")}>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" className="gap-1.5 text-[12px]" onClick={() => exportData("csv")}>
                 <Download className="h-3.5 w-3.5" /> CSV
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs rounded-xl border-border/50 hover:border-primary/30 transition-all" onClick={() => exportData("xlsx")}>
+              <Button variant="outline" size="sm" className="gap-1.5 text-[12px]" onClick={() => exportData("xlsx")}>
                 <Download className="h-3.5 w-3.5" /> XLSX
               </Button>
             </div>
           )}
-          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-            <Button onClick={() => navigate("/leads/new")} className="gap-2 rounded-xl shadow-brand hover:shadow-brand-lg transition-all duration-300 btn-glow">
-              <Plus className="h-4 w-4" /> New Lead
-            </Button>
-          </motion.div>
+          <Button onClick={() => navigate("/leads/new")} className="gap-2">
+            <Plus className="h-4 w-4" /> New Lead
+          </Button>
         </motion.div>
       </div>
 
       {/* Summary chips */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="flex gap-3 flex-wrap"
+        transition={{ delay: 0.1 }}
+        className="flex gap-2.5 flex-wrap"
       >
-        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border/50 text-sm shadow-premium-sm hover:shadow-premium-md transition-all duration-200">
+        <div className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-card border border-border/50 text-sm shadow-premium-xs">
           <span className="w-2 h-2 rounded-full bg-primary" />
-          <span className="font-semibold text-foreground">{activeCount}</span>
-          <span className="text-muted-foreground text-xs">Active</span>
+          <span className="font-bold text-foreground tabular-nums">{activeCount}</span>
+          <span className="text-muted-foreground text-[12px]">Active</span>
         </div>
         {urgentCount > 0 && (
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-50 border border-red-100 text-sm shadow-premium-sm">
-            <span className="w-2 h-2 rounded-full bg-red-500 status-pulse" />
-            <span className="font-semibold text-red-700">{urgentCount}</span>
-            <span className="text-red-600 text-xs">Urgent</span>
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-destructive/5 border border-destructive/10 text-sm shadow-premium-xs">
+            <span className="w-2 h-2 rounded-full bg-destructive status-pulse" />
+            <span className="font-bold text-destructive tabular-nums">{urgentCount}</span>
+            <span className="text-destructive/70 text-[12px]">Urgent</span>
           </div>
         )}
         {scheduledCount > 0 && (
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border/50 text-sm shadow-premium-sm">
-            <Sparkles className="h-3.5 w-3.5 text-primary/60" />
-            <span className="font-semibold">{scheduledCount}</span>
-            <span className="text-muted-foreground text-xs">Scheduled</span>
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-card border border-border/50 text-sm shadow-premium-xs">
+            <span className="w-2 h-2 rounded-full bg-primary/50" />
+            <span className="font-bold tabular-nums">{scheduledCount}</span>
+            <span className="text-muted-foreground text-[12px]">Scheduled</span>
           </div>
         )}
       </motion.div>
 
-      {/* Tabs for CS */}
+      {/* CS Tabs */}
       {isCS && (
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="flex gap-1 bg-muted/50 rounded-xl p-1 w-fit border border-border/30"
+          transition={{ delay: 0.15 }}
+          className="flex gap-1 bg-muted/50 rounded-lg p-1 w-fit border border-border/30"
         >
           <button
             onClick={() => { setActiveTab('my'); setPage(0); }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-              activeTab === 'my' ? 'bg-card text-foreground shadow-premium-sm' : 'text-muted-foreground hover:text-foreground'
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+              activeTab === 'my' ? 'bg-card text-foreground shadow-premium-xs' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             My Leads
           </button>
           <button
             onClick={() => { setActiveTab('shared'); setPage(0); }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
-              activeTab === 'shared' ? 'bg-card text-foreground shadow-premium-sm' : 'text-muted-foreground hover:text-foreground'
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
+              activeTab === 'shared' ? 'bg-card text-foreground shadow-premium-xs' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Share2 className="h-3.5 w-3.5" />
@@ -242,32 +240,32 @@ export default function LeadsPage() {
         </motion.div>
       )}
 
-      {/* Search & Filter bar */}
+      {/* Search & Filter */}
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25 }}
+        transition={{ delay: 0.2 }}
         className="flex flex-col gap-3 sm:flex-row"
       >
         <div className="relative flex-1 group">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50 transition-colors group-focus-within:text-primary" />
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40 transition-colors group-focus-within:text-primary" />
           <Input
             placeholder="Search by name, phone, address, job ID..."
-            className="pl-10 h-10 bg-card border-border/50 rounded-xl shadow-premium-sm focus:shadow-premium-md focus:border-primary/30 transition-all duration-200"
+            className="pl-10 h-10"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[220px] h-10 bg-card border-border/50 rounded-xl shadow-premium-sm">
+          <SelectTrigger className="w-full sm:w-[200px] h-10">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
-          <SelectContent className="rounded-xl">
+          <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
             {ALL_LEAD_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 <span className="flex items-center gap-2">
-                  <span className={`h-2 w-2 rounded-full ${STATUS_DOT_COLORS[s]}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT_COLORS[s]}`} />
                   {STATUS_LABELS[s]}
                 </span>
               </SelectItem>
@@ -275,32 +273,32 @@ export default function LeadsPage() {
           </SelectContent>
         </Select>
         <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(0); }}>
-          <SelectTrigger className="w-full sm:w-[120px] h-10 bg-card border-border/50 rounded-xl shadow-premium-sm">
+          <SelectTrigger className="w-full sm:w-[110px] h-10">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="rounded-xl">
+          <SelectContent>
             {PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>Show {s}</SelectItem>)}
           </SelectContent>
         </Select>
       </motion.div>
 
-      {/* Lead card grid */}
+      {/* Grid */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Card key={i} className="h-64 animate-pulse bg-muted/30 border-border/30 rounded-2xl shimmer" />
+            <div key={i} className="h-56 rounded-xl skeleton-shimmer border border-border/30" />
           ))}
         </div>
       ) : paged.length === 0 ? (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }}>
-          <Card className="flex flex-col h-52 items-center justify-center text-muted-foreground border-dashed border-2 border-border/50 rounded-2xl gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center">
-              <Search className="h-6 w-6 text-muted-foreground/40" />
+        <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.35 }}>
+          <Card className="flex flex-col h-48 items-center justify-center border-dashed border-2 border-border/40 gap-3">
+            <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center">
+              <Search className="h-5 w-5 text-muted-foreground/30" />
             </div>
-            <p className="font-medium text-foreground">
+            <p className="font-medium text-foreground text-sm">
               {activeTab === 'shared' ? 'No leads have been shared with you yet' : 'No leads found'}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[12px] text-muted-foreground">
               {search || statusFilter !== 'all' ? 'Try adjusting your search or filter' : 'Click "New Lead" to get started'}
             </p>
           </Card>
@@ -314,11 +312,7 @@ export default function LeadsPage() {
         >
           {paged.map((lead) => (
             <motion.div key={lead.id} variants={staggerItem} layout>
-              <LeadCard
-                lead={lead}
-                profiles={profiles}
-                onRefresh={handleRefresh}
-              />
+              <LeadCard lead={lead} profiles={profiles} onRefresh={handleRefresh} />
             </motion.div>
           ))}
         </motion.div>
@@ -329,10 +323,10 @@ export default function LeadsPage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="flex items-center justify-center gap-2 pt-2"
+          transition={{ delay: 0.3 }}
+          className="flex items-center justify-center gap-1.5 pt-2"
         >
-          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded-xl">Previous</Button>
+          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
           <div className="flex gap-1">
             {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
               let p = i;
@@ -346,7 +340,7 @@ export default function LeadsPage() {
                   key={p}
                   variant={p === page ? "default" : "outline"}
                   size="sm"
-                  className={`w-9 rounded-xl ${p === page ? 'shadow-brand' : ''}`}
+                  className="w-9"
                   onClick={() => setPage(p)}
                 >
                   {p + 1}
@@ -354,7 +348,7 @@ export default function LeadsPage() {
               );
             })}
           </div>
-          <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="rounded-xl">Next</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</Button>
         </motion.div>
       )}
     </div>

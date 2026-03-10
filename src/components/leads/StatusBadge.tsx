@@ -7,18 +7,18 @@ interface StatusBadgeProps {
 }
 
 const dotColorMap: Record<string, string> = {
-  'status-red': 'bg-red-500',
-  'status-amber': 'bg-amber-500',
+  'status-red': 'bg-[hsl(var(--status-red))]',
+  'status-amber': 'bg-[hsl(var(--status-amber))]',
   'status-blue': 'bg-primary',
-  'status-green': 'bg-emerald-500',
-  'status-muted': 'bg-muted-foreground/50',
+  'status-green': 'bg-[hsl(var(--status-green))]',
+  'status-muted': 'bg-muted-foreground/40',
 };
 
 const bgColorMap: Record<string, string> = {
-  'status-red': 'bg-red-50 text-red-700 border-red-100',
-  'status-amber': 'bg-amber-50 text-amber-700 border-amber-100',
-  'status-blue': 'bg-primary/5 text-primary border-primary/10',
-  'status-green': 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  'status-red': 'bg-[hsl(var(--status-red)/0.08)] text-[hsl(var(--status-red))] border-[hsl(var(--status-red)/0.12)]',
+  'status-amber': 'bg-[hsl(var(--status-amber)/0.08)] text-[hsl(var(--status-amber))] border-[hsl(var(--status-amber)/0.12)]',
+  'status-blue': 'bg-primary/6 text-primary border-primary/10',
+  'status-green': 'bg-[hsl(var(--status-green)/0.08)] text-[hsl(var(--status-green))] border-[hsl(var(--status-green)/0.12)]',
   'status-muted': 'bg-muted text-muted-foreground border-border',
 };
 
@@ -31,10 +31,10 @@ const StatusBadge = ({ status, size = 'md' }: StatusBadgeProps) => {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full font-medium border transition-all duration-200',
+        'inline-flex items-center gap-1.5 rounded-full font-semibold border transition-all duration-200',
         bgColorMap[config.color] ?? bgColorMap['status-muted'],
-        size === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs',
-        isUrgent && 'ring-1 ring-red-200 shadow-sm shadow-red-100'
+        size === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-[11px]',
+        isUrgent && 'ring-1 ring-[hsl(var(--status-red)/0.15)]'
       )}
     >
       <span

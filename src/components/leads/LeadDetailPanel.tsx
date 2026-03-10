@@ -14,6 +14,7 @@ import PaymentDialog from './PaymentDialog';
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from '@/types';
 import { toast } from 'sonner';
 import { useDuplicatePhoneCheck } from '@/hooks/useDuplicatePhoneCheck';
+import { motion } from 'framer-motion';
 
 interface Props {
   leadId: string;
@@ -22,11 +23,11 @@ interface Props {
 }
 
 const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: string }) => (
-  <div className="flex items-center gap-2 mb-4">
-    <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center">
-      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+  <div className="flex items-center gap-2.5 mb-4">
+    <div className="w-7 h-7 rounded-lg bg-primary/6 border border-primary/8 flex items-center justify-center">
+      <Icon className="h-3.5 w-3.5 text-primary/70" />
     </div>
-    <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+    <h3 className="text-sm font-semibold text-foreground tracking-[-0.01em]">{title}</h3>
   </div>
 );
 
@@ -141,7 +142,6 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         last_edited_at: new Date().toISOString(),
       };
 
-      // Only include amount if status is paid
       if (form.status === 'paid') {
         updateData.amount = form.amount;
       }
@@ -152,7 +152,6 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         .eq('id', leadId);
       if (error) throw error;
 
-      // Notify for urgent/need_tech
       if (lead?.status !== form.status && (form.status === 'urgent_job' || form.status === 'need_tech')) {
         const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'processor']);
         if (roles) {
@@ -184,10 +183,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   if (isLoading || !lead) {
     return (
       <div className="fixed inset-0 z-40 flex">
-        <div className="flex-1 bg-foreground/20 backdrop-blur-sm" onClick={onClose} />
+        <div className="flex-1 bg-foreground/15 backdrop-blur-sm" onClick={onClose} />
         <div className="w-[55%] max-w-3xl bg-card border-l border-border p-6 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 border-t-foreground animate-spin" />
+            <div className="w-7 h-7 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin" />
             <p className="text-muted-foreground text-sm">Loading lead...</p>
           </div>
         </div>
@@ -197,13 +196,25 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
   return (
     <div className="fixed inset-0 z-40 flex">
-      <div className="flex-1 bg-foreground/20 backdrop-blur-sm" onClick={onClose} />
-      <div className="w-[55%] max-w-3xl bg-card border-l border-border overflow-y-auto animate-slide-in-right">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="flex-1 bg-foreground/15 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", stiffness: 300, damping: 35 }}
+        className="w-[55%] max-w-3xl bg-card border-l border-border overflow-y-auto"
+      >
         {/* Header */}
-        <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border px-6 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-card/95 backdrop-blur-md border-b border-border/60 px-6 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-sm text-muted-foreground">{lead.job_id}</span>
-            <span className="text-muted-foreground/40">›</span>
+            <span className="font-mono text-[12px] text-muted-foreground/60">{lead.job_id}</span>
+            <span className="text-muted-foreground/30">›</span>
             <span className="text-sm font-medium text-foreground truncate max-w-[200px]">{lead.customer_name}</span>
             <StatusBadge status={lead.status as LeadStatus} />
           </div>
@@ -224,10 +235,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           </div>
         </div>
 
-        <div className="p-6 space-y-8">
+        <div className="p-6 space-y-6">
           {/* Status */}
-          <div className="bg-muted/50 rounded-lg p-4">
-            <Label className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">Status</Label>
+          <div className="rounded-xl bg-muted/40 border border-border/40 p-4">
+            <Label className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-2 block font-semibold">Status</Label>
             <Select value={form.status} onValueChange={v => update('status', v)}>
               <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -239,15 +250,15 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           </div>
 
           {/* Customer Info */}
-          <div className="bg-card border rounded-lg p-5">
+          <div className="rounded-xl bg-card border border-border/50 p-5">
             <SectionHeader icon={User} title="Customer Information" />
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Name</Label>
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Name</Label>
                 <Input value={form.customer_name ?? ''} onChange={e => update('customer_name', e.target.value)} readOnly={isProcessor} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Phone</Label>
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Phone</Label>
                 <Input
                   value={form.customer_phone ?? ''}
                   onChange={e => update('customer_phone', e.target.value)}
@@ -255,42 +266,42 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                   className={isDuplicate ? 'border-destructive ring-1 ring-destructive' : ''}
                 />
                 {isDuplicate && (
-                  <div className="flex items-center gap-1.5 text-destructive text-xs">
-                    <AlertCircle className="h-3.5 w-3.5" />
+                  <div className="flex items-center gap-1.5 text-destructive text-[11px]">
+                    <AlertCircle className="h-3 w-3" />
                     <span>Duplicate: <strong>{duplicateLeadName}</strong></span>
                   </div>
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Email</Label>
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Email</Label>
                 <Input value={form.customer_email ?? ''} onChange={e => update('customer_email', e.target.value)} readOnly={isProcessor} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Service Type</Label>
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Service Type</Label>
                 <Input value={form.service_type ?? ''} onChange={e => update('service_type', e.target.value)} readOnly={isProcessor} />
               </div>
             </div>
           </div>
 
           {/* Address */}
-          <div className="bg-card border rounded-lg p-5">
+          <div className="rounded-xl bg-card border border-border/50 p-5">
             <SectionHeader icon={MapPin} title="Address" />
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Street</Label>
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Street</Label>
                 <Input value={form.address ?? ''} onChange={e => update('address', e.target.value)} readOnly={isProcessor} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">City</Label>
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">City</Label>
                 <Input value={form.city ?? ''} onChange={e => update('city', e.target.value)} readOnly={isProcessor} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">State</Label>
+                  <Label className="text-[11px] text-muted-foreground/60 font-medium">State</Label>
                   <Input value={form.state ?? ''} onChange={e => update('state', e.target.value)} readOnly={isProcessor} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Zip</Label>
+                  <Label className="text-[11px] text-muted-foreground/60 font-medium">Zip</Label>
                   <Input value={form.zip_code ?? ''} onChange={e => update('zip_code', e.target.value)} readOnly={isProcessor} />
                 </div>
               </div>
@@ -298,26 +309,25 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           </div>
 
           {/* Schedule */}
-          <div className="bg-card border rounded-lg p-5">
+          <div className="rounded-xl bg-card border border-border/50 p-5">
             <SectionHeader icon={Clock} title="Schedule" />
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Date</Label>
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Date</Label>
                 <Input type="date" value={form.scheduled_date ?? ''} onChange={e => update('scheduled_date', e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Start Time</Label>
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Start Time</Label>
                 <Input type="time" value={form.scheduled_time_start ?? ''} onChange={e => update('scheduled_time_start', e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">End Time</Label>
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">End Time</Label>
                 <Input type="time" value={form.scheduled_time_end ?? ''} onChange={e => update('scheduled_time_end', e.target.value)} />
               </div>
             </div>
-            {/* Amount only shows when paid */}
             {form.status === 'paid' && (
               <div className="mt-4 space-y-1.5 w-[180px]">
-                <Label className="text-xs text-muted-foreground">Amount ($)</Label>
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Amount ($)</Label>
                 <Input type="number" step="0.01" value={form.amount ?? ''} onChange={e => update('amount', parseFloat(e.target.value) || null)} />
               </div>
             )}
@@ -325,7 +335,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
           {/* CS Notes Thread */}
           {!isProcessor && (
-            <div className="bg-card border rounded-lg p-5">
+            <div className="rounded-xl bg-card border border-border/50 p-5">
               <SectionHeader icon={MessageSquare} title="CS Notes Thread" />
               <NoteThread leadId={leadId} noteType="cs" label="CS Notes" profiles={profiles} />
             </div>
@@ -333,14 +343,14 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
           {/* Processor Notes Thread */}
           {!isCS && (
-            <div className="bg-card border rounded-lg p-5">
+            <div className="rounded-xl bg-card border border-border/50 p-5">
               <SectionHeader icon={FileText} title="Processor Notes Thread" />
               <NoteThread leadId={leadId} noteType="processor" label="Processor Notes" profiles={profiles} />
             </div>
           )}
 
           {/* Updates */}
-          <div className="bg-card border rounded-lg p-5">
+          <div className="rounded-xl bg-card border border-border/50 p-5">
             <LeadUpdatesSection leadId={leadId} />
           </div>
         </div>
@@ -351,7 +361,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           onConfirm={handlePaymentConfirm}
           loading={paymentLoading}
         />
-      </div>
+      </motion.div>
     </div>
   );
 };

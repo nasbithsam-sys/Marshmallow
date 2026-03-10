@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Share2 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -32,7 +33,6 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
   }, [open]);
 
   const fetchCSRUsers = async () => {
-    // Only fetch CS users for sharing
     const [rolesRes, sharesRes] = await Promise.all([
       supabase.from("user_roles").select("user_id, role").eq("role", "customer_service"),
       supabase.from("lead_shares").select("shared_with_user_id").eq("lead_id", leadId),
@@ -68,8 +68,6 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
         shared_with_user_id: userId,
         shared_by: user!.id,
       });
-      // Send notification to the CS user
-      const csUser = csrUsers.find(c => c.user_id === userId);
       await supabase.from("notifications").insert({
         user_id: userId,
         title: "📋 Lead Shared with You",
@@ -85,10 +83,13 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
     setSaving(false);
   };
 
+  const getInitials = (name: string) =>
+    name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+        <Button variant="outline" size="icon" className="h-9 w-9" onClick={(e) => e.stopPropagation()}>
           <Share2 className="h-3.5 w-3.5" />
         </Button>
       </DialogTrigger>
@@ -96,18 +97,18 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
         <DialogHeader>
           <DialogTitle className="text-base">Share "{customerName}"</DialogTitle>
         </DialogHeader>
-        <p className="text-xs text-muted-foreground">Select CS users who should see this lead. They'll receive a notification.</p>
+        <p className="text-[12px] text-muted-foreground">Select CS users who should see this lead. They'll receive a notification.</p>
         <div className="space-y-2 max-h-64 overflow-y-auto mt-2">
           {csrUsers.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">No CS users found.</p>
+            <p className="text-sm text-muted-foreground text-center py-6">No CS users found.</p>
           )}
           {csrUsers.map((csr, i) => (
             <motion.div
               key={csr.user_id}
-              initial={{ opacity: 0, y: 6 }}
+              initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05, type: "spring", stiffness: 300, damping: 25 }}
-              className="flex items-center justify-between rounded-lg border border-border/60 p-3 hover:bg-muted/30 transition-colors"
+              transition={{ delay: i * 0.04, type: "spring", stiffness: 350, damping: 28 }}
+              className="flex items-center justify-between rounded-xl border border-border/40 p-3 hover:bg-muted/20 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <Checkbox
@@ -115,13 +116,18 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
                   onCheckedChange={(checked) => toggleShare(csr.user_id, !!checked)}
                   disabled={saving}
                 />
+                <Avatar className="h-7 w-7">
+                  <AvatarFallback className="bg-primary/8 text-primary text-[9px] font-bold">
+                    {getInitials(csr.display_name)}
+                  </AvatarFallback>
+                </Avatar>
                 <div>
-                  <p className="text-sm font-medium">{csr.display_name}</p>
-                  <p className="text-xs text-muted-foreground">{csr.email}</p>
+                  <p className="text-[13px] font-medium">{csr.display_name}</p>
+                  <p className="text-[11px] text-muted-foreground/50">{csr.email}</p>
                 </div>
               </div>
               {csr.isShared && (
-                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                <Badge variant="outline" className="text-[10px] bg-primary/6 text-primary border-primary/12 font-semibold">
                   Shared
                 </Badge>
               )}

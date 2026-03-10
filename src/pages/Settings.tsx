@@ -13,12 +13,15 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { Plus, Shield, Eye, KeyRound, Trash2, Mail, ShieldCheck } from 'lucide-react';
+import { Plus, Shield, Eye, Trash2, Mail, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from '@/lib/constants';
 import type { AppRole } from '@/types';
 import MFAEnroll from '@/components/auth/MFAEnroll';
+import { motion } from 'framer-motion';
+import { heroTitle, staggerContainer, staggerItem } from '@/lib/motion';
 
 const NAV_SECTION_LABELS: Record<string, string> = {
   leads: 'All Leads',
@@ -31,20 +34,16 @@ const NAV_SECTION_LABELS: Record<string, string> = {
 };
 
 const roleColors: Record<string, string> = {
-  admin: 'bg-blue-50 text-blue-700',
-  processor: 'bg-green-50 text-green-700',
-  customer_service: 'bg-amber-50 text-amber-700',
-  no_role: 'bg-muted text-muted-foreground',
+  admin: 'bg-primary/8 text-primary border-primary/10',
+  processor: 'bg-[hsl(var(--success)/0.08)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.1)]',
+  customer_service: 'bg-[hsl(var(--warning)/0.08)] text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.1)]',
+  no_role: 'bg-muted text-muted-foreground border-border',
 };
 
 const Settings = () => {
   const { role: currentRole } = useAuth();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedUserName, setSelectedUserName] = useState('');
-  const [selectedUserEmail, setSelectedUserEmail] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newName, setNewName] = useState('');
@@ -153,7 +152,6 @@ const Settings = () => {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    // Delete user data (profile, roles, permissions, etc.)
     await Promise.all([
       supabase.from('user_roles').delete().eq('user_id', userId),
       supabase.from('navigation_permissions').delete().eq('user_id', userId),
@@ -181,12 +179,12 @@ const Settings = () => {
   const nonAdminUsers = users.filter((u: any) => u.role !== 'admin');
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 max-w-[1400px] mx-auto">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
+        <motion.div variants={heroTitle} initial="initial" animate="animate">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage users, permissions, and security</p>
-        </div>
+        </motion.div>
         {isAdmin && (
           <Button onClick={() => setCreateOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" />
@@ -196,7 +194,7 @@ const Settings = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit flex-wrap">
+      <div className="flex gap-1 bg-muted/50 rounded-lg p-1 w-fit flex-wrap border border-border/30">
         {([
           { key: 'users', label: 'Users', icon: null },
           { key: 'nav_permissions', label: 'Tab Permissions', icon: null },
@@ -207,9 +205,9 @@ const Settings = () => {
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              'px-4 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5',
+              'px-4 py-2 rounded-md text-[13px] font-medium transition-all duration-200 flex items-center gap-1.5',
               activeTab === tab.key
-                ? 'bg-card text-foreground shadow-sm'
+                ? 'bg-card text-foreground shadow-premium-xs'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -221,84 +219,90 @@ const Settings = () => {
 
       {/* Users Tab */}
       {activeTab === 'users' && (
-        <div className="grid gap-3">
+        <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid gap-3">
           {users.map((u: any) => (
-            <Card key={u.id} className="border">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-semibold text-muted-foreground shrink-0">
-                  {getInitials(u.full_name)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">{u.full_name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                </div>
-                <span className={cn('px-2.5 py-1 rounded-full text-xs font-medium capitalize', roleColors[u.role] || roleColors.no_role)}>
-                  {u.role.replace('_', ' ')}
-                </span>
-                {isAdmin && (
-                  <>
-                    <Select value={u.role} onValueChange={v => updateRole.mutate({ userId: u.id, role: v as AppRole })}>
-                      <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="processor">Processor</SelectItem>
-                        <SelectItem value="customer_service">Customer Service</SelectItem>
-                        <SelectItem value="no_role">No Role</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 text-xs"
-                      onClick={() => handleSendPasswordReset(u.email)}
-                    >
-                      <Mail className="h-3 w-3" />
-                      Reset Password
-                    </Button>
-                    {u.role !== 'admin' && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete user "{u.full_name}"?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will remove the user's profile, roles, and permissions. The authentication account will be deactivated.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
+            <motion.div key={u.id} variants={staggerItem}>
+              <Card className="hover:shadow-premium-md">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <Avatar className="h-9 w-9 shrink-0">
+                    <AvatarFallback className="bg-primary/8 text-primary text-[11px] font-bold">
+                      {getInitials(u.full_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-foreground">{u.full_name}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{u.email}</p>
+                  </div>
+                  <span className={cn('px-2.5 py-1 rounded-full text-[10px] font-semibold capitalize border', roleColors[u.role] || roleColors.no_role)}>
+                    {u.role.replace('_', ' ')}
+                  </span>
+                  {isAdmin && (
+                    <>
+                      <Select value={u.role} onValueChange={v => updateRole.mutate({ userId: u.id, role: v as AppRole })}>
+                        <SelectTrigger className="w-[140px] h-9 text-[12px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="processor">Processor</SelectItem>
+                          <SelectItem value="customer_service">Customer Service</SelectItem>
+                          <SelectItem value="no_role">No Role</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-[11px]"
+                        onClick={() => handleSendPasswordReset(u.email)}
+                      >
+                        <Mail className="h-3 w-3" />
+                        Reset
+                      </Button>
+                      {u.role !== 'admin' && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-8 w-8 text-destructive/50 hover:text-destructive hover:bg-destructive/5 hover:border-destructive/20">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete user "{u.full_name}"?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will remove the user's profile, roles, and permissions. The authentication account will be deactivated.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Tab/Nav Permissions */}
       {activeTab === 'nav_permissions' && (
-        <Card className="border">
+        <Card>
           <CardContent className="p-0">
-            <div className="px-5 py-3 border-b flex items-center gap-2">
-              <Shield className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">Navigation Access per User</span>
+            <div className="px-5 py-3.5 border-b border-border/40 flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-primary/6 border border-primary/8 flex items-center justify-center">
+                <Shield className="h-3.5 w-3.5 text-primary/70" />
+              </div>
+              <span className="text-sm font-semibold text-foreground">Navigation Access per User</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">User</th>
+                  <tr className="border-b border-border/30 bg-muted/20">
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider">User</th>
                     {ALL_NAV_ITEMS.map(section => (
-                      <th key={section} className="px-3 py-2 text-xs font-semibold text-muted-foreground text-center">
+                      <th key={section} className="px-3 py-3 text-[10px] font-semibold text-muted-foreground/60 text-center uppercase tracking-wider">
                         {NAV_SECTION_LABELS[section] || section}
                       </th>
                     ))}
@@ -306,15 +310,17 @@ const Settings = () => {
                 </thead>
                 <tbody>
                   {nonAdminUsers.map((u: any) => (
-                    <tr key={u.id} className="border-b last:border-b-0">
+                    <tr key={u.id} className="border-b border-border/20 last:border-b-0 hover:bg-muted/10 transition-colors">
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-semibold">
-                            {getInitials(u.full_name)}
-                          </div>
+                        <div className="flex items-center gap-2.5">
+                          <Avatar className="h-7 w-7">
+                            <AvatarFallback className="bg-muted text-muted-foreground text-[9px] font-bold">
+                              {getInitials(u.full_name)}
+                            </AvatarFallback>
+                          </Avatar>
                           <div>
-                            <p className="text-xs font-medium">{u.full_name}</p>
-                            <p className="text-[10px] text-muted-foreground capitalize">{u.role.replace('_', ' ')}</p>
+                            <p className="text-[12px] font-medium">{u.full_name}</p>
+                            <p className="text-[10px] text-muted-foreground/50 capitalize">{u.role.replace('_', ' ')}</p>
                           </div>
                         </div>
                       </td>
@@ -337,20 +343,22 @@ const Settings = () => {
 
       {/* Status Permissions */}
       {activeTab === 'status_permissions' && (
-        <Card className="border">
+        <Card>
           <CardContent className="p-0">
-            <div className="px-5 py-3 border-b flex items-center gap-2">
-              <Eye className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">Status Visibility per User</span>
-              <span className="text-[10px] text-muted-foreground ml-2">(Which statuses each user can see/use)</span>
+            <div className="px-5 py-3.5 border-b border-border/40 flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-primary/6 border border-primary/8 flex items-center justify-center">
+                <Eye className="h-3.5 w-3.5 text-primary/70" />
+              </div>
+              <span className="text-sm font-semibold text-foreground">Status Visibility per User</span>
+              <span className="text-[10px] text-muted-foreground/40 ml-2">(Which statuses each user can see/use)</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground sticky left-0 bg-muted/30 z-10">User</th>
+                  <tr className="border-b border-border/30 bg-muted/20">
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground/60 sticky left-0 bg-muted/20 z-10 uppercase tracking-wider">User</th>
                     {ALL_LEAD_STATUSES.map(status => (
-                      <th key={status} className="px-2 py-2 text-[9px] font-semibold text-muted-foreground text-center min-w-[80px]">
+                      <th key={status} className="px-2 py-3 text-[9px] font-semibold text-muted-foreground/60 text-center min-w-[80px] uppercase tracking-wider">
                         {STATUS_LABELS[status]}
                       </th>
                     ))}
@@ -358,15 +366,17 @@ const Settings = () => {
                 </thead>
                 <tbody>
                   {nonAdminUsers.map((u: any) => (
-                    <tr key={u.id} className="border-b last:border-b-0">
+                    <tr key={u.id} className="border-b border-border/20 last:border-b-0 hover:bg-muted/10 transition-colors">
                       <td className="px-4 py-3 sticky left-0 bg-card z-10">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-semibold">
-                            {getInitials(u.full_name)}
-                          </div>
+                        <div className="flex items-center gap-2.5">
+                          <Avatar className="h-7 w-7">
+                            <AvatarFallback className="bg-muted text-muted-foreground text-[9px] font-bold">
+                              {getInitials(u.full_name)}
+                            </AvatarFallback>
+                          </Avatar>
                           <div>
-                            <p className="text-xs font-medium">{u.full_name}</p>
-                            <p className="text-[10px] text-muted-foreground capitalize">{u.role.replace('_', ' ')}</p>
+                            <p className="text-[12px] font-medium">{u.full_name}</p>
+                            <p className="text-[10px] text-muted-foreground/50 capitalize">{u.role.replace('_', ' ')}</p>
                           </div>
                         </div>
                       </td>
@@ -387,34 +397,34 @@ const Settings = () => {
         </Card>
       )}
 
-      {/* Security Tab - MFA */}
+      {/* Security Tab */}
       {activeTab === 'security' && (
-        <div className="space-y-6">
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <MFAEnroll />
-        </div>
+        </motion.div>
       )}
 
       {/* Create User Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Create New User</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Full Name</Label>
+              <Label className="text-[11px] text-muted-foreground/60 font-medium">Full Name</Label>
               <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="John Doe" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Email</Label>
+              <Label className="text-[11px] text-muted-foreground/60 font-medium">Email</Label>
               <Input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="john@company.com" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Password</Label>
+              <Label className="text-[11px] text-muted-foreground/60 font-medium">Password</Label>
               <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Role</Label>
+              <Label className="text-[11px] text-muted-foreground/60 font-medium">Role</Label>
               <Select value={newRole} onValueChange={v => setNewRole(v as AppRole)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>

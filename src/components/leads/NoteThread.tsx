@@ -79,14 +79,14 @@ export default function NoteThread({ leadId, noteType, label, profiles }: Props)
   };
 
   return (
-    <div className="rounded-xl border border-border/40 bg-card overflow-hidden shadow-premium-sm">
-      <div className="px-4 py-2.5 border-b border-border/30 bg-gradient-to-r from-muted/30 to-transparent">
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">{label}</h4>
+    <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-border/30 bg-muted/20">
+        <h4 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/50">{label}</h4>
       </div>
 
       <div ref={scrollRef} className="max-h-60 overflow-y-auto p-3 space-y-3">
         {notes.length === 0 && (
-          <p className="text-xs text-muted-foreground/50 text-center py-6">No notes yet. Start the conversation.</p>
+          <p className="text-[12px] text-muted-foreground/40 text-center py-6">No notes yet. Start the conversation.</p>
         )}
         <AnimatePresence initial={false}>
           {notes.map((note) => {
@@ -94,29 +94,29 @@ export default function NoteThread({ leadId, noteType, label, profiles }: Props)
             return (
               <motion.div
                 key={note.id}
-                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                initial={{ opacity: 0, y: 6, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                transition={{ type: "spring", stiffness: 320, damping: 28 }}
                 className={`flex gap-2.5 ${isMe ? "flex-row-reverse" : ""}`}
               >
-                <Avatar className="h-7 w-7 shrink-0 shadow-premium-sm">
-                  <AvatarFallback className={`text-[9px] font-bold ${isMe ? "bg-gradient-to-br from-primary to-primary/70 text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                <Avatar className="h-6 w-6 shrink-0">
+                  <AvatarFallback className={`text-[8px] font-bold ${isMe ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                     {getInitials(note.user_id)}
                   </AvatarFallback>
                 </Avatar>
-                <div className={`max-w-[75%] space-y-1 ${isMe ? "items-end text-right" : ""}`}>
-                  <div className="flex items-center gap-2">
+                <div className={`max-w-[75%] space-y-0.5 ${isMe ? "items-end text-right" : ""}`}>
+                  <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-medium text-foreground">
                       {profiles[note.user_id] || "Unknown"}
                     </span>
-                    <span className="text-[9px] text-muted-foreground/50">
+                    <span className="text-[9px] text-muted-foreground/40">
                       {new Date(note.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <div className={`rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed shadow-premium-sm ${
+                  <div className={`rounded-xl px-3 py-2 text-[13px] leading-relaxed ${
                     isMe
-                      ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-tr-md"
-                      : "bg-muted/40 text-foreground rounded-tl-md border border-border/30"
+                      ? "bg-primary text-primary-foreground rounded-tr-sm"
+                      : "bg-muted/50 text-foreground rounded-tl-sm border border-border/30"
                   }`}>
                     {note.content}
                   </div>
@@ -127,20 +127,18 @@ export default function NoteThread({ leadId, noteType, label, profiles }: Props)
         </AnimatePresence>
       </div>
 
-      <div className="border-t border-border/30 p-2 flex gap-2 bg-muted/10">
+      <div className="border-t border-border/30 p-2 flex gap-2">
         <Textarea
           value={newNote}
           onChange={(e) => setNewNote(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={`Add a ${label.toLowerCase()} note...`}
+          placeholder={`Add a note...`}
           className="min-h-[36px] max-h-20 text-sm resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none"
           rows={1}
         />
-        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-          <Button size="icon" className="h-9 w-9 shrink-0 rounded-xl shadow-brand btn-glow" onClick={handleSend} disabled={sending || !newNote.trim()}>
-            <Send className="h-3.5 w-3.5" />
-          </Button>
-        </motion.div>
+        <Button size="icon" className="h-9 w-9 shrink-0 rounded-lg" onClick={handleSend} disabled={sending || !newNote.trim()}>
+          <Send className="h-3.5 w-3.5" />
+        </Button>
       </div>
     </div>
   );
