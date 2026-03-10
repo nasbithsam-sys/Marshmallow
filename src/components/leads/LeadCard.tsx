@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { UserCircle, Phone, MapPin, Wrench, Trash2, Pencil, DollarSign, MessageSquare, ChevronDown } from "lucide-react";
+import { UserCircle, Phone, MapPin, Wrench, Trash2, Pencil, MessageSquare, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import NoteThread from "./NoteThread";
+import PaymentDialog from "./PaymentDialog";
 import { motion } from "framer-motion";
 import { cardHover, cardTap } from "@/lib/motion";
 
@@ -30,12 +31,22 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
   const [changingStatus, setChangingStatus] = useState(false);
   const [csOpen, setCsOpen] = useState(false);
   const [processorOpen, setProcessorOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
 
   const handleStatusChange = async (newStatus: string) => {
+    // If changing to paid, show payment dialog
+    if (newStatus === 'paid') {
+      setPendingStatus(newStatus);
+      setPaymentOpen(true);
+      return;
+    }
+
     setChangingStatus(true);
     const { error } = await supabase
       .from("leads")
@@ -45,6 +56,58 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
     if (error) toast.error("Failed to update status");
     else {
       toast.success(`Status → ${STATUS_LABELS[newStatus as LeadStatus]}`);
+      // Send notifications for urgent/need_tech
+      if (newStatus === 'urgent_job' || newStatus === 'need_tech') {
+        const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'processor']);
+        if (roles) {
+          const statusLabel = newStatus === 'urgent_job' ? 'Urgent Job' : 'Need Tech';
+          const notifs = roles.map((r: any) => ({
+            user_id: r.user_id,
+            title: `🚨 ${statusLabel}`,
+            message: `Lead "${lead.customer_name}" changed to ${statusLabel}`,
+            lead_id: lead.id,
+            read: false,
+          }));
+          await supabase.from('notifications').insert(notifs);
+        }
+      }
+      onRefresh();
+    }
+  };
+
+  const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
+    setPaymentLoading(true);
+    let screenshotUrl: string | null = null;
+
+    if (screenshotFile) {
+      const ext = screenshotFile.name.split('.').pop();
+      const path = `payments/${lead.id}_${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('lead-photos').upload(path, screenshotFile);
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
+        screenshotUrl = urlData.publicUrl;
+      }
+    }
+
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        status: 'paid' as LeadStatus,
+        amount,
+        payment_amount: amount,
+        payment_screenshot_url: screenshotUrl,
+        last_edited_by: user?.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", lead.id);
+
+    setPaymentLoading(false);
+    setPaymentOpen(false);
+    setPendingStatus(null);
+
+    if (error) toast.error("Failed to update status");
+    else {
+      toast.success("Payment recorded & status updated to Paid");
       onRefresh();
     }
   };
@@ -96,22 +159,6 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
             </span>
           )}
         </div>
-
-        {/* CS Notes preview */}
-        {lead.cs_notes && (
-          <div className="mx-3 sm:mx-4 mt-3 rounded-lg border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-950/20 p-2.5">
-            <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-0.5">CS Notes</p>
-            <p className="text-[12px] text-foreground/80 line-clamp-2">{lead.cs_notes}</p>
-          </div>
-        )}
-
-        {/* Processor Notes preview */}
-        {(isProcessor || isAdmin) && lead.processor_notes && (
-          <div className="mx-3 sm:mx-4 mt-2 rounded-lg border-l-4 border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2.5">
-            <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 mb-0.5">Processor Notes</p>
-            <p className="text-[12px] text-foreground/80 line-clamp-2">{lead.processor_notes}</p>
-          </div>
-        )}
 
         {/* Note Threads */}
         {(isCS || isAdmin) && (
@@ -184,9 +231,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
             <Button variant="outline" size="sm" className="flex-1 h-8 text-[12px]" onClick={() => navigate(`/leads/${lead.id}`)}>
               <Pencil className="h-3 w-3 mr-1" /> Edit
             </Button>
-            <Button variant="outline" size="sm" className="flex-1 h-8 text-[12px]" onClick={() => handleStatusChange("paid")} disabled={lead.status === "paid"}>
-              <DollarSign className="h-3 w-3 mr-1" /> Mark Paid
-            </Button>
+            {/* Only admin can delete */}
             {isAdmin && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -208,6 +253,13 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
             )}
           </div>
         </div>
+
+        <PaymentDialog
+          open={paymentOpen}
+          onOpenChange={(open) => { setPaymentOpen(open); if (!open) setPendingStatus(null); }}
+          onConfirm={handlePaymentConfirm}
+          loading={paymentLoading}
+        />
       </Card>
     </motion.div>
   );

@@ -77,7 +77,6 @@ function FlyToLocation({ coords }: { coords: [number, number] | null }) {
 
 const STATUS_MARKER_COLORS: Record<LeadStatus, string> = {
   waiting_complete_details: "#f59e0b",
-  exclude_mature_lead: "#6b7280",
   urgent_job: "#ef4444",
   quote_sent_waiting: "#3b82f6",
   quote_sent_need_follow_up: "#f97316",

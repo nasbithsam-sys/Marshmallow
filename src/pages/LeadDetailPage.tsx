@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,14 +8,16 @@ import { formatUSPhone } from "@/lib/phone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/lib/motion";
+import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
+import NoteThread from "@/components/leads/NoteThread";
+import PaymentDialog from "@/components/leads/PaymentDialog";
 
 export default function LeadDetailPage() {
   const { id } = useParams();
@@ -46,14 +48,30 @@ export default function LeadDetailPage() {
   const [lastEditedAt, setLastEditedAt] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!isNew);
+  const [profiles, setProfiles] = useState<Record<string, string>>({});
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [previousStatus, setPreviousStatus] = useState<LeadStatus | null>(null);
+
+  const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone, isNew ? undefined : id);
 
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
   const isAdmin = role === "admin";
 
   useEffect(() => {
+    fetchProfiles();
     if (!isNew && id) fetchLead();
   }, [id]);
+
+  const fetchProfiles = async () => {
+    const { data } = await supabase.from("profiles").select("id, full_name");
+    if (data) {
+      const map: Record<string, string> = {};
+      data.forEach((p: any) => (map[p.id] = p.full_name));
+      setProfiles(map);
+    }
+  };
 
   const fetchLead = async () => {
     setLoading(true);
@@ -77,9 +95,9 @@ export default function LeadDetailPage() {
       cs_notes: lead.cs_notes || "",
       processor_notes: lead.processor_notes || "",
     });
+    setPreviousStatus(lead.status);
     setJobId(lead.job_id);
 
-    // Fetch creator name
     const { data: creator } = await supabase.from("profiles").select("full_name").eq("id", lead.created_by).single();
     setCreatedBy(creator?.full_name || "Unknown");
     if (lead.last_edited_by) {
@@ -92,12 +110,64 @@ export default function LeadDetailPage() {
 
   const handleChange = (field: string, value: string) => {
     const newVal = field === "customer_phone" ? formatUSPhone(value) : value;
+
+    // If changing status to paid, show payment dialog
+    if (field === 'status' && value === 'paid') {
+      setPaymentOpen(true);
+      return;
+    }
+
     setForm((prev) => ({ ...prev, [field]: newVal }));
+  };
+
+  const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
+    setPaymentLoading(true);
+    let screenshotUrl: string | null = null;
+
+    if (screenshotFile) {
+      const ext = screenshotFile.name.split('.').pop();
+      const path = `payments/${id}_${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('lead-photos').upload(path, screenshotFile);
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
+        screenshotUrl = urlData.publicUrl;
+      }
+    }
+
+    setForm(prev => ({
+      ...prev,
+      status: 'paid',
+      amount: String(amount),
+    }));
+
+    // If editing existing lead, save immediately
+    if (!isNew && id) {
+      const { error } = await supabase.from("leads").update({
+        status: 'paid',
+        amount,
+        payment_amount: amount,
+        payment_screenshot_url: screenshotUrl,
+        last_edited_by: user?.id,
+      }).eq("id", id);
+
+      if (error) toast.error(error.message);
+      else {
+        toast.success("Payment recorded & status updated to Paid");
+        await logActivity(user!.id, "payment_recorded", "lead", id, { amount });
+      }
+    }
+
+    setPaymentLoading(false);
+    setPaymentOpen(false);
   };
 
   const handleSave = async () => {
     if (!user) return;
     if (!form.customer_name.trim()) { toast.error("Customer name is required"); return; }
+    if (isDuplicate) {
+      toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
+      return;
+    }
     setSaving(true);
 
     if (isNew) {
@@ -124,6 +194,21 @@ export default function LeadDetailPage() {
       if (error) { toast.error(error.message); setSaving(false); return; }
       if (data) {
         await logActivity(user.id, "created", "lead", data.id, { customer_name: form.customer_name });
+        // Notify for urgent/need_tech
+        if (form.status === 'urgent_job' || form.status === 'need_tech') {
+          const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'processor']);
+          if (roles) {
+            const statusLabel = form.status === 'urgent_job' ? 'Urgent Job' : 'Need Tech';
+            const notifs = roles.map((r: any) => ({
+              user_id: r.user_id,
+              title: `🚨 ${statusLabel}`,
+              message: `New lead "${form.customer_name}" - ${statusLabel}`,
+              lead_id: data.id,
+              read: false,
+            }));
+            await supabase.from('notifications').insert(notifs);
+          }
+        }
         toast.success("Lead created!");
         navigate("/leads");
       }
@@ -141,14 +226,33 @@ export default function LeadDetailPage() {
         scheduled_date: form.scheduled_date || null,
         scheduled_time_start: form.scheduled_time_start || null,
         scheduled_time_end: form.scheduled_time_end || null,
-        amount: form.amount ? parseFloat(form.amount) : null,
         last_edited_by: user.id,
       };
+      // Only include amount if status is paid
+      if (form.status === 'paid') {
+        updateData.amount = form.amount ? parseFloat(form.amount) : null;
+      }
       if (isCS || isAdmin) updateData.cs_notes = form.cs_notes;
       if (isProcessor || isAdmin) updateData.processor_notes = form.processor_notes;
 
       const { error } = await supabase.from("leads").update(updateData).eq("id", id!);
       if (error) { toast.error(error.message); setSaving(false); return; }
+
+      // Notify for urgent/need_tech if status changed
+      if (previousStatus !== form.status && (form.status === 'urgent_job' || form.status === 'need_tech')) {
+        const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'processor']);
+        if (roles) {
+          const statusLabel = form.status === 'urgent_job' ? 'Urgent Job' : 'Need Tech';
+          const notifs = roles.map((r: any) => ({
+            user_id: r.user_id,
+            title: `🚨 ${statusLabel}`,
+            message: `Lead "${form.customer_name}" changed to ${statusLabel}`,
+            lead_id: id,
+            read: false,
+          }));
+          await supabase.from('notifications').insert(notifs);
+        }
+      }
 
       await logActivity(user.id, "updated", "lead", id, { fields: Object.keys(updateData) });
       toast.success("Lead updated!");
@@ -181,7 +285,7 @@ export default function LeadDetailPage() {
           {isNew ? "Draft" : STATUS_LABELS[form.status]}
         </Badge>
         <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-          <Button onClick={handleSave} disabled={saving} className="gap-2 shrink-0 shadow-lg shadow-primary/20">
+          <Button onClick={handleSave} disabled={saving || isDuplicate} className="gap-2 shrink-0 shadow-lg shadow-primary/20">
             <Save className="h-4 w-4" /> {saving ? "Saving..." : "Save"}
           </Button>
         </motion.div>
@@ -207,11 +311,19 @@ export default function LeadDetailPage() {
             </div>
             <div className="space-y-2">
               <Label>Phone</Label>
-              <Input value={form.customer_phone} onChange={(e) => handleChange("customer_phone", e.target.value)} placeholder="(555) 123-4567" maxLength={14} />
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input value={form.customer_email} onChange={(e) => handleChange("customer_email", e.target.value)} placeholder="email@example.com" type="email" />
+              <Input
+                value={form.customer_phone}
+                onChange={(e) => handleChange("customer_phone", e.target.value)}
+                placeholder="(555) 123-4567"
+                maxLength={14}
+                className={isDuplicate ? 'border-destructive ring-1 ring-destructive' : ''}
+              />
+              {isDuplicate && (
+                <div className="flex items-center gap-1.5 text-destructive text-xs">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span>A lead already exists with this number: <strong>{duplicateLeadName}</strong></span>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Address</Label>
@@ -267,45 +379,51 @@ export default function LeadDetailPage() {
                 <Input type="time" value={form.scheduled_time_end} onChange={(e) => handleChange("scheduled_time_end", e.target.value)} />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Amount ($)</Label>
-              <Input type="number" value={form.amount} onChange={(e) => handleChange("amount", e.target.value)} placeholder="0.00" />
-            </div>
+            {/* Amount only shows when status is paid */}
+            {form.status === 'paid' && (
+              <div className="space-y-2">
+                <Label>Amount ($)</Label>
+                <Input type="number" value={form.amount} onChange={(e) => handleChange("amount", e.target.value)} placeholder="0.00" />
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Notes */}
+      {/* Note Threads */}
       <motion.div variants={staggerItem} className="grid gap-6 md:grid-cols-2">
         {(isCS || isAdmin) && (
           <Card className="border-border/60">
-            <CardHeader><CardTitle className="text-base">CS Notes</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base text-primary">CS Notes Thread</CardTitle></CardHeader>
             <CardContent>
-              <Textarea
-                value={form.cs_notes}
-                onChange={(e) => handleChange("cs_notes", e.target.value)}
-                rows={6}
-                placeholder="Customer service notes..."
-                disabled={isProcessor}
-              />
+              {!isNew && id ? (
+                <NoteThread leadId={id} noteType="cs" label="CS Notes" profiles={profiles} />
+              ) : (
+                <p className="text-sm text-muted-foreground">Save the lead first to start adding notes.</p>
+              )}
             </CardContent>
           </Card>
         )}
         {(isProcessor || isAdmin) && (
           <Card className="border-border/60">
-            <CardHeader><CardTitle className="text-base">Processor Notes</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base text-primary">Processor Notes Thread</CardTitle></CardHeader>
             <CardContent>
-              <Textarea
-                value={form.processor_notes}
-                onChange={(e) => handleChange("processor_notes", e.target.value)}
-                rows={6}
-                placeholder="Processor notes..."
-                disabled={isCS}
-              />
+              {!isNew && id ? (
+                <NoteThread leadId={id} noteType="processor" label="Processor Notes" profiles={profiles} />
+              ) : (
+                <p className="text-sm text-muted-foreground">Save the lead first to start adding notes.</p>
+              )}
             </CardContent>
           </Card>
         )}
       </motion.div>
+
+      <PaymentDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        onConfirm={handlePaymentConfirm}
+        loading={paymentLoading}
+      />
     </motion.div>
   );
 }

@@ -12,8 +12,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { User, MapPin, FileText } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { LEAD_STATUS_CONFIG, type LeadStatus } from '@/types';
+import { useDuplicatePhoneCheck } from '@/hooks/useDuplicatePhoneCheck';
+import { formatUSPhone } from '@/lib/phone';
 
 interface Props {
   open: boolean;
@@ -28,68 +30,113 @@ const generateJobId = () => {
   return result;
 };
 
-const SectionLabel = ({ icon: Icon, title }: { icon: React.ElementType; title: string }) => (
-  <div className="flex items-center gap-2 pt-2 pb-1">
-    <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
-      <Icon className="h-3 w-3 text-muted-foreground" />
-    </div>
-    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
-  </div>
-);
+const sendNotifications = async (leadName: string, status: string, leadId: string) => {
+  if (status !== 'urgent_job' && status !== 'need_tech') return;
+
+  // Get all admin and processor users
+  const { data: roles } = await supabase
+    .from('user_roles')
+    .select('user_id, role')
+    .in('role', ['admin', 'processor']);
+
+  if (!roles || roles.length === 0) return;
+
+  const statusLabel = status === 'urgent_job' ? 'Urgent Job' : 'Need Tech';
+  const notifications = roles.map((r: any) => ({
+    user_id: r.user_id,
+    title: `🚨 ${statusLabel}`,
+    message: `New lead "${leadName}" requires attention - marked as ${statusLabel}`,
+    lead_id: leadId,
+    read: false,
+  }));
+
+  await supabase.from('notifications').insert(notifications);
+};
 
 const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   const { user, role } = useAuth();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     customer_name: '',
-    customer_email: '',
     customer_phone: '',
-    service_type: '',
     address: '',
-    city: '',
-    state: '',
-    zip_code: '',
+    service_type: '',
     status: 'waiting_complete_details' as LeadStatus,
-    amount: '',
+    scheduled_date: '',
+    scheduled_hour: '12',
+    scheduled_minute: '00',
+    scheduled_ampm: 'AM',
     cs_notes: '',
     processor_notes: '',
   });
 
-  const update = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
+  const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone);
+
+  const update = (key: string, value: string) => {
+    if (key === 'customer_phone') {
+      setForm(prev => ({ ...prev, [key]: formatUSPhone(value) }));
+    } else {
+      setForm(prev => ({ ...prev, [key]: value }));
+    }
+  };
+
+  const isCS = role === 'customer_service';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (isDuplicate) {
+      toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
+      return;
+    }
+
     setLoading(true);
 
-    const { error } = await supabase.from('leads').insert({
+    // Build scheduled time
+    let scheduled_time_start: string | null = null;
+    let scheduled_time_end: string | null = null;
+    if (form.scheduled_date) {
+      let hour = parseInt(form.scheduled_hour);
+      if (form.scheduled_ampm === 'PM' && hour !== 12) hour += 12;
+      if (form.scheduled_ampm === 'AM' && hour === 12) hour = 0;
+      scheduled_time_start = `${hour.toString().padStart(2, '0')}:${form.scheduled_minute}`;
+      const endHour = Math.min(hour + 2, 23);
+      scheduled_time_end = `${endHour.toString().padStart(2, '0')}:${form.scheduled_minute}`;
+    }
+
+    const { data, error } = await supabase.from('leads').insert({
       job_id: generateJobId(),
       customer_name: form.customer_name,
-      customer_email: form.customer_email,
-      customer_phone: form.customer_phone,
-      service_type: form.service_type,
-      address: form.address,
-      city: form.city,
-      state: form.state,
-      zip_code: form.zip_code,
+      customer_phone: form.customer_phone || null,
+      address: form.address || null,
+      service_type: form.service_type || null,
       status: form.status,
-      amount: form.amount ? parseFloat(form.amount) : null,
+      scheduled_date: form.scheduled_date || null,
+      scheduled_time_start,
+      scheduled_time_end,
       cs_notes: form.cs_notes || null,
-      processor_notes: role !== 'customer_service' ? (form.processor_notes || null) : null,
+      processor_notes: !isCS ? (form.processor_notes || null) : null,
       created_by: user.id,
-      assigned_cs: role === 'customer_service' ? user.id : null,
-    });
+      assigned_cs: isCS ? user.id : null,
+    }).select().single();
 
     if (error) {
       toast.error('Failed to create lead: ' + error.message);
     } else {
+      // Send notifications for urgent/need_tech
+      if (data) {
+        await sendNotifications(form.customer_name, form.status, data.id);
+      }
       toast.success('Lead created');
       onSuccess();
       onOpenChange(false);
       setForm({
-        customer_name: '', customer_email: '', customer_phone: '',
-        service_type: '', address: '', city: '', state: '', zip_code: '',
-        status: 'waiting_complete_details', amount: '', cs_notes: '', processor_notes: '',
+        customer_name: '', customer_phone: '',
+        address: '', service_type: '',
+        status: 'waiting_complete_details', scheduled_date: '',
+        scheduled_hour: '12', scheduled_minute: '00', scheduled_ampm: 'AM',
+        cs_notes: '', processor_notes: '',
       });
     }
     setLoading(false);
@@ -97,97 +144,126 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Lead</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <SectionLabel icon={User} title="Customer Info" />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Customer Name *</Label>
-              <Input value={form.customer_name} onChange={e => update('customer_name', e.target.value)} required placeholder="John Doe" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Phone *</Label>
-              <Input value={form.customer_phone} onChange={e => update('customer_phone', e.target.value)} required placeholder="(555) 000-0000" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Email</Label>
-              <Input type="email" value={form.customer_email} onChange={e => update('customer_email', e.target.value)} placeholder="john@example.com" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Service Type *</Label>
-              <Input value={form.service_type} onChange={e => update('service_type', e.target.value)} required placeholder="e.g. Plumbing" />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Customer Name */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Customer Name *</Label>
+            <Input value={form.customer_name} onChange={e => update('customer_name', e.target.value)} required placeholder="John Doe" />
           </div>
 
-          <SectionLabel icon={MapPin} title="Address" />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Street</Label>
-              <Input value={form.address} onChange={e => update('address', e.target.value)} placeholder="123 Main St" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">City</Label>
-              <Input value={form.city} onChange={e => update('city', e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">State</Label>
-                <Input value={form.state} onChange={e => update('state', e.target.value)} />
+          {/* Phone Number */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Phone Number</Label>
+            <Input
+              value={form.customer_phone}
+              onChange={e => update('customer_phone', e.target.value)}
+              placeholder="(555) 123-4567"
+              maxLength={14}
+              className={isDuplicate ? 'border-destructive ring-1 ring-destructive' : ''}
+            />
+            {isDuplicate && (
+              <div className="flex items-center gap-1.5 text-destructive text-xs mt-1">
+                <AlertCircle className="h-3.5 w-3.5" />
+                <span>A lead already exists with this number: <strong>{duplicateLeadName}</strong></span>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Zip</Label>
-                <Input value={form.zip_code} onChange={e => update('zip_code', e.target.value)} />
-              </div>
-            </div>
+            )}
           </div>
 
-          <SectionLabel icon={FileText} title="Details" />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Status</Label>
-              <Select value={form.status} onValueChange={v => update('status', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(LEAD_STATUS_CONFIG).map(([key, cfg]) => (
+          {/* Address */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Address</Label>
+            <Input value={form.address} onChange={e => update('address', e.target.value)} placeholder="123 Main St, City, State" />
+          </div>
+
+          {/* Service Type */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Service Type</Label>
+            <Input value={form.service_type} onChange={e => update('service_type', e.target.value)} placeholder="HVAC Repair, Plumbing, etc." />
+          </div>
+
+          {/* Status */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Status</Label>
+            <Select value={form.status} onValueChange={v => update('status', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(LEAD_STATUS_CONFIG)
+                  .filter(([key]) => key !== 'paid') // Can't create a lead as paid
+                  .map(([key, cfg]) => (
                     <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Job Scheduled For */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Job Scheduled For</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={form.scheduled_date}
+                onChange={e => update('scheduled_date', e.target.value)}
+                className="flex-1"
+              />
+              <Select value={form.scheduled_hour} onValueChange={v => update('scheduled_hour', v)}>
+                <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+                    <SelectItem key={h} value={String(h)}>{h}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Amount ($)</Label>
-              <Input type="number" step="0.01" value={form.amount} onChange={e => update('amount', e.target.value)} placeholder="0.00" />
+              <span className="text-muted-foreground">:</span>
+              <Select value={form.scheduled_minute} onValueChange={v => update('scheduled_minute', v)}>
+                <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {['00', '15', '30', '45'].map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={form.scheduled_ampm} onValueChange={v => update('scheduled_ampm', v)}>
+                <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AM">AM</SelectItem>
+                  <SelectItem value="PM">PM</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
+          {/* CS Notes */}
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">CS Notes</Label>
+            <Label className="text-xs font-medium text-primary">Customer Service Notes</Label>
             <Textarea
               value={form.cs_notes}
               onChange={e => update('cs_notes', e.target.value)}
-              placeholder="Customer service notes..."
+              placeholder="Notes for customer service..."
               rows={3}
             />
           </div>
 
-          {role !== 'customer_service' && (
+          {/* Processor Notes - hidden from CS */}
+          {!isCS && (
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Processor Notes</Label>
+              <Label className="text-xs font-medium text-primary">Processor Notes</Label>
               <Textarea
                 value={form.processor_notes}
                 onChange={e => update('processor_notes', e.target.value)}
-                placeholder="Processor notes..."
+                placeholder="Notes for processor..."
                 rows={3}
               />
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || isDuplicate}>
               {loading ? 'Creating...' : 'Create Lead'}
             </Button>
           </DialogFooter>

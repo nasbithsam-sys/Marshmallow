@@ -11,8 +11,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { motion, AnimatePresence } from "framer-motion";
-import { staggerContainer, staggerItem, fadeUp } from "@/lib/motion";
+import { motion } from "framer-motion";
+import { staggerContainer, staggerItem } from "@/lib/motion";
 
 const PAGE_SIZES = [20, 40, 60, 100];
 
@@ -29,6 +29,7 @@ export default function LeadsPage() {
 
   const statusFilter = searchParams.get("status") || "all";
   const isAdmin = role === "admin";
+  const isCS = role === "customer_service";
 
   const setStatusFilter = (value: string) => {
     setPage(0);
@@ -52,7 +53,12 @@ export default function LeadsPage() {
 
   const fetchLeads = async () => {
     setLoading(true);
-    const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+    let query = supabase.from("leads").select("*").order("created_at", { ascending: false });
+    // CS can only see their own leads
+    if (isCS && user) {
+      query = query.eq("created_by", user.id);
+    }
+    const { data } = await query;
     if (data) setLeads(data as Lead[]);
     setLoading(false);
   };
@@ -133,6 +139,7 @@ export default function LeadsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Only admin can export */}
           {isAdmin && (
             <div className="flex items-center gap-1">
               <Button variant="outline" size="sm" className="gap-1.5 h-9 text-xs" onClick={() => exportData("csv")}>

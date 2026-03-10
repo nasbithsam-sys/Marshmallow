@@ -4,7 +4,6 @@ export type { LeadStatus, AppRole, Lead, Profile, ActivityLog, NavigationPermiss
 
 export const STATUS_LABELS: Record<LeadStatus, string> = {
   waiting_complete_details: "Waiting Complete Details",
-  exclude_mature_lead: "Exclude Mature Lead",
   urgent_job: "Urgent Job",
   quote_sent_waiting: "Quote Sent - Waiting",
   quote_sent_need_follow_up: "Quote Sent - Need Follow Up",
@@ -22,7 +21,6 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
 
 export const STATUS_COLORS: Record<LeadStatus, string> = {
   waiting_complete_details: "bg-amber-100 text-amber-800 border-amber-200",
-  exclude_mature_lead: "bg-gray-100 text-gray-800 border-gray-200",
   urgent_job: "bg-red-100 text-red-800 border-red-200",
   quote_sent_waiting: "bg-blue-100 text-blue-800 border-blue-200",
   quote_sent_need_follow_up: "bg-orange-100 text-orange-800 border-orange-200",
@@ -40,7 +38,6 @@ export const STATUS_COLORS: Record<LeadStatus, string> = {
 
 export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
   waiting_complete_details: "bg-amber-400",
-  exclude_mature_lead: "bg-gray-400",
   urgent_job: "bg-red-500",
   quote_sent_waiting: "bg-blue-400",
   quote_sent_need_follow_up: "bg-orange-400",
@@ -58,7 +55,6 @@ export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
 
 export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "waiting_complete_details",
-  "exclude_mature_lead",
   "urgent_job",
   "quote_sent_waiting",
   "quote_sent_need_follow_up",
@@ -74,5 +70,5 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "paid",
 ];
 
-export const ALL_NAV_ITEMS = ["leads", "analytics", "settings", "activity_logs", "schedule"] as const;
+export const ALL_NAV_ITEMS = ["leads", "analytics", "settings", "activity_logs", "schedule", "map", "areas"] as const;
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
