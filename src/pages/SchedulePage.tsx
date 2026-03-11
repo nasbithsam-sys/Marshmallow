@@ -230,9 +230,8 @@ export default function SchedulePage() {
 
       {/* Schedule Grid */}
       {displayDays.map((day, dayIdx) => {
-        const dayEmployees = employees.filter(emp =>
-          getLeadsForEmployeeAndDay(emp.id, day).length > 0
-        );
+        const dayLeads = getLeadsForDay(day);
+        const rows = computeRows(dayLeads);
 
         return (
           <motion.div
@@ -273,41 +272,34 @@ export default function SchedulePage() {
                     </div>
                   </div>
 
-                  {/* Employee rows */}
+                  {/* Job rows */}
                   {loading ? (
                     <div className="p-10 text-center text-muted-foreground/50 text-sm">
                       <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin mx-auto mb-3" />
                       Loading schedule...
                     </div>
-                  ) : dayEmployees.length === 0 ? (
+                  ) : rows.length === 0 ? (
                     <div className="p-10 text-center text-muted-foreground/50 text-sm">
                       <Calendar className="h-8 w-8 mx-auto mb-2 text-muted-foreground/20" />
                       No scheduled jobs for this day
                     </div>
                   ) : (
-                    dayEmployees.map((emp, empIndex) => {
-                      const colorClass = EMPLOYEE_COLORS[empIndex % EMPLOYEE_COLORS.length];
-                      const blockColor = BLOCK_COLORS[empIndex % BLOCK_COLORS.length];
-                      const dayLeads = getLeadsForEmployeeAndDay(emp.id, day);
+                    rows.map((row, rowIndex) => {
+                      const blockColor = BLOCK_COLORS[rowIndex % BLOCK_COLORS.length];
 
                       return (
                         <motion.div
-                          key={emp.id}
+                          key={rowIndex}
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: empIndex * 0.05 }}
+                          transition={{ delay: rowIndex * 0.05 }}
                           className="flex border-b border-border/20 last:border-b-0 hover:bg-muted/5 transition-colors duration-200"
                         >
-                          {/* Employee info */}
-                          <div className="w-[110px] shrink-0 p-3 border-r border-border/20 flex flex-col items-center justify-center gap-2">
-                            <span className="text-[11px] font-semibold text-foreground truncate max-w-full text-center">
-                              {emp.name.split(' ')[0]}{emp.name.split(' ').length > 1 ? ` ${emp.name.split(' ')[1][0]}.` : ''}
+                          {/* Row label */}
+                          <div className="w-[110px] shrink-0 p-3 border-r border-border/20 flex items-center justify-center">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">
+                              Row {rowIndex + 1}
                             </span>
-                            <Avatar className="h-9 w-9 shadow-premium-sm">
-                              <AvatarFallback className={`text-[10px] font-bold ${colorClass}`}>
-                                {getInitials(emp.name)}
-                              </AvatarFallback>
-                            </Avatar>
                           </div>
 
                           {/* Timeline */}
@@ -318,16 +310,22 @@ export default function SchedulePage() {
                               ))}
                             </div>
 
-                            {dayLeads.map(lead => {
+                            {row.map((lead, leadIdx) => {
                               const pos = getLeadPosition(lead);
                               if (!pos) return null;
+                              const empId = lead.assigned_cs || lead.created_by;
+                              const empName = profiles[empId] || 'Unknown';
+                              const empColorIdx = Object.keys(profiles).indexOf(empId);
+                              const colorClass = EMPLOYEE_COLORS[Math.abs(empColorIdx) % EMPLOYEE_COLORS.length];
+                              const leadBlockColor = BLOCK_COLORS[Math.abs(empColorIdx) % BLOCK_COLORS.length];
+
                               return (
                                 <motion.div
                                   key={lead.id}
                                   initial={{ opacity: 0, scale: 0.85 }}
                                   animate={{ opacity: 1, scale: 1 }}
                                   whileHover={{ scale: 1.03, zIndex: 10, y: -1 }}
-                                  className={`absolute top-2 bottom-2 rounded-xl px-3 py-1.5 cursor-pointer border text-white shadow-premium-md hover:shadow-premium-xl transition-all flex items-center gap-2 ${blockColor}`}
+                                  className={`absolute top-2 bottom-2 rounded-xl px-3 py-1.5 cursor-pointer border text-white shadow-premium-md hover:shadow-premium-xl transition-all flex items-center gap-2 ${leadBlockColor}`}
                                   style={{ left: pos.left, width: pos.width }}
                                   onClick={() => setSelectedLead(lead)}
                                 >
@@ -335,7 +333,7 @@ export default function SchedulePage() {
                                   <span className="text-[11px] font-semibold truncate">{lead.customer_name}</span>
                                   <Avatar className="h-5 w-5 shrink-0 ml-auto ring-1 ring-white/20">
                                     <AvatarFallback className={`text-[7px] font-bold ${colorClass}`}>
-                                      {getInitials(emp.name)}
+                                      {getInitials(empName)}
                                     </AvatarFallback>
                                   </Avatar>
                                 </motion.div>
