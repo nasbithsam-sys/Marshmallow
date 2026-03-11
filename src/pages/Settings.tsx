@@ -15,9 +15,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { Plus, Shield, Eye, Trash2, Mail, ShieldCheck, Copy, RefreshCw, KeyRound } from 'lucide-react';
+import { Plus, Shield, Eye, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from '@/lib/constants';
+import { adminApi } from '@/lib/admin-api';
 import type { AppRole } from '@/types';
 import MFAEnroll from '@/components/auth/MFAEnroll';
 import { motion } from 'framer-motion';
@@ -52,6 +53,11 @@ const Settings = () => {
   const [newRole, setNewRole] = useState<AppRole>('no_role');
   const [creating, setCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<'users' | 'nav_permissions' | 'status_permissions' | 'security'>('users');
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordUserId, setPasswordUserId] = useState('');
+  const [passwordUserName, setPasswordUserName] = useState('');
+  const [newPasswordValue, setNewPasswordValue] = useState('');
+  const [settingPassword, setSettingPassword] = useState(false);
 
   const isAdmin = currentRole === 'admin';
 
@@ -158,49 +164,46 @@ const Settings = () => {
 
   const handleCreateUser = async () => {
     setCreating(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: newEmail,
-      password: newPassword,
-      options: { data: { full_name: newName } },
-    });
-    if (error) { toast.error(error.message); setCreating(false); return; }
-    if (data.user) {
-      await supabase.from('profiles').insert({ id: data.user.id, full_name: newName, email: newEmail });
-      await supabase.from('user_roles').insert({ user_id: data.user.id, role: newRole });
-      // Auto-generate access code for non-admin users
-      if (newRole !== 'admin') {
-        const code = generateCode();
-        await supabase.from('user_access_codes').insert({ user_id: data.user.id, code });
-      }
+    try {
+      const code = newRole !== 'admin' ? generateCode() : undefined;
+      await adminApi.createUser(newEmail, newPassword, newName, newRole, code);
+      toast.success('User created');
+      setCreateOpen(false);
+      setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('no_role');
+      queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+      queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create user');
     }
-    toast.success('User created');
-    setCreateOpen(false);
-    setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('no_role');
     setCreating(false);
-    queryClient.invalidateQueries({ queryKey: ['settings-users'] });
-    queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
   };
 
-  const handleSendPasswordReset = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/login',
-    });
-    if (error) toast.error(error.message);
-    else toast.success(`Password reset email sent to ${email}`);
+  const handleSetPassword = async () => {
+    if (!newPasswordValue || newPasswordValue.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    setSettingPassword(true);
+    try {
+      await adminApi.setPassword(passwordUserId, newPasswordValue);
+      toast.success(`Password updated for ${passwordUserName}`);
+      setPasswordDialogOpen(false);
+      setNewPasswordValue('');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to set password');
+    }
+    setSettingPassword(false);
   };
 
   const handleDeleteUser = async (userId: string) => {
-    await Promise.all([
-      supabase.from('user_roles').delete().eq('user_id', userId),
-      supabase.from('navigation_permissions').delete().eq('user_id', userId),
-      supabase.from('status_permissions').delete().eq('user_id', userId),
-      supabase.from('notifications').delete().eq('user_id', userId),
-      supabase.from('user_access_codes').delete().eq('user_id', userId),
-      supabase.from('profiles').delete().eq('id', userId),
-    ]);
-    toast.success('User data deleted');
-    queryClient.invalidateQueries({ queryKey: ['settings-users'] });
-    queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
+    try {
+      await adminApi.deleteUser(userId);
+      toast.success('User deleted');
+      queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+      queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete user');
+    }
   };
 
   const getNavPermission = (userId: string, section: string) => {
@@ -291,10 +294,15 @@ const Settings = () => {
                         variant="outline"
                         size="sm"
                         className="gap-1.5 text-[11px]"
-                        onClick={() => handleSendPasswordReset(u.email)}
+                        onClick={() => {
+                          setPasswordUserId(u.id);
+                          setPasswordUserName(u.full_name);
+                          setNewPasswordValue('');
+                          setPasswordDialogOpen(true);
+                        }}
                       >
-                        <Mail className="h-3 w-3" />
-                        Reset
+                        <Lock className="h-3 w-3" />
+                        Password
                       </Button>
                       {u.role !== 'admin' && (
                         <>
@@ -521,6 +529,33 @@ const Settings = () => {
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Button onClick={handleCreateUser} disabled={creating || !newEmail || !newPassword || !newName}>
               {creating ? 'Creating...' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Dialog */}
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change Password — {passwordUserName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] text-muted-foreground/60 font-medium">New Password</Label>
+              <Input
+                type="password"
+                value={newPasswordValue}
+                onChange={e => setNewPasswordValue(e.target.value)}
+                placeholder="••••••••"
+                onKeyDown={e => e.key === 'Enter' && handleSetPassword()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasswordDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSetPassword} disabled={settingPassword || !newPasswordValue}>
+              {settingPassword ? 'Saving...' : 'Set Password'}
             </Button>
           </DialogFooter>
         </DialogContent>
