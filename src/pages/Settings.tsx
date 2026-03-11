@@ -178,6 +178,7 @@ const Settings = () => {
     setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('no_role');
     setCreating(false);
     queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+    queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
   };
 
   const handleSendPasswordReset = async (email: string) => {
