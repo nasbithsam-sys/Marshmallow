@@ -261,6 +261,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <Input value={form.customer_name ?? ''} onChange={e => update('customer_name', e.target.value)} readOnly={isProcessor} />
               </div>
               <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Number Name</Label>
+                <Input value={form.number_name ?? ''} onChange={e => update('number_name', e.target.value)} readOnly={isProcessor} />
+              </div>
+              <div className="space-y-1.5">
                 <Label className="text-[11px] text-muted-foreground/60 font-medium">Phone</Label>
                 <Input
                   value={form.customer_phone ?? ''}
@@ -282,6 +286,22 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               <div className="space-y-1.5">
                 <Label className="text-[11px] text-muted-foreground/60 font-medium">Service Type</Label>
                 <Input value={form.service_type ?? ''} onChange={e => update('service_type', e.target.value)} readOnly={isProcessor} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Quote</Label>
+                <Input value={form.quote ?? ''} onChange={e => update('quote', e.target.value)} readOnly={isProcessor} />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Service Details</Label>
+                <Textarea value={form.service_details ?? ''} onChange={e => update('service_details', e.target.value)} readOnly={isProcessor} rows={2} className="resize-none" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Schedule Requirements</Label>
+                <Input value={form.customer_schedule_requirements ?? ''} onChange={e => update('customer_schedule_requirements', e.target.value)} readOnly={isProcessor} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Reference</Label>
+                <Input value={form.reference_name ?? ''} onChange={e => update('reference_name', e.target.value)} readOnly={isProcessor} />
               </div>
             </div>
           </div>
