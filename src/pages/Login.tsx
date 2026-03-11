@@ -46,19 +46,22 @@ const Login = () => {
       }
     }
 
-    // Check if non-admin user has an access code requirement
+    // Check if non-admin user needs access code — server-side check
     const userId = data.user?.id;
     if (userId) {
-      const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', userId).single();
-      if (roleData?.role !== 'admin') {
-        const { data: codeData } = await supabase.from('user_access_codes').select('code').eq('user_id', userId).single();
-        if (codeData?.code) {
-          // Sign out temporarily — they need to verify the code first
+      try {
+        const { data: checkData } = await supabase.functions.invoke('admin-users', {
+          body: { action: 'check_access_code', user_id: userId },
+        });
+        if (checkData?.requires_code) {
+          // Sign out — they need to verify the code first via server-side
           await supabase.auth.signOut();
           setAccessCodeRequired(true);
           setLoading(false);
           return;
         }
+      } catch {
+        // If check fails, allow login (fail open for this check only)
       }
     }
 
@@ -69,37 +72,32 @@ const Login = () => {
     if (!accessCodeInput || accessCodeInput.length !== 6) return;
     setAccessCodeVerifying(true);
 
-    // Sign in again to validate
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) {
-      toast.error(signInError.message);
-      setAccessCodeVerifying(false);
-      return;
-    }
+    try {
+      // Server-side verification — code never sent to client
+      const { data: result, error: fnError } = await supabase.functions.invoke('admin-users', {
+        body: { action: 'verify_access_code', email, password, code: accessCodeInput },
+      });
 
-    const userId = signInData.user?.id;
-    if (!userId) {
-      toast.error('Authentication failed');
-      setAccessCodeVerifying(false);
-      return;
-    }
+      if (fnError || result?.error) {
+        toast.error(result?.error || 'Invalid access code. Please contact your administrator.');
+        setAccessCodeInput('');
+        setAccessCodeVerifying(false);
+        return;
+      }
 
-    // Verify the access code
-    const { data: codeData } = await supabase.from('user_access_codes').select('code').eq('user_id', userId).single();
-    if (!codeData || codeData.code !== accessCodeInput) {
-      toast.error('Invalid access code. Please contact your administrator.');
-      await supabase.auth.signOut();
+      // Set session from server-provided tokens
+      if (result?.session?.access_token && result?.session?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: result.session.access_token,
+          refresh_token: result.session.refresh_token,
+        });
+      }
+    } catch {
+      toast.error('Verification failed. Please try again.');
       setAccessCodeInput('');
-      setAccessCodeVerifying(false);
-      return;
     }
-
-    // Code valid — regenerate for single-use
-    const newCode = generateCode();
-    await supabase.from('user_access_codes').update({ code: newCode }).eq('user_id', userId);
 
     setAccessCodeVerifying(false);
-    // Session is active, auth state change will redirect
   };
 
   const handleMFAVerify = async () => {
