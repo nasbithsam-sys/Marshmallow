@@ -36,7 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [profileRes, roleRes, permRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).single(),
       supabase.from('user_roles').select('role').eq('user_id', userId).single(),
-      supabase.from('navigation_permissions').select('*'),
+      supabase.from('navigation_permissions').select('*').eq('user_id', userId),
     ]);
     if (profileRes.data) setProfile(profileRes.data as Profile);
     if (roleRes.data) setRole(roleRes.data.role as AppRole);
@@ -87,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (role === 'admin') return true;
     if (navItem in userOverrides) return userOverrides[navItem];
     return permissions.some(
-      (p: any) => p.role === role && p.nav_item === navItem && p.allowed
+      (p: any) => p.nav_section === navItem && p.allowed
     );
   };
 

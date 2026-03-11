@@ -27,6 +27,10 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Server configuration missing. Set SB_SERVICE_ROLE_KEY in Supabase secrets." }, 500);
     }
 
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
     const body = await req.json();
     const { action } = body;
 
@@ -118,10 +122,6 @@ Deno.serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
 
     const { data: { user: callerUser }, error: userError } = await adminClient.auth.getUser(token);
     if (userError || !callerUser) {

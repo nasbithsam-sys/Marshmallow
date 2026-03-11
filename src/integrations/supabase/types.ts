@@ -114,6 +114,41 @@ export type Database = {
           },
         ]
       }
+      lead_payments: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          lead_id: string
+          screenshot_url: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          lead_id: string
+          screenshot_url?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          lead_id?: string
+          screenshot_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_payments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_photos: {
         Row: {
           created_at: string | null
@@ -228,19 +263,31 @@ export type Database = {
           customer_email: string | null
           customer_name: string
           customer_phone: string
+          customer_schedule_requirements: string | null
+          for_us_amount: number | null
+          for_you_amount: number | null
           id: string
           job_id: string
+          labor_amount: number | null
           last_edited_at: string | null
           last_edited_by: string | null
+          material_amount: number | null
+          number_name: string | null
           payment_amount: number | null
           payment_screenshot_url: string | null
           processor_notes: string | null
+          quote: string | null
+          reference_name: string | null
           scheduled_date: string | null
           scheduled_time_end: string | null
           scheduled_time_start: string | null
+          service_details: string | null
           service_type: string
           state: string | null
           status: string
+          tech_name: string | null
+          tech_number: string | null
+          terms: string | null
           updated_at: string | null
           zip_code: string | null
         }
@@ -255,19 +302,31 @@ export type Database = {
           customer_email?: string | null
           customer_name: string
           customer_phone: string
+          customer_schedule_requirements?: string | null
+          for_us_amount?: number | null
+          for_you_amount?: number | null
           id?: string
           job_id: string
+          labor_amount?: number | null
           last_edited_at?: string | null
           last_edited_by?: string | null
+          material_amount?: number | null
+          number_name?: string | null
           payment_amount?: number | null
           payment_screenshot_url?: string | null
           processor_notes?: string | null
+          quote?: string | null
+          reference_name?: string | null
           scheduled_date?: string | null
           scheduled_time_end?: string | null
           scheduled_time_start?: string | null
+          service_details?: string | null
           service_type: string
           state?: string | null
           status?: string
+          tech_name?: string | null
+          tech_number?: string | null
+          terms?: string | null
           updated_at?: string | null
           zip_code?: string | null
         }
@@ -282,19 +341,31 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string
           customer_phone?: string
+          customer_schedule_requirements?: string | null
+          for_us_amount?: number | null
+          for_you_amount?: number | null
           id?: string
           job_id?: string
+          labor_amount?: number | null
           last_edited_at?: string | null
           last_edited_by?: string | null
+          material_amount?: number | null
+          number_name?: string | null
           payment_amount?: number | null
           payment_screenshot_url?: string | null
           processor_notes?: string | null
+          quote?: string | null
+          reference_name?: string | null
           scheduled_date?: string | null
           scheduled_time_end?: string | null
           scheduled_time_start?: string | null
+          service_details?: string | null
           service_type?: string
           state?: string | null
           status?: string
+          tech_name?: string | null
+          tech_number?: string | null
+          terms?: string | null
           updated_at?: string | null
           zip_code?: string | null
         }
