@@ -12,6 +12,7 @@ import StatusBadge from './StatusBadge';
 import LeadUpdatesSection from './LeadUpdatesSection';
 import NoteThread from './NoteThread';
 import PaymentDialog from './PaymentDialog';
+import CopyLeadButton from './CopyLeadButton';
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from '@/types';
 import { toast } from 'sonner';
 import { useDuplicatePhoneCheck } from '@/hooks/useDuplicatePhoneCheck';
