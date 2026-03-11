@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Mail, Lock, ArrowRight, ShieldCheck, Wrench } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ShieldCheck, Wrench, KeyRound } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { heroTitle, premiumEase } from '@/lib/motion';
+
+const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -16,6 +18,10 @@ const Login = () => {
   const [mfaFactorId, setMfaFactorId] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [verifying, setVerifying] = useState(false);
+  // Access code state for non-admin users
+  const [accessCodeRequired, setAccessCodeRequired] = useState(false);
+  const [accessCodeInput, setAccessCodeInput] = useState('');
+  const [accessCodeVerifying, setAccessCodeVerifying] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +33,7 @@ const Login = () => {
       return;
     }
 
+    // Check MFA (for admins with TOTP)
     const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (aalData && aalData.currentLevel === 'aal1' && aalData.nextLevel === 'aal2') {
       const { data: factors } = await supabase.auth.mfa.listFactors();
@@ -39,7 +46,60 @@ const Login = () => {
       }
     }
 
+    // Check if non-admin user has an access code requirement
+    const userId = data.user?.id;
+    if (userId) {
+      const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', userId).single();
+      if (roleData?.role !== 'admin') {
+        const { data: codeData } = await supabase.from('user_access_codes').select('code').eq('user_id', userId).single();
+        if (codeData?.code) {
+          // Sign out temporarily — they need to verify the code first
+          await supabase.auth.signOut();
+          setAccessCodeRequired(true);
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
     setLoading(false);
+  };
+
+  const handleAccessCodeVerify = async () => {
+    if (!accessCodeInput || accessCodeInput.length !== 6) return;
+    setAccessCodeVerifying(true);
+
+    // Sign in again to validate
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      toast.error(signInError.message);
+      setAccessCodeVerifying(false);
+      return;
+    }
+
+    const userId = signInData.user?.id;
+    if (!userId) {
+      toast.error('Authentication failed');
+      setAccessCodeVerifying(false);
+      return;
+    }
+
+    // Verify the access code
+    const { data: codeData } = await supabase.from('user_access_codes').select('code').eq('user_id', userId).single();
+    if (!codeData || codeData.code !== accessCodeInput) {
+      toast.error('Invalid access code. Please contact your administrator.');
+      await supabase.auth.signOut();
+      setAccessCodeInput('');
+      setAccessCodeVerifying(false);
+      return;
+    }
+
+    // Code valid — regenerate for single-use
+    const newCode = generateCode();
+    await supabase.from('user_access_codes').update({ code: newCode }).eq('user_id', userId);
+
+    setAccessCodeVerifying(false);
+    // Session is active, auth state change will redirect
   };
 
   const handleMFAVerify = async () => {
