@@ -12,12 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Save, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, AlertCircle, ImagePlus, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import NoteThread from "@/components/leads/NoteThread";
 import PaymentDialog from "@/components/leads/PaymentDialog";
+import ImageLightbox from "@/components/leads/ImageLightbox";
 
 export default function LeadDetailPage() {
   const { id } = useParams();
@@ -52,16 +53,24 @@ export default function LeadDetailPage() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [previousStatus, setPreviousStatus] = useState<LeadStatus | null>(null);
+  const [photos, setPhotos] = useState<{ id: string; url: string }[]>([]);
+  const [newPhotos, setNewPhotos] = useState<File[]>([]);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone, isNew ? undefined : id);
 
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
   const isAdmin = role === "admin";
+  const isStatusLocked = previousStatus === "paid";
 
   useEffect(() => {
     fetchProfiles();
-    if (!isNew && id) fetchLead();
+    if (!isNew && id) {
+      fetchLead();
+      fetchPhotos();
+    }
   }, [id]);
 
   const fetchProfiles = async () => {
@@ -108,16 +117,39 @@ export default function LeadDetailPage() {
     setLoading(false);
   };
 
+  const fetchPhotos = async () => {
+    const { data } = await supabase
+      .from("lead_photos")
+      .select("id, photo_url")
+      .eq("lead_id", id!)
+      .order("created_at", { ascending: true });
+    if (data) setPhotos(data.map((p: any) => ({ id: p.id, url: p.photo_url })));
+  };
+
   const handleChange = (field: string, value: string) => {
     const newVal = field === "customer_phone" ? formatUSPhone(value) : value;
 
-    // If changing status to paid, show payment dialog
     if (field === 'status' && value === 'paid') {
       setPaymentOpen(true);
       return;
     }
 
     setForm((prev) => ({ ...prev, [field]: newVal }));
+  };
+
+  const handlePhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setNewPhotos(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const removeNewPhoto = (index: number) => {
+    setNewPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingPhoto = async (photoId: string) => {
+    await supabase.from("lead_photos").delete().eq("id", photoId);
+    setPhotos(prev => prev.filter(p => p.id !== photoId));
   };
 
   const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
@@ -140,7 +172,6 @@ export default function LeadDetailPage() {
       amount: String(amount),
     }));
 
-    // If editing existing lead, save immediately
     if (!isNew && id) {
       const { error } = await supabase.from("leads").update({
         status: 'paid',
@@ -153,6 +184,7 @@ export default function LeadDetailPage() {
       if (error) toast.error(error.message);
       else {
         toast.success("Payment recorded & status updated to Paid");
+        setPreviousStatus('paid');
         await logActivity(user!.id, "payment_recorded", "lead", id, { amount });
       }
     }
@@ -169,6 +201,24 @@ export default function LeadDetailPage() {
       return;
     }
     setSaving(true);
+
+    // Upload new photos helper
+    const uploadPhotos = async (leadId: string) => {
+      for (const photo of newPhotos) {
+        const ext = photo.name.split('.').pop();
+        const path = `leads/${leadId}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from('lead-photos').upload(path, photo);
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
+          await supabase.from('lead_photos').insert({
+            lead_id: leadId,
+            photo_url: urlData.publicUrl,
+            uploaded_by: user.id,
+          });
+        }
+      }
+      setNewPhotos([]);
+    };
 
     if (isNew) {
       const jobChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -197,8 +247,8 @@ export default function LeadDetailPage() {
 
       if (error) { toast.error(error.message); setSaving(false); return; }
       if (data) {
+        await uploadPhotos(data.id);
         await logActivity(user.id, "created", "lead", data.id, { customer_name: form.customer_name });
-        // Notify for urgent/need_tech
         if (form.status === 'urgent_job' || form.status === 'need_tech') {
           const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'processor']);
           if (roles) {
@@ -232,7 +282,6 @@ export default function LeadDetailPage() {
         scheduled_time_end: form.scheduled_time_end || null,
         last_edited_by: user.id,
       };
-      // Only include amount if status is paid
       if (form.status === 'paid') {
         updateData.amount = form.amount ? parseFloat(form.amount) : null;
       }
@@ -242,7 +291,8 @@ export default function LeadDetailPage() {
       const { error } = await supabase.from("leads").update(updateData).eq("id", id!);
       if (error) { toast.error(error.message); setSaving(false); return; }
 
-      // Notify for urgent/need_tech if status changed
+      await uploadPhotos(id!);
+
       if (previousStatus !== form.status && (form.status === 'urgent_job' || form.status === 'need_tech')) {
         const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'processor']);
         if (roles) {
@@ -264,6 +314,8 @@ export default function LeadDetailPage() {
     }
     setSaving(false);
   };
+
+  const allImageUrls = photos.map(p => p.url);
 
   if (loading) return <div className="flex h-64 items-center justify-center text-muted-foreground">Loading...</div>;
 
@@ -331,21 +383,7 @@ export default function LeadDetailPage() {
             </div>
             <div className="space-y-2">
               <Label>Address</Label>
-              <Input value={form.address} onChange={(e) => handleChange("address", e.target.value)} placeholder="123 Main St" />
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-2">
-                <Label>City</Label>
-                <Input value={form.city} onChange={(e) => handleChange("city", e.target.value)} placeholder="City" />
-              </div>
-              <div className="space-y-2">
-                <Label>State</Label>
-                <Input value={form.state} onChange={(e) => handleChange("state", e.target.value)} placeholder="ST" maxLength={2} />
-              </div>
-              <div className="space-y-2">
-                <Label>Zip</Label>
-                <Input value={form.zip_code} onChange={(e) => handleChange("zip_code", e.target.value)} placeholder="12345" maxLength={10} />
-              </div>
+              <Input value={form.address} onChange={(e) => handleChange("address", e.target.value)} placeholder="123 Main St, City, State, Zip" />
             </div>
             <div className="space-y-2">
               <Label>Service Type</Label>
@@ -360,14 +398,19 @@ export default function LeadDetailPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => handleChange("status", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select value={form.status} onValueChange={(v) => handleChange("status", v)} disabled={isStatusLocked}>
+                <SelectTrigger className={isStatusLocked ? 'opacity-60 cursor-not-allowed' : ''}>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {ALL_LEAD_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {isStatusLocked && (
+                <p className="text-[11px] text-muted-foreground/60">Status is locked after payment.</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Scheduled Date</Label>
@@ -383,7 +426,6 @@ export default function LeadDetailPage() {
                 <Input type="time" value={form.scheduled_time_end} onChange={(e) => handleChange("scheduled_time_end", e.target.value)} />
               </div>
             </div>
-            {/* Amount only shows when status is paid */}
             {form.status === 'paid' && (
               <div className="space-y-2">
                 <Label>Amount ($)</Label>
@@ -394,8 +436,64 @@ export default function LeadDetailPage() {
         </Card>
       </motion.div>
 
+      {/* Photos Section */}
+      <motion.div variants={staggerItem}>
+        <Card className="border-border/60">
+          <CardHeader><CardTitle className="text-base">Photos</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {photos.map((photo, i) => (
+                <div key={photo.id} className="relative h-20 w-20 rounded-lg overflow-hidden border border-border/40 group">
+                  <img
+                    src={photo.url}
+                    alt=""
+                    className="h-full w-full object-cover cursor-pointer"
+                    onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
+                  />
+                  {!isStatusLocked && (
+                    <button
+                      onClick={() => removeExistingPhoto(photo.id)}
+                      className="absolute top-1 right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {newPhotos.map((photo, i) => (
+                <div key={`new-${i}`} className="relative h-20 w-20 rounded-lg overflow-hidden border border-dashed border-primary/40 group">
+                  <img src={URL.createObjectURL(photo)} alt="" className="h-full w-full object-cover" />
+                  <button
+                    onClick={() => removeNewPhoto(i)}
+                    className="absolute top-1 right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <label className="h-20 w-20 rounded-lg border-2 border-dashed border-border/40 flex items-center justify-center cursor-pointer hover:border-primary/40 transition-colors">
+                <ImagePlus className="h-6 w-6 text-muted-foreground/40" />
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoAdd} />
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Note Threads */}
       <motion.div variants={staggerItem} className="grid gap-6 md:grid-cols-2">
+        {/* General Notes - visible to all */}
+        <Card className="border-border/60">
+          <CardHeader><CardTitle className="text-base">Notes</CardTitle></CardHeader>
+          <CardContent>
+            {!isNew && id ? (
+              <NoteThread leadId={id} noteType="general" label="Notes" profiles={profiles} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Save the lead first to start adding notes.</p>
+            )}
+          </CardContent>
+        </Card>
+
         {(isCS || isAdmin) && (
           <Card className="border-border/60">
             <CardHeader><CardTitle className="text-base text-primary">CS Notes Thread</CardTitle></CardHeader>
@@ -427,6 +525,13 @@ export default function LeadDetailPage() {
         onOpenChange={setPaymentOpen}
         onConfirm={handlePaymentConfirm}
         loading={paymentLoading}
+      />
+
+      <ImageLightbox
+        images={allImageUrls}
+        initialIndex={lightboxIndex}
+        open={lightboxOpen}
+        onOpenChange={setLightboxOpen}
       />
     </motion.div>
   );

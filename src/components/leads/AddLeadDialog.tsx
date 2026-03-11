@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, ImagePlus, X } from 'lucide-react';
 import { LEAD_STATUS_CONFIG, type LeadStatus } from '@/types';
 import { useDuplicatePhoneCheck } from '@/hooks/useDuplicatePhoneCheck';
 import { formatUSPhone } from '@/lib/phone';
@@ -62,12 +62,17 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
     service_type: '',
     status: 'waiting_complete_details' as LeadStatus,
     scheduled_date: '',
-    scheduled_hour: '12',
-    scheduled_minute: '00',
-    scheduled_ampm: 'AM',
+    start_hour: '12',
+    start_minute: '00',
+    start_ampm: 'AM',
+    end_hour: '2',
+    end_minute: '00',
+    end_ampm: 'PM',
     cs_notes: '',
     processor_notes: '',
+    general_notes: '',
   });
+  const [photos, setPhotos] = useState<File[]>([]);
 
   const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone);
 
@@ -80,6 +85,23 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   };
 
   const isCS = role === 'customer_service';
+
+  const handlePhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setPhotos(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const parseTime = (hour: string, minute: string, ampm: string) => {
+    let h = parseInt(hour);
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return `${h.toString().padStart(2, '0')}:${minute}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,12 +119,8 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
     let scheduled_time_start: string | null = null;
     let scheduled_time_end: string | null = null;
     if (form.scheduled_date) {
-      let hour = parseInt(form.scheduled_hour);
-      if (form.scheduled_ampm === 'PM' && hour !== 12) hour += 12;
-      if (form.scheduled_ampm === 'AM' && hour === 12) hour = 0;
-      scheduled_time_start = `${hour.toString().padStart(2, '0')}:${form.scheduled_minute}`;
-      const endHour = Math.min(hour + 2, 23);
-      scheduled_time_end = `${endHour.toString().padStart(2, '0')}:${form.scheduled_minute}`;
+      scheduled_time_start = parseTime(form.start_hour, form.start_minute, form.start_ampm);
+      scheduled_time_end = parseTime(form.end_hour, form.end_minute, form.end_ampm);
     }
 
     const { data, error } = await supabase.from('leads').insert({
@@ -123,10 +141,33 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
     if (error) {
       toast.error('Failed to create lead: ' + error.message);
-    } else {
-      if (data) {
-        await sendNotifications(form.customer_name, form.status, data.id);
+    } else if (data) {
+      // Upload photos
+      for (const photo of photos) {
+        const ext = photo.name.split('.').pop();
+        const path = `leads/${data.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from('lead-photos').upload(path, photo);
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
+          await supabase.from('lead_photos').insert({
+            lead_id: data.id,
+            photo_url: urlData.publicUrl,
+            uploaded_by: user.id,
+          });
+        }
       }
+
+      // Add general notes as a lead_notes entry
+      if (form.general_notes.trim()) {
+        await supabase.from('lead_notes').insert({
+          lead_id: data.id,
+          user_id: user.id,
+          note_type: 'general',
+          content: form.general_notes.trim(),
+        });
+      }
+
+      await sendNotifications(form.customer_name, form.status, data.id);
       toast.success('Lead created successfully!');
       onSuccess();
       onOpenChange(false);
@@ -134,12 +175,46 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
         customer_name: '', customer_phone: '',
         address: '', service_type: '',
         status: 'waiting_complete_details', scheduled_date: '',
-        scheduled_hour: '12', scheduled_minute: '00', scheduled_ampm: 'AM',
-        cs_notes: '', processor_notes: '',
+        start_hour: '12', start_minute: '00', start_ampm: 'AM',
+        end_hour: '2', end_minute: '00', end_ampm: 'PM',
+        cs_notes: '', processor_notes: '', general_notes: '',
       });
+      setPhotos([]);
     }
     setLoading(false);
   };
+
+  const TimePicker = ({ prefix, label }: { prefix: 'start' | 'end'; label: string }) => (
+    <div className="space-y-1.5">
+      <Label className="text-[11px] font-medium text-muted-foreground/60">{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Select value={form[`${prefix}_hour`]} onValueChange={v => update(`${prefix}_hour`, v)}>
+          <SelectTrigger className="w-[60px] h-9"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+              <SelectItem key={h} value={String(h)}>{h}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-muted-foreground/40">:</span>
+        <Select value={form[`${prefix}_minute`]} onValueChange={v => update(`${prefix}_minute`, v)}>
+          <SelectTrigger className="w-[60px] h-9"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {['00', '15', '30', '45'].map(m => (
+              <SelectItem key={m} value={m}>{m}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={form[`${prefix}_ampm`]} onValueChange={v => update(`${prefix}_ampm`, v)}>
+          <SelectTrigger className="w-[60px] h-9"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="AM">AM</SelectItem>
+            <SelectItem value="PM">PM</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -173,7 +248,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
             )}
           </div>
 
-          {/* Address - single field */}
+          {/* Address */}
           <div className="space-y-1.5">
             <Label className="text-[11px] font-medium text-muted-foreground/60">Address</Label>
             <Input value={form.address} onChange={e => update('address', e.target.value)} placeholder="123 Main St, City, State, Zip" />
@@ -203,38 +278,53 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
           {/* Schedule */}
           <div className="space-y-1.5">
             <Label className="text-[11px] font-medium text-muted-foreground/60">Job Scheduled For</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="date"
-                value={form.scheduled_date}
-                onChange={e => update('scheduled_date', e.target.value)}
-                className="flex-1"
-              />
-              <Select value={form.scheduled_hour} onValueChange={v => update('scheduled_hour', v)}>
-                <SelectTrigger className="w-[65px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
-                    <SelectItem key={h} value={String(h)}>{h}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-muted-foreground/40">:</span>
-              <Select value={form.scheduled_minute} onValueChange={v => update('scheduled_minute', v)}>
-                <SelectTrigger className="w-[65px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {['00', '15', '30', '45'].map(m => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={form.scheduled_ampm} onValueChange={v => update('scheduled_ampm', v)}>
-                <SelectTrigger className="w-[65px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="AM">AM</SelectItem>
-                  <SelectItem value="PM">PM</SelectItem>
-                </SelectContent>
-              </Select>
+            <Input
+              type="date"
+              value={form.scheduled_date}
+              onChange={e => update('scheduled_date', e.target.value)}
+            />
+          </div>
+
+          {form.scheduled_date && (
+            <div className="grid grid-cols-2 gap-3">
+              <TimePicker prefix="start" label="Start Time" />
+              <TimePicker prefix="end" label="End Time" />
             </div>
+          )}
+
+          {/* Photo Attachments */}
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Photos</Label>
+            <div className="flex flex-wrap gap-2">
+              {photos.map((photo, i) => (
+                <div key={i} className="relative h-16 w-16 rounded-lg overflow-hidden border border-border/40 group">
+                  <img src={URL.createObjectURL(photo)} alt="" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ))}
+              <label className="h-16 w-16 rounded-lg border-2 border-dashed border-border/40 flex items-center justify-center cursor-pointer hover:border-primary/40 transition-colors">
+                <ImagePlus className="h-5 w-5 text-muted-foreground/40" />
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoAdd} />
+              </label>
+            </div>
+          </div>
+
+          {/* General Notes */}
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Notes</Label>
+            <Textarea
+              value={form.general_notes}
+              onChange={e => update('general_notes', e.target.value)}
+              placeholder="General notes about this lead..."
+              rows={3}
+              className="resize-none"
+            />
           </div>
 
           {/* Customer Service Notes */}

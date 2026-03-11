@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { UserCircle, Phone, MapPin, Wrench, Trash2, Pencil, MessageSquare, ChevronDown, ArrowUpRight } from "lucide-react";
+import { UserCircle, Phone, MapPin, Wrench, Trash2, Pencil, MessageSquare, ChevronDown, ArrowUpRight, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -17,6 +17,7 @@ import NoteThread from "./NoteThread";
 import PaymentDialog from "./PaymentDialog";
 import LeadShareDialog from "./LeadShareDialog";
 import StatusBadge from "./StatusBadge";
+import ImageLightbox from "./ImageLightbox";
 import { motion } from "framer-motion";
 
 interface LeadCardProps {
@@ -31,15 +32,45 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
   const [changingStatus, setChangingStatus] = useState(false);
   const [csOpen, setCsOpen] = useState(false);
   const [processorOpen, setProcessorOpen] = useState(false);
+  const [generalOpen, setGeneralOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
+  const isPaid = lead.status === "paid";
+
+  useEffect(() => {
+    fetchPhotos();
+  }, [lead.id]);
+
+  const fetchPhotos = async () => {
+    const { data } = await supabase
+      .from("lead_photos")
+      .select("photo_url")
+      .eq("lead_id", lead.id)
+      .order("created_at", { ascending: true });
+    if (data) setPhotos(data.map((p: any) => p.photo_url));
+  };
+
+  const allImages = [
+    ...(isPaid && lead.payment_screenshot_url ? [lead.payment_screenshot_url] : []),
+    ...photos,
+  ];
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
 
   const handleStatusChange = async (newStatus: string) => {
+    if (isPaid) return;
+
     if (newStatus === 'paid') {
       setPendingStatus(newStatus);
       setPaymentOpen(true);
@@ -160,9 +191,49 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
           )}
         </div>
 
-        {/* Note Threads */}
+        {/* Payment Screenshot + Photos */}
+        {allImages.length > 0 && (
+          <div className="px-4 mt-3">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <ImageIcon className="h-3 w-3 text-muted-foreground/40" />
+              <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-medium">
+                {isPaid && lead.payment_screenshot_url ? 'Payment & Photos' : 'Photos'}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {allImages.map((url, i) => (
+                <button
+                  key={i}
+                  onClick={() => openLightbox(i)}
+                  className="h-12 w-12 rounded-md overflow-hidden border border-border/40 hover:border-primary/40 transition-colors cursor-pointer"
+                >
+                  <img src={url} alt="" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* General Notes Thread */}
+        <div className="mx-4 mt-3">
+          <Collapsible open={generalOpen} onOpenChange={setGeneralOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full justify-between h-8 text-[12px] text-muted-foreground hover:text-foreground rounded-lg px-2">
+                <span className="flex items-center gap-1.5"><MessageSquare className="h-3 w-3" /> Notes</span>
+                <motion.span animate={{ rotate: generalOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </motion.span>
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-1">
+              <NoteThread leadId={lead.id} noteType="general" label="Notes" profiles={profiles} />
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+
+        {/* CS Notes Thread */}
         {(isCS || isAdmin) && (
-          <div className="mx-4 mt-3">
+          <div className="mx-4 mt-2">
             <Collapsible open={csOpen} onOpenChange={setCsOpen}>
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="sm" className="w-full justify-between h-8 text-[12px] text-muted-foreground hover:text-foreground rounded-lg px-2">
@@ -179,6 +250,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
           </div>
         )}
 
+        {/* Processor Notes Thread */}
         {(isProcessor || isAdmin) && (
           <div className="mx-4 mt-2">
             <Collapsible open={processorOpen} onOpenChange={setProcessorOpen}>
@@ -216,8 +288,8 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
 
         {/* Actions */}
         <div className="mt-auto p-4 pt-2 space-y-2">
-          <Select value={lead.status} onValueChange={handleStatusChange} disabled={changingStatus}>
-            <SelectTrigger className="w-full h-9 text-[12px] rounded-lg">
+          <Select value={lead.status} onValueChange={handleStatusChange} disabled={changingStatus || isPaid}>
+            <SelectTrigger className={`w-full h-9 text-[12px] rounded-lg ${isPaid ? 'opacity-60 cursor-not-allowed' : ''}`}>
               <SelectValue placeholder="Change Status" />
             </SelectTrigger>
             <SelectContent>
@@ -262,6 +334,13 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
           onOpenChange={(open) => { setPaymentOpen(open); if (!open) setPendingStatus(null); }}
           onConfirm={handlePaymentConfirm}
           loading={paymentLoading}
+        />
+
+        <ImageLightbox
+          images={allImages}
+          initialIndex={lightboxIndex}
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
         />
       </Card>
     </motion.div>
