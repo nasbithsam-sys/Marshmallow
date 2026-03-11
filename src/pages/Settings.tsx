@@ -67,6 +67,36 @@ const Settings = () => {
     },
   });
 
+  const { data: accessCodes = [] } = useQuery({
+    queryKey: ['user-access-codes'],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data } = await supabase.from('user_access_codes').select('*');
+      return data ?? [];
+    },
+  });
+
+  const getAccessCode = (userId: string) => {
+    return (accessCodes as any[]).find((c: any) => c.user_id === userId)?.code ?? null;
+  };
+
+  const handleGenerateCode = async (userId: string) => {
+    const code = generateCode();
+    const existing = (accessCodes as any[]).find((c: any) => c.user_id === userId);
+    if (existing) {
+      await supabase.from('user_access_codes').update({ code }).eq('user_id', userId);
+    } else {
+      await supabase.from('user_access_codes').insert({ user_id: userId, code });
+    }
+    toast.success('Access code generated');
+    queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast.success('Code copied to clipboard');
+  };
+
   const { data: navPermissions = [] } = useQuery({
     queryKey: ['settings-nav-permissions'],
     queryFn: async () => {
