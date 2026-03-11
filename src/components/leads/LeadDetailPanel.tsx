@@ -93,8 +93,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       const path = `payments/${leadId}_${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('lead-photos').upload(path, screenshotFile);
       if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
-        screenshotUrl = urlData.publicUrl;
+        screenshotUrl = path;
       }
     }
 

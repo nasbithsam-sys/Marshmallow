@@ -203,10 +203,9 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
         const path = `leads/${data.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: uploadErr } = await supabase.storage.from('lead-photos').upload(path, photo);
         if (!uploadErr) {
-          const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
           await supabase.from('lead_photos').insert({
             lead_id: data.id,
-            photo_url: urlData.publicUrl,
+            photo_url: path,
             uploaded_by: user.id,
           });
         }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -56,11 +56,27 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
       .select("photo_url")
       .eq("lead_id", lead.id)
       .order("created_at", { ascending: true });
-    if (data) setPhotos(data.map((p: any) => p.photo_url));
+    if (data) {
+      const paths = data.map((p: any) => p.photo_url);
+      // Resolve signed URLs for all photos
+      const { getSignedUrls } = await import("@/lib/storage");
+      const urls = await getSignedUrls(paths);
+      setPhotos(urls);
+    }
   };
 
+  const [resolvedPaymentUrl, setResolvedPaymentUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isPaid && lead.payment_screenshot_url) {
+      import("@/lib/storage").then(({ getSignedUrl }) =>
+        getSignedUrl(lead.payment_screenshot_url!).then(setResolvedPaymentUrl)
+      );
+    }
+  }, [lead.payment_screenshot_url, isPaid]);
+
   const allImages = [
-    ...(isPaid && lead.payment_screenshot_url ? [lead.payment_screenshot_url] : []),
+    ...(isPaid && resolvedPaymentUrl ? [resolvedPaymentUrl] : []),
     ...photos,
   ];
 
@@ -114,8 +130,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
       const path = `payments/${lead.id}_${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('lead-photos').upload(path, screenshotFile);
       if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
-        screenshotUrl = urlData.publicUrl;
+        screenshotUrl = path;
       }
     }
 

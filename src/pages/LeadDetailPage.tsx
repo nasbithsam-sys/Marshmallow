@@ -123,7 +123,12 @@ export default function LeadDetailPage() {
       .select("id, photo_url")
       .eq("lead_id", id!)
       .order("created_at", { ascending: true });
-    if (data) setPhotos(data.map((p: any) => ({ id: p.id, url: p.photo_url })));
+    if (data) {
+      const { getSignedUrls } = await import("@/lib/storage");
+      const paths = data.map((p: any) => p.photo_url);
+      const urls = await getSignedUrls(paths);
+      setPhotos(data.map((p: any, i: number) => ({ id: p.id, url: urls[i] })));
+    }
   };
 
   const handleChange = (field: string, value: string) => {
@@ -161,8 +166,7 @@ export default function LeadDetailPage() {
       const path = `payments/${id}_${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('lead-photos').upload(path, screenshotFile);
       if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
-        screenshotUrl = urlData.publicUrl;
+        screenshotUrl = path;
       }
     }
 
@@ -209,10 +213,9 @@ export default function LeadDetailPage() {
         const path = `leads/${leadId}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: uploadErr } = await supabase.storage.from('lead-photos').upload(path, photo);
         if (!uploadErr) {
-          const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
           await supabase.from('lead_photos').insert({
             lead_id: leadId,
-            photo_url: urlData.publicUrl,
+            photo_url: path,
             uploaded_by: user.id,
           });
         }

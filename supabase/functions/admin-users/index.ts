@@ -35,6 +35,82 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, message: "pong" });
     }
 
+    // Access code verification - called before full auth, uses email/password
+    if (action === "verify_access_code") {
+      const { email, password, code } = body;
+      if (!email || !password || !code) {
+        return jsonResponse({ error: "Email, password, and code are required" }, 400);
+      }
+
+      // Sign in to verify credentials
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+      if (!anonKey) {
+        return jsonResponse({ error: "Server configuration missing" }, 500);
+      }
+      const anonClient = createClient(supabaseUrl, anonKey);
+      const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({ email, password });
+      if (signInError || !signInData.user) {
+        return jsonResponse({ error: "Invalid credentials" }, 401);
+      }
+
+      const userId = signInData.user.id;
+
+      // Check stored code server-side (using service role to bypass RLS)
+      const { data: codeData } = await adminClient
+        .from("user_access_codes")
+        .select("code")
+        .eq("user_id", userId)
+        .single();
+
+      if (!codeData || codeData.code !== code) {
+        // Sign out the temporary session
+        await anonClient.auth.signOut();
+        return jsonResponse({ error: "Invalid access code" }, 403);
+      }
+
+      // Code valid — regenerate for single-use
+      const newCode = String(Math.floor(100000 + Math.random() * 900000));
+      await adminClient
+        .from("user_access_codes")
+        .update({ code: newCode })
+        .eq("user_id", userId);
+
+      // Return the session tokens so the client can set the session
+      return jsonResponse({
+        success: true,
+        session: {
+          access_token: signInData.session?.access_token,
+          refresh_token: signInData.session?.refresh_token,
+        },
+      });
+    }
+
+    // Check if user needs access code (called after initial sign-in)
+    if (action === "check_access_code") {
+      const { user_id } = body;
+      if (!user_id) {
+        return jsonResponse({ error: "user_id is required" }, 400);
+      }
+
+      const { data: roleData } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user_id)
+        .single();
+
+      if (roleData?.role === "admin") {
+        return jsonResponse({ requires_code: false });
+      }
+
+      const { data: codeData } = await adminClient
+        .from("user_access_codes")
+        .select("id")
+        .eq("user_id", user_id)
+        .single();
+
+      return jsonResponse({ requires_code: !!codeData });
+    }
+
     // Verify caller is authenticated
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
