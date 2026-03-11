@@ -345,6 +345,53 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </div>
           </div>
 
+          {/* Processor Details - hidden from CS */}
+          {!isCS && (
+            <div className="rounded-xl bg-card border border-border/50 p-5">
+              <SectionHeader icon={Wrench} title="Processor Details" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground/60 font-medium">Tech Name</Label>
+                  <Input value={form.tech_name ?? ''} onChange={e => update('tech_name', e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground/60 font-medium">Tech Number</Label>
+                  <Input value={form.tech_number ?? ''} onChange={e => update('tech_number', e.target.value)} />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground/60 font-medium">Terms</Label>
+                  <Select value={form.terms ?? ''} onValueChange={v => update('terms', v)}>
+                    <SelectTrigger><SelectValue placeholder="Select terms..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free_estimate">Free Estimate Visit</SelectItem>
+                      <SelectItem value="quoted">Quoted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.terms === 'quoted' && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground/60 font-medium">Customer Labor ($)</Label>
+                      <Input type="number" step="0.01" value={form.labor_amount ?? ''} onChange={e => update('labor_amount', parseFloat(e.target.value) || null)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground/60 font-medium">Materials ($)</Label>
+                      <Input type="number" step="0.01" value={form.material_amount ?? ''} onChange={e => update('material_amount', parseFloat(e.target.value) || null)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground/60 font-medium">For You ($)</Label>
+                      <Input type="number" step="0.01" value={form.for_you_amount ?? ''} onChange={e => update('for_you_amount', parseFloat(e.target.value) || null)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground/60 font-medium">For Us ($)</Label>
+                      <Input type="number" step="0.01" value={form.for_us_amount ?? ''} onChange={e => update('for_us_amount', parseFloat(e.target.value) || null)} />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Schedule */}
           <div className="rounded-xl bg-card border border-border/50 p-5">
             <SectionHeader icon={Clock} title="Schedule" />
