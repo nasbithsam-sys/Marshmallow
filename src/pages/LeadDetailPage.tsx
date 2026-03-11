@@ -208,10 +208,9 @@ export default function LeadDetailPage() {
         const path = `leads/${leadId}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: uploadErr } = await supabase.storage.from('lead-photos').upload(path, photo);
         if (!uploadErr) {
-          const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
           await supabase.from('lead_photos').insert({
             lead_id: leadId,
-            photo_url: urlData.publicUrl,
+            photo_url: path,
             uploaded_by: user.id,
           });
         }

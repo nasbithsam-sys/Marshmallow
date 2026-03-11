@@ -114,8 +114,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
       const path = `payments/${lead.id}_${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('lead-photos').upload(path, screenshotFile);
       if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('lead-photos').getPublicUrl(path);
-        screenshotUrl = urlData.publicUrl;
+        screenshotUrl = path;
       }
     }
 
