@@ -132,9 +132,9 @@ export default function SchedulePage() {
       const [eh, em] = lead.scheduled_time_end.split(":").map(Number);
       duration = (eh + em / 60) - startHour;
     }
-    const top = ((startHour - 7) / 10) * 100;
-    const width = (duration / 10) * 100;
-    return { left: `${top}%`, width: `${Math.max(width, 8)}%` };
+    const top = (startHour / 24) * 100;
+    const width = (duration / 24) * 100;
+    return { left: `${top}%`, width: `${Math.max(width, 3)}%` };
   };
 
   const formatTime = (t: string | null) => {
