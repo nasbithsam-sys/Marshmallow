@@ -167,6 +167,11 @@ const Settings = () => {
     if (data.user) {
       await supabase.from('profiles').insert({ id: data.user.id, full_name: newName, email: newEmail });
       await supabase.from('user_roles').insert({ user_id: data.user.id, role: newRole });
+      // Auto-generate access code for non-admin users
+      if (newRole !== 'admin') {
+        const code = generateCode();
+        await supabase.from('user_access_codes').insert({ user_id: data.user.id, code });
+      }
     }
     toast.success('User created');
     setCreateOpen(false);
