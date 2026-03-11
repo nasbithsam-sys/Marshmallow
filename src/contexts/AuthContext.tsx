@@ -87,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (role === 'admin') return true;
     if (navItem in userOverrides) return userOverrides[navItem];
     return permissions.some(
-      (p: any) => p.role === role && p.nav_item === navItem && p.allowed
+      (p: any) => p.nav_section === navItem && p.allowed
     );
   };
 
