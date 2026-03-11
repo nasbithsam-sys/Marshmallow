@@ -164,49 +164,46 @@ const Settings = () => {
 
   const handleCreateUser = async () => {
     setCreating(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: newEmail,
-      password: newPassword,
-      options: { data: { full_name: newName } },
-    });
-    if (error) { toast.error(error.message); setCreating(false); return; }
-    if (data.user) {
-      await supabase.from('profiles').insert({ id: data.user.id, full_name: newName, email: newEmail });
-      await supabase.from('user_roles').insert({ user_id: data.user.id, role: newRole });
-      // Auto-generate access code for non-admin users
-      if (newRole !== 'admin') {
-        const code = generateCode();
-        await supabase.from('user_access_codes').insert({ user_id: data.user.id, code });
-      }
+    try {
+      const code = newRole !== 'admin' ? generateCode() : undefined;
+      await adminApi.createUser(newEmail, newPassword, newName, newRole, code);
+      toast.success('User created');
+      setCreateOpen(false);
+      setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('no_role');
+      queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+      queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create user');
     }
-    toast.success('User created');
-    setCreateOpen(false);
-    setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('no_role');
     setCreating(false);
-    queryClient.invalidateQueries({ queryKey: ['settings-users'] });
-    queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
   };
 
-  const handleSendPasswordReset = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/login',
-    });
-    if (error) toast.error(error.message);
-    else toast.success(`Password reset email sent to ${email}`);
+  const handleSetPassword = async () => {
+    if (!newPasswordValue || newPasswordValue.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    setSettingPassword(true);
+    try {
+      await adminApi.setPassword(passwordUserId, newPasswordValue);
+      toast.success(`Password updated for ${passwordUserName}`);
+      setPasswordDialogOpen(false);
+      setNewPasswordValue('');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to set password');
+    }
+    setSettingPassword(false);
   };
 
   const handleDeleteUser = async (userId: string) => {
-    await Promise.all([
-      supabase.from('user_roles').delete().eq('user_id', userId),
-      supabase.from('navigation_permissions').delete().eq('user_id', userId),
-      supabase.from('status_permissions').delete().eq('user_id', userId),
-      supabase.from('notifications').delete().eq('user_id', userId),
-      supabase.from('user_access_codes').delete().eq('user_id', userId),
-      supabase.from('profiles').delete().eq('id', userId),
-    ]);
-    toast.success('User data deleted');
-    queryClient.invalidateQueries({ queryKey: ['settings-users'] });
-    queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
+    try {
+      await adminApi.deleteUser(userId);
+      toast.success('User deleted');
+      queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+      queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete user');
+    }
   };
 
   const getNavPermission = (userId: string, section: string) => {
