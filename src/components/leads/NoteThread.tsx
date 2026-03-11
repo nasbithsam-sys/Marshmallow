@@ -4,8 +4,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send } from "lucide-react";
+import { Send, Pencil, Check, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 interface LeadNote {
   id: string;
@@ -24,11 +25,15 @@ interface Props {
 }
 
 export default function NoteThread({ leadId, noteType, label, profiles }: Props) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [newNote, setNewNote] = useState("");
   const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = role === "admin";
 
   useEffect(() => {
     fetchNotes();
@@ -59,11 +64,38 @@ export default function NoteThread({ leadId, noteType, label, profiles }: Props)
       note_type: noteType,
       content: newNote.trim(),
     });
-    if (!error) {
+    if (error) {
+      toast.error("Failed to add note: " + error.message);
+    } else {
       setNewNote("");
       await fetchNotes();
     }
     setSending(false);
+  };
+
+  const handleEdit = (note: LeadNote) => {
+    setEditingId(note.id);
+    setEditContent(note.content);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editContent.trim() || !editingId) return;
+    const { error } = await supabase
+      .from("lead_notes")
+      .update({ content: editContent.trim() })
+      .eq("id", editingId);
+    if (error) {
+      toast.error("Failed to update note");
+    } else {
+      setEditingId(null);
+      setEditContent("");
+      await fetchNotes();
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditContent("");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -71,6 +103,11 @@ export default function NoteThread({ leadId, noteType, label, profiles }: Props)
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const canEdit = (note: LeadNote) => {
+    if (isAdmin) return true;
+    return note.user_id === user?.id;
   };
 
   const getInitials = (userId: string) => {
@@ -91,6 +128,7 @@ export default function NoteThread({ leadId, noteType, label, profiles }: Props)
         <AnimatePresence initial={false}>
           {notes.map((note) => {
             const isMe = note.user_id === user?.id;
+            const isEditing = editingId === note.id;
             return (
               <motion.div
                 key={note.id}
@@ -112,14 +150,53 @@ export default function NoteThread({ leadId, noteType, label, profiles }: Props)
                     <span className="text-[9px] text-muted-foreground/40">
                       {new Date(note.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
+                    {canEdit(note) && !isEditing && (
+                      <button
+                        onClick={() => handleEdit(note)}
+                        className="opacity-0 group-hover/note:opacity-100 hover:opacity-100 focus:opacity-100 p-0.5 rounded hover:bg-muted transition-all"
+                        title="Edit note"
+                      >
+                        <Pencil className="h-2.5 w-2.5 text-muted-foreground/60" />
+                      </button>
+                    )}
                   </div>
-                  <div className={`rounded-xl px-3 py-2 text-[13px] leading-relaxed ${
-                    isMe
-                      ? "bg-primary text-primary-foreground rounded-tr-sm"
-                      : "bg-muted/50 text-foreground rounded-tl-sm border border-border/30"
-                  }`}>
-                    {note.content}
-                  </div>
+                  {isEditing ? (
+                    <div className="space-y-1.5">
+                      <Textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="min-h-[60px] text-[13px] resize-none"
+                        autoFocus
+                      />
+                      <div className="flex gap-1 justify-end">
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCancelEdit}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                        <Button size="icon" className="h-6 w-6" onClick={handleSaveEdit}>
+                          <Check className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className={`group/note rounded-xl px-3 py-2 text-[13px] leading-relaxed relative ${
+                        isMe
+                          ? "bg-primary text-primary-foreground rounded-tr-sm"
+                          : "bg-muted/50 text-foreground rounded-tl-sm border border-border/30"
+                      }`}
+                    >
+                      {note.content}
+                      {canEdit(note) && (
+                        <button
+                          onClick={() => handleEdit(note)}
+                          className="absolute top-1 right-1 opacity-0 group-hover/note:opacity-100 p-1 rounded-md hover:bg-black/10 transition-all"
+                          title="Edit"
+                        >
+                          <Pencil className="h-2.5 w-2.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );

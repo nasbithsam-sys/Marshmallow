@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, User, MapPin, Clock, MessageSquare, FileText, Check, AlertCircle } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { X, User, MapPin, Clock, MessageSquare, FileText, Check, AlertCircle, Wrench, Copy } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import LeadUpdatesSection from './LeadUpdatesSection';
 import NoteThread from './NoteThread';
 import PaymentDialog from './PaymentDialog';
+import CopyLeadButton from './CopyLeadButton';
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from '@/types';
 import { toast } from 'sonner';
 import { useDuplicatePhoneCheck } from '@/hooks/useDuplicatePhoneCheck';
@@ -140,6 +142,20 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         processor_notes: role !== 'customer_service' ? form.processor_notes : lead?.processor_notes,
         last_edited_by: user.id,
         last_edited_at: new Date().toISOString(),
+        // CS fields
+        number_name: form.number_name,
+        quote: form.quote,
+        service_details: form.service_details,
+        customer_schedule_requirements: form.customer_schedule_requirements,
+        reference_name: form.reference_name,
+        // Processor fields
+        tech_name: role !== 'customer_service' ? form.tech_name : lead?.tech_name,
+        tech_number: role !== 'customer_service' ? form.tech_number : lead?.tech_number,
+        terms: role !== 'customer_service' ? form.terms : lead?.terms,
+        labor_amount: role !== 'customer_service' ? form.labor_amount : lead?.labor_amount,
+        material_amount: role !== 'customer_service' ? form.material_amount : lead?.material_amount,
+        for_you_amount: role !== 'customer_service' ? form.for_you_amount : lead?.for_you_amount,
+        for_us_amount: role !== 'customer_service' ? form.for_us_amount : lead?.for_us_amount,
       };
 
       if (form.status === 'paid') {
@@ -219,6 +235,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             <StatusBadge status={lead.status as LeadStatus} />
           </div>
           <div className="flex items-center gap-2">
+            {(!isCS) && <CopyLeadButton lead={lead} />}
             <Button
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending || isDuplicate}
@@ -258,6 +275,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <Input value={form.customer_name ?? ''} onChange={e => update('customer_name', e.target.value)} readOnly={isProcessor} />
               </div>
               <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Number Name</Label>
+                <Input value={form.number_name ?? ''} onChange={e => update('number_name', e.target.value)} readOnly={isProcessor} />
+              </div>
+              <div className="space-y-1.5">
                 <Label className="text-[11px] text-muted-foreground/60 font-medium">Phone</Label>
                 <Input
                   value={form.customer_phone ?? ''}
@@ -279,6 +300,22 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               <div className="space-y-1.5">
                 <Label className="text-[11px] text-muted-foreground/60 font-medium">Service Type</Label>
                 <Input value={form.service_type ?? ''} onChange={e => update('service_type', e.target.value)} readOnly={isProcessor} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Quote</Label>
+                <Input value={form.quote ?? ''} onChange={e => update('quote', e.target.value)} readOnly={isProcessor} />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Service Details</Label>
+                <Textarea value={form.service_details ?? ''} onChange={e => update('service_details', e.target.value)} readOnly={isProcessor} rows={2} className="resize-none" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Schedule Requirements</Label>
+                <Input value={form.customer_schedule_requirements ?? ''} onChange={e => update('customer_schedule_requirements', e.target.value)} readOnly={isProcessor} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground/60 font-medium">Reference</Label>
+                <Input value={form.reference_name ?? ''} onChange={e => update('reference_name', e.target.value)} readOnly={isProcessor} />
               </div>
             </div>
           </div>
@@ -308,6 +345,53 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </div>
           </div>
 
+          {/* Processor Details - hidden from CS */}
+          {!isCS && (
+            <div className="rounded-xl bg-card border border-border/50 p-5">
+              <SectionHeader icon={Wrench} title="Processor Details" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground/60 font-medium">Tech Name</Label>
+                  <Input value={form.tech_name ?? ''} onChange={e => update('tech_name', e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground/60 font-medium">Tech Number</Label>
+                  <Input value={form.tech_number ?? ''} onChange={e => update('tech_number', e.target.value)} />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground/60 font-medium">Terms</Label>
+                  <Select value={form.terms ?? ''} onValueChange={v => update('terms', v)}>
+                    <SelectTrigger><SelectValue placeholder="Select terms..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free_estimate">Free Estimate Visit</SelectItem>
+                      <SelectItem value="quoted">Quoted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.terms === 'quoted' && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground/60 font-medium">Customer Labor ($)</Label>
+                      <Input type="number" step="0.01" value={form.labor_amount ?? ''} onChange={e => update('labor_amount', parseFloat(e.target.value) || null)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground/60 font-medium">Materials ($)</Label>
+                      <Input type="number" step="0.01" value={form.material_amount ?? ''} onChange={e => update('material_amount', parseFloat(e.target.value) || null)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground/60 font-medium">For You ($)</Label>
+                      <Input type="number" step="0.01" value={form.for_you_amount ?? ''} onChange={e => update('for_you_amount', parseFloat(e.target.value) || null)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground/60 font-medium">For Us ($)</Label>
+                      <Input type="number" step="0.01" value={form.for_us_amount ?? ''} onChange={e => update('for_us_amount', parseFloat(e.target.value) || null)} />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Schedule */}
           <div className="rounded-xl bg-card border border-border/50 p-5">
             <SectionHeader icon={Clock} title="Schedule" />
@@ -331,6 +415,12 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <Input type="number" step="0.01" value={form.amount ?? ''} onChange={e => update('amount', parseFloat(e.target.value) || null)} />
               </div>
             )}
+          </div>
+
+          {/* General Notes Thread */}
+          <div className="rounded-xl bg-card border border-border/50 p-5">
+            <SectionHeader icon={MessageSquare} title="General Notes" />
+            <NoteThread leadId={leadId} noteType="general" label="Notes" profiles={profiles} />
           </div>
 
           {/* CS Notes Thread */}

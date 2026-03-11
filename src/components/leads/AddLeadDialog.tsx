@@ -11,11 +11,13 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { AlertCircle, ImagePlus, X } from 'lucide-react';
+import { AlertCircle, ImagePlus, X, ChevronDown, User, Wrench, ClipboardList, Calendar } from 'lucide-react';
 import { LEAD_STATUS_CONFIG, type LeadStatus } from '@/types';
 import { useDuplicatePhoneCheck } from '@/hooks/useDuplicatePhoneCheck';
 import { formatUSPhone } from '@/lib/phone';
+import { motion } from 'framer-motion';
 
 interface Props {
   open: boolean;
@@ -32,14 +34,11 @@ const generateJobId = () => {
 
 const sendNotifications = async (leadName: string, status: string, leadId: string) => {
   if (status !== 'urgent_job' && status !== 'need_tech') return;
-
   const { data: roles } = await supabase
     .from('user_roles')
     .select('user_id, role')
     .in('role', ['admin', 'processor']);
-
   if (!roles || roles.length === 0) return;
-
   const statusLabel = status === 'urgent_job' ? 'Urgent Job' : 'Need Tech';
   const notifications = roles.map((r: any) => ({
     user_id: r.user_id,
@@ -48,9 +47,20 @@ const sendNotifications = async (leadName: string, status: string, leadId: strin
     lead_id: leadId,
     read: false,
   }));
-
   await supabase.from('notifications').insert(notifications);
 };
+
+const SectionHeader = ({ icon: Icon, title, open }: { icon: React.ElementType; title: string; open: boolean }) => (
+  <div className="flex items-center gap-2.5 w-full">
+    <div className="w-6 h-6 rounded-md bg-primary/6 border border-primary/8 flex items-center justify-center">
+      <Icon className="h-3 w-3 text-primary/70" />
+    </div>
+    <span className="text-[12px] font-semibold text-foreground flex-1">{title}</span>
+    <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+    </motion.span>
+  </div>
+);
 
 const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   const { user, role } = useAuth();
@@ -58,6 +68,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   const [form, setForm] = useState({
     customer_name: '',
     customer_phone: '',
+    number_name: '',
     address: '',
     service_type: '',
     status: 'waiting_complete_details' as LeadStatus,
@@ -68,16 +79,33 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
     end_hour: '2',
     end_minute: '00',
     end_ampm: 'PM',
+    // CS fields
+    quote: '',
+    service_details: '',
+    customer_schedule_requirements: '',
+    reference_name: '',
+    // Processor fields
+    tech_name: '',
+    tech_number: '',
+    terms: '' as '' | 'free_estimate' | 'quoted',
+    labor_amount: '',
+    material_amount: '',
+    for_you_amount: '',
+    for_us_amount: '',
+    // Notes
     cs_notes: '',
     processor_notes: '',
     general_notes: '',
   });
   const [photos, setPhotos] = useState<File[]>([]);
+  const [csOpen, setCsOpen] = useState(true);
+  const [processorOpen, setProcessorOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone);
 
   const update = (key: string, value: string) => {
-    if (key === 'customer_phone') {
+    if (key === 'customer_phone' || key === 'tech_number') {
       setForm(prev => ({ ...prev, [key]: formatUSPhone(value) }));
     } else {
       setForm(prev => ({ ...prev, [key]: value }));
@@ -107,13 +135,24 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
     e.preventDefault();
     if (!user) return;
 
+    if (!form.customer_name.trim()) {
+      toast.error('Customer Name is required');
+      return;
+    }
+    if (!form.customer_phone.trim()) {
+      toast.error('Phone Number is required');
+      return;
+    }
+    if (!form.number_name.trim()) {
+      toast.error('Number Name is required');
+      return;
+    }
     if (isDuplicate) {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
       return;
     }
 
     setLoading(true);
-
     const jobId = generateJobId();
 
     let scheduled_time_start: string | null = null;
@@ -123,10 +162,11 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       scheduled_time_end = parseTime(form.end_hour, form.end_minute, form.end_ampm);
     }
 
-    const { data, error } = await supabase.from('leads').insert({
+    const insertData: any = {
       job_id: jobId,
       customer_name: form.customer_name,
       customer_phone: form.customer_phone || null,
+      number_name: form.number_name || null,
       address: form.address || null,
       service_type: form.service_type || null,
       status: form.status,
@@ -137,7 +177,22 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       assigned_cs: isCS ? user.id : null,
       cs_notes: form.cs_notes || null,
       processor_notes: form.processor_notes || null,
-    }).select().single();
+      // CS fields
+      quote: form.quote || null,
+      service_details: form.service_details || null,
+      customer_schedule_requirements: form.customer_schedule_requirements || null,
+      reference_name: form.reference_name || null,
+      // Processor fields
+      tech_name: form.tech_name || null,
+      tech_number: form.tech_number || null,
+      terms: form.terms || null,
+      labor_amount: form.labor_amount ? parseFloat(form.labor_amount) : null,
+      material_amount: form.material_amount ? parseFloat(form.material_amount) : null,
+      for_you_amount: form.for_you_amount ? parseFloat(form.for_you_amount) : null,
+      for_us_amount: form.for_us_amount ? parseFloat(form.for_us_amount) : null,
+    };
+
+    const { data, error } = await supabase.from('leads').insert(insertData).select().single();
 
     if (error) {
       toast.error('Failed to create lead: ' + error.message);
@@ -157,7 +212,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
         }
       }
 
-      // Add general notes as a lead_notes entry
+      // Add general notes
       if (form.general_notes.trim()) {
         await supabase.from('lead_notes').insert({
           lead_id: data.id,
@@ -171,17 +226,24 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       toast.success('Lead created successfully!');
       onSuccess();
       onOpenChange(false);
-      setForm({
-        customer_name: '', customer_phone: '',
-        address: '', service_type: '',
-        status: 'waiting_complete_details', scheduled_date: '',
-        start_hour: '12', start_minute: '00', start_ampm: 'AM',
-        end_hour: '2', end_minute: '00', end_ampm: 'PM',
-        cs_notes: '', processor_notes: '', general_notes: '',
-      });
-      setPhotos([]);
+      resetForm();
     }
     setLoading(false);
+  };
+
+  const resetForm = () => {
+    setForm({
+      customer_name: '', customer_phone: '', number_name: '',
+      address: '', service_type: '',
+      status: 'waiting_complete_details', scheduled_date: '',
+      start_hour: '12', start_minute: '00', start_ampm: 'AM',
+      end_hour: '2', end_minute: '00', end_ampm: 'PM',
+      quote: '', service_details: '', customer_schedule_requirements: '', reference_name: '',
+      tech_name: '', tech_number: '', terms: '',
+      labor_amount: '', material_amount: '', for_you_amount: '', for_us_amount: '',
+      cs_notes: '', processor_notes: '', general_notes: '',
+    });
+    setPhotos([]);
   };
 
   const TimePicker = ({ prefix, label }: { prefix: 'start' | 'end'; label: string }) => (
@@ -218,81 +280,172 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Lead</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Customer Name */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-muted-foreground/60">Customer Name *</Label>
-            <Input value={form.customer_name} onChange={e => update('customer_name', e.target.value)} required placeholder="John Doe" />
-          </div>
-
-          {/* Phone */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-muted-foreground/60">Phone Number *</Label>
-            <Input
-              value={form.customer_phone}
-              onChange={e => update('customer_phone', e.target.value)}
-              placeholder="(555) 123-4567"
-              required
-              maxLength={14}
-              className={isDuplicate ? 'border-destructive ring-1 ring-destructive' : ''}
-            />
-            {isDuplicate && (
-              <div className="flex items-center gap-1.5 text-destructive text-[11px] mt-1">
-                <AlertCircle className="h-3 w-3" />
-                <span>A lead already exists with this number: <strong>{duplicateLeadName}</strong></span>
-              </div>
-            )}
-          </div>
-
-          {/* Address */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-muted-foreground/60">Address</Label>
-            <Input value={form.address} onChange={e => update('address', e.target.value)} placeholder="123 Main St, City, State, Zip" />
-          </div>
-
-          {/* Service Type */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-muted-foreground/60">Service Type</Label>
-            <Input value={form.service_type} onChange={e => update('service_type', e.target.value)} placeholder="HVAC Repair, Plumbing, etc." />
-          </div>
-
-          {/* Status */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-muted-foreground/60">Status</Label>
-            <Select value={form.status} onValueChange={v => update('status', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(LEAD_STATUS_CONFIG)
-                  .filter(([key]) => key !== 'paid')
-                  .map(([key, cfg]) => (
-                    <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Schedule */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-muted-foreground/60">Job Scheduled For</Label>
-            <Input
-              type="date"
-              value={form.scheduled_date}
-              onChange={e => update('scheduled_date', e.target.value)}
-            />
-          </div>
-
-          {form.scheduled_date && (
+          {/* ── Required Fields ── */}
+          <div className="rounded-xl border border-border/50 p-4 space-y-3 bg-muted/10">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Required Information</p>
             <div className="grid grid-cols-2 gap-3">
-              <TimePicker prefix="start" label="Start Time" />
-              <TimePicker prefix="end" label="End Time" />
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground/60">Customer Name *</Label>
+                <Input value={form.customer_name} onChange={e => update('customer_name', e.target.value)} placeholder="John Doe" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground/60">Number Name *</Label>
+                <Input value={form.number_name} onChange={e => update('number_name', e.target.value)} placeholder="Name on phone account" />
+              </div>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-medium text-muted-foreground/60">Phone Number *</Label>
+              <Input
+                value={form.customer_phone}
+                onChange={e => update('customer_phone', e.target.value)}
+                placeholder="(555) 123-4567"
+                maxLength={14}
+                className={isDuplicate ? 'border-destructive ring-1 ring-destructive' : ''}
+              />
+              {isDuplicate && (
+                <div className="flex items-center gap-1.5 text-destructive text-[11px] mt-1">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>Duplicate: <strong>{duplicateLeadName}</strong></span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── CS Details Section ── */}
+          <Collapsible open={csOpen} onOpenChange={setCsOpen}>
+            <CollapsibleTrigger className="w-full rounded-lg border border-border/40 px-4 py-3 hover:bg-muted/20 transition-colors">
+              <SectionHeader icon={User} title="Customer Service Details" open={csOpen} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 space-y-3 px-1">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground/60">Address</Label>
+                <Input value={form.address} onChange={e => update('address', e.target.value)} placeholder="123 Main St, City, State, Zip" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium text-muted-foreground/60">Service Type</Label>
+                  <Input value={form.service_type} onChange={e => update('service_type', e.target.value)} placeholder="HVAC, Plumbing, etc." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium text-muted-foreground/60">Quote</Label>
+                  <Input value={form.quote} onChange={e => update('quote', e.target.value)} placeholder="Quote amount or details" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground/60">Service Details</Label>
+                <Textarea value={form.service_details} onChange={e => update('service_details', e.target.value)} placeholder="Detailed description of the service needed..." rows={2} className="resize-none" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground/60">Customer Schedule Requirements</Label>
+                <Input value={form.customer_schedule_requirements} onChange={e => update('customer_schedule_requirements', e.target.value)} placeholder="Preferred times, availability..." />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground/60">Reference</Label>
+                <Input value={form.reference_name} onChange={e => update('reference_name', e.target.value)} placeholder="Referral name or source" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-primary">CS Notes</Label>
+                <Textarea value={form.cs_notes} onChange={e => update('cs_notes', e.target.value)} placeholder="Notes for customer service..." rows={2} className="resize-none" />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* ── Processor Section ── */}
+          {!isCS && (
+            <Collapsible open={processorOpen} onOpenChange={setProcessorOpen}>
+              <CollapsibleTrigger className="w-full rounded-lg border border-border/40 px-4 py-3 hover:bg-muted/20 transition-colors">
+                <SectionHeader icon={Wrench} title="Processor Details" open={processorOpen} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2 space-y-3 px-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-medium text-muted-foreground/60">Tech Name</Label>
+                    <Input value={form.tech_name} onChange={e => update('tech_name', e.target.value)} placeholder="Technician name" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-medium text-muted-foreground/60">Tech Number</Label>
+                    <Input value={form.tech_number} onChange={e => update('tech_number', e.target.value)} placeholder="(555) 123-4567" maxLength={14} />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium text-muted-foreground/60">Terms</Label>
+                  <Select value={form.terms} onValueChange={v => update('terms', v)}>
+                    <SelectTrigger><SelectValue placeholder="Select terms..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free_estimate">Free Estimate Visit</SelectItem>
+                      <SelectItem value="quoted">Quoted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.terms === 'quoted' && (
+                  <div className="rounded-lg border border-border/30 bg-muted/10 p-3 space-y-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Quoted Details</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] font-medium text-muted-foreground/60">Customer Labor ($)</Label>
+                        <Input type="number" step="0.01" value={form.labor_amount} onChange={e => update('labor_amount', e.target.value)} placeholder="0.00" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] font-medium text-muted-foreground/60">Materials ($)</Label>
+                        <Input type="number" step="0.01" value={form.material_amount} onChange={e => update('material_amount', e.target.value)} placeholder="0.00" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] font-medium text-muted-foreground/60">For You ($ incl. material)</Label>
+                        <Input type="number" step="0.01" value={form.for_you_amount} onChange={e => update('for_you_amount', e.target.value)} placeholder="0.00" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] font-medium text-muted-foreground/60">For Us ($ from labor)</Label>
+                        <Input type="number" step="0.01" value={form.for_us_amount} onChange={e => update('for_us_amount', e.target.value)} placeholder="0.00" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium text-primary">Processor Notes</Label>
+                  <Textarea value={form.processor_notes} onChange={e => update('processor_notes', e.target.value)} placeholder="Notes for processor..." rows={2} className="resize-none" />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           )}
 
-          {/* Photo Attachments */}
+          {/* ── Schedule & Status ── */}
+          <Collapsible open={scheduleOpen} onOpenChange={setScheduleOpen}>
+            <CollapsibleTrigger className="w-full rounded-lg border border-border/40 px-4 py-3 hover:bg-muted/20 transition-colors">
+              <SectionHeader icon={Calendar} title="Schedule & Status" open={scheduleOpen} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 space-y-3 px-1">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground/60">Status</Label>
+                <Select value={form.status} onValueChange={v => update('status', v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(LEAD_STATUS_CONFIG)
+                      .filter(([key]) => key !== 'paid')
+                      .map(([key, cfg]) => (
+                        <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground/60">Job Scheduled For</Label>
+                <Input type="date" value={form.scheduled_date} onChange={e => update('scheduled_date', e.target.value)} />
+              </div>
+              {form.scheduled_date && (
+                <div className="grid grid-cols-2 gap-3">
+                  <TimePicker prefix="start" label="Start Time" />
+                  <TimePicker prefix="end" label="End Time" />
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* ── Photos ── */}
           <div className="space-y-1.5">
             <Label className="text-[11px] font-medium text-muted-foreground/60">Photos</Label>
             <div className="flex flex-wrap gap-2">
@@ -315,43 +468,17 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
             </div>
           </div>
 
-          {/* General Notes */}
+          {/* ── General Notes ── */}
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-muted-foreground/60">Notes</Label>
+            <Label className="text-[11px] font-medium text-muted-foreground/60">General Notes</Label>
             <Textarea
               value={form.general_notes}
               onChange={e => update('general_notes', e.target.value)}
               placeholder="General notes about this lead..."
-              rows={3}
+              rows={2}
               className="resize-none"
             />
           </div>
-
-          {/* Customer Service Notes */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-primary">Customer Service Notes</Label>
-            <Textarea
-              value={form.cs_notes}
-              onChange={e => update('cs_notes', e.target.value)}
-              placeholder="Notes for customer service..."
-              rows={3}
-              className="resize-none"
-            />
-          </div>
-
-          {/* Processor Notes - hidden from CS */}
-          {!isCS && (
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-medium text-primary">Processor Notes</Label>
-              <Textarea
-                value={form.processor_notes}
-                onChange={e => update('processor_notes', e.target.value)}
-                placeholder="Notes for processor..."
-                rows={3}
-                className="resize-none"
-              />
-            </div>
-          )}
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

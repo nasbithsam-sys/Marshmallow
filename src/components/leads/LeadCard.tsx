@@ -142,8 +142,17 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
   };
 
   const handleDelete = async () => {
+    // Delete related records first to avoid FK constraint errors
+    await Promise.all([
+      supabase.from("lead_notes").delete().eq("lead_id", lead.id),
+      supabase.from("lead_photos").delete().eq("lead_id", lead.id),
+      supabase.from("lead_shares").delete().eq("lead_id", lead.id),
+      supabase.from("lead_updates").delete().eq("lead_id", lead.id),
+      supabase.from("notifications").delete().eq("lead_id", lead.id),
+      supabase.from("lead_payments").delete().eq("lead_id", lead.id),
+    ]);
     const { error } = await supabase.from("leads").delete().eq("id", lead.id);
-    if (error) toast.error("Failed to delete lead");
+    if (error) toast.error("Failed to delete lead: " + error.message);
     else { toast.success("Lead deleted"); onRefresh(); }
   };
 
