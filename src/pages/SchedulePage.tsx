@@ -54,7 +54,7 @@ export default function SchedulePage() {
     [viewMode, selectedDay, weekDays]
   );
 
-  const hours = useMemo(() => Array.from({ length: 10 }, (_, i) => i + 7), []);
+  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
 
   useEffect(() => { fetchData(); }, [weekStart]);
 
