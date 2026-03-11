@@ -18,7 +18,7 @@ interface LeadNote {
 
 interface Props {
   leadId: string;
-  noteType: "cs" | "processor";
+  noteType: "cs" | "processor" | "general";
   label: string;
   profiles: Record<string, string>;
 }
