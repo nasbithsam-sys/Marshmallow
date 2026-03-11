@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, Download, Share2 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
+import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
@@ -28,6 +29,7 @@ export default function LeadsPage() {
   const [page, setPage] = useState(0);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<'my' | 'shared'>('my');
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const statusFilter = searchParams.get("status") || "all";
   const isAdmin = role === "admin";
@@ -173,9 +175,10 @@ export default function LeadsPage() {
               </Button>
             </div>
           )}
-          <Button onClick={() => navigate("/leads/new")} className="gap-2">
+          <Button onClick={() => setShowAddDialog(true)} className="gap-2">
             <Plus className="h-4 w-4" /> New Lead
           </Button>
+          <AddLeadDialog open={showAddDialog} onOpenChange={setShowAddDialog} onSuccess={() => { setLoading(true); fetchLeads(); }} />
         </motion.div>
       </div>
 
