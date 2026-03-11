@@ -146,6 +146,38 @@ export type Database = {
           },
         ]
       }
+      lead_shares: {
+        Row: {
+          created_at: string | null
+          id: string
+          lead_id: string
+          shared_by: string
+          shared_with_user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          lead_id: string
+          shared_by: string
+          shared_with_user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          lead_id?: string
+          shared_by?: string
+          shared_with_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_shares_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_updates: {
         Row: {
           author_id: string
