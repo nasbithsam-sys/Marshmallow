@@ -131,6 +131,84 @@ const Login = () => {
     setVerifying(false);
   };
 
+  // Access Code Verification Screen
+  if (accessCodeRequired) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-8 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.03),transparent_70%)]" />
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: premiumEase }}
+          className="w-full max-w-sm space-y-8 relative z-10"
+        >
+          <div className="text-center space-y-4">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 220, damping: 18, delay: 0.15 }}
+              className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-[hsl(260,75%,58%)] flex items-center justify-center mx-auto shadow-brand"
+            >
+              <KeyRound className="h-7 w-7 text-primary-foreground" />
+            </motion.div>
+            <motion.h2
+              variants={heroTitle}
+              initial="initial"
+              animate="animate"
+              className="text-2xl font-bold tracking-tight text-foreground"
+            >
+              Access Code Required
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.25 }}
+              className="text-sm text-muted-foreground"
+            >
+              Enter the 6-digit access code provided by your administrator
+            </motion.p>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.35 }}
+            className="space-y-4"
+          >
+            <Input
+              value={accessCodeInput}
+              onChange={e => setAccessCodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000"
+              className="font-mono text-center text-2xl tracking-[0.5em] h-14"
+              maxLength={6}
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && handleAccessCodeVerify()}
+            />
+            <Button
+              onClick={handleAccessCodeVerify}
+              className="w-full gap-2 h-11"
+              disabled={accessCodeVerifying || accessCodeInput.length !== 6}
+            >
+              {accessCodeVerifying ? 'Verifying...' : (
+                <>
+                  Verify Code
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => { setAccessCodeRequired(false); setAccessCodeInput(''); }}
+            >
+              Back to login
+            </Button>
+          </motion.div>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (mfaRequired) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-8 relative overflow-hidden">
