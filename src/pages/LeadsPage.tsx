@@ -29,6 +29,7 @@ export default function LeadsPage() {
   const [page, setPage] = useState(0);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<'my' | 'shared'>('my');
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const statusFilter = searchParams.get("status") || "all";
   const isAdmin = role === "admin";
