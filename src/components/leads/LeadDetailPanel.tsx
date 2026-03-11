@@ -221,6 +221,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             <StatusBadge status={lead.status as LeadStatus} />
           </div>
           <div className="flex items-center gap-2">
+            {(!isCS) && <CopyLeadButton lead={lead} />}
             <Button
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending || isDuplicate}
