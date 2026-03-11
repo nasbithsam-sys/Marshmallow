@@ -123,7 +123,12 @@ export default function LeadDetailPage() {
       .select("id, photo_url")
       .eq("lead_id", id!)
       .order("created_at", { ascending: true });
-    if (data) setPhotos(data.map((p: any) => ({ id: p.id, url: p.photo_url })));
+    if (data) {
+      const { getSignedUrls } = await import("@/lib/storage");
+      const paths = data.map((p: any) => p.photo_url);
+      const urls = await getSignedUrls(paths);
+      setPhotos(data.map((p: any, i: number) => ({ id: p.id, url: urls[i] })));
+    }
   };
 
   const handleChange = (field: string, value: string) => {

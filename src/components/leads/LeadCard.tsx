@@ -56,11 +56,27 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
       .select("photo_url")
       .eq("lead_id", lead.id)
       .order("created_at", { ascending: true });
-    if (data) setPhotos(data.map((p: any) => p.photo_url));
+    if (data) {
+      const paths = data.map((p: any) => p.photo_url);
+      // Resolve signed URLs for all photos
+      const { getSignedUrls } = await import("@/lib/storage");
+      const urls = await getSignedUrls(paths);
+      setPhotos(urls);
+    }
   };
 
+  const [resolvedPaymentUrl, setResolvedPaymentUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isPaid && lead.payment_screenshot_url) {
+      import("@/lib/storage").then(({ getSignedUrl }) =>
+        getSignedUrl(lead.payment_screenshot_url!).then(setResolvedPaymentUrl)
+      );
+    }
+  }, [lead.payment_screenshot_url, isPaid]);
+
   const allImages = [
-    ...(isPaid && lead.payment_screenshot_url ? [lead.payment_screenshot_url] : []),
+    ...(isPaid && resolvedPaymentUrl ? [resolvedPaymentUrl] : []),
     ...photos,
   ];
 
