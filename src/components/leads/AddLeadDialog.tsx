@@ -52,12 +52,6 @@ const sendNotifications = async (leadName: string, status: string, leadId: strin
   await supabase.from('notifications').insert(notifications);
 };
 
-const US_STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
-  'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
-  'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'
-];
-
 const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   const { user, role } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -65,9 +59,6 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
     customer_name: '',
     customer_phone: '',
     address: '',
-    city: '',
-    state: '',
-    zip_code: '',
     service_type: '',
     status: 'waiting_complete_details' as LeadStatus,
     scheduled_date: '',
@@ -89,7 +80,6 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   };
 
   const isCS = role === 'customer_service';
-  const isProcessor = role === 'processor';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,17 +105,11 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       scheduled_time_end = `${endHour.toString().padStart(2, '0')}:${form.scheduled_minute}`;
     }
 
-    // Combine address parts into full address string
-    const fullAddress = [form.address, form.city, form.state, form.zip_code].filter(Boolean).join(', ');
-
     const { data, error } = await supabase.from('leads').insert({
       job_id: jobId,
       customer_name: form.customer_name,
       customer_phone: form.customer_phone || null,
-      address: fullAddress || null,
-      city: form.city || null,
-      state: form.state || null,
-      zip_code: form.zip_code || null,
+      address: form.address || null,
       service_type: form.service_type || null,
       status: form.status,
       scheduled_date: form.scheduled_date || null,
@@ -148,8 +132,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       onOpenChange(false);
       setForm({
         customer_name: '', customer_phone: '',
-        address: '', city: '', state: '', zip_code: '',
-        service_type: '',
+        address: '', service_type: '',
         status: 'waiting_complete_details', scheduled_date: '',
         scheduled_hour: '12', scheduled_minute: '00', scheduled_ampm: 'AM',
         cs_notes: '', processor_notes: '',
@@ -173,11 +156,12 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
           {/* Phone */}
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-muted-foreground/60">Phone Number</Label>
+            <Label className="text-[11px] font-medium text-muted-foreground/60">Phone Number *</Label>
             <Input
               value={form.customer_phone}
               onChange={e => update('customer_phone', e.target.value)}
               placeholder="(555) 123-4567"
+              required
               maxLength={14}
               className={isDuplicate ? 'border-destructive ring-1 ring-destructive' : ''}
             />
@@ -189,22 +173,10 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
             )}
           </div>
 
-          {/* Address - single line for street, then city/state/zip in one row */}
+          {/* Address - single field */}
           <div className="space-y-1.5">
             <Label className="text-[11px] font-medium text-muted-foreground/60">Address</Label>
-            <Input value={form.address} onChange={e => update('address', e.target.value)} placeholder="123 Main St" />
-            <div className="flex items-center gap-2">
-              <Input value={form.city} onChange={e => update('city', e.target.value)} placeholder="City" className="flex-1" />
-              <Select value={form.state} onValueChange={v => update('state', v)}>
-                <SelectTrigger className="w-[80px]"><SelectValue placeholder="State" /></SelectTrigger>
-                <SelectContent>
-                  {US_STATES.map(s => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input value={form.zip_code} onChange={e => update('zip_code', e.target.value)} placeholder="Zip" className="w-[90px]" maxLength={5} />
-            </div>
+            <Input value={form.address} onChange={e => update('address', e.target.value)} placeholder="123 Main St, City, State, Zip" />
           </div>
 
           {/* Service Type */}

@@ -171,7 +171,11 @@ export default function LeadDetailPage() {
     setSaving(true);
 
     if (isNew) {
+      const jobChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let jobId = 'LD-';
+      for (let i = 0; i < 6; i++) jobId += jobChars[Math.floor(Math.random() * jobChars.length)];
       const { data, error } = await supabase.from("leads").insert({
+        job_id: jobId,
         customer_name: form.customer_name,
         customer_phone: form.customer_phone || null,
         customer_email: form.customer_email || null,

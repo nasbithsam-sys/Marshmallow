@@ -175,9 +175,10 @@ export default function LeadsPage() {
               </Button>
             </div>
           )}
-          <Button onClick={() => navigate("/leads/new")} className="gap-2">
+          <Button onClick={() => setShowAddDialog(true)} className="gap-2">
             <Plus className="h-4 w-4" /> New Lead
           </Button>
+          <AddLeadDialog open={showAddDialog} onOpenChange={setShowAddDialog} onSuccess={() => { setLoading(true); fetchLeads(); }} />
         </motion.div>
       </div>
 
