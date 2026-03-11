@@ -123,10 +123,6 @@ Deno.serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
 
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
     const { data: { user: callerUser }, error: userError } = await adminClient.auth.getUser(token);
     if (userError || !callerUser) {
       console.error("Auth verification failed:", userError?.message);
