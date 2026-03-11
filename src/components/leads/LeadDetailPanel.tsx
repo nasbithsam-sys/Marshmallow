@@ -333,6 +333,12 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             )}
           </div>
 
+          {/* General Notes Thread */}
+          <div className="rounded-xl bg-card border border-border/50 p-5">
+            <SectionHeader icon={MessageSquare} title="General Notes" />
+            <NoteThread leadId={leadId} noteType="general" label="Notes" profiles={profiles} />
+          </div>
+
           {/* CS Notes Thread */}
           {!isProcessor && (
             <div className="rounded-xl bg-card border border-border/50 p-5">

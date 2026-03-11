@@ -73,6 +73,20 @@ export interface Lead {
   // Payment fields
   payment_amount: number | null;
   payment_screenshot_url: string | null;
+  // CS fields
+  number_name: string | null;
+  quote: string | null;
+  service_details: string | null;
+  customer_schedule_requirements: string | null;
+  reference_name: string | null;
+  // Processor fields
+  tech_name: string | null;
+  tech_number: string | null;
+  terms: 'free_estimate' | 'quoted' | null;
+  labor_amount: number | null;
+  material_amount: number | null;
+  for_you_amount: number | null;
+  for_us_amount: number | null;
   // Joined fields
   creator_name?: string;
   editor_name?: string;
