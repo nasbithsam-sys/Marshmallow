@@ -53,6 +53,11 @@ const Settings = () => {
   const [newRole, setNewRole] = useState<AppRole>('no_role');
   const [creating, setCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<'users' | 'nav_permissions' | 'status_permissions' | 'security'>('users');
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordUserId, setPasswordUserId] = useState('');
+  const [passwordUserName, setPasswordUserName] = useState('');
+  const [newPasswordValue, setNewPasswordValue] = useState('');
+  const [settingPassword, setSettingPassword] = useState(false);
 
   const isAdmin = currentRole === 'admin';
 
