@@ -1,25 +1,36 @@
 
 
-## Plan: Admin-Visible One-Time Codes for Non-Admin Users
+## Plan: Admin-Only Access Codes for Non-Admin Users
 
 ### What
-Add a system where non-admin users see a one-time login code (instead of TOTP enrollment). Admins can view these codes in the user management section. Each code is single-use and regenerates after being consumed.
+Add a one-time access code system where admins can generate and view login codes for non-admin users directly in the Settings > Users tab. Only admins see these codes. Codes regenerate after each use (login).
 
-### Why not TOTP-based
-TOTP requires the user to have an authenticator app. Instead, this would be a simpler invite/access code system managed by the admin.
+### Database Changes
+1. **New table `user_access_codes`**:
+   - `id` (uuid, PK)
+   - `user_id` (uuid, FK to auth.users, unique)
+   - `code` (text, 6-digit random code)
+   - `created_at` (timestamptz)
+   - RLS: only admins can SELECT/UPDATE (using `has_role` function)
 
-### However -- important clarification needed
+### Frontend Changes
 
-Supabase Auth doesn't natively support custom one-time codes outside of its built-in OTP (email/SMS). A custom implementation would need:
-- A `user_access_codes` table storing hashed codes per user
-- A custom login flow that validates the code before or after email/password
-- Code rotation logic (regenerate after use)
+1. **`src/pages/Settings.tsx`** — In the Users tab, for each non-admin user card:
+   - Add a "Generate Code" button (or show current code) visible only to admins
+   - Display the 6-digit code in a monospace font with a copy button
+   - Add a "Regenerate" button to create a new code on demand
+   - Fetch codes from `user_access_codes` table alongside user data
 
-This is a significant feature. Before proceeding, I need to clarify the exact use case.
+2. **`src/pages/Login.tsx`** — Add an optional "Access Code" field:
+   - After successful email/password login, if user is non-admin and has an access code entry, prompt for the code
+   - Validate code against `user_access_codes` table
+   - On successful verification, regenerate the code (so it's single-use)
+   - Admins skip this step entirely (they use TOTP)
 
-### Questions
-1. Is this for **initial login** (user gets a code instead of password)?
-2. Or is this a **secondary verification** step after password login?
-3. Should the code be shown to the user too, or only visible to admins?
-4. What triggers code regeneration -- every login, or admin manually?
+3. **Code generation logic** — Simple random 6-digit numeric code generated client-side by the admin, stored in Supabase. After each successful use, a new code is generated and stored.
+
+### Files to edit
+- **`src/pages/Settings.tsx`** — Add code display/generate UI per non-admin user
+- **`src/pages/Login.tsx`** — Add access code verification step after password login for non-admin users
+- **Database migration** — Create `user_access_codes` table with RLS
 
