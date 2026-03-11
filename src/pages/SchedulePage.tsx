@@ -89,11 +89,39 @@ export default function SchedulePage() {
     return Array.from(empMap.values());
   }, [leads, profiles]);
 
+  const getLeadsForDay = (day: Date) =>
+    leads.filter(l => l.scheduled_date && isSameDay(new Date(l.scheduled_date + "T00:00:00"), day));
+
   const getLeadsForEmployeeAndDay = (empId: string, day: Date) =>
     leads.filter(l => {
       const lid = l.assigned_cs || l.created_by;
       return lid === empId && l.scheduled_date && isSameDay(new Date(l.scheduled_date + "T00:00:00"), day);
     });
+
+  // Stack overlapping leads into rows
+  const computeRows = (dayLeads: Lead[]) => {
+    const sorted = [...dayLeads].sort((a, b) => (a.scheduled_time_start || '').localeCompare(b.scheduled_time_start || ''));
+    const rows: Lead[][] = [];
+    for (const lead of sorted) {
+      let placed = false;
+      for (const row of rows) {
+        const overlaps = row.some(existing => {
+          const aStart = existing.scheduled_time_start || '00:00';
+          const aEnd = existing.scheduled_time_end || '23:59';
+          const bStart = lead.scheduled_time_start || '00:00';
+          const bEnd = lead.scheduled_time_end || '23:59';
+          return bStart < aEnd && bEnd > aStart;
+        });
+        if (!overlaps) {
+          row.push(lead);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) rows.push([lead]);
+    }
+    return rows;
+  };
 
   const getLeadPosition = (lead: Lead) => {
     if (!lead.scheduled_time_start) return null;
