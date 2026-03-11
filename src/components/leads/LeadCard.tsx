@@ -18,6 +18,7 @@ import PaymentDialog from "./PaymentDialog";
 import LeadShareDialog from "./LeadShareDialog";
 import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
+import { adminApi } from "@/lib/admin-api";
 import { motion } from "framer-motion";
 
 interface LeadCardProps {
