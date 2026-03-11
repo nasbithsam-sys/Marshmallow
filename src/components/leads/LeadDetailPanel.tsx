@@ -142,6 +142,20 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         processor_notes: role !== 'customer_service' ? form.processor_notes : lead?.processor_notes,
         last_edited_by: user.id,
         last_edited_at: new Date().toISOString(),
+        // CS fields
+        number_name: form.number_name,
+        quote: form.quote,
+        service_details: form.service_details,
+        customer_schedule_requirements: form.customer_schedule_requirements,
+        reference_name: form.reference_name,
+        // Processor fields
+        tech_name: role !== 'customer_service' ? form.tech_name : lead?.tech_name,
+        tech_number: role !== 'customer_service' ? form.tech_number : lead?.tech_number,
+        terms: role !== 'customer_service' ? form.terms : lead?.terms,
+        labor_amount: role !== 'customer_service' ? form.labor_amount : lead?.labor_amount,
+        material_amount: role !== 'customer_service' ? form.material_amount : lead?.material_amount,
+        for_you_amount: role !== 'customer_service' ? form.for_you_amount : lead?.for_you_amount,
+        for_us_amount: role !== 'customer_service' ? form.for_us_amount : lead?.for_us_amount,
       };
 
       if (form.status === 'paid') {
