@@ -15,13 +15,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { Plus, Shield, Eye, Trash2, Mail, ShieldCheck } from 'lucide-react';
+import { Plus, Shield, Eye, Trash2, Mail, ShieldCheck, Copy, RefreshCw, KeyRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from '@/lib/constants';
 import type { AppRole } from '@/types';
 import MFAEnroll from '@/components/auth/MFAEnroll';
 import { motion } from 'framer-motion';
 import { heroTitle, staggerContainer, staggerItem } from '@/lib/motion';
+
+const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
 const NAV_SECTION_LABELS: Record<string, string> = {
   leads: 'All Leads',
