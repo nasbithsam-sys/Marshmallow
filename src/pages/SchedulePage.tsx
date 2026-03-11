@@ -253,7 +253,7 @@ export default function SchedulePage() {
 
             <Card className="border-border/40 overflow-hidden rounded-2xl shadow-premium-sm hover:shadow-premium-md transition-all duration-300">
               <CardContent className="p-0 overflow-x-auto">
-                <div className="min-w-[900px]">
+                <div className="min-w-[1800px]">
                   {/* Time header */}
                   <div className="flex border-b border-border/30 bg-gradient-to-r from-muted/20 to-transparent">
                     <div className="w-[110px] shrink-0 p-3 border-r border-border/20">
@@ -263,9 +263,9 @@ export default function SchedulePage() {
                     </div>
                     <div className="flex-1 flex">
                       {hours.map(h => (
-                        <div key={h} className="flex-1 px-2 py-3 text-center border-r border-border/15 last:border-r-0">
-                          <span className="text-[11px] font-medium text-muted-foreground/60 tabular-nums">
-                            {h > 12 ? `${h - 12} PM` : h === 12 ? '12 PM' : `${h} AM`}
+                        <div key={h} className="flex-1 px-1 py-3 text-center border-r border-border/15 last:border-r-0">
+                          <span className="text-[10px] font-medium text-muted-foreground/60 tabular-nums">
+                            {h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`}
                           </span>
                         </div>
                       ))}
