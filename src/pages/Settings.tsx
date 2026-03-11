@@ -195,10 +195,12 @@ const Settings = () => {
       supabase.from('navigation_permissions').delete().eq('user_id', userId),
       supabase.from('status_permissions').delete().eq('user_id', userId),
       supabase.from('notifications').delete().eq('user_id', userId),
+      supabase.from('user_access_codes').delete().eq('user_id', userId),
       supabase.from('profiles').delete().eq('id', userId),
     ]);
     toast.success('User data deleted');
     queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+    queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
   };
 
   const getNavPermission = (userId: string, section: string) => {
