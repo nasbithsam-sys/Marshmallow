@@ -15,13 +15,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { Plus, Shield, Eye, Trash2, Mail, ShieldCheck } from 'lucide-react';
+import { Plus, Shield, Eye, Trash2, Mail, ShieldCheck, Copy, RefreshCw, KeyRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from '@/lib/constants';
 import type { AppRole } from '@/types';
 import MFAEnroll from '@/components/auth/MFAEnroll';
 import { motion } from 'framer-motion';
 import { heroTitle, staggerContainer, staggerItem } from '@/lib/motion';
+
+const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
 const NAV_SECTION_LABELS: Record<string, string> = {
   leads: 'All Leads',
@@ -64,6 +66,36 @@ const Settings = () => {
       }));
     },
   });
+
+  const { data: accessCodes = [] } = useQuery({
+    queryKey: ['user-access-codes'],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data } = await supabase.from('user_access_codes').select('*');
+      return data ?? [];
+    },
+  });
+
+  const getAccessCode = (userId: string) => {
+    return (accessCodes as any[]).find((c: any) => c.user_id === userId)?.code ?? null;
+  };
+
+  const handleGenerateCode = async (userId: string) => {
+    const code = generateCode();
+    const existing = (accessCodes as any[]).find((c: any) => c.user_id === userId);
+    if (existing) {
+      await supabase.from('user_access_codes').update({ code }).eq('user_id', userId);
+    } else {
+      await supabase.from('user_access_codes').insert({ user_id: userId, code });
+    }
+    toast.success('Access code generated');
+    queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast.success('Code copied to clipboard');
+  };
 
   const { data: navPermissions = [] } = useQuery({
     queryKey: ['settings-nav-permissions'],
@@ -135,12 +167,18 @@ const Settings = () => {
     if (data.user) {
       await supabase.from('profiles').insert({ id: data.user.id, full_name: newName, email: newEmail });
       await supabase.from('user_roles').insert({ user_id: data.user.id, role: newRole });
+      // Auto-generate access code for non-admin users
+      if (newRole !== 'admin') {
+        const code = generateCode();
+        await supabase.from('user_access_codes').insert({ user_id: data.user.id, code });
+      }
     }
     toast.success('User created');
     setCreateOpen(false);
     setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('no_role');
     setCreating(false);
     queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+    queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
   };
 
   const handleSendPasswordReset = async (email: string) => {
@@ -157,10 +195,12 @@ const Settings = () => {
       supabase.from('navigation_permissions').delete().eq('user_id', userId),
       supabase.from('status_permissions').delete().eq('user_id', userId),
       supabase.from('notifications').delete().eq('user_id', userId),
+      supabase.from('user_access_codes').delete().eq('user_id', userId),
       supabase.from('profiles').delete().eq('id', userId),
     ]);
     toast.success('User data deleted');
     queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+    queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
   };
 
   const getNavPermission = (userId: string, section: string) => {
@@ -257,25 +297,66 @@ const Settings = () => {
                         Reset
                       </Button>
                       {u.role !== 'admin' && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="icon" className="h-8 w-8 text-destructive/50 hover:text-destructive hover:bg-destructive/5 hover:border-destructive/20">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete user "{u.full_name}"?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will remove the user's profile, roles, and permissions. The authentication account will be deactivated.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <>
+                          {/* Access Code Section */}
+                          <div className="flex items-center gap-1.5 border-l border-border/30 pl-3 ml-1">
+                            {getAccessCode(u.id) ? (
+                              <>
+                                <code className="font-mono text-[13px] font-bold text-foreground bg-muted/60 px-2.5 py-1 rounded-md border border-border/40 tracking-[0.15em]">
+                                  {getAccessCode(u.id)}
+                                </code>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                  onClick={() => handleCopyCode(getAccessCode(u.id)!)}
+                                  title="Copy code"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                  onClick={() => handleGenerateCode(u.id)}
+                                  title="Regenerate code"
+                                >
+                                  <RefreshCw className="h-3 w-3" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 text-[11px]"
+                                onClick={() => handleGenerateCode(u.id)}
+                              >
+                                <KeyRound className="h-3 w-3" />
+                                Generate Code
+                              </Button>
+                            )}
+                          </div>
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="icon" className="h-8 w-8 text-destructive/50 hover:text-destructive hover:bg-destructive/5 hover:border-destructive/20">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete user "{u.full_name}"?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will remove the user's profile, roles, and permissions. The authentication account will be deactivated.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </>
                       )}
                     </>
                   )}

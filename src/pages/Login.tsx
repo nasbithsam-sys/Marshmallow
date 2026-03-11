@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Mail, Lock, ArrowRight, ShieldCheck, Wrench } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ShieldCheck, Wrench, KeyRound } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { heroTitle, premiumEase } from '@/lib/motion';
+
+const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -16,6 +18,10 @@ const Login = () => {
   const [mfaFactorId, setMfaFactorId] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [verifying, setVerifying] = useState(false);
+  // Access code state for non-admin users
+  const [accessCodeRequired, setAccessCodeRequired] = useState(false);
+  const [accessCodeInput, setAccessCodeInput] = useState('');
+  const [accessCodeVerifying, setAccessCodeVerifying] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +33,7 @@ const Login = () => {
       return;
     }
 
+    // Check MFA (for admins with TOTP)
     const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (aalData && aalData.currentLevel === 'aal1' && aalData.nextLevel === 'aal2') {
       const { data: factors } = await supabase.auth.mfa.listFactors();
@@ -39,7 +46,60 @@ const Login = () => {
       }
     }
 
+    // Check if non-admin user has an access code requirement
+    const userId = data.user?.id;
+    if (userId) {
+      const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', userId).single();
+      if (roleData?.role !== 'admin') {
+        const { data: codeData } = await supabase.from('user_access_codes').select('code').eq('user_id', userId).single();
+        if (codeData?.code) {
+          // Sign out temporarily — they need to verify the code first
+          await supabase.auth.signOut();
+          setAccessCodeRequired(true);
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
     setLoading(false);
+  };
+
+  const handleAccessCodeVerify = async () => {
+    if (!accessCodeInput || accessCodeInput.length !== 6) return;
+    setAccessCodeVerifying(true);
+
+    // Sign in again to validate
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      toast.error(signInError.message);
+      setAccessCodeVerifying(false);
+      return;
+    }
+
+    const userId = signInData.user?.id;
+    if (!userId) {
+      toast.error('Authentication failed');
+      setAccessCodeVerifying(false);
+      return;
+    }
+
+    // Verify the access code
+    const { data: codeData } = await supabase.from('user_access_codes').select('code').eq('user_id', userId).single();
+    if (!codeData || codeData.code !== accessCodeInput) {
+      toast.error('Invalid access code. Please contact your administrator.');
+      await supabase.auth.signOut();
+      setAccessCodeInput('');
+      setAccessCodeVerifying(false);
+      return;
+    }
+
+    // Code valid — regenerate for single-use
+    const newCode = generateCode();
+    await supabase.from('user_access_codes').update({ code: newCode }).eq('user_id', userId);
+
+    setAccessCodeVerifying(false);
+    // Session is active, auth state change will redirect
   };
 
   const handleMFAVerify = async () => {
@@ -70,6 +130,84 @@ const Login = () => {
 
     setVerifying(false);
   };
+
+  // Access Code Verification Screen
+  if (accessCodeRequired) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-8 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.03),transparent_70%)]" />
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: premiumEase }}
+          className="w-full max-w-sm space-y-8 relative z-10"
+        >
+          <div className="text-center space-y-4">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 220, damping: 18, delay: 0.15 }}
+              className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-[hsl(260,75%,58%)] flex items-center justify-center mx-auto shadow-brand"
+            >
+              <KeyRound className="h-7 w-7 text-primary-foreground" />
+            </motion.div>
+            <motion.h2
+              variants={heroTitle}
+              initial="initial"
+              animate="animate"
+              className="text-2xl font-bold tracking-tight text-foreground"
+            >
+              Access Code Required
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.25 }}
+              className="text-sm text-muted-foreground"
+            >
+              Enter the 6-digit access code provided by your administrator
+            </motion.p>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.35 }}
+            className="space-y-4"
+          >
+            <Input
+              value={accessCodeInput}
+              onChange={e => setAccessCodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000"
+              className="font-mono text-center text-2xl tracking-[0.5em] h-14"
+              maxLength={6}
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && handleAccessCodeVerify()}
+            />
+            <Button
+              onClick={handleAccessCodeVerify}
+              className="w-full gap-2 h-11"
+              disabled={accessCodeVerifying || accessCodeInput.length !== 6}
+            >
+              {accessCodeVerifying ? 'Verifying...' : (
+                <>
+                  Verify Code
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => { setAccessCodeRequired(false); setAccessCodeInput(''); }}
+            >
+              Back to login
+            </Button>
+          </motion.div>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (mfaRequired) {
     return (
