@@ -294,10 +294,15 @@ const Settings = () => {
                         variant="outline"
                         size="sm"
                         className="gap-1.5 text-[11px]"
-                        onClick={() => handleSendPasswordReset(u.email)}
+                        onClick={() => {
+                          setPasswordUserId(u.id);
+                          setPasswordUserName(u.full_name);
+                          setNewPasswordValue('');
+                          setPasswordDialogOpen(true);
+                        }}
                       >
-                        <Mail className="h-3 w-3" />
-                        Reset
+                        <Lock className="h-3 w-3" />
+                        Password
                       </Button>
                       {u.role !== 'admin' && (
                         <>
