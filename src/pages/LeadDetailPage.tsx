@@ -96,7 +96,7 @@ export default function LeadDetailPage() {
       state: lead.state || "",
       zip_code: lead.zip_code || "",
       service_type: lead.service_type || "",
-      status: lead.status,
+      status: lead.status as LeadStatus,
       scheduled_date: lead.scheduled_date || "",
       scheduled_time_start: lead.scheduled_time_start || "",
       scheduled_time_end: lead.scheduled_time_end || "",
