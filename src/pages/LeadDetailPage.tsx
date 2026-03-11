@@ -104,7 +104,7 @@ export default function LeadDetailPage() {
       cs_notes: lead.cs_notes || "",
       processor_notes: lead.processor_notes || "",
     });
-    setPreviousStatus(lead.status);
+    setPreviousStatus(lead.status as LeadStatus);
     setJobId(lead.job_id);
 
     const { data: creator } = await supabase.from("profiles").select("full_name").eq("id", lead.created_by).single();
