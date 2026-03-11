@@ -289,25 +289,66 @@ const Settings = () => {
                         Reset
                       </Button>
                       {u.role !== 'admin' && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="icon" className="h-8 w-8 text-destructive/50 hover:text-destructive hover:bg-destructive/5 hover:border-destructive/20">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete user "{u.full_name}"?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will remove the user's profile, roles, and permissions. The authentication account will be deactivated.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <>
+                          {/* Access Code Section */}
+                          <div className="flex items-center gap-1.5 border-l border-border/30 pl-3 ml-1">
+                            {getAccessCode(u.id) ? (
+                              <>
+                                <code className="font-mono text-[13px] font-bold text-foreground bg-muted/60 px-2.5 py-1 rounded-md border border-border/40 tracking-[0.15em]">
+                                  {getAccessCode(u.id)}
+                                </code>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                  onClick={() => handleCopyCode(getAccessCode(u.id)!)}
+                                  title="Copy code"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                  onClick={() => handleGenerateCode(u.id)}
+                                  title="Regenerate code"
+                                >
+                                  <RefreshCw className="h-3 w-3" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 text-[11px]"
+                                onClick={() => handleGenerateCode(u.id)}
+                              >
+                                <KeyRound className="h-3 w-3" />
+                                Generate Code
+                              </Button>
+                            )}
+                          </div>
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="icon" className="h-8 w-8 text-destructive/50 hover:text-destructive hover:bg-destructive/5 hover:border-destructive/20">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete user "{u.full_name}"?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will remove the user's profile, roles, and permissions. The authentication account will be deactivated.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </>
                       )}
                     </>
                   )}
