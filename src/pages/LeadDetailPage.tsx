@@ -96,7 +96,7 @@ export default function LeadDetailPage() {
       state: lead.state || "",
       zip_code: lead.zip_code || "",
       service_type: lead.service_type || "",
-      status: lead.status,
+      status: lead.status as LeadStatus,
       scheduled_date: lead.scheduled_date || "",
       scheduled_time_start: lead.scheduled_time_start || "",
       scheduled_time_end: lead.scheduled_time_end || "",
@@ -104,7 +104,7 @@ export default function LeadDetailPage() {
       cs_notes: lead.cs_notes || "",
       processor_notes: lead.processor_notes || "",
     });
-    setPreviousStatus(lead.status);
+    setPreviousStatus(lead.status as LeadStatus);
     setJobId(lead.job_id);
 
     const { data: creator } = await supabase.from("profiles").select("full_name").eq("id", lead.created_by).single();
