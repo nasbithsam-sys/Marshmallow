@@ -20,22 +20,36 @@ const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
   const { fullyAuthenticated, loading } = useAuth();
-  if (loading) return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 border-t-foreground animate-spin" />
-        <p className="text-sm text-muted-foreground">Loading...</p>
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 border-t-foreground animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
       </div>
-    </div>
-  );
-  if (!fullyAuthenticated) return <Navigate to="/login" replace />;
+    );
+  }
+
+  if (!fullyAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
   return <AppLayout />;
 }
 
 function LoginRoute() {
   const { loading, fullyAuthenticated } = useAuth();
-  if (loading) return null;
-  if (fullyAuthenticated) return <Navigate to="/leads" replace />;
+
+  if (loading) {
+    return null;
+  }
+
+  if (fullyAuthenticated) {
+    return <Navigate to="/leads" replace />;
+  }
+
   return <Login />;
 }
 
