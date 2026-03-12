@@ -288,7 +288,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
         <DialogHeader>
           <DialogTitle>Add New Lead</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           {/* ── Required Fields ── */}
           <div className="rounded-xl border border-border/50 p-4 space-y-3 bg-muted/10">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Required Information</p>
