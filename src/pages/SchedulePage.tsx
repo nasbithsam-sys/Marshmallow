@@ -82,7 +82,7 @@ export default function SchedulePage() {
 
   const employees = useMemo(() => {
     const empMap = new Map<string, { id: string; name: string; leads: Lead[] }>();
-    leads.forEach(lead => {
+    filteredLeads.forEach(lead => {
       const empId = lead.assigned_cs || lead.created_by;
       if (!empMap.has(empId)) {
         empMap.set(empId, { id: empId, name: profiles[empId] || 'Unknown', leads: [] });
@@ -90,7 +90,7 @@ export default function SchedulePage() {
       empMap.get(empId)!.leads.push(lead);
     });
     return Array.from(empMap.values());
-  }, [leads, profiles]);
+  }, [filteredLeads, profiles]);
 
   const getLeadsForDay = (day: Date) =>
     filteredLeads.filter(l => l.scheduled_date && isSameDay(new Date(l.scheduled_date + "T00:00:00"), day));
