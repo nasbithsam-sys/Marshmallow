@@ -1,35 +1,104 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { LeadStatus, STATUS_LABELS, ALL_LEAD_STATUSES } from "@/lib/constants";
 import { logActivity } from "@/lib/activity";
 import { formatUSPhone } from "@/lib/phone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Save, AlertCircle, ImagePlus, X } from "lucide-react";
+import { ArrowLeft, Save, AlertCircle, ImagePlus, X, ChevronDown, User, Wrench, Calendar, Check } from "lucide-react";
 import { motion } from "framer-motion";
-import { staggerContainer, staggerItem } from "@/lib/motion";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
-import NoteThread from "@/components/leads/NoteThread";
 import PaymentDialog from "@/components/leads/PaymentDialog";
 import ImageLightbox from "@/components/leads/ImageLightbox";
+import CopyLeadButton from "@/components/leads/CopyLeadButton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
+
+const generateJobId = () => {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "LD-";
+  for (let i = 0; i < 6; i++) result += chars[Math.floor(Math.random() * chars.length)];
+  return result;
+};
+
+const sendNotifications = async (leadName: string, status: string, leadId: string) => {
+  if (status !== "urgent_job" && status !== "need_tech") return;
+
+  const { data: roles } = await supabase.from("user_roles").select("user_id, role").in("role", ["admin", "processor"]);
+
+  if (!roles || roles.length === 0) return;
+
+  const statusLabel = status === "urgent_job" ? "Urgent Job" : "Need Tech";
+
+  const notifications = roles.map((r: any) => ({
+    user_id: r.user_id,
+    title: `🚨 ${statusLabel}`,
+    message: `Lead "${leadName}" changed to ${statusLabel}`,
+    lead_id: leadId,
+    read: false,
+  }));
+
+  await supabase.from("notifications").insert(notifications);
+};
+
+const SectionHeader = ({ icon: Icon, title, open }: { icon: React.ElementType; title: string; open: boolean }) => (
+  <div className="flex items-center gap-2.5 w-full">
+    <div className="w-7 h-7 rounded-md bg-primary/10 border border-primary/15 flex items-center justify-center">
+      <Icon className="h-3.5 w-3.5 text-primary/80" />
+    </div>
+    <span className="text-[13px] font-semibold text-foreground flex-1">{title}</span>
+    <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+      <ChevronDown className="h-4 w-4 text-muted-foreground/70" />
+    </motion.span>
+  </div>
+);
 
 export default function LeadDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, role } = useAuth();
+
   const isNew = id === "new";
+  const isCS = role === "customer_service";
+  const isProcessor = role === "processor";
+  const isAdmin = role === "admin";
+
+  const [loading, setLoading] = useState(!isNew);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const [leadId, setLeadId] = useState<string | null>(isNew ? null : id || null);
+  const [originalLead, setOriginalLead] = useState<Lead | null>(null);
+
+  const [jobId, setJobId] = useState("");
+  const [createdBy, setCreatedBy] = useState("");
+  const [lastEditedBy, setLastEditedBy] = useState("");
+  const [lastEditedAt, setLastEditedAt] = useState("");
+
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
+  const [photos, setPhotos] = useState<{ id: string; url: string; path?: string }[]>([]);
+  const [newPhotos, setNewPhotos] = useState<File[]>([]);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const [csOpen, setCsOpen] = useState(true);
+  const [processorOpen, setProcessorOpen] = useState(role !== "customer_service");
+  const [scheduleOpen, setScheduleOpen] = useState(true);
 
   const [form, setForm] = useState({
     customer_name: "",
     customer_phone: "",
     customer_email: "",
+    number_name: "",
     address: "",
     city: "",
     state: "",
@@ -37,491 +106,976 @@ export default function LeadDetailPage() {
     service_type: "",
     status: "waiting_complete_details" as LeadStatus,
     scheduled_date: "",
-    scheduled_time_start: "",
-    scheduled_time_end: "",
-    amount: "",
+    start_hour: "12",
+    start_minute: "00",
+    start_ampm: "AM",
+    end_hour: "2",
+    end_minute: "00",
+    end_ampm: "PM",
+
+    quote: "",
+    service_details: "",
+    customer_schedule_requirements: "",
+    reference_name: "",
+
+    tech_name: "",
+    tech_number: "",
+    terms: "" as "" | "free_estimate" | "quoted",
+    labor_amount: "",
+    material_amount: "",
+    for_you_amount: "",
+    for_us_amount: "",
+
     cs_notes: "",
     processor_notes: "",
+    general_notes: "",
+
+    amount: "",
+    payment_screenshot_url: "",
   });
-  const [jobId, setJobId] = useState("");
-  const [createdBy, setCreatedBy] = useState("");
-  const [lastEditedBy, setLastEditedBy] = useState("");
-  const [lastEditedAt, setLastEditedAt] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(!isNew);
-  const [profiles, setProfiles] = useState<Record<string, string>>({});
-  const [paymentOpen, setPaymentOpen] = useState(false);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [previousStatus, setPreviousStatus] = useState<LeadStatus | null>(null);
-  const [photos, setPhotos] = useState<{ id: string; url: string }[]>([]);
-  const [newPhotos, setNewPhotos] = useState<File[]>([]);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone, isNew ? undefined : id);
+  const duplicateCheckId = isNew ? undefined : leadId || undefined;
+  const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone, duplicateCheckId);
 
-  const isCS = role === "customer_service";
-  const isProcessor = role === "processor";
-  const isAdmin = role === "admin";
-  const isStatusLocked = previousStatus === "paid";
+  const fieldClass = "bg-background border-border/70 text-foreground placeholder:text-muted-foreground/60";
+  const labelClass = "text-[12px] font-semibold text-foreground/80";
+  const sectionClass = "rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3";
 
-  useEffect(() => {
-    fetchProfiles();
-    if (!isNew && id) {
-      fetchLead();
-      fetchPhotos();
+  const fetchProfilesAndMeta = async (lead: any) => {
+    const { data: creator } = await supabase.from("profiles").select("full_name").eq("id", lead.created_by).single();
+    setCreatedBy(creator?.full_name || "Unknown");
+
+    if (lead.last_edited_by) {
+      const { data: editor } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", lead.last_edited_by)
+        .single();
+      setLastEditedBy(editor?.full_name || "Unknown");
+    } else {
+      setLastEditedBy("");
     }
-  }, [id]);
 
-  const fetchProfiles = async () => {
-    const { data } = await supabase.from("profiles").select("id, full_name");
-    if (data) {
-      const map: Record<string, string> = {};
-      data.forEach((p: any) => (map[p.id] = p.full_name));
-      setProfiles(map);
-    }
+    setLastEditedAt(lead.updated_at || "");
   };
 
-  const fetchLead = async () => {
-    setLoading(true);
-    const { data: lead } = await supabase.from("leads").select("*").eq("id", id!).single();
-    if (!lead) { navigate("/leads"); return; }
+  const setFormFromLead = (lead: any) => {
+    const parseTimeParts = (time?: string | null, fallbackHour = "12", fallbackMinute = "00", fallbackAmpm = "AM") => {
+      if (!time) {
+        return { hour: fallbackHour, minute: fallbackMinute, ampm: fallbackAmpm };
+      }
+
+      const [rawHour, minute] = time.split(":");
+      let hourNum = parseInt(rawHour, 10);
+      const ampm = hourNum >= 12 ? "PM" : "AM";
+      hourNum = hourNum % 12 || 12;
+
+      return {
+        hour: String(hourNum),
+        minute: minute || "00",
+        ampm,
+      };
+    };
+
+    const start = parseTimeParts(lead.scheduled_time_start, "12", "00", "AM");
+    const end = parseTimeParts(lead.scheduled_time_end, "2", "00", "PM");
 
     setForm({
-      customer_name: lead.customer_name,
+      customer_name: lead.customer_name || "",
       customer_phone: lead.customer_phone ? formatUSPhone(lead.customer_phone) : "",
       customer_email: lead.customer_email || "",
+      number_name: lead.number_name || "",
       address: lead.address || "",
       city: lead.city || "",
       state: lead.state || "",
       zip_code: lead.zip_code || "",
       service_type: lead.service_type || "",
-      status: lead.status as LeadStatus,
+      status: (lead.status || "waiting_complete_details") as LeadStatus,
       scheduled_date: lead.scheduled_date || "",
-      scheduled_time_start: lead.scheduled_time_start || "",
-      scheduled_time_end: lead.scheduled_time_end || "",
-      amount: lead.amount ? String(lead.amount) : "",
+      start_hour: start.hour,
+      start_minute: start.minute,
+      start_ampm: start.ampm,
+      end_hour: end.hour,
+      end_minute: end.minute,
+      end_ampm: end.ampm,
+
+      quote: lead.quote || "",
+      service_details: lead.service_details || "",
+      customer_schedule_requirements: lead.customer_schedule_requirements || "",
+      reference_name: lead.reference_name || "",
+
+      tech_name: lead.tech_name || "",
+      tech_number: lead.tech_number ? formatUSPhone(lead.tech_number) : "",
+      terms: lead.terms || "",
+      labor_amount: lead.labor_amount != null ? String(lead.labor_amount) : "",
+      material_amount: lead.material_amount != null ? String(lead.material_amount) : "",
+      for_you_amount: lead.for_you_amount != null ? String(lead.for_you_amount) : "",
+      for_us_amount: lead.for_us_amount != null ? String(lead.for_us_amount) : "",
+
       cs_notes: lead.cs_notes || "",
       processor_notes: lead.processor_notes || "",
-    });
-    setPreviousStatus(lead.status as LeadStatus);
-    setJobId(lead.job_id);
+      general_notes: lead.general_notes || "",
 
-    const { data: creator } = await supabase.from("profiles").select("full_name").eq("id", lead.created_by).single();
-    setCreatedBy(creator?.full_name || "Unknown");
-    if (lead.last_edited_by) {
-      const { data: editor } = await supabase.from("profiles").select("full_name").eq("id", lead.last_edited_by).single();
-      setLastEditedBy(editor?.full_name || "");
+      amount: lead.amount != null ? String(lead.amount) : "",
+      payment_screenshot_url: lead.payment_screenshot_url || "",
+    });
+  };
+
+  const fetchLead = async () => {
+    if (!id || isNew) return;
+
+    setLoading(true);
+
+    const { data: lead, error } = await supabase.from("leads").select("*").eq("id", id).single();
+
+    if (error || !lead) {
+      toast.error("Lead not found");
+      navigate("/leads");
+      return;
     }
-    setLastEditedAt(lead.updated_at);
+
+    setLeadId(lead.id);
+    setOriginalLead(lead as Lead);
+    setJobId(lead.job_id);
+    setFormFromLead(lead);
+    await fetchProfilesAndMeta(lead);
     setLoading(false);
   };
 
-  const fetchPhotos = async () => {
+  const fetchPhotos = async (currentLeadId: string) => {
     const { data } = await supabase
       .from("lead_photos")
       .select("id, photo_url")
-      .eq("lead_id", id!)
+      .eq("lead_id", currentLeadId)
       .order("created_at", { ascending: true });
+
     if (data) {
       const { getSignedUrls } = await import("@/lib/storage");
       const paths = data.map((p: any) => p.photo_url);
       const urls = await getSignedUrls(paths);
-      setPhotos(data.map((p: any, i: number) => ({ id: p.id, url: urls[i] })));
+      setPhotos(data.map((p: any, i: number) => ({ id: p.id, url: urls[i], path: p.photo_url })));
+    } else {
+      setPhotos([]);
     }
   };
 
-  const handleChange = (field: string, value: string) => {
-    const newVal = field === "customer_phone" ? formatUSPhone(value) : value;
+  useEffect(() => {
+    if (isNew) {
+      setLoading(false);
+      setJobId(generateJobId());
+      return;
+    }
+    fetchLead();
+  }, [id, isNew]);
 
-    if (field === 'status' && value === 'paid') {
+  useEffect(() => {
+    if (leadId) {
+      fetchPhotos(leadId);
+    }
+  }, [leadId]);
+
+  const update = (key: string, value: string) => {
+    if (key === "customer_phone" || key === "tech_number") {
+      setForm((prev) => ({ ...prev, [key]: formatUSPhone(value) }));
+      return;
+    }
+
+    if (key === "status" && value === "paid") {
       setPaymentOpen(true);
       return;
     }
 
-    setForm((prev) => ({ ...prev, [field]: newVal }));
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const parseTime = (hour: string, minute: string, ampm: string) => {
+    let h = parseInt(hour, 10);
+    if (ampm === "PM" && h !== 12) h += 12;
+    if (ampm === "AM" && h === 12) h = 0;
+    return `${h.toString().padStart(2, "0")}:${minute}`;
   };
 
   const handlePhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setNewPhotos(prev => [...prev, ...Array.from(e.target.files!)]);
+      setNewPhotos((prev) => [...prev, ...Array.from(e.target.files!)]);
     }
   };
 
   const removeNewPhoto = (index: number) => {
-    setNewPhotos(prev => prev.filter((_, i) => i !== index));
+    setNewPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const removeExistingPhoto = async (photoId: string) => {
     await supabase.from("lead_photos").delete().eq("id", photoId);
-    setPhotos(prev => prev.filter(p => p.id !== photoId));
+    setPhotos((prev) => prev.filter((p) => p.id !== photoId));
   };
 
   const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
+    if (!leadId || !user) {
+      toast.error("Save the lead first before recording payment");
+      setPaymentOpen(false);
+      return;
+    }
+
     setPaymentLoading(true);
     let screenshotUrl: string | null = null;
 
     if (screenshotFile) {
-      const ext = screenshotFile.name.split('.').pop();
-      const path = `payments/${id}_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('lead-photos').upload(path, screenshotFile);
+      const ext = screenshotFile.name.split(".").pop();
+      const path = `payments/${leadId}_${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, screenshotFile);
+
       if (!uploadError) {
         screenshotUrl = path;
       }
     }
 
-    setForm(prev => ({
-      ...prev,
-      status: 'paid',
-      amount: String(amount),
-    }));
-
-    if (!isNew && id) {
-      const { error } = await supabase.from("leads").update({
-        status: 'paid',
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        status: "paid",
         amount,
         payment_amount: amount,
         payment_screenshot_url: screenshotUrl,
-        last_edited_by: user?.id,
-      }).eq("id", id);
-
-      if (error) toast.error(error.message);
-      else {
-        toast.success("Payment recorded & status updated to Paid");
-        setPreviousStatus('paid');
-        await logActivity(user!.id, "payment_recorded", "lead", id, { amount });
-      }
-    }
+        last_edited_by: user.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", leadId);
 
     setPaymentLoading(false);
     setPaymentOpen(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      status: "paid",
+      amount: String(amount),
+      payment_screenshot_url: screenshotUrl || prev.payment_screenshot_url,
+    }));
+
+    await fetchLead();
+    toast.success("Payment recorded & status updated to Paid");
+  };
+
+  const uploadNewPhotos = async (currentLeadId: string) => {
+    for (const photo of newPhotos) {
+      const ext = photo.name.split(".").pop();
+      const path = `leads/${currentLeadId}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { error: uploadErr } = await supabase.storage.from("lead-photos").upload(path, photo);
+
+      if (!uploadErr) {
+        await supabase.from("lead_photos").insert({
+          lead_id: currentLeadId,
+          photo_url: path,
+          uploaded_by: user!.id,
+        });
+      }
+    }
+
+    setNewPhotos([]);
+    await fetchPhotos(currentLeadId);
   };
 
   const handleSave = async () => {
     if (!user) return;
-    if (!form.customer_name.trim()) { toast.error("Customer name is required"); return; }
+
+    if (!form.customer_name.trim()) {
+      toast.error("Customer Name is required");
+      return;
+    }
+
+    if (!form.customer_phone.trim()) {
+      toast.error("Phone Number is required");
+      return;
+    }
+
+    if (!form.number_name.trim()) {
+      toast.error("Number Name is required");
+      return;
+    }
+
     if (isDuplicate) {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
       return;
     }
+
     setSaving(true);
 
-    // Upload new photos helper
-    const uploadPhotos = async (leadId: string) => {
-      for (const photo of newPhotos) {
-        const ext = photo.name.split('.').pop();
-        const path = `leads/${leadId}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: uploadErr } = await supabase.storage.from('lead-photos').upload(path, photo);
-        if (!uploadErr) {
-          await supabase.from('lead_photos').insert({
-            lead_id: leadId,
-            photo_url: path,
-            uploaded_by: user.id,
-          });
-        }
-      }
-      setNewPhotos([]);
+    let scheduled_time_start: string | null = null;
+    let scheduled_time_end: string | null = null;
+
+    if (form.scheduled_date) {
+      scheduled_time_start = parseTime(form.start_hour, form.start_minute, form.start_ampm);
+      scheduled_time_end = parseTime(form.end_hour, form.end_minute, form.end_ampm);
+    }
+
+    const payload: any = {
+      customer_name: form.customer_name,
+      customer_phone: form.customer_phone || null,
+      customer_email: form.customer_email || null,
+      number_name: form.number_name || null,
+      address: form.address || null,
+      city: form.city || null,
+      state: form.state || null,
+      zip_code: form.zip_code || null,
+      service_type: form.service_type || null,
+      status: form.status,
+      scheduled_date: form.scheduled_date || null,
+      scheduled_time_start,
+      scheduled_time_end,
+
+      quote: form.quote || null,
+      service_details: form.service_details || null,
+      customer_schedule_requirements: form.customer_schedule_requirements || null,
+      reference_name: form.reference_name || null,
+
+      general_notes: form.general_notes || null,
+      cs_notes: form.cs_notes || null,
+      processor_notes: form.processor_notes || null,
+
+      tech_name: role !== "customer_service" ? form.tech_name || null : (originalLead?.tech_name ?? null),
+      tech_number: role !== "customer_service" ? form.tech_number || null : (originalLead?.tech_number ?? null),
+      terms: role !== "customer_service" ? form.terms || null : (originalLead?.terms ?? null),
+      labor_amount:
+        role !== "customer_service"
+          ? form.labor_amount
+            ? parseFloat(form.labor_amount)
+            : null
+          : (originalLead?.labor_amount ?? null),
+      material_amount:
+        role !== "customer_service"
+          ? form.material_amount
+            ? parseFloat(form.material_amount)
+            : null
+          : (originalLead?.material_amount ?? null),
+      for_you_amount:
+        role !== "customer_service"
+          ? form.for_you_amount
+            ? parseFloat(form.for_you_amount)
+            : null
+          : (originalLead?.for_you_amount ?? null),
+      for_us_amount:
+        role !== "customer_service"
+          ? form.for_us_amount
+            ? parseFloat(form.for_us_amount)
+            : null
+          : (originalLead?.for_us_amount ?? null),
+
+      last_edited_by: user.id,
+      updated_at: new Date().toISOString(),
     };
 
-    if (isNew) {
-      const jobChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let jobId = 'LD-';
-      for (let i = 0; i < 6; i++) jobId += jobChars[Math.floor(Math.random() * jobChars.length)];
-      const { data, error } = await supabase.from("leads").insert({
-        job_id: jobId,
-        customer_name: form.customer_name,
-        customer_phone: form.customer_phone || null,
-        customer_email: form.customer_email || null,
-        address: form.address || null,
-        city: form.city || null,
-        state: form.state || null,
-        zip_code: form.zip_code || null,
-        service_type: form.service_type || null,
-        status: form.status,
-        scheduled_date: form.scheduled_date || null,
-        scheduled_time_start: form.scheduled_time_start || null,
-        scheduled_time_end: form.scheduled_time_end || null,
-        amount: form.amount ? parseFloat(form.amount) : null,
-        cs_notes: isCS || isAdmin ? form.cs_notes : undefined,
-        processor_notes: isProcessor || isAdmin ? form.processor_notes : undefined,
-        created_by: user.id,
-        last_edited_by: user.id,
-      }).select().single();
+    try {
+      if (isNew) {
+        const insertData = {
+          ...payload,
+          job_id: jobId || generateJobId(),
+          created_by: user.id,
+          assigned_cs: isCS ? user.id : null,
+        };
 
-      if (error) { toast.error(error.message); setSaving(false); return; }
-      if (data) {
-        await uploadPhotos(data.id);
-        await logActivity(user.id, "created", "lead", data.id, { customer_name: form.customer_name });
-        if (form.status === 'urgent_job' || form.status === 'need_tech') {
-          const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'processor']);
-          if (roles) {
-            const statusLabel = form.status === 'urgent_job' ? 'Urgent Job' : 'Need Tech';
-            const notifs = roles.map((r: any) => ({
-              user_id: r.user_id,
-              title: `🚨 ${statusLabel}`,
-              message: `New lead "${form.customer_name}" - ${statusLabel}`,
-              lead_id: data.id,
-              read: false,
-            }));
-            await supabase.from('notifications').insert(notifs);
-          }
+        const { data, error } = await supabase.from("leads").insert(insertData).select().single();
+
+        if (error) throw error;
+
+        const newLeadId = data.id;
+        setLeadId(newLeadId);
+        setOriginalLead(data as Lead);
+
+        if (newPhotos.length > 0) {
+          await uploadNewPhotos(newLeadId);
         }
+
+        await sendNotifications(form.customer_name, form.status, newLeadId);
+        await logActivity(user.id, "created", "lead", newLeadId, { customer_name: form.customer_name });
+
         toast.success("Lead created!");
-        navigate("/leads");
-      }
-    } else {
-      const updateData: any = {
-        customer_name: form.customer_name,
-        customer_phone: form.customer_phone || null,
-        customer_email: form.customer_email || null,
-        address: form.address || null,
-        city: form.city || null,
-        state: form.state || null,
-        zip_code: form.zip_code || null,
-        service_type: form.service_type || null,
-        status: form.status,
-        scheduled_date: form.scheduled_date || null,
-        scheduled_time_start: form.scheduled_time_start || null,
-        scheduled_time_end: form.scheduled_time_end || null,
-        last_edited_by: user.id,
-      };
-      if (form.status === 'paid') {
-        updateData.amount = form.amount ? parseFloat(form.amount) : null;
-      }
-      if (isCS || isAdmin) updateData.cs_notes = form.cs_notes;
-      if (isProcessor || isAdmin) updateData.processor_notes = form.processor_notes;
 
-      const { error } = await supabase.from("leads").update(updateData).eq("id", id!);
-      if (error) { toast.error(error.message); setSaving(false); return; }
-
-      await uploadPhotos(id!);
-
-      if (previousStatus !== form.status && (form.status === 'urgent_job' || form.status === 'need_tech')) {
-        const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['admin', 'processor']);
-        if (roles) {
-          const statusLabel = form.status === 'urgent_job' ? 'Urgent Job' : 'Need Tech';
-          const notifs = roles.map((r: any) => ({
-            user_id: r.user_id,
-            title: `🚨 ${statusLabel}`,
-            message: `Lead "${form.customer_name}" changed to ${statusLabel}`,
-            lead_id: id,
-            read: false,
-          }));
-          await supabase.from('notifications').insert(notifs);
-        }
+        navigate(`/leads/${newLeadId}`, { replace: true });
+        setSaving(false);
+        return;
       }
 
-      await logActivity(user.id, "updated", "lead", id, { fields: Object.keys(updateData) });
+      if (!leadId) throw new Error("Missing lead id");
+
+      const previousStatus = originalLead?.status;
+      if (form.status === "paid" && form.amount) {
+        payload.amount = parseFloat(form.amount);
+      }
+
+      const { error } = await supabase.from("leads").update(payload).eq("id", leadId);
+
+      if (error) throw error;
+
+      if (newPhotos.length > 0) {
+        await uploadNewPhotos(leadId);
+      }
+
+      if (previousStatus !== form.status && (form.status === "urgent_job" || form.status === "need_tech")) {
+        await sendNotifications(form.customer_name, form.status, leadId);
+      }
+
+      await logActivity(user.id, "updated", "lead", leadId, { fields: Object.keys(payload) });
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+
+      await fetchLead();
       toast.success("Lead updated!");
-      navigate("/leads");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save lead");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
-  const allImageUrls = photos.map(p => p.url);
+  const currentCopyLead = useMemo(() => {
+    if (isNew || !leadId) return null;
 
-  if (loading) return <div className="flex h-64 items-center justify-center text-muted-foreground">Loading...</div>;
+    return {
+      ...(originalLead || {}),
+      id: leadId,
+      job_id: jobId,
+      customer_name: form.customer_name,
+      customer_phone: form.customer_phone || null,
+      customer_email: form.customer_email || null,
+      number_name: form.number_name || null,
+      address: form.address || null,
+      city: form.city || null,
+      state: form.state || null,
+      zip_code: form.zip_code || null,
+      service_type: form.service_type || null,
+      status: form.status,
+      scheduled_date: form.scheduled_date || null,
+      scheduled_time_start: form.scheduled_date ? parseTime(form.start_hour, form.start_minute, form.start_ampm) : null,
+      scheduled_time_end: form.scheduled_date ? parseTime(form.end_hour, form.end_minute, form.end_ampm) : null,
+      quote: form.quote || null,
+      service_details: form.service_details || null,
+      customer_schedule_requirements: form.customer_schedule_requirements || null,
+      reference_name: form.reference_name || null,
+      tech_name: form.tech_name || null,
+      tech_number: form.tech_number || null,
+      terms: form.terms || null,
+      labor_amount: form.labor_amount ? parseFloat(form.labor_amount) : null,
+      material_amount: form.material_amount ? parseFloat(form.material_amount) : null,
+      for_you_amount: form.for_you_amount ? parseFloat(form.for_you_amount) : null,
+      for_us_amount: form.for_us_amount ? parseFloat(form.for_us_amount) : null,
+      general_notes: form.general_notes || null,
+      cs_notes: form.cs_notes || null,
+      processor_notes: form.processor_notes || null,
+      created_by: originalLead?.created_by || user?.id || "",
+      created_at: originalLead?.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_edited_by: user?.id || originalLead?.last_edited_by || "",
+      payment_screenshot_url: form.payment_screenshot_url || null,
+      amount: form.amount ? parseFloat(form.amount) : null,
+      payment_amount: form.amount ? parseFloat(form.amount) : null,
+    } as Lead;
+  }, [originalLead, form, isNew, leadId, jobId, user]);
+
+  const allImageUrls = [...photos.map((p) => p.url), ...newPhotos.map((p) => URL.createObjectURL(p))];
+
+  const TimePicker = ({ prefix, label }: { prefix: "start" | "end"; label: string }) => (
+    <div className="space-y-1.5">
+      <Label className={labelClass}>{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Select value={form[`${prefix}_hour` as keyof typeof form]} onValueChange={(v) => update(`${prefix}_hour`, v)}>
+          <SelectTrigger className="w-[60px] h-9 bg-background border-border/70">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+              <SelectItem key={h} value={String(h)}>
+                {h}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <span className="text-muted-foreground/50">:</span>
+
+        <Select
+          value={form[`${prefix}_minute` as keyof typeof form]}
+          onValueChange={(v) => update(`${prefix}_minute`, v)}
+        >
+          <SelectTrigger className="w-[60px] h-9 bg-background border-border/70">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {["00", "15", "30", "45"].map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={form[`${prefix}_ampm` as keyof typeof form]} onValueChange={(v) => update(`${prefix}_ampm`, v)}>
+          <SelectTrigger className="w-[60px] h-9 bg-background border-border/70">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="AM">AM</SelectItem>
+            <SelectItem value="PM">PM</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
+  if (loading) {
+    return <div className="flex h-64 items-center justify-center text-muted-foreground">Loading...</div>;
+  }
 
   return (
-    <motion.div
-      variants={staggerContainer}
-      initial="initial"
-      animate="animate"
-      className="max-w-4xl mx-auto space-y-6"
-    >
-      {/* Header */}
-      <motion.div variants={staggerItem} className="flex items-center gap-4">
-        <motion.div whileHover={{ x: -3 }} whileTap={{ scale: 0.9 }}>
-          <Button variant="ghost" size="icon" onClick={() => navigate("/leads")} className="shrink-0">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </motion.div>
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/leads")} className="shrink-0">
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold truncate">{isNew ? "New Lead" : form.customer_name}</h1>
+          <h1 className="text-2xl font-bold truncate">{isNew ? "New Lead" : form.customer_name || "Lead"}</h1>
           {jobId && <p className="text-sm text-muted-foreground font-mono">{jobId}</p>}
         </div>
+
         <Badge variant="outline" className="shrink-0 text-xs">
-          {isNew ? "Draft" : STATUS_LABELS[form.status]}
+          {LEAD_STATUS_CONFIG[form.status]?.label || form.status}
         </Badge>
-        <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-          <Button onClick={handleSave} disabled={saving || isDuplicate} className="gap-2 shrink-0 shadow-lg shadow-primary/20">
-            <Save className="h-4 w-4" /> {saving ? "Saving..." : "Save"}
-          </Button>
-        </motion.div>
-      </motion.div>
+
+        {!isCS && currentCopyLead && <CopyLeadButton lead={currentCopyLead} />}
+
+        <Button onClick={handleSave} disabled={saving || isDuplicate} className="gap-2 shrink-0">
+          {saved ? (
+            <>
+              <Check className="h-4 w-4" /> Saved
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4" /> {saving ? "Saving..." : isNew ? "Create Lead" : "Save"}
+            </>
+          )}
+        </Button>
+      </div>
 
       {!isNew && (
         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-          <span>Created by: <strong className="text-foreground">{createdBy}</strong></span>
-          {lastEditedBy && (
-            <span>Last edited by: <strong className="text-foreground">{lastEditedBy}</strong> on {new Date(lastEditedAt).toLocaleString()}</span>
+          <span>
+            Created by: <strong className="text-foreground">{createdBy}</strong>
+          </span>
+          {lastEditedBy && lastEditedAt && (
+            <span>
+              Last edited by: <strong className="text-foreground">{lastEditedBy}</strong> on{" "}
+              {new Date(lastEditedAt).toLocaleString()}
+            </span>
           )}
         </div>
       )}
 
-      <motion.div variants={staggerItem} className="grid gap-6 md:grid-cols-2">
-        {/* Customer Details */}
-        <Card className="border-border/60 hover:shadow-md transition-shadow duration-300">
-          <CardHeader><CardTitle className="text-base">Customer Details</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Customer Name *</Label>
-              <Input value={form.customer_name} onChange={(e) => handleChange("customer_name", e.target.value)} placeholder="Customer name" />
+      <Card className="border-border/60">
+        <CardContent className="p-6 space-y-4">
+          <div className={sectionClass}>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
+              Required Information
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Customer Name *</Label>
+                <Input
+                  value={form.customer_name}
+                  onChange={(e) => update("customer_name", e.target.value)}
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Number Name *</Label>
+                <Input
+                  value={form.number_name}
+                  onChange={(e) => update("number_name", e.target.value)}
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Phone</Label>
-              <Input
-                value={form.customer_phone}
-                onChange={(e) => handleChange("customer_phone", e.target.value)}
-                placeholder="(555) 123-4567"
-                maxLength={14}
-                className={isDuplicate ? 'border-destructive ring-1 ring-destructive' : ''}
-              />
-              {isDuplicate && (
-                <div className="flex items-center gap-1.5 text-destructive text-xs">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  <span>A lead already exists with this number: <strong>{duplicateLeadName}</strong></span>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Phone Number *</Label>
+                <Input
+                  value={form.customer_phone}
+                  onChange={(e) => update("customer_phone", e.target.value)}
+                  maxLength={14}
+                  className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive" : ""}`}
+                  readOnly={isProcessor}
+                />
+                {isDuplicate && (
+                  <div className="flex items-center gap-1.5 text-destructive text-[11px] mt-1">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>
+                      Duplicate: <strong>{duplicateLeadName}</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Email</Label>
+                <Input
+                  value={form.customer_email}
+                  onChange={(e) => update("customer_email", e.target.value)}
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+            </div>
+          </div>
+
+          <Collapsible open={csOpen} onOpenChange={setCsOpen}>
+            <CollapsibleTrigger className="w-full rounded-lg border border-border/50 px-4 py-3 hover:bg-muted/20 transition-colors">
+              <SectionHeader icon={User} title="Customer Service Details" open={csOpen} />
+            </CollapsibleTrigger>
+
+            <CollapsibleContent className="mt-2 space-y-3 px-1">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Address</Label>
+                <Input
+                  value={form.address}
+                  onChange={(e) => update("address", e.target.value)}
+                  placeholder="123 Main St, City, State, Zip"
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>City</Label>
+                  <Input
+                    value={form.city}
+                    onChange={(e) => update("city", e.target.value)}
+                    className={fieldClass}
+                    readOnly={isProcessor}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>State</Label>
+                  <Input
+                    value={form.state}
+                    onChange={(e) => update("state", e.target.value)}
+                    className={fieldClass}
+                    readOnly={isProcessor}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Zip Code</Label>
+                  <Input
+                    value={form.zip_code}
+                    onChange={(e) => update("zip_code", e.target.value)}
+                    className={fieldClass}
+                    readOnly={isProcessor}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Service Type</Label>
+                  <Input
+                    value={form.service_type}
+                    onChange={(e) => update("service_type", e.target.value)}
+                    className={fieldClass}
+                    readOnly={isProcessor}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Quote</Label>
+                  <Input
+                    value={form.quote}
+                    onChange={(e) => update("quote", e.target.value)}
+                    className={fieldClass}
+                    readOnly={isProcessor}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Service Details</Label>
+                <Textarea
+                  value={form.service_details}
+                  onChange={(e) => update("service_details", e.target.value)}
+                  rows={3}
+                  className={`${fieldClass} resize-none min-h-[96px]`}
+                  readOnly={isProcessor}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Customer Schedule Requirements</Label>
+                <Input
+                  value={form.customer_schedule_requirements}
+                  onChange={(e) => update("customer_schedule_requirements", e.target.value)}
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Reference</Label>
+                <Input
+                  value={form.reference_name}
+                  onChange={(e) => update("reference_name", e.target.value)}
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[12px] font-semibold text-foreground">CS Notes</Label>
+                <Textarea
+                  value={form.cs_notes}
+                  onChange={(e) => update("cs_notes", e.target.value)}
+                  rows={4}
+                  className={`${fieldClass} resize-none min-h-[110px]`}
+                  readOnly={isProcessor}
+                />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {!isCS && (
+            <Collapsible open={processorOpen} onOpenChange={setProcessorOpen}>
+              <CollapsibleTrigger className="w-full rounded-lg border border-border/50 px-4 py-3 hover:bg-muted/20 transition-colors">
+                <SectionHeader icon={Wrench} title="Processor Details" open={processorOpen} />
+              </CollapsibleTrigger>
+
+              <CollapsibleContent className="mt-2 space-y-3 px-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className={labelClass}>Tech Name</Label>
+                    <Input
+                      value={form.tech_name}
+                      onChange={(e) => update("tech_name", e.target.value)}
+                      className={fieldClass}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className={labelClass}>Tech Number</Label>
+                    <Input
+                      value={form.tech_number}
+                      onChange={(e) => update("tech_number", e.target.value)}
+                      maxLength={14}
+                      className={fieldClass}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Terms</Label>
+                  <Select value={form.terms} onValueChange={(v) => update("terms", v)}>
+                    <SelectTrigger className={fieldClass}>
+                      <SelectValue placeholder="Select terms..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free_estimate">Free Estimate Visit</SelectItem>
+                      <SelectItem value="quoted">Quoted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {form.terms === "quoted" && (
+                  <div className="rounded-lg border border-border/40 bg-background/70 p-3 space-y-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
+                      Quoted Details
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className={labelClass}>Customer Labor ($)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.labor_amount}
+                          onChange={(e) => update("labor_amount", e.target.value)}
+                          className={fieldClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className={labelClass}>Materials ($)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.material_amount}
+                          onChange={(e) => update("material_amount", e.target.value)}
+                          className={fieldClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className={labelClass}>For You ($ incl. material)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.for_you_amount}
+                          onChange={(e) => update("for_you_amount", e.target.value)}
+                          className={fieldClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className={labelClass}>For Us ($ from labor)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.for_us_amount}
+                          onChange={(e) => update("for_us_amount", e.target.value)}
+                          className={fieldClass}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-semibold text-foreground">Processor Notes</Label>
+                  <Textarea
+                    value={form.processor_notes}
+                    onChange={(e) => update("processor_notes", e.target.value)}
+                    rows={4}
+                    className={`${fieldClass} resize-none min-h-[110px]`}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
+          <Collapsible open={scheduleOpen} onOpenChange={setScheduleOpen}>
+            <CollapsibleTrigger className="w-full rounded-lg border border-border/50 px-4 py-3 hover:bg-muted/20 transition-colors">
+              <SectionHeader icon={Calendar} title="Schedule & Status" open={scheduleOpen} />
+            </CollapsibleTrigger>
+
+            <CollapsibleContent className="mt-2 space-y-3 px-1">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Status</Label>
+                <Select value={form.status} onValueChange={(v) => update("status", v)}>
+                  <SelectTrigger className={fieldClass}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(LEAD_STATUS_CONFIG).map(([key, cfg]) => (
+                      <SelectItem key={key} value={key}>
+                        {cfg.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Job Scheduled For</Label>
+                <Input
+                  type="date"
+                  value={form.scheduled_date}
+                  onChange={(e) => update("scheduled_date", e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
+
+              {form.scheduled_date && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <TimePicker prefix="start" label="Start Time" />
+                  <TimePicker prefix="end" label="End Time" />
                 </div>
               )}
-            </div>
-            <div className="space-y-2">
-              <Label>Address</Label>
-              <Input value={form.address} onChange={(e) => handleChange("address", e.target.value)} placeholder="123 Main St, City, State, Zip" />
-            </div>
-            <div className="space-y-2">
-              <Label>Service Type</Label>
-              <Input value={form.service_type} onChange={(e) => handleChange("service_type", e.target.value)} placeholder="e.g. HVAC, Plumbing" />
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Status & Scheduling */}
-        <Card className="border-border/60 hover:shadow-md transition-shadow duration-300">
-          <CardHeader><CardTitle className="text-base">Status & Scheduling</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => handleChange("status", v)} disabled={isStatusLocked}>
-                <SelectTrigger className={isStatusLocked ? 'opacity-60 cursor-not-allowed' : ''}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ALL_LEAD_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {isStatusLocked && (
-                <p className="text-[11px] text-muted-foreground/60">Status is locked after payment.</p>
+              {form.status === "paid" && (
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Amount ($)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={form.amount}
+                    onChange={(e) => update("amount", e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
               )}
-            </div>
-            <div className="space-y-2">
-              <Label>Scheduled Date</Label>
-              <Input type="date" value={form.scheduled_date} onChange={(e) => handleChange("scheduled_date", e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Start Time</Label>
-                <Input type="time" value={form.scheduled_time_start} onChange={(e) => handleChange("scheduled_time_start", e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>End Time</Label>
-                <Input type="time" value={form.scheduled_time_end} onChange={(e) => handleChange("scheduled_time_end", e.target.value)} />
-              </div>
-            </div>
-            {form.status === 'paid' && (
-              <div className="space-y-2">
-                <Label>Amount ($)</Label>
-                <Input type="number" value={form.amount} onChange={(e) => handleChange("amount", e.target.value)} placeholder="0.00" />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+            </CollapsibleContent>
+          </Collapsible>
 
-      {/* Photos Section */}
-      <motion.div variants={staggerItem}>
-        <Card className="border-border/60">
-          <CardHeader><CardTitle className="text-base">Photos</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-3">
+          <div className="space-y-1.5">
+            <Label className={labelClass}>Photos</Label>
+            <div className="flex flex-wrap gap-2">
               {photos.map((photo, i) => (
-                <div key={photo.id} className="relative h-20 w-20 rounded-lg overflow-hidden border border-border/40 group">
+                <div
+                  key={photo.id}
+                  className="relative h-16 w-16 rounded-lg overflow-hidden border border-border/50 group"
+                >
                   <img
                     src={photo.url}
                     alt=""
                     className="h-full w-full object-cover cursor-pointer"
-                    onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
+                    onClick={() => {
+                      setLightboxIndex(i);
+                      setLightboxOpen(true);
+                    }}
                   />
-                  {!isStatusLocked && (
-                    <button
-                      onClick={() => removeExistingPhoto(photo.id)}
-                      className="absolute top-1 right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              ))}
-              {newPhotos.map((photo, i) => (
-                <div key={`new-${i}`} className="relative h-20 w-20 rounded-lg overflow-hidden border border-dashed border-primary/40 group">
-                  <img src={URL.createObjectURL(photo)} alt="" className="h-full w-full object-cover" />
                   <button
-                    onClick={() => removeNewPhoto(i)}
-                    className="absolute top-1 right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    type="button"
+                    onClick={() => removeExistingPhoto(photo.id)}
+                    className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-2.5 w-2.5" />
                   </button>
                 </div>
               ))}
-              <label className="h-20 w-20 rounded-lg border-2 border-dashed border-border/40 flex items-center justify-center cursor-pointer hover:border-primary/40 transition-colors">
-                <ImagePlus className="h-6 w-6 text-muted-foreground/40" />
+
+              {newPhotos.map((photo, i) => (
+                <div
+                  key={`new-${i}`}
+                  className="relative h-16 w-16 rounded-lg overflow-hidden border border-border/50 group"
+                >
+                  <img src={URL.createObjectURL(photo)} alt="" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeNewPhoto(i)}
+                    className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ))}
+
+              <label className="h-16 w-16 rounded-lg border-2 border-dashed border-border/50 flex items-center justify-center cursor-pointer hover:border-primary/40 transition-colors bg-background/60">
+                <ImagePlus className="h-5 w-5 text-muted-foreground/50" />
                 <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoAdd} />
               </label>
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+          </div>
 
-      {/* Note Threads */}
-      <motion.div variants={staggerItem} className="grid gap-6 md:grid-cols-2">
-        {/* General Notes - visible to all */}
-        <Card className="border-border/60">
-          <CardHeader><CardTitle className="text-base">Notes</CardTitle></CardHeader>
-          <CardContent>
-            {!isNew && id ? (
-              <NoteThread leadId={id} noteType="general" label="Notes" profiles={profiles} />
-            ) : (
-              <p className="text-sm text-muted-foreground">Save the lead first to start adding notes.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {(isCS || isAdmin) && (
-          <Card className="border-border/60">
-            <CardHeader><CardTitle className="text-base text-primary">CS Notes Thread</CardTitle></CardHeader>
-            <CardContent>
-              {!isNew && id ? (
-                <NoteThread leadId={id} noteType="cs" label="CS Notes" profiles={profiles} />
-              ) : (
-                <p className="text-sm text-muted-foreground">Save the lead first to start adding notes.</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-        {(isProcessor || isAdmin) && (
-          <Card className="border-border/60">
-            <CardHeader><CardTitle className="text-base text-primary">Processor Notes Thread</CardTitle></CardHeader>
-            <CardContent>
-              {!isNew && id ? (
-                <NoteThread leadId={id} noteType="processor" label="Processor Notes" profiles={profiles} />
-              ) : (
-                <p className="text-sm text-muted-foreground">Save the lead first to start adding notes.</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </motion.div>
+          <div className="space-y-1.5">
+            <Label className="text-[12px] font-semibold text-foreground">General Notes</Label>
+            <Textarea
+              value={form.general_notes}
+              onChange={(e) => update("general_notes", e.target.value)}
+              rows={4}
+              className={`${fieldClass} resize-none min-h-[110px]`}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <PaymentDialog
         open={paymentOpen}
@@ -536,6 +1090,6 @@ export default function LeadDetailPage() {
         open={lightboxOpen}
         onOpenChange={setLightboxOpen}
       />
-    </motion.div>
+    </div>
   );
 }
