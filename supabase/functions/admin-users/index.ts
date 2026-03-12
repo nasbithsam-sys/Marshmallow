@@ -34,12 +34,10 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    // Health check - no auth needed
     if (action === "ping") {
       return jsonResponse({ success: true, message: "pong" });
     }
 
-    // Access code verification - supports both legacy (email/password) and session-based flows
     if (action === "verify_access_code") {
       const { email, password, code } = body;
 
@@ -52,7 +50,6 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "Server configuration missing" }, 500);
       }
 
-      // Helper to verify and rotate the access code for a given user
       const verifyAndRotateCode = async (userId: string) => {
         const { data: codeData } = await adminClient
           .from("user_access_codes")
@@ -65,24 +62,29 @@ Deno.serve(async (req) => {
         }
 
         const newCode = String(Math.floor(100000 + Math.random() * 900000));
-        await adminClient
-          .from("user_access_codes")
-          .update({ code: newCode })
-          .eq("user_id", userId);
+
+        await adminClient.from("user_access_codes").update({ code: newCode }).eq("user_id", userId);
 
         return { ok: true as const };
       };
 
-      // 1) Legacy mode: email + password + code (pre-auth)
       if (email && password) {
-        const anonClient = createClient(supabaseUrl, anonKey);
-        const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({ email, password });
+        const anonClient = createClient(supabaseUrl, anonKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+
+        const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({
+          email,
+          password,
+        });
+
         if (signInError || !signInData.user) {
           return jsonResponse({ error: "Invalid credentials" }, 401);
         }
 
         const userId = signInData.user.id;
         const result = await verifyAndRotateCode(userId);
+
         if (!result.ok) {
           await anonClient.auth.signOut();
           return jsonResponse({ error: "Invalid access code" }, 403);
@@ -97,13 +99,13 @@ Deno.serve(async (req) => {
         });
       }
 
-      // 2) Session-based mode: authenticated caller + code (refresh-safe)
       const authHeaderForVerify = req.headers.get("Authorization");
       if (!authHeaderForVerify?.startsWith("Bearer ")) {
         return jsonResponse({ error: "Unauthorized - no token provided" }, 401);
       }
 
       const tokenForVerify = authHeaderForVerify.replace("Bearer ", "");
+
       const {
         data: { user: callerUserForVerify },
         error: userErrorForVerify,
@@ -122,18 +124,14 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true });
     }
 
-    // Check if user needs access code (called after initial sign-in)
     if (action === "check_access_code") {
       const { user_id } = body;
+
       if (!user_id) {
         return jsonResponse({ error: "user_id is required" }, 400);
       }
 
-      const { data: roleData } = await adminClient
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user_id)
-        .single();
+      const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", user_id).single();
 
       if (roleData?.role === "admin") {
         return jsonResponse({ requires_code: false });
@@ -148,7 +146,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ requires_code: !!codeData });
     }
 
-    // Verify caller is authenticated
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return jsonResponse({ error: "Unauthorized - no token provided" }, 401);
@@ -156,7 +153,11 @@ Deno.serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
 
-    const { data: { user: callerUser }, error: userError } = await adminClient.auth.getUser(token);
+    const {
+      data: { user: callerUser },
+      error: userError,
+    } = await adminClient.auth.getUser(token);
+
     if (userError || !callerUser) {
       console.error("Auth verification failed:", userError?.message);
       return jsonResponse({ error: "Unauthorized - invalid token" }, 401);
@@ -164,28 +165,21 @@ Deno.serve(async (req) => {
 
     const callerId = callerUser.id;
 
-    // Check admin role
-    const { data: roleData } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId)
-      .single();
+    const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", callerId).single();
 
     if (roleData?.role !== "admin") {
       return jsonResponse({ error: "Admin access required" }, 403);
     }
 
-    // CREATE USER
     if (action === "create_user") {
       const { email, password, full_name, role, access_code } = body;
 
-      const { data: newUser, error: createError } =
-        await adminClient.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: { full_name },
-        });
+      const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name },
+      });
 
       if (createError) {
         console.error("Create user error:", createError.message);
@@ -194,36 +188,30 @@ Deno.serve(async (req) => {
 
       const userId = newUser.user.id;
 
-      await adminClient
-        .from("profiles")
-        .insert({ id: userId, full_name, email });
-
-      await adminClient
-        .from("user_roles")
-        .insert({ user_id: userId, role: role || "no_role" });
+      await adminClient.from("profiles").insert({ id: userId, full_name, email });
+      await adminClient.from("user_roles").insert({ user_id: userId, role: role || "no_role" });
 
       if (role !== "admin" && access_code) {
-        await adminClient
-          .from("user_access_codes")
-          .insert({ user_id: userId, code: access_code });
+        await adminClient.from("user_access_codes").insert({ user_id: userId, code: access_code });
       }
 
       return jsonResponse({ success: true, user_id: userId });
     }
 
-    // SET PASSWORD
     if (action === "set_password") {
       const { user_id, password } = body;
+
       const { error } = await adminClient.auth.admin.updateUserById(user_id, {
         password,
       });
+
       if (error) {
         return jsonResponse({ error: error.message }, 400);
       }
+
       return jsonResponse({ success: true });
     }
 
-    // DELETE USER
     if (action === "delete_user") {
       const { user_id } = body;
 
@@ -240,10 +228,10 @@ Deno.serve(async (req) => {
       if (error) {
         return jsonResponse({ error: error.message }, 400);
       }
+
       return jsonResponse({ success: true });
     }
 
-    // DELETE LEAD
     if (action === "delete_lead") {
       const { lead_id } = body;
 
@@ -256,14 +244,12 @@ Deno.serve(async (req) => {
         adminClient.from("lead_payments").delete().eq("lead_id", lead_id),
       ]);
 
-      const { error } = await adminClient
-        .from("leads")
-        .delete()
-        .eq("id", lead_id);
+      const { error } = await adminClient.from("leads").delete().eq("id", lead_id);
 
       if (error) {
         return jsonResponse({ error: error.message }, 400);
       }
+
       return jsonResponse({ success: true });
     }
 
