@@ -39,54 +39,87 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, message: "pong" });
     }
 
-    // Access code verification - called before full auth, uses email/password
+    // Access code verification - supports both legacy (email/password) and session-based flows
     if (action === "verify_access_code") {
       const { email, password, code } = body;
-      if (!email || !password || !code) {
-        return jsonResponse({ error: "Email, password, and code are required" }, 400);
+
+      if (!code) {
+        return jsonResponse({ error: "Code is required" }, 400);
       }
 
-      // Sign in to verify credentials
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
       if (!anonKey) {
         return jsonResponse({ error: "Server configuration missing" }, 500);
       }
-      const anonClient = createClient(supabaseUrl, anonKey);
-      const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({ email, password });
-      if (signInError || !signInData.user) {
-        return jsonResponse({ error: "Invalid credentials" }, 401);
+
+      // Helper to verify and rotate the access code for a given user
+      const verifyAndRotateCode = async (userId: string) => {
+        const { data: codeData } = await adminClient
+          .from("user_access_codes")
+          .select("code")
+          .eq("user_id", userId)
+          .single();
+
+        if (!codeData || codeData.code !== code) {
+          return { ok: false as const };
+        }
+
+        const newCode = String(Math.floor(100000 + Math.random() * 900000));
+        await adminClient
+          .from("user_access_codes")
+          .update({ code: newCode })
+          .eq("user_id", userId);
+
+        return { ok: true as const };
+      };
+
+      // 1) Legacy mode: email + password + code (pre-auth)
+      if (email && password) {
+        const anonClient = createClient(supabaseUrl, anonKey);
+        const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({ email, password });
+        if (signInError || !signInData.user) {
+          return jsonResponse({ error: "Invalid credentials" }, 401);
+        }
+
+        const userId = signInData.user.id;
+        const result = await verifyAndRotateCode(userId);
+        if (!result.ok) {
+          await anonClient.auth.signOut();
+          return jsonResponse({ error: "Invalid access code" }, 403);
+        }
+
+        return jsonResponse({
+          success: true,
+          session: {
+            access_token: signInData.session?.access_token,
+            refresh_token: signInData.session?.refresh_token,
+          },
+        });
       }
 
-      const userId = signInData.user.id;
+      // 2) Session-based mode: authenticated caller + code (refresh-safe)
+      const authHeaderForVerify = req.headers.get("Authorization");
+      if (!authHeaderForVerify?.startsWith("Bearer ")) {
+        return jsonResponse({ error: "Unauthorized - no token provided" }, 401);
+      }
 
-      // Check stored code server-side (using service role to bypass RLS)
-      const { data: codeData } = await adminClient
-        .from("user_access_codes")
-        .select("code")
-        .eq("user_id", userId)
-        .single();
+      const tokenForVerify = authHeaderForVerify.replace("Bearer ", "");
+      const {
+        data: { user: callerUserForVerify },
+        error: userErrorForVerify,
+      } = await adminClient.auth.getUser(tokenForVerify);
 
-      if (!codeData || codeData.code !== code) {
-        // Sign out the temporary session
-        await anonClient.auth.signOut();
+      if (userErrorForVerify || !callerUserForVerify) {
+        console.error("Auth verification failed (verify_access_code):", userErrorForVerify?.message);
+        return jsonResponse({ error: "Unauthorized - invalid token" }, 401);
+      }
+
+      const verifyResult = await verifyAndRotateCode(callerUserForVerify.id);
+      if (!verifyResult.ok) {
         return jsonResponse({ error: "Invalid access code" }, 403);
       }
 
-      // Code valid — regenerate for single-use
-      const newCode = String(Math.floor(100000 + Math.random() * 900000));
-      await adminClient
-        .from("user_access_codes")
-        .update({ code: newCode })
-        .eq("user_id", userId);
-
-      // Return the session tokens so the client can set the session
-      return jsonResponse({
-        success: true,
-        session: {
-          access_token: signInData.session?.access_token,
-          refresh_token: signInData.session?.refresh_token,
-        },
-      });
+      return jsonResponse({ success: true });
     }
 
     // Check if user needs access code (called after initial sign-in)

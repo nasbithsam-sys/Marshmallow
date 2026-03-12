@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,17 +13,40 @@ import { heroTitle, premiumEase } from '@/lib/motion';
 const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
 const Login = () => {
+  const navigate = useNavigate();
+  const {
+    session,
+    markFullyAuthenticated,
+    pendingStep,
+    pendingMfaFactorId,
+    startPendingAccessCode,
+    startPendingMfa,
+    clearPendingAuth,
+  } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [mfaRequired, setMfaRequired] = useState(false);
-  const [mfaFactorId, setMfaFactorId] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [verifying, setVerifying] = useState(false);
   // Access code state for non-admin users
   const [accessCodeRequired, setAccessCodeRequired] = useState(false);
   const [accessCodeInput, setAccessCodeInput] = useState('');
   const [accessCodeVerifying, setAccessCodeVerifying] = useState(false);
+
+  useEffect(() => {
+    // Mirror pending auth state from context into local flags for UI screens.
+    setMfaRequired(pendingStep === 'mfa');
+    setAccessCodeRequired(pendingStep === 'access_code');
+  }, [pendingStep]);
+
+  useEffect(() => {
+    if (session && pendingStep === 'none') {
+      // Router decides when to enter the app based on fullyAuthenticated;
+      // do not auto-navigate from here.
+      return;
+    }
+  }, [session, pendingStep, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,8 +64,7 @@ const Login = () => {
       const { data: factors } = await supabase.auth.mfa.listFactors();
       const totpFactor = factors?.totp?.find(f => f.status === 'verified');
       if (totpFactor) {
-        setMfaFactorId(totpFactor.id);
-        setMfaRequired(true);
+        startPendingMfa(data.user!.id, totpFactor.id);
         setLoading(false);
         return;
       }
@@ -54,21 +78,20 @@ const Login = () => {
           body: { action: 'check_access_code', user_id: userId },
         });
         if (checkData?.requires_code) {
-          // Sign out — they need to verify the code first via server-side
-          await supabase.auth.signOut();
-          setAccessCodeRequired(true);
+          startPendingAccessCode(userId);
           setLoading(false);
           return;
         }
       } catch (err) {
-        // Fail closed: sign out and show error
-        await supabase.auth.signOut();
-        toast.error('Unable to verify access. Please try again or contact your administrator.');
+        toast.error('Unable to verify access code requirement. Please try again or contact your administrator.');
         setLoading(false);
         return;
       }
     }
 
+    // No additional verification required – user is fully authenticated
+    clearPendingAuth();
+    markFullyAuthenticated();
     setLoading(false);
   };
 
@@ -79,7 +102,7 @@ const Login = () => {
     try {
       // Server-side verification — code never sent to client
       const { data: result, error: fnError } = await supabase.functions.invoke('admin-users', {
-        body: { action: 'verify_access_code', email, password, code: accessCodeInput },
+        body: { action: 'verify_access_code', code: accessCodeInput },
       });
 
       if (fnError || result?.error) {
@@ -89,12 +112,22 @@ const Login = () => {
         return;
       }
 
-      // Set session from server-provided tokens
+      // Legacy path: backend returned a new session (email/password mode)
       if (result?.session?.access_token && result?.session?.refresh_token) {
         await supabase.auth.setSession({
           access_token: result.session.access_token,
           refresh_token: result.session.refresh_token,
         });
+        toast.success('Access verified successfully');
+        clearPendingAuth();
+        setAccessCodeRequired(false);
+        markFullyAuthenticated();
+      } else if (result?.success) {
+        // New session-based path: caller already has a valid session
+        toast.success('Access verified successfully');
+        clearPendingAuth();
+        setAccessCodeRequired(false);
+        markFullyAuthenticated();
       }
     } catch {
       toast.error('Verification failed. Please try again.');
@@ -109,7 +142,7 @@ const Login = () => {
     setVerifying(true);
 
     const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
-      factorId: mfaFactorId,
+      factorId: pendingMfaFactorId || '',
     });
     if (challengeError) {
       toast.error(challengeError.message);
@@ -118,7 +151,7 @@ const Login = () => {
     }
 
     const { error: verifyError } = await supabase.auth.mfa.verify({
-      factorId: mfaFactorId,
+      factorId: pendingMfaFactorId || '',
       challengeId: challenge.id,
       code: totpCode,
     });
@@ -130,6 +163,10 @@ const Login = () => {
       return;
     }
 
+    toast.success('Verification successful');
+    clearPendingAuth();
+    setMfaRequired(false);
+    markFullyAuthenticated();
     setVerifying(false);
   };
 

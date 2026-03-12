@@ -3,6 +3,17 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import type { AppRole, Profile, NavigationPermission } from '@/types';
 
+const VERIFIED_USER_KEY = 'auth_verified_user_id';
+const PENDING_AUTH_KEY = 'auth_pending_state';
+
+type PendingStep = 'none' | 'access_code' | 'mfa';
+
+interface PendingAuthState {
+  step: PendingStep;
+  userId: string | null;
+  mfaFactorId?: string | null;
+}
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
@@ -10,9 +21,17 @@ interface AuthContextType {
   role: AppRole;
   permissions: NavigationPermission[];
   loading: boolean;
+  fullyAuthenticated: boolean;
+  pendingStep: PendingStep;
+  pendingUserId: string | null;
+  pendingMfaFactorId: string | null;
   signOut: () => Promise<void>;
   canAccess: (navItem: string) => boolean;
   refetchProfile: () => Promise<void>;
+  markFullyAuthenticated: () => void;
+  startPendingAccessCode: (userId: string) => void;
+  startPendingMfa: (userId: string, factorId: string) => void;
+  clearPendingAuth: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -31,6 +50,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [permissions, setPermissions] = useState<NavigationPermission[]>([]);
   const [loading, setLoading] = useState(true);
   const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({});
+  const [fullyAuthenticated, setFullyAuthenticated] = useState(false);
+  const [pendingStep, setPendingStep] = useState<PendingStep>('none');
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [pendingMfaFactorId, setPendingMfaFactorId] = useState<string | null>(null);
+
+  const loadPendingFromStorage = (nextSession: Session | null) => {
+    if (!nextSession?.user) {
+      window.localStorage.removeItem(PENDING_AUTH_KEY);
+      setPendingStep('none');
+      setPendingUserId(null);
+      setPendingMfaFactorId(null);
+      return;
+    }
+    const raw = window.localStorage.getItem(PENDING_AUTH_KEY);
+    if (!raw) {
+      setPendingStep('none');
+      setPendingUserId(null);
+      setPendingMfaFactorId(null);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as PendingAuthState;
+      if (parsed.userId === nextSession.user.id && parsed.step !== 'none') {
+        setPendingStep(parsed.step);
+        setPendingUserId(parsed.userId);
+        setPendingMfaFactorId(parsed.mfaFactorId ?? null);
+      } else {
+        setPendingStep('none');
+        setPendingUserId(null);
+        setPendingMfaFactorId(null);
+      }
+    } catch {
+      setPendingStep('none');
+      setPendingUserId(null);
+      setPendingMfaFactorId(null);
+    }
+  };
+
+  const syncVerifiedState = (nextSession: Session | null) => {
+    if (nextSession?.user) {
+      const storedId = window.localStorage.getItem(VERIFIED_USER_KEY);
+      setFullyAuthenticated(storedId === nextSession.user.id);
+    } else {
+      window.localStorage.removeItem(VERIFIED_USER_KEY);
+      setFullyAuthenticated(false);
+    }
+    loadPendingFromStorage(nextSession);
+  };
 
   const fetchUserData = async (userId: string) => {
     const [profileRes, roleRes, permRes] = await Promise.all([
@@ -50,30 +117,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          setTimeout(() => fetchUserData(session.user.id), 0);
+      async (_event, nextSession) => {
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+        if (nextSession?.user) {
+          setTimeout(() => fetchUserData(nextSession.user.id), 0);
         } else {
           setProfile(null);
           setRole('no_role');
         }
+        syncVerifiedState(nextSession);
         setLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserData(session.user.id);
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
+      if (initialSession?.user) {
+        fetchUserData(initialSession.user.id);
       }
+      syncVerifiedState(initialSession);
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const persistPendingAuth = (state: PendingAuthState | null) => {
+    if (!state || state.step === 'none' || !state.userId) {
+      window.localStorage.removeItem(PENDING_AUTH_KEY);
+      setPendingStep('none');
+      setPendingUserId(null);
+      setPendingMfaFactorId(null);
+      return;
+    }
+    window.localStorage.setItem(PENDING_AUTH_KEY, JSON.stringify(state));
+    setPendingStep(state.step);
+    setPendingUserId(state.userId);
+    setPendingMfaFactorId(state.mfaFactorId ?? null);
+  };
+
+  const clearPendingAuth = () => {
+    persistPendingAuth(null);
+  };
+
+  const startPendingAccessCode = (userId: string) => {
+    window.localStorage.removeItem(VERIFIED_USER_KEY);
+    setFullyAuthenticated(false);
+    persistPendingAuth({ step: 'access_code', userId, mfaFactorId: null });
+  };
+
+  const startPendingMfa = (userId: string, factorId: string) => {
+    window.localStorage.removeItem(VERIFIED_USER_KEY);
+    setFullyAuthenticated(false);
+    persistPendingAuth({ step: 'mfa', userId, mfaFactorId: factorId });
+  };
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -81,6 +180,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setProfile(null);
     setRole('no_role');
+    window.localStorage.removeItem(VERIFIED_USER_KEY);
+    window.localStorage.removeItem(PENDING_AUTH_KEY);
+    setFullyAuthenticated(false);
+    setPendingStep('none');
+    setPendingUserId(null);
+    setPendingMfaFactorId(null);
   };
 
   const canAccess = (navItem: string): boolean => {
@@ -91,8 +196,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
+  const markFullyAuthenticated = () => {
+    const currentUserId = user?.id ?? session?.user?.id;
+    if (!currentUserId) return;
+    window.localStorage.setItem(VERIFIED_USER_KEY, currentUserId);
+    setFullyAuthenticated(true);
+    clearPendingAuth();
+  };
+
   return (
-    <AuthContext.Provider value={{ session, user, profile, role, permissions, loading, signOut, canAccess, refetchProfile }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        profile,
+        role,
+        permissions,
+        loading,
+        fullyAuthenticated,
+        pendingStep,
+        pendingUserId,
+        pendingMfaFactorId,
+        signOut,
+        canAccess,
+        refetchProfile,
+        markFullyAuthenticated,
+        startPendingAccessCode,
+        startPendingMfa,
+        clearPendingAuth,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

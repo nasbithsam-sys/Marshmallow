@@ -19,7 +19,7 @@ import NotFound from "@/pages/NotFound";
 const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
-  const { session, loading } = useAuth();
+  const { fullyAuthenticated, loading } = useAuth();
   if (loading) return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="flex flex-col items-center gap-3">
@@ -28,14 +28,14 @@ function ProtectedRoutes() {
       </div>
     </div>
   );
-  if (!session) return <Navigate to="/login" replace />;
+  if (!fullyAuthenticated) return <Navigate to="/login" replace />;
   return <AppLayout />;
 }
 
 function LoginRoute() {
-  const { session, loading } = useAuth();
+  const { loading, fullyAuthenticated } = useAuth();
   if (loading) return null;
-  if (session) return <Navigate to="/leads" replace />;
+  if (fullyAuthenticated) return <Navigate to="/leads" replace />;
   return <Login />;
 }
 
