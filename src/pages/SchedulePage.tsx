@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, STATUS_LABELS, STATUS_COLORS } from "@/lib/constants";
+import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
