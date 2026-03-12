@@ -34,7 +34,23 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: 
   </div>
 );
 
-const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
+const StatusDropdownFiltered = ({ value, onChange }: { value: string | undefined; onChange: (v: string) => void }) => {
+  const { allowedStatuses } = useAllowedStatuses();
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        {Object.entries(LEAD_STATUS_CONFIG)
+          .filter(([key]) => allowedStatuses.has(key))
+          .map(([key, cfg]) => (
+            <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
+
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
