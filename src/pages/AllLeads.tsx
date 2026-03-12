@@ -14,6 +14,7 @@ import LeadDetailPanel from '@/components/leads/LeadDetailPanel';
 import type { Lead, LeadStatus } from '@/types';
 import { LEAD_STATUS_CONFIG } from '@/types';
 import { format } from 'date-fns';
+import { useAllowedStatuses } from '@/hooks/useAllowedStatuses';
 
 const statusOrder: Record<string, number> = {
   urgent_job: -1,
