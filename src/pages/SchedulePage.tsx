@@ -24,16 +24,15 @@ const EMPLOYEE_COLORS = [
   "bg-gradient-to-br from-pink-500 to-pink-600 text-white",
 ];
 
-const BLOCK_COLORS = [
-  "bg-gradient-to-r from-blue-500 to-blue-600 border-blue-700/20",
-  "bg-gradient-to-r from-amber-500 to-amber-600 border-amber-700/20",
-  "bg-gradient-to-r from-rose-500 to-rose-600 border-rose-700/20",
-  "bg-gradient-to-r from-emerald-500 to-emerald-600 border-emerald-700/20",
-  "bg-gradient-to-r from-violet-500 to-violet-600 border-violet-700/20",
-  "bg-gradient-to-r from-cyan-500 to-cyan-600 border-cyan-700/20",
-  "bg-gradient-to-r from-orange-500 to-orange-600 border-orange-700/20",
-  "bg-gradient-to-r from-pink-500 to-pink-600 border-pink-700/20",
-];
+const STATUS_BLOCK_COLORS: Record<string, string> = {
+  urgent_job: "bg-gradient-to-r from-red-500 to-red-600 border-red-700/20",
+  cancelled: "bg-gradient-to-r from-yellow-500 to-yellow-600 border-yellow-700/20",
+  job_done: "bg-gradient-to-r from-emerald-400 to-emerald-500 border-emerald-600/20",
+  paid: "bg-gradient-to-r from-green-500 to-green-600 border-green-700/20",
+};
+const DEFAULT_BLOCK_COLOR = "bg-gradient-to-r from-blue-500 to-blue-600 border-blue-700/20";
+
+const getBlockColor = (status: string) => STATUS_BLOCK_COLORS[status] || DEFAULT_BLOCK_COLOR;
 
 export default function SchedulePage() {
   const navigate = useNavigate();
