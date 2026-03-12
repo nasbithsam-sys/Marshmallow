@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,23 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     },
   });
 
+  const { data: lastEditorName } = useQuery({
+    queryKey: ["lead-last-editor", lead?.last_edited_by],
+    enabled: !!lead?.last_edited_by,
+    queryFn: async () => {
+      if (!lead?.last_edited_by) return null;
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", lead.last_edited_by)
+        .single();
+
+      if (error) return null;
+      return data?.full_name || null;
+    },
+  });
+
   const [form, setForm] = useState<Partial<Lead> & Record<string, any>>({});
 
   useEffect(() => {
@@ -80,6 +98,15 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   }, [lead]);
 
   const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone || "", leadId);
+
+  const formattedEditedAt = useMemo(() => {
+    if (!lead?.last_edited_at) return null;
+    try {
+      return format(new Date(lead.last_edited_at), "MMM d, yyyy • h:mm a");
+    } catch {
+      return lead.last_edited_at;
+    }
+  }, [lead?.last_edited_at]);
 
   const update = (key: string, value: any) => {
     if (key === "status" && value === "paid") {
@@ -153,7 +180,6 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         scheduled_time_start: form.scheduled_time_start,
         scheduled_time_end: form.scheduled_time_end,
 
-        // notepad-style notes
         general_notes: form.general_notes ?? null,
         cs_notes: role !== "processor" ? form.cs_notes : lead?.cs_notes,
         processor_notes: role !== "customer_service" ? form.processor_notes : lead?.processor_notes,
@@ -161,14 +187,12 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         last_edited_by: user.id,
         last_edited_at: new Date().toISOString(),
 
-        // CS fields
         number_name: form.number_name,
         quote: form.quote,
         service_details: form.service_details,
         customer_schedule_requirements: form.customer_schedule_requirements,
         reference_name: form.reference_name,
 
-        // Processor fields
         tech_name: role !== "customer_service" ? form.tech_name : lead?.tech_name,
         tech_number: role !== "customer_service" ? form.tech_number : lead?.tech_number,
         terms: role !== "customer_service" ? form.terms : lead?.terms,
@@ -253,11 +277,31 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         className="w-[55%] max-w-3xl bg-card border-l border-border overflow-y-auto"
       >
         <div className="sticky top-0 bg-card/95 backdrop-blur-md border-b border-border/60 px-6 py-4 flex items-center justify-between z-10">
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[12px] text-muted-foreground/70">{lead.job_id}</span>
-            <span className="text-muted-foreground/30">›</span>
-            <span className="text-sm font-medium text-foreground truncate max-w-[200px]">{lead.customer_name}</span>
-            <StatusBadge status={lead.status as LeadStatus} />
+          <div className="flex flex-col gap-1.5 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="font-mono text-[12px] text-muted-foreground/70">{lead.job_id}</span>
+              <span className="text-muted-foreground/30">›</span>
+              <span className="text-sm font-medium text-foreground truncate max-w-[200px]">{lead.customer_name}</span>
+              <StatusBadge status={lead.status as LeadStatus} />
+            </div>
+
+            {(formattedEditedAt || lastEditorName) && (
+              <div className="text-[12px] text-muted-foreground">
+                Last edited
+                {lastEditorName ? (
+                  <>
+                    {" "}
+                    by <span className="font-medium text-foreground/80">{lastEditorName}</span>
+                  </>
+                ) : null}
+                {formattedEditedAt ? (
+                  <>
+                    {" "}
+                    on <span className="font-medium text-foreground/80">{formattedEditedAt}</span>
+                  </>
+                ) : null}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -293,6 +337,26 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </Label>
             <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v)} />
           </div>
+
+          {(formattedEditedAt || lastEditorName) && (
+            <div className="rounded-xl bg-muted/30 border border-border/50 p-4">
+              <Label className="text-[11px] text-foreground/70 uppercase tracking-wider mb-2 block font-semibold">
+                Last Edit Info
+              </Label>
+              <div className="text-sm text-muted-foreground space-y-1">
+                {lastEditorName && (
+                  <div>
+                    Edited by: <span className="text-foreground font-medium">{lastEditorName}</span>
+                  </div>
+                )}
+                {formattedEditedAt && (
+                  <div>
+                    Edited at: <span className="text-foreground font-medium">{formattedEditedAt}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className={sectionClass}>
             <SectionHeader icon={User} title="Customer Information" />
