@@ -288,7 +288,7 @@ export default function SchedulePage() {
                     </div>
                   ) : (
                     rows.map((row, rowIndex) => {
-                      const blockColor = BLOCK_COLORS[rowIndex % BLOCK_COLORS.length];
+                      // blockColor no longer used per-row
 
                       return (
                         <motion.div

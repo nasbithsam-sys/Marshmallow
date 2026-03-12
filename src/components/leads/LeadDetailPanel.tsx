@@ -256,7 +256,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           {/* Status */}
           <div className="rounded-xl bg-muted/40 border border-border/40 p-4">
             <Label className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-2 block font-semibold">Status</Label>
-            <StatusDropdown value={form.status} onChange={v => update('status', v)} />
+            <StatusDropdownFiltered value={form.status} onChange={v => update('status', v)} />
           </div>
 
           {/* Customer Info */}
