@@ -320,7 +320,7 @@ export default function SchedulePage() {
                               const empName = profiles[empId] || 'Unknown';
                               const empColorIdx = Object.keys(profiles).indexOf(empId);
                               const colorClass = EMPLOYEE_COLORS[Math.abs(empColorIdx) % EMPLOYEE_COLORS.length];
-                              const leadBlockColor = BLOCK_COLORS[Math.abs(empColorIdx) % BLOCK_COLORS.length];
+                              const leadBlockColor = getBlockColor(lead.status);
 
                               return (
                                 <motion.div

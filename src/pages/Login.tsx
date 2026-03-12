@@ -60,8 +60,12 @@ const Login = () => {
           setLoading(false);
           return;
         }
-      } catch {
-        // If check fails, allow login (fail open for this check only)
+      } catch (err) {
+        // Fail closed: sign out and show error
+        await supabase.auth.signOut();
+        toast.error('Unable to verify access. Please try again or contact your administrator.');
+        setLoading(false);
+        return;
       }
     }
 

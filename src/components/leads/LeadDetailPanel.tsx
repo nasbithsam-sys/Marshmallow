@@ -256,14 +256,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           {/* Status */}
           <div className="rounded-xl bg-muted/40 border border-border/40 p-4">
             <Label className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-2 block font-semibold">Status</Label>
-            <Select value={form.status} onValueChange={v => update('status', v)}>
-              <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(LEAD_STATUS_CONFIG).map(([key, cfg]) => (
-                  <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <StatusDropdown value={form.status} onChange={v => update('status', v)} />
           </div>
 
           {/* Customer Info */}

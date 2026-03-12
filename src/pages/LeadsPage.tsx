@@ -84,10 +84,11 @@ export default function LeadsPage() {
     if (leadsData) setSharedLeads(leadsData as Lead[]);
   };
 
+  const { filterLeads, allowedStatuses } = useAllowedStatuses();
   const currentLeads = activeTab === 'shared' ? sharedLeads : leads;
 
   const filtered = useMemo(() => {
-    let result = [...currentLeads];
+    let result = filterLeads([...currentLeads]);
     if (statusFilter !== "all") result = result.filter((l) => l.status === statusFilter);
     if (search) {
       const s = search.toLowerCase();
@@ -108,7 +109,7 @@ export default function LeadsPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return result;
-  }, [currentLeads, search, statusFilter]);
+  }, [currentLeads, search, statusFilter, allowedStatuses]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);

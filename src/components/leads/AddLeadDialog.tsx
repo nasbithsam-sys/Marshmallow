@@ -290,7 +290,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* ── Required Fields ── */}
-          <div className="rounded-xl border border-border/50 p-4 space-y-3 bg-muted/10">
+          <div className="rounded-xl border border-border/50 p-3 space-y-2.5 bg-muted/10">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Required Information</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

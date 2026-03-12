@@ -42,8 +42,10 @@ const AllLeads = () => {
     enabled: !!user,
   });
 
+  const { filterLeads, allowedStatuses } = useAllowedStatuses();
+
   const filteredLeads = useMemo(() => {
-    let result = [...leads];
+    let result = filterLeads([...leads]);
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(l =>
@@ -61,7 +63,7 @@ const AllLeads = () => {
       if (orderA !== orderB) return orderA - orderB;
       return 0;
     });
-  }, [leads, search, statusFilter]);
+  }, [leads, search, statusFilter, allowedStatuses]);
 
   const urgentCount = leads.filter(l => l.status === 'urgent_job').length;
   const scheduledCount = leads.filter(l => l.status === 'scheduled').length;
