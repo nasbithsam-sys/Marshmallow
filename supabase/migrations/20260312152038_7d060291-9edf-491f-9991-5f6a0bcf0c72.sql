@@ -1,0 +1,2 @@
+ALTER TABLE public.lead_notes DROP CONSTRAINT IF EXISTS lead_notes_note_type_check;
+ALTER TABLE public.lead_notes ADD CONSTRAINT lead_notes_note_type_check CHECK (note_type = ANY (ARRAY['cs','processor','general']));

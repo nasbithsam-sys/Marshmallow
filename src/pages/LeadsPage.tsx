@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Lead, LeadStatus, STATUS_LABELS, STATUS_DOT_COLORS, ALL_LEAD_STATUSES } from "@/lib/constants";
+import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -83,10 +84,11 @@ export default function LeadsPage() {
     if (leadsData) setSharedLeads(leadsData as Lead[]);
   };
 
+  const { filterLeads, allowedStatuses } = useAllowedStatuses();
   const currentLeads = activeTab === 'shared' ? sharedLeads : leads;
 
   const filtered = useMemo(() => {
-    let result = [...currentLeads];
+    let result = filterLeads([...currentLeads]);
     if (statusFilter !== "all") result = result.filter((l) => l.status === statusFilter);
     if (search) {
       const s = search.toLowerCase();
@@ -107,7 +109,7 @@ export default function LeadsPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return result;
-  }, [currentLeads, search, statusFilter]);
+  }, [currentLeads, search, statusFilter, allowedStatuses]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);

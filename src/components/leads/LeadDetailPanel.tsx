@@ -17,6 +17,7 @@ import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from '@/types';
 import { toast } from 'sonner';
 import { useDuplicatePhoneCheck } from '@/hooks/useDuplicatePhoneCheck';
 import { motion } from 'framer-motion';
+import { useAllowedStatuses } from '@/hooks/useAllowedStatuses';
 
 interface Props {
   leadId: string;
@@ -32,6 +33,23 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: 
     <h3 className="text-sm font-semibold text-foreground tracking-[-0.01em]">{title}</h3>
   </div>
 );
+
+const StatusDropdownFiltered = ({ value, onChange }: { value: string | undefined; onChange: (v: string) => void }) => {
+  const { allowedStatuses } = useAllowedStatuses();
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        {Object.entries(LEAD_STATUS_CONFIG)
+          .filter(([key]) => allowedStatuses.has(key))
+          .map(([key, cfg]) => (
+            <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
 
 const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const { user, role } = useAuth();
@@ -255,14 +273,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           {/* Status */}
           <div className="rounded-xl bg-muted/40 border border-border/40 p-4">
             <Label className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-2 block font-semibold">Status</Label>
-            <Select value={form.status} onValueChange={v => update('status', v)}>
-              <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(LEAD_STATUS_CONFIG).map(([key, cfg]) => (
-                  <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <StatusDropdownFiltered value={form.status} onChange={v => update('status', v)} />
           </div>
 
           {/* Customer Info */}
