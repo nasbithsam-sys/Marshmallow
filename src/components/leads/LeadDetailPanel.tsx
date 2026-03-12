@@ -17,6 +17,7 @@ import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from '@/types';
 import { toast } from 'sonner';
 import { useDuplicatePhoneCheck } from '@/hooks/useDuplicatePhoneCheck';
 import { motion } from 'framer-motion';
+import { useAllowedStatuses } from '@/hooks/useAllowedStatuses';
 
 interface Props {
   leadId: string;
