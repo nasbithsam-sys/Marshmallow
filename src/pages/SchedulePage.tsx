@@ -77,6 +77,9 @@ export default function SchedulePage() {
     setLoading(false);
   };
 
+  const { filterLeads } = useAllowedStatuses();
+  const filteredLeads = useMemo(() => filterLeads(leads), [leads, filterLeads]);
+
   const employees = useMemo(() => {
     const empMap = new Map<string, { id: string; name: string; leads: Lead[] }>();
     leads.forEach(lead => {
