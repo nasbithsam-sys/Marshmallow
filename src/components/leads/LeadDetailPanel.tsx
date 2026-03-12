@@ -51,7 +51,7 @@ const StatusDropdownFiltered = ({ value, onChange }: { value: string | undefined
 };
 
 
-  const { user, role } = useAuth();
+  const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
