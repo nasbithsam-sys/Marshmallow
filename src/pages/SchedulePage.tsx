@@ -93,10 +93,10 @@ export default function SchedulePage() {
   }, [leads, profiles]);
 
   const getLeadsForDay = (day: Date) =>
-    leads.filter(l => l.scheduled_date && isSameDay(new Date(l.scheduled_date + "T00:00:00"), day));
+    filteredLeads.filter(l => l.scheduled_date && isSameDay(new Date(l.scheduled_date + "T00:00:00"), day));
 
   const getLeadsForEmployeeAndDay = (empId: string, day: Date) =>
-    leads.filter(l => {
+    filteredLeads.filter(l => {
       const lid = l.assigned_cs || l.created_by;
       return lid === empId && l.scheduled_date && isSameDay(new Date(l.scheduled_date + "T00:00:00"), day);
     });
