@@ -38,6 +38,7 @@ import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
 import CopyLeadButton from "./CopyLeadButton";
 import { adminApi } from "@/lib/admin-api";
+import { logActivity } from "@/lib/activity";
 import { motion } from "framer-motion";
 
 interface LeadCardProps {
