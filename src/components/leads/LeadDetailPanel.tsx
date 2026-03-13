@@ -64,9 +64,18 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const [paymentLoading, setPaymentLoading] = useState(false);
 
   const { data: lead, isLoading } = useQuery({
-    queryKey: ["lead", leadId],
+    queryKey: ["lead", leadId, role, user?.id],
+    enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase.from("leads").select("*").eq("id", leadId).single();
+      if (!user) throw new Error("User not found");
+
+      let query = supabase.from("leads").select("*").eq("id", leadId);
+
+      if (role === "customer_service") {
+        query = query.eq("created_by", user.id);
+      }
+
+      const { data, error } = await query.single();
       if (error) throw error;
       return data as Lead;
     },
@@ -206,7 +215,13 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         updateData.amount = form.amount;
       }
 
-      const { error } = await supabase.from("leads").update(updateData).eq("id", leadId);
+      let updateQuery = supabase.from("leads").update(updateData).eq("id", leadId);
+
+      if (role === "customer_service") {
+        updateQuery = updateQuery.eq("created_by", user.id);
+      }
+
+      const { error } = await updateQuery;
       if (error) throw error;
 
       if (lead?.status !== form.status && (form.status === "urgent_job" || form.status === "need_tech")) {
