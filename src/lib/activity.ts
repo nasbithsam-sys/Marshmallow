@@ -10,6 +10,7 @@ const stringifyValue = (value: unknown): string => {
   if (typeof value === "number") return String(value);
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value.map(stringifyValue).join(", ");
+
   try {
     return JSON.stringify(value);
   } catch {
@@ -19,10 +20,15 @@ const stringifyValue = (value: unknown): string => {
 
 const buildChangeList = (details?: ActivityDetails) => {
   const changes = details?.changes;
-  if (!changes || typeof changes !== "object" || Array.isArray(changes)) return [];
+
+  if (!changes || typeof changes !== "object" || Array.isArray(changes)) {
+    return [];
+  }
 
   return Object.entries(changes as Record<string, unknown>).flatMap(([field, value]) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return [];
+    }
 
     const before = (value as Record<string, unknown>).before;
     const after = (value as Record<string, unknown>).after;
@@ -82,10 +88,9 @@ const buildActivityMessage = ({
 
     if (action === "photos_uploaded") {
       const count = Number(details?.count || 0);
-      return `${actor} uploaded ${count || ""} photo${count === 1 ? "" : "s"} to lead ${targetLabel}`.replace(
-        "uploaded  photos",
-        "uploaded photos",
-      );
+      return count > 0
+        ? `${actor} uploaded ${count} photo${count === 1 ? "" : "s"} to lead ${targetLabel}`
+        : `${actor} uploaded photos to lead ${targetLabel}`;
     }
 
     if (action === "shared") {
@@ -147,13 +152,21 @@ export async function logActivity(
     details,
   });
 
-  await supabase.from("activity_logs").insert({
+  const payload = {
     user_id: userId,
     user_name: resolvedName,
     action,
     target_type: targetType,
-    target_id: targetId,
-    details: details ?? null,
-    message,
-  });
+    target_id: targetId ?? null,
+    details: JSON.stringify({
+      ...(details ?? {}),
+      message,
+    }),
+  };
+
+  const { error } = await supabase.from("activity_logs").insert(payload);
+
+  if (error) {
+    console.error("Failed to log activity:", error);
+  }
 }
