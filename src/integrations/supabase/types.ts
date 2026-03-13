@@ -266,6 +266,7 @@ export type Database = {
           customer_schedule_requirements: string | null
           for_us_amount: number | null
           for_you_amount: number | null
+          general_notes: string | null
           id: string
           job_id: string
           labor_amount: number | null
@@ -305,6 +306,7 @@ export type Database = {
           customer_schedule_requirements?: string | null
           for_us_amount?: number | null
           for_you_amount?: number | null
+          general_notes?: string | null
           id?: string
           job_id: string
           labor_amount?: number | null
@@ -344,6 +346,7 @@ export type Database = {
           customer_schedule_requirements?: string | null
           for_us_amount?: number | null
           for_you_amount?: number | null
+          general_notes?: string | null
           id?: string
           job_id?: string
           labor_amount?: number | null
