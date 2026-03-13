@@ -38,6 +38,7 @@ import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
 import CopyLeadButton from "./CopyLeadButton";
 import { adminApi } from "@/lib/admin-api";
+import { logActivity } from "@/lib/activity";
 import { motion } from "framer-motion";
 
 interface LeadCardProps {
@@ -128,6 +129,19 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
     }
 
     toast.success(`Status → ${STATUS_LABELS[newStatus as LeadStatus]}`);
+
+    // Log activity for status change
+    await logActivity(
+      user!.id,
+      "status_change",
+      "lead",
+      lead.id,
+      {
+        customer_name: lead.customer_name,
+        from: STATUS_LABELS[lead.status],
+        to: STATUS_LABELS[newStatus as LeadStatus],
+      }
+    );
 
     if (newStatus === "urgent_job" || newStatus === "need_tech") {
       const { data: roles } = await supabase
@@ -336,7 +350,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
         {lead.last_edited_by && (
           <div className="mx-4 mt-3 rounded-lg bg-warning/6 border border-warning/10 px-3 py-1.5">
             <p className="text-[10px] text-muted-foreground">
-              Last edited {new Date(lead.updated_at).toLocaleDateString()} by{" "}
+              Last edited {new Date(lead.updated_at).toLocaleString()} by{" "}
               <span className="font-semibold text-foreground">{profiles[lead.last_edited_by] || "Unknown"}</span>
             </p>
           </div>

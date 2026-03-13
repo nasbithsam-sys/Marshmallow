@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Plus, Search, Download, Share2 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
@@ -123,11 +124,35 @@ export default function LeadsPage() {
       "Job ID": l.job_id,
       "Customer Name": l.customer_name,
       "Phone": l.customer_phone || "",
+      "Email": l.customer_email || "",
+      "Number Name": l.number_name || "",
       "Address": l.address || "",
+      "City": l.city || "",
+      "State": l.state || "",
+      "Zip Code": l.zip_code || "",
       "Service Type": l.service_type || "",
       "Status": STATUS_LABELS[l.status],
       "Scheduled Date": l.scheduled_date || "",
+      "Scheduled Time Start": l.scheduled_time_start || "",
+      "Scheduled Time End": l.scheduled_time_end || "",
+      "Quote": l.quote || "",
+      "Service Details": l.service_details || "",
+      "Customer Schedule Requirements": l.customer_schedule_requirements || "",
+      "Reference": l.reference_name || "",
+      "Tech Name": l.tech_name || "",
+      "Tech Number": l.tech_number || "",
+      "Terms": l.terms || "",
+      "Labor Amount": l.labor_amount != null ? l.labor_amount : "",
+      "Material Amount": l.material_amount != null ? l.material_amount : "",
+      "For You Amount": l.for_you_amount != null ? l.for_you_amount : "",
+      "For Us Amount": l.for_us_amount != null ? l.for_us_amount : "",
+      "CS Notes": l.cs_notes || "",
+      "Processor Notes": l.processor_notes || "",
+      "Payment Amount": l.payment_amount != null ? l.payment_amount : "",
+      "Created By": profiles[l.created_by] || l.created_by,
+      "Last Edited By": l.last_edited_by ? (profiles[l.last_edited_by] || l.last_edited_by) : "",
       "Created At": new Date(l.created_at).toLocaleString(),
+      "Updated At": l.updated_at ? new Date(l.updated_at).toLocaleString() : "",
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -168,14 +193,17 @@ export default function LeadsPage() {
           className="flex items-center gap-2 flex-wrap"
         >
           {isAdmin && (
-            <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="sm" className="gap-1.5 text-[12px]" onClick={() => exportData("csv")}>
-                <Download className="h-3.5 w-3.5" /> CSV
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 text-[12px]" onClick={() => exportData("xlsx")}>
-                <Download className="h-3.5 w-3.5" /> XLSX
-              </Button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 text-[12px]">
+                  <Download className="h-3.5 w-3.5" /> Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportData("csv")}>Export as CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportData("xlsx")}>Export as XLSX</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <Button onClick={() => setShowAddDialog(true)} className="gap-2">
             <Plus className="h-4 w-4" /> New Lead

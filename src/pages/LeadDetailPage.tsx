@@ -520,7 +520,12 @@ export default function LeadDetailPage() {
         await sendNotifications(form.customer_name, form.status, leadId);
       }
 
-      await logActivity(user.id, "updated", "lead", leadId, { fields: Object.keys(payload) });
+      const changedDetails: Record<string, unknown> = { customer_name: form.customer_name };
+      if (previousStatus && previousStatus !== form.status) {
+        changedDetails.status_from = LEAD_STATUS_CONFIG[previousStatus]?.label || previousStatus;
+        changedDetails.status_to = LEAD_STATUS_CONFIG[form.status]?.label || form.status;
+      }
+      await logActivity(user.id, "updated", "lead", leadId, changedDetails);
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -755,37 +760,6 @@ export default function LeadDetailPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label className={labelClass}>City</Label>
-                  <Input
-                    value={form.city}
-                    onChange={(e) => update("city", e.target.value)}
-                    className={fieldClass}
-                    readOnly={isProcessor}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className={labelClass}>State</Label>
-                  <Input
-                    value={form.state}
-                    onChange={(e) => update("state", e.target.value)}
-                    className={fieldClass}
-                    readOnly={isProcessor}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className={labelClass}>Zip Code</Label>
-                  <Input
-                    value={form.zip_code}
-                    onChange={(e) => update("zip_code", e.target.value)}
-                    className={fieldClass}
-                    readOnly={isProcessor}
-                  />
-                </div>
-              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1.5">

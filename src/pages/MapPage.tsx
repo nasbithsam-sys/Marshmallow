@@ -4,7 +4,8 @@ import { Lead, LeadStatus, STATUS_LABELS, ALL_LEAD_STATUSES } from "@/lib/consta
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Search, Loader2, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { MapPin, Search, Loader2, Calendar, Filter } from "lucide-react";
 import { motion } from "framer-motion";
 import { fadeUp } from "@/lib/motion";
 import { useNavigate } from "react-router-dom";
@@ -80,6 +81,7 @@ export default function MapPage() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<LeadStatus>>(new Set(ALL_LEAD_STATUSES));
   const geocodingRef = useRef(false);
 
   // Initialize map
@@ -149,10 +151,20 @@ export default function MapPage() {
     setLoading(false);
   };
 
+  const toggleStatus = (status: LeadStatus) => {
+    setSelectedStatuses(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
+
   const dateFiltered = useMemo(() => {
     const now = new Date();
     return leads.filter((l) => {
       if (!l.address) return false;
+      if (!selectedStatuses.has(l.status)) return false;
       const created = new Date(l.created_at);
       if (datePreset === "week") {
         const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
@@ -168,7 +180,7 @@ export default function MapPage() {
       }
       return true;
     });
-  }, [leads, datePreset, customFrom, customTo]);
+  }, [leads, datePreset, customFrom, customTo, selectedStatuses]);
 
   useEffect(() => {
     if (dateFiltered.length === 0) { setGeocodedLeads([]); return; }
@@ -268,6 +280,28 @@ export default function MapPage() {
             <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="bg-card border-border/60 w-[150px]" />
           </div>
         )}
+      </div>
+
+      {/* Status filter chips */}
+      <div className="flex flex-wrap gap-1.5 items-center">
+        <Filter className="h-3.5 w-3.5 text-muted-foreground mr-1" />
+        {ALL_LEAD_STATUSES.map((status) => (
+          <button
+            key={status}
+            onClick={() => toggleStatus(status)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+              selectedStatuses.has(status)
+                ? "bg-primary/10 border-primary/30 text-foreground"
+                : "bg-muted/30 border-border/40 text-muted-foreground/50 line-through"
+            }`}
+          >
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: STATUS_MARKER_COLORS[status] }}
+            />
+            {STATUS_LABELS[status]}
+          </button>
+        ))}
       </div>
 
       {geocoding && (
