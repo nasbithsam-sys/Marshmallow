@@ -13,6 +13,7 @@ import { AlertCircle, ImagePlus, X, ChevronDown, User, Wrench, Calendar } from "
 import { LEAD_STATUS_CONFIG, type LeadStatus } from "@/types";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { formatUSPhone } from "@/lib/phone";
+import { logActivity } from "@/lib/activity";
 import { motion } from "framer-motion";
 
 interface Props {
