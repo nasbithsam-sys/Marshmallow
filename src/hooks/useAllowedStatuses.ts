@@ -9,16 +9,14 @@ const CS_ONLY_STATUSES: LeadStatus[] = [
   "urgent_job",
   "waiting_customer_response",
   "waiting_complete_details",
-  "quotes_sent_waiting",
-  "quotes_sent_need_follow_up",
-  "need_quote",
+  "quote_sent_waiting",
+  "quote_sent_need_follow_up",
+  "needs_quote",
 ];
 
 const PROCESSOR_ONLY_STATUSES: LeadStatus[] = ["scheduled", "job_in_progress", "paid", "payment_pending", "job_done"];
 
-const SHARED_STATUSES: LeadStatus[] = ["need_rescheduled"];
-
-const ADMIN_ONLY_STATUSES: LeadStatus[] = ["cancelled"];
+const SHARED_STATUSES: LeadStatus[] = ["needs_reschedule"];
 
 function getBaseAllowedStatuses(role?: string | null): Set<string> {
   if (role === "admin") {
