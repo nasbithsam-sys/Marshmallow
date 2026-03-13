@@ -4,7 +4,8 @@ import { Lead, LeadStatus, STATUS_LABELS, ALL_LEAD_STATUSES } from "@/lib/consta
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Search, Loader2, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { MapPin, Search, Loader2, Calendar, Filter } from "lucide-react";
 import { motion } from "framer-motion";
 import { fadeUp } from "@/lib/motion";
 import { useNavigate } from "react-router-dom";
