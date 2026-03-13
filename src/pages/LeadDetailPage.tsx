@@ -755,37 +755,6 @@ export default function LeadDetailPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label className={labelClass}>City</Label>
-                  <Input
-                    value={form.city}
-                    onChange={(e) => update("city", e.target.value)}
-                    className={fieldClass}
-                    readOnly={isProcessor}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className={labelClass}>State</Label>
-                  <Input
-                    value={form.state}
-                    onChange={(e) => update("state", e.target.value)}
-                    className={fieldClass}
-                    readOnly={isProcessor}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className={labelClass}>Zip Code</Label>
-                  <Input
-                    value={form.zip_code}
-                    onChange={(e) => update("zip_code", e.target.value)}
-                    className={fieldClass}
-                    readOnly={isProcessor}
-                  />
-                </div>
-              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
