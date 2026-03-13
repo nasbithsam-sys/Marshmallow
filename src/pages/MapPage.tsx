@@ -180,7 +180,7 @@ export default function MapPage() {
       }
       return true;
     });
-  }, [leads, datePreset, customFrom, customTo]);
+  }, [leads, datePreset, customFrom, customTo, selectedStatuses]);
 
   useEffect(() => {
     if (dateFiltered.length === 0) { setGeocodedLeads([]); return; }
