@@ -130,6 +130,19 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
 
     toast.success(`Status → ${STATUS_LABELS[newStatus as LeadStatus]}`);
 
+    // Log activity for status change
+    await logActivity(
+      user!.id,
+      "status_change",
+      "lead",
+      lead.id,
+      {
+        customer_name: lead.customer_name,
+        from: STATUS_LABELS[lead.status],
+        to: STATUS_LABELS[newStatus as LeadStatus],
+      }
+    );
+
     if (newStatus === "urgent_job" || newStatus === "need_tech") {
       const { data: roles } = await supabase
         .from("user_roles")
