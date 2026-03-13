@@ -151,10 +151,20 @@ export default function MapPage() {
     setLoading(false);
   };
 
+  const toggleStatus = (status: LeadStatus) => {
+    setSelectedStatuses(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
+
   const dateFiltered = useMemo(() => {
     const now = new Date();
     return leads.filter((l) => {
       if (!l.address) return false;
+      if (!selectedStatuses.has(l.status)) return false;
       const created = new Date(l.created_at);
       if (datePreset === "week") {
         const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
