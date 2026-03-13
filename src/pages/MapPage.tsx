@@ -282,6 +282,28 @@ export default function MapPage() {
         )}
       </div>
 
+      {/* Status filter chips */}
+      <div className="flex flex-wrap gap-1.5 items-center">
+        <Filter className="h-3.5 w-3.5 text-muted-foreground mr-1" />
+        {ALL_LEAD_STATUSES.map((status) => (
+          <button
+            key={status}
+            onClick={() => toggleStatus(status)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+              selectedStatuses.has(status)
+                ? "bg-primary/10 border-primary/30 text-foreground"
+                : "bg-muted/30 border-border/40 text-muted-foreground/50 line-through"
+            }`}
+          >
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: STATUS_MARKER_COLORS[status] }}
+            />
+            {STATUS_LABELS[status]}
+          </button>
+        ))}
+      </div>
+
       {geocoding && (
         <Card className="p-3 flex items-center gap-3 border-primary/20 bg-primary/5">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />

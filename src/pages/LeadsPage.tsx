@@ -193,14 +193,17 @@ export default function LeadsPage() {
           className="flex items-center gap-2 flex-wrap"
         >
           {isAdmin && (
-            <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="sm" className="gap-1.5 text-[12px]" onClick={() => exportData("csv")}>
-                <Download className="h-3.5 w-3.5" /> CSV
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 text-[12px]" onClick={() => exportData("xlsx")}>
-                <Download className="h-3.5 w-3.5" /> XLSX
-              </Button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 text-[12px]">
+                  <Download className="h-3.5 w-3.5" /> Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportData("csv")}>Export as CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportData("xlsx")}>Export as XLSX</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <Button onClick={() => setShowAddDialog(true)} className="gap-2">
             <Plus className="h-4 w-4" /> New Lead

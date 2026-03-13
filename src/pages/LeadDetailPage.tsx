@@ -520,7 +520,12 @@ export default function LeadDetailPage() {
         await sendNotifications(form.customer_name, form.status, leadId);
       }
 
-      await logActivity(user.id, "updated", "lead", leadId, { fields: Object.keys(payload) });
+      const changedDetails: Record<string, unknown> = { customer_name: form.customer_name };
+      if (previousStatus && previousStatus !== form.status) {
+        changedDetails.status_from = LEAD_STATUS_CONFIG[previousStatus]?.label || previousStatus;
+        changedDetails.status_to = LEAD_STATUS_CONFIG[form.status]?.label || form.status;
+      }
+      await logActivity(user.id, "updated", "lead", leadId, changedDetails);
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);

@@ -267,7 +267,23 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
         }
       }
 
+      // Bridge notes to lead_notes table
+      const noteInserts: { lead_id: string; user_id: string; note_type: string; content: string }[] = [];
+      if (form.cs_notes.trim()) {
+        noteInserts.push({ lead_id: data.id, user_id: user.id, note_type: "cs", content: form.cs_notes.trim() });
+      }
+      if (form.processor_notes.trim()) {
+        noteInserts.push({ lead_id: data.id, user_id: user.id, note_type: "processor", content: form.processor_notes.trim() });
+      }
+      if (form.general_notes.trim()) {
+        noteInserts.push({ lead_id: data.id, user_id: user.id, note_type: "general", content: form.general_notes.trim() });
+      }
+      if (noteInserts.length > 0) {
+        await supabase.from("lead_notes").insert(noteInserts);
+      }
+
       await sendNotifications(form.customer_name, form.status, data.id);
+      await logActivity(user.id, "created", "lead", data.id, { customer_name: form.customer_name, status: form.status });
       toast.success("Lead created successfully!");
       onSuccess();
       onOpenChange(false);

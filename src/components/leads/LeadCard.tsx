@@ -350,7 +350,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
         {lead.last_edited_by && (
           <div className="mx-4 mt-3 rounded-lg bg-warning/6 border border-warning/10 px-3 py-1.5">
             <p className="text-[10px] text-muted-foreground">
-              Last edited {new Date(lead.updated_at).toLocaleDateString()} by{" "}
+              Last edited {new Date(lead.updated_at).toLocaleString()} by{" "}
               <span className="font-semibold text-foreground">{profiles[lead.last_edited_by] || "Unknown"}</span>
             </p>
           </div>
