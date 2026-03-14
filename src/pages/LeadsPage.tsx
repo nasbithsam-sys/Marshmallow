@@ -38,11 +38,20 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<"my" | "shared">("my");
   const [showAddDialog, setShowAddDialog] = useState(false);
 
-  const statusFilter = searchParams.get("status") || "all";
+  const rawStatusFilter = searchParams.get("status") || "all";
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
 
-  const { filterLeads } = useAllowedStatuses();
+  const { filterLeads, allowedStatuses } = useAllowedStatuses();
+
+  const safeStatusFilter = rawStatusFilter === "all" || allowedStatuses.has(rawStatusFilter) ? rawStatusFilter : "all";
+
+  useEffect(() => {
+    if (rawStatusFilter !== safeStatusFilter) {
+      if (safeStatusFilter === "all") setSearchParams({});
+      else setSearchParams({ status: safeStatusFilter });
+    }
+  }, [rawStatusFilter, safeStatusFilter, setSearchParams]);
 
   const setStatusFilter = (value: string) => {
     setPage(0);
@@ -87,6 +96,7 @@ export default function LeadsPage() {
 
     let query = supabase.from("leads").select("*").order("created_at", { ascending: false });
 
+    // CS can see only own created leads
     if (role === "customer_service") {
       query = query.eq("created_by", user.id);
     }
@@ -139,13 +149,16 @@ export default function LeadsPage() {
     setSharedLeads((leadsData ?? []) as Lead[]);
   };
 
-  const currentLeads = activeTab === "shared" ? sharedLeads : leads;
+  const visibleMyLeads = useMemo(() => filterLeads([...leads]), [leads, filterLeads, allowedStatuses]);
+  const visibleSharedLeads = useMemo(() => filterLeads([...sharedLeads]), [sharedLeads, filterLeads, allowedStatuses]);
+
+  const currentLeads = activeTab === "shared" ? visibleSharedLeads : visibleMyLeads;
 
   const filtered = useMemo(() => {
-    let result = filterLeads([...currentLeads]);
+    let result = [...currentLeads];
 
-    if (statusFilter !== "all") {
-      result = result.filter((l) => l.status === statusFilter);
+    if (safeStatusFilter !== "all") {
+      result = result.filter((l) => l.status === safeStatusFilter);
     }
 
     if (search) {
@@ -169,14 +182,16 @@ export default function LeadsPage() {
     });
 
     return result;
-  }, [currentLeads, search, statusFilter, filterLeads]);
+  }, [currentLeads, search, safeStatusFilter]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
 
-  const urgentCount = leads.filter((l) => l.status === "urgent_job").length;
-  const scheduledCount = leads.filter((l) => l.status === "scheduled").length;
-  const activeCount = leads.filter(
+  const countSource = activeTab === "shared" ? visibleSharedLeads : visibleMyLeads;
+
+  const urgentCount = countSource.filter((l) => l.status === "urgent_job").length;
+  const scheduledCount = countSource.filter((l) => l.status === "scheduled").length;
+  const activeCount = countSource.filter(
     (l) => l.status !== "cancelled" && l.status !== "paid" && l.status !== "job_done",
   ).length;
 
@@ -238,11 +253,13 @@ export default function LeadsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <motion.div variants={heroTitle} initial="initial" animate="animate">
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            {statusFilter !== "all" ? (
+            {safeStatusFilter !== "all" ? (
               <span className="flex items-center gap-2.5">
-                <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT_COLORS[statusFilter as LeadStatus]}`} />
-                {STATUS_LABELS[statusFilter as LeadStatus]}
+                <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT_COLORS[safeStatusFilter as LeadStatus]}`} />
+                {STATUS_LABELS[safeStatusFilter as LeadStatus]}
               </span>
+            ) : activeTab === "shared" ? (
+              "Shared Leads"
             ) : (
               "All Leads"
             )}
@@ -357,9 +374,9 @@ export default function LeadsPage() {
           >
             <Share2 className="h-3.5 w-3.5" />
             Shared with me
-            {sharedLeads.length > 0 && (
+            {visibleSharedLeads.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
-                {sharedLeads.length}
+                {visibleSharedLeads.length}
               </span>
             )}
           </button>
@@ -385,13 +402,13 @@ export default function LeadsPage() {
           />
         </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={safeStatusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-[200px] h-10">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
-            {ALL_LEAD_STATUSES.map((s) => (
+            {ALL_LEAD_STATUSES.filter((s) => allowedStatuses.has(s)).map((s) => (
               <SelectItem key={s} value={s}>
                 <span className="flex items-center gap-2">
                   <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT_COLORS[s]}`} />
@@ -442,7 +459,7 @@ export default function LeadsPage() {
               {activeTab === "shared" ? "No leads have been shared with you yet" : "No leads found"}
             </p>
             <p className="text-[12px] text-muted-foreground">
-              {search || statusFilter !== "all"
+              {search || safeStatusFilter !== "all"
                 ? "Try adjusting your search or filter"
                 : 'Click "New Lead" to get started'}
             </p>
