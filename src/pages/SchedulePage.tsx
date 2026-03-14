@@ -7,7 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { ChevronLeft, ChevronRight, Clock, MapPin, Phone, User, Calendar, Wrench, ArrowUpRight } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  MapPin,
+  Phone,
+  User,
+  Calendar,
+  Wrench,
+  ArrowUpRight,
+  Sparkles,
+  CalendarDays,
+  Filter,
+  LayoutGrid,
+} from "lucide-react";
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isAfter, isBefore } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -50,7 +64,6 @@ export default function SchedulePage() {
   const [appliedToDate, setAppliedToDate] = useState("");
 
   const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
-
   const hasCustomRange = !!appliedFromDate && !!appliedToDate;
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
@@ -245,127 +258,179 @@ export default function SchedulePage() {
     setAppliedToDate("");
   };
 
+  const totalVisibleScheduled = filteredLeads.length;
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <motion.h1
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-xl sm:text-2xl font-bold tracking-tight"
-        >
-          Job Schedule
-        </motion.h1>
+      <div className="relative overflow-hidden rounded-[28px] border border-border/60 bg-gradient-to-br from-card via-card to-muted/[0.35] p-6 shadow-[0_22px_60px_-34px_rgba(0,0,0,0.45)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_28%)]" />
 
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.1 }}
-          className="flex items-center gap-2 flex-wrap"
-        >
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-9 w-9 rounded-xl border-border/50"
-            onClick={handlePrev}
-            disabled={hasCustomRange}
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="min-w-0">
+            <div className="mb-3 inline-flex items-center gap-1 rounded-full border border-primary/10 bg-primary/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+              <Sparkles className="h-2.5 w-2.5" />
+              Schedule
+            </div>
+
+            <h1 className="text-2xl font-semibold tracking-[-0.03em] text-foreground sm:text-3xl">Job Schedule</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Visualize scheduled work by day, week, and custom date range.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            className="flex items-center gap-2 flex-wrap"
           >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="px-4 font-medium rounded-xl border-border/50"
-            onClick={handleToday}
-          >
-            Today
-          </Button>
-
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-9 w-9 rounded-xl border-border/50"
-            onClick={handleNext}
-            disabled={hasCustomRange}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-
-          <span className="text-sm font-medium text-muted-foreground ml-2">
-            {hasCustomRange
-              ? `${format(new Date(appliedFromDate + "T00:00:00"), "MMM d, yyyy")} - ${format(
-                  new Date(appliedToDate + "T00:00:00"),
-                  "MMM d, yyyy",
-                )}`
-              : format(viewMode === "day" ? selectedDay : weekStart, "MMMM yyyy")}
-          </span>
-
-          <div className="flex items-center ml-4 bg-muted/50 rounded-xl p-0.5 border border-border/30">
-            <button
-              onClick={() => setViewMode("day")}
-              className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all duration-200 ${
-                viewMode === "day"
-                  ? "bg-card text-foreground shadow-premium-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 rounded-xl border-border/60 bg-background/70 shadow-sm"
+              onClick={handlePrev}
               disabled={hasCustomRange}
             >
-              Day
-            </button>
-            <button
-              onClick={() => setViewMode("week")}
-              className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all duration-200 ${
-                viewMode === "week"
-                  ? "bg-card text-foreground shadow-premium-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 rounded-xl border-border/60 bg-background/70 px-4 shadow-sm"
+              onClick={handleToday}
+            >
+              Today
+            </Button>
+
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 rounded-xl border-border/60 bg-background/70 shadow-sm"
+              onClick={handleNext}
               disabled={hasCustomRange}
             >
-              Week
-            </button>
-          </div>
-        </motion.div>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+
+            <div className="ml-1 rounded-2xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm">
+              <span className="text-sm font-medium text-muted-foreground">
+                {hasCustomRange
+                  ? `${format(new Date(appliedFromDate + "T00:00:00"), "MMM d, yyyy")} - ${format(
+                      new Date(appliedToDate + "T00:00:00"),
+                      "MMM d, yyyy",
+                    )}`
+                  : format(viewMode === "day" ? selectedDay : weekStart, "MMMM yyyy")}
+              </span>
+            </div>
+
+            <div className="flex items-center bg-muted/[0.35] rounded-2xl p-1.5 border border-border/40 shadow-sm">
+              <button
+                onClick={() => setViewMode("day")}
+                className={`px-4 py-2 text-xs rounded-xl font-medium transition-all duration-200 ${
+                  viewMode === "day"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                disabled={hasCustomRange}
+              >
+                Day
+              </button>
+              <button
+                onClick={() => setViewMode("week")}
+                className={`px-4 py-2 text-xs rounded-xl font-medium transition-all duration-200 ${
+                  viewMode === "week"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                disabled={hasCustomRange}
+              >
+                Week
+              </button>
+            </div>
+          </motion.div>
+        </div>
       </div>
 
-      <Card className="border-border/40 rounded-2xl">
-        <CardContent className="p-4">
-          <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
-            <div className="space-y-1.5">
-              <label className="text-[12px] font-medium text-muted-foreground">From</label>
-              <Input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="w-full lg:w-[180px]"
-              />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+        <Card className="rounded-[28px] border-border/60 bg-card/95 shadow-[0_18px_52px_-34px_rgba(0,0,0,0.42)]">
+          <CardContent className="p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/10 bg-primary/[0.07]">
+                <Filter className="h-4 w-4 text-primary/80" />
+              </div>
+              <div>
+                <p className="text-[14px] font-semibold tracking-[-0.02em] text-foreground">Date Filters</p>
+                <p className="text-[12px] text-muted-foreground">Apply a custom range for schedule visibility.</p>
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[12px] font-medium text-muted-foreground">To</label>
-              <Input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="w-full lg:w-[180px]"
-              />
-            </div>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-medium text-muted-foreground">From</label>
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="h-11 w-full rounded-xl border-border/60 bg-background shadow-sm lg:w-[190px]"
+                />
+              </div>
 
-            <div className="flex gap-2">
-              <Button onClick={handleApplyRange} disabled={!fromDate || !toDate || fromDate > toDate}>
-                Apply Range
-              </Button>
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-medium text-muted-foreground">To</label>
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="h-11 w-full rounded-xl border-border/60 bg-background shadow-sm lg:w-[190px]"
+                />
+              </div>
 
-              <Button variant="outline" onClick={handleClearRange}>
-                Clear
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleApplyRange}
+                  disabled={!fromDate || !toDate || fromDate > toDate}
+                  className="h-11 rounded-xl px-4"
+                >
+                  Apply Range
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={handleClearRange}
+                  className="h-11 rounded-xl border-border/60 bg-background px-4 shadow-sm"
+                >
+                  Clear
+                </Button>
+              </div>
             </div>
 
             {fromDate && toDate && fromDate > toDate && (
-              <p className="text-sm text-destructive">From date cannot be after To date.</p>
+              <p className="mt-3 text-sm text-destructive">From date cannot be after To date.</p>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-[28px] border-border/60 bg-card/95 shadow-[0_18px_52px_-34px_rgba(0,0,0,0.42)]">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/60">
+                  Scheduled Jobs
+                </p>
+                <p className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground tabular-nums">
+                  {totalVisibleScheduled}
+                </p>
+                <p className="mt-1 text-[12px] text-muted-foreground">Visible jobs in the selected schedule range.</p>
+              </div>
+
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/10 bg-primary/[0.07]">
+                <LayoutGrid className="h-5 w-5 text-primary/80" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {displayDays.map((day, dayIdx) => {
         const dayLeads = getLeadsForDay(day);
@@ -376,32 +441,34 @@ export default function SchedulePage() {
             key={day.toISOString()}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: dayIdx * 0.05 + 0.15, duration: 0.4 }}
+            transition={{ delay: dayIdx * 0.05 + 0.12, duration: 0.35 }}
+            className="space-y-3"
           >
-            <div className="mb-3 flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-foreground">{format(day, "dd")}</span>
-                <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-foreground">{format(day, "EEEE")}</span>
-                  <span className="text-[10px] text-muted-foreground">{format(day, "MMMM yyyy")}</span>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border/60 bg-card shadow-sm">
+                <span className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{format(day, "dd")}</span>
+              </div>
+
+              <div>
+                <span className="block text-sm font-semibold text-foreground">{format(day, "EEEE")}</span>
+                <span className="block text-[11px] text-muted-foreground">{format(day, "MMMM yyyy")}</span>
               </div>
             </div>
 
-            <Card className="border-border/40 overflow-hidden rounded-2xl shadow-premium-sm hover:shadow-premium-md transition-all duration-300">
-              <CardContent className="p-0 overflow-x-auto">
+            <Card className="overflow-hidden rounded-[28px] border-border/50 shadow-[0_18px_46px_-34px_rgba(0,0,0,0.38)] transition-all duration-300 hover:shadow-[0_22px_56px_-34px_rgba(0,0,0,0.45)]">
+              <CardContent className="overflow-x-auto p-0">
                 <div className="min-w-[1800px]">
-                  <div className="flex border-b border-border/30 bg-gradient-to-r from-muted/20 to-transparent">
-                    <div className="w-[110px] shrink-0 p-3 border-r border-border/20">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  <div className="flex border-b border-border/30 bg-gradient-to-r from-muted/[0.25] via-muted/[0.12] to-transparent">
+                    <div className="w-[120px] shrink-0 border-r border-border/20 p-4">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/60">
                         GMT {new Date().getTimezoneOffset() / -60 > 0 ? "+" : ""}
                         {new Date().getTimezoneOffset() / -60}
                       </span>
                     </div>
 
-                    <div className="flex-1 flex">
+                    <div className="flex flex-1">
                       {hours.map((h) => (
-                        <div key={h} className="flex-1 px-1 py-3 text-center border-r border-border/15 last:border-r-0">
+                        <div key={h} className="flex-1 border-r border-border/10 px-1 py-4 text-center last:border-r-0">
                           <span className="text-[10px] font-medium text-muted-foreground/60 tabular-nums">
                             {h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`}
                           </span>
@@ -411,34 +478,34 @@ export default function SchedulePage() {
                   </div>
 
                   {loading ? (
-                    <div className="p-10 text-center text-muted-foreground/50 text-sm">
-                      <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin mx-auto mb-3" />
+                    <div className="p-12 text-center text-sm text-muted-foreground/55">
+                      <div className="mx-auto mb-3 h-7 w-7 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin" />
                       Loading schedule...
                     </div>
                   ) : rows.length === 0 ? (
-                    <div className="p-10 text-center text-muted-foreground/50 text-sm">
-                      <Calendar className="h-8 w-8 mx-auto mb-2 text-muted-foreground/20" />
+                    <div className="p-14 text-center text-sm text-muted-foreground/55">
+                      <CalendarDays className="mx-auto mb-3 h-8 w-8 text-muted-foreground/20" />
                       No scheduled jobs for this day
                     </div>
                   ) : (
                     rows.map((row, rowIndex) => (
                       <motion.div
                         key={rowIndex}
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: rowIndex * 0.05 }}
-                        className="flex border-b border-border/20 last:border-b-0 hover:bg-muted/5 transition-colors duration-200"
+                        transition={{ delay: rowIndex * 0.04 }}
+                        className="flex border-b border-border/15 last:border-b-0 hover:bg-muted/[0.04] transition-colors duration-200"
                       >
-                        <div className="w-[110px] shrink-0 p-3 border-r border-border/20 flex items-center justify-center">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">
+                        <div className="w-[120px] shrink-0 border-r border-border/15 p-3 flex items-center justify-center">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/45">
                             Row {rowIndex + 1}
                           </span>
                         </div>
 
-                        <div className="flex-1 relative h-[68px]">
+                        <div className="relative h-[74px] flex-1">
                           <div className="absolute inset-0 flex">
                             {hours.map((h) => (
-                              <div key={h} className="flex-1 border-r border-border/10 last:border-r-0" />
+                              <div key={h} className="flex-1 border-r border-border/8 last:border-r-0" />
                             ))}
                           </div>
 
@@ -455,17 +522,19 @@ export default function SchedulePage() {
                             return (
                               <motion.div
                                 key={lead.id}
-                                initial={{ opacity: 0, scale: 0.85 }}
+                                initial={{ opacity: 0, scale: 0.92 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                whileHover={{ scale: 1.03, zIndex: 10, y: -1 }}
-                                className={`absolute top-2 bottom-2 rounded-xl px-3 py-1.5 cursor-pointer border text-white shadow-premium-md hover:shadow-premium-xl transition-all flex items-center gap-2 ${leadBlockColor}`}
+                                whileHover={{ scale: 1.025, y: -1 }}
+                                className={`absolute bottom-2 top-2 flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 text-white shadow-[0_14px_30px_-18px_rgba(0,0,0,0.45)] transition-all ${leadBlockColor}`}
                                 style={{ left: pos.left, width: pos.width }}
                                 onClick={() => setSelectedLead(lead)}
                               >
-                                <Wrench className="h-3 w-3 shrink-0 opacity-80" />
-                                <span className="text-[11px] font-semibold truncate">{lead.customer_name}</span>
-                                <Avatar className="h-5 w-5 shrink-0 ml-auto ring-1 ring-white/20">
-                                  <AvatarFallback className={`text-[7px] font-bold ${colorClass}`}>
+                                <Wrench className="h-3.5 w-3.5 shrink-0 opacity-85" />
+                                <span className="truncate text-[11px] font-semibold tracking-[-0.01em]">
+                                  {lead.customer_name}
+                                </span>
+                                <Avatar className="ml-auto h-6 w-6 shrink-0 ring-1 ring-white/20">
+                                  <AvatarFallback className={`text-[8px] font-bold ${colorClass}`}>
                                     {getInitials(empName)}
                                   </AvatarFallback>
                                 </Avatar>
@@ -484,44 +553,50 @@ export default function SchedulePage() {
       })}
 
       <Dialog open={!!selectedLead} onOpenChange={(open) => !open && setSelectedLead(null)}>
-        <DialogContent className="sm:max-w-lg rounded-2xl">
+        <DialogContent className="sm:max-w-lg rounded-[28px] border border-border/60 bg-card shadow-[0_24px_70px_-36px_rgba(0,0,0,0.50)]">
           {selectedLead && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-3">
-                  <span className="text-lg">{selectedLead.customer_name}</span>
+                <div className="mb-2 inline-flex items-center gap-1 rounded-full border border-primary/10 bg-primary/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  Scheduled Job
+                </div>
+
+                <DialogTitle className="flex items-center gap-3 flex-wrap">
+                  <span className="text-lg font-semibold tracking-[-0.02em]">{selectedLead.customer_name}</span>
                   <StatusBadge status={selectedLead.status} size="sm" />
                 </DialogTitle>
               </DialogHeader>
 
-              <div className="space-y-4 mt-2">
+              <div className="mt-2 space-y-4">
                 <div className="grid gap-3 text-sm">
-                  <span className="text-[10px] font-mono bg-muted/50 px-2.5 py-1 rounded-lg w-fit">
+                  <span className="w-fit rounded-xl bg-muted/50 px-2.5 py-1 font-mono text-[10px]">
                     {selectedLead.job_id}
                   </span>
 
                   {selectedLead.customer_phone && (
                     <div className="flex items-center gap-2.5 text-muted-foreground">
-                      <Phone className="h-4 w-4" />{" "}
+                      <Phone className="h-4 w-4" />
                       <span className="text-foreground">{selectedLead.customer_phone}</span>
                     </div>
                   )}
 
                   {selectedLead.address && (
                     <div className="flex items-center gap-2.5 text-muted-foreground">
-                      <MapPin className="h-4 w-4" /> <span className="text-foreground">{selectedLead.address}</span>
+                      <MapPin className="h-4 w-4" />
+                      <span className="text-foreground">{selectedLead.address}</span>
                     </div>
                   )}
 
                   {selectedLead.service_type && (
                     <div className="flex items-center gap-2.5 text-muted-foreground">
-                      <Wrench className="h-4 w-4" />{" "}
-                      <span className="text-foreground font-medium">{selectedLead.service_type}</span>
+                      <Wrench className="h-4 w-4" />
+                      <span className="font-medium text-foreground">{selectedLead.service_type}</span>
                     </div>
                   )}
 
-                  <div className="border border-border/40 rounded-2xl p-4 bg-gradient-to-br from-muted/20 to-transparent space-y-2.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  <div className="space-y-2.5 rounded-2xl border border-border/50 bg-gradient-to-br from-muted/[0.22] to-transparent p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/60">
                       Schedule
                     </p>
 
@@ -544,16 +619,16 @@ export default function SchedulePage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2 text-xs text-muted-foreground/60">
+                  <div className="flex items-center gap-2 pt-2 text-xs text-muted-foreground/65">
                     <User className="h-3.5 w-3.5" />
                     Created by{" "}
                     <strong className="text-foreground">{profiles[selectedLead.created_by] || "Unknown"}</strong>
                   </div>
                 </div>
 
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <motion.div whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}>
                   <Button
-                    className="w-full gap-2 rounded-xl shadow-brand btn-glow"
+                    className="w-full gap-2 rounded-xl shadow-sm"
                     onClick={() => {
                       setSelectedLead(null);
                       navigate(`/leads/${selectedLead.id}`);
