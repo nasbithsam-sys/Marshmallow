@@ -28,8 +28,11 @@ const DATE_PRESETS = [
 const GEOCODE_CACHE_KEY = "lead_geocode_cache";
 
 function loadGeoCache(): Record<string, [number, number]> {
-  try { return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || "{}"); }
-  catch { return {}; }
+  try {
+    return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || "{}");
+  } catch {
+    return {};
+  }
 }
 
 function saveGeoCache(cache: Record<string, [number, number]>) {
@@ -40,7 +43,7 @@ async function geocodeAddress(address: string): Promise<[number, number] | null>
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
-      { headers: { "User-Agent": "ServiceCRM/1.0" } }
+      { headers: { "User-Agent": "ServiceCRM/1.0" } },
     );
     const data = await res.json();
     if (data.length > 0) return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
@@ -48,7 +51,9 @@ async function geocodeAddress(address: string): Promise<[number, number] | null>
   return null;
 }
 
-function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 const STATUS_MARKER_COLORS: Record<LeadStatus, string> = {
   waiting_complete_details: "#f59e0b",
@@ -105,7 +110,7 @@ export default function MapPage() {
     if (!map) return;
 
     // Clear old markers
-    markersRef.current.forEach(m => m.remove());
+    markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
     geocodedLeads.forEach((g) => {
@@ -137,12 +142,14 @@ export default function MapPage() {
     });
 
     if (geocodedLeads.length > 0) {
-      const bounds = L.latLngBounds(geocodedLeads.map(g => [g.lat, g.lng]));
+      const bounds = L.latLngBounds(geocodedLeads.map((g) => [g.lat, g.lng]));
       map.fitBounds(bounds, { padding: [30, 30] });
     }
   }, [geocodedLeads, navigate]);
 
-  useEffect(() => { fetchLeads(); }, []);
+  useEffect(() => {
+    fetchLeads();
+  }, []);
 
   const fetchLeads = async () => {
     setLoading(true);
@@ -152,7 +159,7 @@ export default function MapPage() {
   };
 
   const toggleStatus = (status: LeadStatus) => {
-    setSelectedStatuses(prev => {
+    setSelectedStatuses((prev) => {
       const next = new Set(prev);
       if (next.has(status)) next.delete(status);
       else next.add(status);
@@ -167,11 +174,13 @@ export default function MapPage() {
       if (!selectedStatuses.has(l.status)) return false;
       const created = new Date(l.created_at);
       if (datePreset === "week") {
-        const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
         return created >= weekAgo;
       }
       if (datePreset === "month") {
-        const monthAgo = new Date(now); monthAgo.setMonth(monthAgo.getMonth() - 1);
+        const monthAgo = new Date(now);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
         return created >= monthAgo;
       }
       if (datePreset === "custom") {
@@ -183,7 +192,10 @@ export default function MapPage() {
   }, [leads, datePreset, customFrom, customTo, selectedStatuses]);
 
   useEffect(() => {
-    if (dateFiltered.length === 0) { setGeocodedLeads([]); return; }
+    if (dateFiltered.length === 0) {
+      setGeocodedLeads([]);
+      return;
+    }
     geocodeLeads(dateFiltered);
   }, [dateFiltered]);
 
@@ -229,9 +241,7 @@ export default function MapPage() {
     if (coords && mapRef.current) {
       mapRef.current.flyTo(coords, 13, { duration: 1.5 });
     } else {
-      const match = geocodedLeads.find((g) =>
-        g.lead.address?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      const match = geocodedLeads.find((g) => g.lead.address?.toLowerCase().includes(searchQuery.toLowerCase()));
       if (match && mapRef.current) mapRef.current.flyTo([match.lat, match.lng], 13, { duration: 1.5 });
     }
   };
@@ -260,7 +270,9 @@ export default function MapPage() {
             className="pl-9 bg-card border-border/60"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSearch();
+            }}
           />
         </div>
         <Select value={datePreset} onValueChange={setDatePreset}>
@@ -270,14 +282,26 @@ export default function MapPage() {
           </SelectTrigger>
           <SelectContent>
             {DATE_PRESETS.map((p) => (
-              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+              <SelectItem key={p.value} value={p.value}>
+                {p.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
         {datePreset === "custom" && (
           <div className="flex gap-2">
-            <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="bg-card border-border/60 w-[150px]" />
-            <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="bg-card border-border/60 w-[150px]" />
+            <Input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              className="bg-card border-border/60 w-[150px]"
+            />
+            <Input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              className="bg-card border-border/60 w-[150px]"
+            />
           </div>
         )}
       </div>
@@ -295,10 +319,7 @@ export default function MapPage() {
                 : "bg-muted/30 border-border/40 text-muted-foreground/50 line-through"
             }`}
           >
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: STATUS_MARKER_COLORS[status] }}
-            />
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: STATUS_MARKER_COLORS[status] }} />
             {STATUS_LABELS[status]}
           </button>
         ))}
