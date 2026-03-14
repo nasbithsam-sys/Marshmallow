@@ -35,8 +35,34 @@ const buildChangeList = (details?: ActivityDetails) => {
 
     if (before === after) return [];
 
-    return [`${prettify(field)} changed from "${stringifyValue(before)}" to "${stringifyValue(after)}"`];
+    return [
+      {
+        field,
+        before: stringifyValue(before),
+        after: stringifyValue(after),
+      },
+    ];
   });
+};
+
+const resolveTargetLabel = (targetType: string, targetId?: string, details?: ActivityDetails) => {
+  if (typeof details?.customer_name === "string" && details.customer_name.trim()) {
+    return details.customer_name.trim();
+  }
+
+  if (typeof details?.target_name === "string" && details.target_name.trim()) {
+    return details.target_name.trim();
+  }
+
+  if (typeof details?.job_id === "string" && details.job_id.trim()) {
+    return details.job_id.trim();
+  }
+
+  if (typeof details?.email === "string" && details.email.trim()) {
+    return details.email.trim();
+  }
+
+  return `this ${prettify(targetType).toLowerCase()}`;
 };
 
 const buildActivityMessage = ({
@@ -52,80 +78,101 @@ const buildActivityMessage = ({
   targetId?: string;
   details?: ActivityDetails;
 }) => {
-  const actor = userName || "Unknown";
-  const targetLabel = details?.target_name
-    ? String(details.target_name)
-    : targetId
-      ? String(targetId)
-      : prettify(targetType);
+  const actor = userName || "Unknown user";
+  const normalizedAction = action.toLowerCase();
+  const normalizedTargetType = targetType.toLowerCase();
+  const targetLabel = resolveTargetLabel(targetType, targetId, details);
 
-  const statusFrom = details?.status_from ? stringifyValue(details.status_from) : null;
-  const statusTo = details?.status_to ? stringifyValue(details.status_to) : null;
+  const statusFrom = details?.status_from !== undefined ? stringifyValue(details.status_from) : null;
+  const statusTo = details?.status_to !== undefined ? stringifyValue(details.status_to) : null;
 
-  if (targetType === "lead") {
-    if (action === "created") {
-      return `${actor} created lead ${targetLabel}`;
+  if (normalizedTargetType === "lead") {
+    if (normalizedAction === "created" || normalizedAction === "create") {
+      return `${actor} created lead "${targetLabel}".`;
     }
 
-    if (action === "status_changed") {
+    if (normalizedAction === "status_changed" || normalizedAction === "status_change") {
       if (statusFrom && statusTo) {
-        return `${actor} changed lead ${targetLabel} status from ${statusFrom} to ${statusTo}`;
+        return `${actor} changed the status of "${targetLabel}" from "${statusFrom}" to "${statusTo}".`;
       }
-      return `${actor} changed lead ${targetLabel} status`;
+      return `${actor} changed the status of "${targetLabel}".`;
     }
 
-    if (action === "payment_recorded") {
-      const amount = details?.amount ? stringifyValue(details.amount) : null;
+    if (normalizedAction === "payment_recorded") {
+      const amount = details?.amount !== undefined && details?.amount !== null ? stringifyValue(details.amount) : null;
+
       return amount
-        ? `${actor} recorded payment of ${amount} for lead ${targetLabel}`
-        : `${actor} recorded payment for lead ${targetLabel}`;
+        ? `${actor} recorded a payment of $${amount} for "${targetLabel}".`
+        : `${actor} recorded a payment for "${targetLabel}".`;
     }
 
-    if (action === "note_added") {
-      const noteType = details?.note_type ? stringifyValue(details.note_type) : "note";
-      return `${actor} added a ${noteType} note to lead ${targetLabel}`;
+    if (normalizedAction === "note_added") {
+      const noteType =
+        typeof details?.note_type === "string" && details.note_type.trim() ? details.note_type.trim() : "general";
+
+      return `${actor} added a ${noteType} note to "${targetLabel}".`;
     }
 
-    if (action === "photos_uploaded") {
+    if (normalizedAction === "photos_uploaded") {
       const count = Number(details?.count || 0);
+
       return count > 0
-        ? `${actor} uploaded ${count} photo${count === 1 ? "" : "s"} to lead ${targetLabel}`
-        : `${actor} uploaded photos to lead ${targetLabel}`;
+        ? `${actor} uploaded ${count} photo${count === 1 ? "" : "s"} to "${targetLabel}".`
+        : `${actor} uploaded photos to "${targetLabel}".`;
     }
 
-    if (action === "shared") {
-      const sharedWith = details?.shared_with ? stringifyValue(details.shared_with) : "a user";
-      return `${actor} shared lead ${targetLabel} with ${sharedWith}`;
+    if (normalizedAction === "shared") {
+      const sharedWith = details?.shared_with !== undefined ? stringifyValue(details.shared_with) : "another user";
+
+      return `${actor} shared "${targetLabel}" with ${sharedWith}.`;
     }
 
-    if (action === "updated") {
+    if (normalizedAction === "updated" || normalizedAction === "update") {
       const changeList = buildChangeList(details);
-      if (changeList.length > 0) {
-        return `${actor} updated lead ${targetLabel}: ${changeList.slice(0, 3).join("; ")}`;
+
+      if (changeList.length === 0) {
+        return `${actor} updated "${targetLabel}".`;
       }
-      return `${actor} updated lead ${targetLabel}`;
+
+      if (changeList.length === 1) {
+        const change = changeList[0];
+        return `${actor} changed ${prettify(change.field)} on "${targetLabel}" from "${change.before}" to "${change.after}".`;
+      }
+
+      return `${actor} updated "${targetLabel}" and changed ${changeList.length} fields.`;
+    }
+
+    if (normalizedAction === "deleted" || normalizedAction === "delete") {
+      return `${actor} deleted lead "${targetLabel}".`;
     }
   }
 
-  if (targetType === "user") {
-    if (action === "created") {
-      return `${actor} created user ${targetLabel}`;
+  if (normalizedTargetType === "user") {
+    if (normalizedAction === "created" || normalizedAction === "create") {
+      return `${actor} created user "${targetLabel}".`;
     }
 
-    if (action === "password_changed") {
-      return `${actor} changed password for ${targetLabel}`;
+    if (normalizedAction === "password_changed") {
+      return `${actor} changed the password for "${targetLabel}".`;
     }
 
-    if (action === "updated") {
+    if (normalizedAction === "updated" || normalizedAction === "update") {
       const changeList = buildChangeList(details);
-      if (changeList.length > 0) {
-        return `${actor} updated user ${targetLabel}: ${changeList.slice(0, 3).join("; ")}`;
+
+      if (changeList.length === 0) {
+        return `${actor} updated user "${targetLabel}".`;
       }
-      return `${actor} updated user ${targetLabel}`;
+
+      if (changeList.length === 1) {
+        const change = changeList[0];
+        return `${actor} changed ${prettify(change.field)} for user "${targetLabel}" from "${change.before}" to "${change.after}".`;
+      }
+
+      return `${actor} updated user "${targetLabel}" and changed ${changeList.length} fields.`;
     }
   }
 
-  return `${actor} ${prettify(action).toLowerCase()} ${prettify(targetType).toLowerCase()} ${targetLabel}`;
+  return `${actor} ${prettify(action).toLowerCase()} "${targetLabel}".`;
 };
 
 export async function logActivity(
@@ -141,7 +188,7 @@ export async function logActivity(
   if (!resolvedName) {
     const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", userId).single();
 
-    resolvedName = profile?.full_name || "Unknown";
+    resolvedName = profile?.full_name || "Unknown user";
   }
 
   const message = buildActivityMessage({
