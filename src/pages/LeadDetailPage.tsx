@@ -20,6 +20,7 @@ import ImageLightbox from "@/components/leads/ImageLightbox";
 import CopyLeadButton from "@/components/leads/CopyLeadButton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
+import { getChangeableStatuses } from "@/lib/constants";
 
 const generateJobId = () => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
