@@ -50,7 +50,7 @@ const Settings = () => {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newName, setNewName] = useState('');
-  const [newRole, setNewRole] = useState<AppRole>('no_role');
+  const [newRole, setNewRole] = useState<AppRole>('customer_service');
   const [creating, setCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<'users' | 'nav_permissions' | 'status_permissions' | 'security'>('users');
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
