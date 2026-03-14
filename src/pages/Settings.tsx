@@ -26,6 +26,7 @@ import { Plus, Shield, Eye, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock
 import { cn } from "@/lib/utils";
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from "@/lib/constants";
 import { adminApi } from "@/lib/admin-api";
+import { logActivity } from "@/lib/activity";
 import type { AppRole } from "@/types";
 import MFAEnroll from "@/components/auth/MFAEnroll";
 import { motion } from "framer-motion";
@@ -55,8 +56,13 @@ const VISIBILITY_ROLES: Array<{ key: "customer_service" | "processor"; label: st
   { key: "processor", label: "Processor" },
 ];
 
+const formatRoleLabel = (role?: string | null) => {
+  if (!role) return "No Role";
+  return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
 const Settings = () => {
-  const { role: currentRole } = useAuth();
+  const { user, role: currentRole } = useAuth();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
@@ -103,8 +109,6 @@ const Settings = () => {
     },
   });
 
-  // IMPORTANT:
-  // This is ROLE-BASED status visibility, not per-user status permissions.
   const { data: statusVisibility = [] } = useQuery({
     queryKey: ["settings-status-visibility"],
     enabled: isAdmin,
@@ -119,6 +123,8 @@ const Settings = () => {
     },
   });
 
+  const getUserById = (userId: string) => users.find((u: any) => u.id === userId);
+
   const getAccessCode = (userId: string) => {
     return (accessCodes as any[]).find((c: any) => c.user_id === userId)?.code ?? null;
   };
@@ -126,11 +132,40 @@ const Settings = () => {
   const handleGenerateCode = async (userId: string) => {
     const code = generateCode();
     const existing = (accessCodes as any[]).find((c: any) => c.user_id === userId);
+    const targetUser = getUserById(userId);
 
     if (existing) {
       await supabase.from("user_access_codes").update({ code }).eq("user_id", userId);
+
+      if (user) {
+        await logActivity(user.id, "updated", "user", userId, {
+          target_name: targetUser?.full_name || targetUser?.email || userId,
+          email: targetUser?.email || null,
+          changes: {
+            access_code: {
+              before: existing.code ?? null,
+              after: code,
+            },
+          },
+          message: `Admin regenerated access code for "${targetUser?.full_name || targetUser?.email || "user"}".`,
+        });
+      }
     } else {
       await supabase.from("user_access_codes").insert({ user_id: userId, code });
+
+      if (user) {
+        await logActivity(user.id, "updated", "user", userId, {
+          target_name: targetUser?.full_name || targetUser?.email || userId,
+          email: targetUser?.email || null,
+          changes: {
+            access_code: {
+              before: null,
+              after: code,
+            },
+          },
+          message: `Admin generated access code for "${targetUser?.full_name || targetUser?.email || "user"}".`,
+        });
+      }
     }
 
     toast.success("Access code generated");
@@ -144,12 +179,29 @@ const Settings = () => {
 
   const updateRole = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
+      const existingUser = getUserById(userId);
+      const previousRole = existingUser?.role ?? "no_role";
+
       const { data: existing } = await supabase.from("user_roles").select("id").eq("user_id", userId).single();
 
       if (existing) {
         await supabase.from("user_roles").update({ role }).eq("user_id", userId);
       } else {
         await supabase.from("user_roles").insert({ user_id: userId, role });
+      }
+
+      if (user) {
+        await logActivity(user.id, "updated", "user", userId, {
+          target_name: existingUser?.full_name || existingUser?.email || userId,
+          email: existingUser?.email || null,
+          changes: {
+            role: {
+              before: previousRole,
+              after: role,
+            },
+          },
+          message: `Admin changed role for "${existingUser?.full_name || existingUser?.email || "user"}" from "${formatRoleLabel(previousRole)}" to "${formatRoleLabel(role)}".`,
+        });
       }
     },
     onSuccess: () => {
@@ -161,6 +213,8 @@ const Settings = () => {
   const toggleNavPermission = useMutation({
     mutationFn: async ({ userId, section, allowed }: { userId: string; section: string; allowed: boolean }) => {
       const existing = navPermissions.find((p: any) => p.user_id === userId && p.nav_section === section);
+      const targetUser = getUserById(userId);
+      const beforeAllowed = (existing as any)?.allowed ?? false;
 
       if (existing) {
         await supabase
@@ -170,6 +224,20 @@ const Settings = () => {
       } else {
         await supabase.from("navigation_permissions").insert({ user_id: userId, nav_section: section, allowed });
       }
+
+      if (user) {
+        await logActivity(user.id, "updated", "user", userId, {
+          target_name: targetUser?.full_name || targetUser?.email || userId,
+          email: targetUser?.email || null,
+          changes: {
+            [`nav_${section}`]: {
+              before: beforeAllowed,
+              after: allowed,
+            },
+          },
+          message: `Admin ${allowed ? "enabled" : "disabled"} "${NAV_SECTION_LABELS[section] || section}" tab for "${targetUser?.full_name || targetUser?.email || "user"}".`,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings-nav-permissions"] });
@@ -177,7 +245,6 @@ const Settings = () => {
     },
   });
 
-  // ROLE-BASED visibility toggle
   const toggleStatusVisibility = useMutation({
     mutationFn: async ({
       role,
@@ -189,6 +256,7 @@ const Settings = () => {
       isVisible: boolean;
     }) => {
       const existing = (statusVisibility as any[]).find((row: any) => row.role === role && row.status === status);
+      const beforeVisible = existing?.is_visible ?? true;
 
       if (existing) {
         const { error } = await (supabase as any)
@@ -205,6 +273,19 @@ const Settings = () => {
         });
 
         if (error) throw error;
+      }
+
+      if (user) {
+        await logActivity(user.id, "updated", "user", `${role}_${status}`, {
+          target_name: `${formatRoleLabel(role)} role`,
+          changes: {
+            [status]: {
+              before: beforeVisible,
+              after: isVisible,
+            },
+          },
+          message: `Admin ${isVisible ? "showed" : "hid"} "${STATUS_LABELS[status] || status}" status for "${formatRoleLabel(role)}" role.`,
+        });
       }
     },
     onSuccess: () => {
@@ -223,7 +304,36 @@ const Settings = () => {
 
     try {
       const code = newRole !== "admin" ? generateCode() : undefined;
-      await adminApi.createUser(newEmail, newPassword, newName, newRole, code);
+      const result = await adminApi.createUser(newEmail, newPassword, newName, newRole, code);
+
+      if (user) {
+        const createdUserId = result?.user?.id || result?.id || newEmail;
+
+        await logActivity(user.id, "created", "user", createdUserId, {
+          target_name: newName,
+          email: newEmail,
+          role: newRole,
+          message: `Admin created user "${newName}" with role "${formatRoleLabel(newRole)}".`,
+          changes: {
+            full_name: {
+              before: null,
+              after: newName,
+            },
+            email: {
+              before: null,
+              after: newEmail,
+            },
+            role: {
+              before: null,
+              after: newRole,
+            },
+            access_code: {
+              before: null,
+              after: code ?? null,
+            },
+          },
+        });
+      }
 
       toast.success("User created");
       setCreateOpen(false);
@@ -251,6 +361,17 @@ const Settings = () => {
 
     try {
       await adminApi.setPassword(passwordUserId, newPasswordValue);
+
+      const targetUser = getUserById(passwordUserId);
+
+      if (user) {
+        await logActivity(user.id, "password_changed", "user", passwordUserId, {
+          target_name: targetUser?.full_name || passwordUserName || targetUser?.email || passwordUserId,
+          email: targetUser?.email || null,
+          message: `Admin changed password for "${targetUser?.full_name || passwordUserName || targetUser?.email || "user"}".`,
+        });
+      }
+
       toast.success(`Password updated for ${passwordUserName}`);
       setPasswordDialogOpen(false);
       setNewPasswordValue("");
@@ -262,8 +383,19 @@ const Settings = () => {
   };
 
   const handleDeleteUser = async (userId: string) => {
+    const targetUser = getUserById(userId);
+
     try {
       await adminApi.deleteUser(userId);
+
+      if (user) {
+        await logActivity(user.id, "deleted", "user", userId, {
+          target_name: targetUser?.full_name || targetUser?.email || userId,
+          email: targetUser?.email || null,
+          message: `Admin deleted user "${targetUser?.full_name || targetUser?.email || "user"}".`,
+        });
+      }
+
       toast.success("User deleted");
       queryClient.invalidateQueries({ queryKey: ["settings-users"] });
       queryClient.invalidateQueries({ queryKey: ["user-access-codes"] });
@@ -277,11 +409,8 @@ const Settings = () => {
     return (perm as any)?.allowed ?? false;
   };
 
-  // ROLE-BASED visibility getter
-  // default = true if no explicit row exists
   const getStatusVisibility = (role: "customer_service" | "processor", status: string) => {
     const row = (statusVisibility as any[]).find((p: any) => p.role === role && p.status === status);
-
     return row?.is_visible ?? true;
   };
 
