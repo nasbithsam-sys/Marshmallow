@@ -35,37 +35,33 @@ function getBaseAllowedStatuses(role?: string | null): Set<string> {
 }
 
 export function useAllowedStatuses() {
-  const { user, role } = useAuth();
+  const { role } = useAuth();
 
   const { data: allowedStatuses } = useQuery({
-    queryKey: ["status-permissions", user?.id, role],
+    queryKey: ["lead-status-visibility", role],
     queryFn: async () => {
       const baseAllowed = getBaseAllowedStatuses(role);
 
-      if (!user) return baseAllowed;
+      if (!role) return baseAllowed;
       if (role === "admin") return baseAllowed;
 
+      // This table must store VIEW visibility by ROLE, not change permissions by user
       const { data, error } = await supabase
-        .from("status_permissions")
-        .select("status, allowed")
-        .eq("user_id", user.id);
+        .from("lead_status_visibility")
+        .select("status, is_visible")
+        .eq("role", role);
 
       if (error || !data) {
         return baseAllowed;
       }
 
-      const explicitPerms = new Map<string, boolean>();
-      data.forEach((p: any) => {
-        explicitPerms.set(p.status, p.allowed);
-      });
-
-      // Start with base role statuses (these are always kept)
       const finalAllowed = new Set<string>(baseAllowed);
 
-      // Only ADD extra statuses that are explicitly allowed beyond the base set
-      for (const [status, allowed] of explicitPerms) {
-        if (allowed && !baseAllowed.has(status)) {
-          finalAllowed.add(status);
+      for (const row of data as { status: string; is_visible: boolean }[]) {
+        if (row.is_visible === false) {
+          finalAllowed.delete(row.status);
+        } else if (row.is_visible === true && baseAllowed.has(row.status)) {
+          finalAllowed.add(row.status);
         }
       }
 
@@ -77,7 +73,12 @@ export function useAllowedStatuses() {
 
   const statuses = allowedStatuses ?? getBaseAllowedStatuses(role);
 
-  const filterLeads = <T extends { status: string }>(leads: T[]): T[] => leads.filter((l) => statuses.has(l.status));
+  const filterLeads = <T extends { status: string }>(leads: T[]): T[] => {
+    return leads.filter((lead) => statuses.has(lead.status));
+  };
 
-  return { allowedStatuses: statuses, filterLeads };
+  return {
+    allowedStatuses: statuses,
+    filterLeads,
+  };
 }
