@@ -1,11 +1,9 @@
-import {
-  Users, BarChart3, Settings, ScrollText, Calendar, LogOut, Wrench, MapPin,
-} from "lucide-react";
+import { Users, BarChart3, Settings, ScrollText, Calendar, LogOut, Wrench, MapPin } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { STATUS_LABELS, STATUS_DOT_COLORS, ALL_LEAD_STATUSES } from "@/lib/constants";
-import type { LeadStatus } from "@/lib/constants";
+import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
 import {
   Sidebar,
   SidebarContent,
@@ -40,13 +38,23 @@ export default function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const { profile, role, signOut, canAccess } = useAuth();
+  const { allowedStatuses } = useAllowedStatuses();
 
   const visibleItems = navItems.filter((item) => canAccess(item.navKey));
+
+  const visibleStatuses = ALL_LEAD_STATUSES.filter((status) => allowedStatuses.has(status));
+
   const initials = profile?.full_name
-    ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    ? profile.full_name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
     : "?";
 
-  const currentStatus = new URLSearchParams(location.search).get("status");
+  const rawCurrentStatus = new URLSearchParams(location.search).get("status");
+  const currentStatus = rawCurrentStatus && allowedStatuses.has(rawCurrentStatus) ? rawCurrentStatus : null;
 
   return (
     <Sidebar collapsible="icon">
@@ -59,6 +67,7 @@ export default function AppSidebar() {
           >
             <Wrench className="h-4.5 w-4.5" />
           </motion.div>
+
           {!collapsed && (
             <motion.div
               initial={{ opacity: 0, x: -8 }}
@@ -83,30 +92,32 @@ export default function AppSidebar() {
             <SidebarGroupLabel className="text-[9px] uppercase tracking-[0.18em] text-sidebar-foreground/25 font-semibold px-3 mb-1">
               Navigation
             </SidebarGroupLabel>
+
             <SidebarGroupContent>
               <SidebarMenu>
                 {visibleItems.map((item) => {
                   const isActive = location.pathname.startsWith(item.url) && !currentStatus;
+
                   return (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                        tooltip={item.title}
-                      >
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
                         <NavLink
                           to={item.url}
                           className={`group/nav relative rounded-lg px-3 py-2 transition-all duration-200 hover:bg-sidebar-accent/60 ${
-                            isActive ? 'bg-sidebar-accent shadow-premium-xs' : ''
+                            isActive ? "bg-sidebar-accent shadow-premium-xs" : ""
                           }`}
                           activeClassName="text-sidebar-accent-foreground font-semibold"
                         >
-                          <item.icon className={`h-4 w-4 shrink-0 transition-colors duration-200 ${
-                            isActive ? 'text-primary' : 'text-sidebar-foreground/40 group-hover/nav:text-sidebar-foreground/70'
-                          }`} />
-                          {!collapsed && (
-                            <span className="text-[13px] tracking-[-0.01em]">{item.title}</span>
-                          )}
+                          <item.icon
+                            className={`h-4 w-4 shrink-0 transition-colors duration-200 ${
+                              isActive
+                                ? "text-primary"
+                                : "text-sidebar-foreground/40 group-hover/nav:text-sidebar-foreground/70"
+                            }`}
+                          />
+
+                          {!collapsed && <span className="text-[13px] tracking-[-0.01em]">{item.title}</span>}
+
                           {isActive && !collapsed && (
                             <motion.div
                               layoutId="nav-active-indicator"
@@ -123,28 +134,28 @@ export default function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {canAccess("leads") && !collapsed && (
+          {canAccess("leads") && !collapsed && visibleStatuses.length > 0 && (
             <>
               <SidebarSeparator className="opacity-30" />
+
               <SidebarGroup>
                 <SidebarGroupLabel className="text-[9px] uppercase tracking-[0.18em] text-sidebar-foreground/25 font-semibold px-3 mb-1">
                   By Status
                 </SidebarGroupLabel>
+
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {ALL_LEAD_STATUSES.map((status) => (
+                    {visibleStatuses.map((status) => (
                       <SidebarMenuItem key={status}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={currentStatus === status}
-                          tooltip={STATUS_LABELS[status]}
-                        >
+                        <SidebarMenuButton asChild isActive={currentStatus === status} tooltip={STATUS_LABELS[status]}>
                           <NavLink
                             to={`/leads?status=${status}`}
                             className="group/status flex items-center gap-2.5 rounded-lg px-3 py-1.5 transition-all duration-200 hover:bg-sidebar-accent/50"
                             activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
                           >
-                            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT_COLORS[status]} transition-transform duration-200 group-hover/status:scale-125`} />
+                            <span
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT_COLORS[status]} transition-transform duration-200 group-hover/status:scale-125`}
+                            />
                             <span className="text-[12px] truncate tracking-[-0.005em]">{STATUS_LABELS[status]}</span>
                           </NavLink>
                         </SidebarMenuButton>
@@ -166,16 +177,16 @@ export default function AppSidebar() {
               {initials}
             </AvatarFallback>
           </Avatar>
+
           {!collapsed && (
             <div className="flex flex-1 flex-col overflow-hidden">
               <span className="truncate text-[13px] font-semibold text-sidebar-accent-foreground tracking-[-0.01em]">
                 {profile?.full_name}
               </span>
-              <span className="truncate text-[10px] text-sidebar-foreground/35">
-                {profile?.email}
-              </span>
+              <span className="truncate text-[10px] text-sidebar-foreground/35">{profile?.email}</span>
             </div>
           )}
+
           <Button
             variant="ghost"
             size="icon"
