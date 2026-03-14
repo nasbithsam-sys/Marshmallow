@@ -169,7 +169,7 @@ const Settings = () => {
       await adminApi.createUser(newEmail, newPassword, newName, newRole, code);
       toast.success('User created');
       setCreateOpen(false);
-      setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('no_role');
+      setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('customer_service');
       queryClient.invalidateQueries({ queryKey: ['settings-users'] });
       queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
     } catch (err: any) {
