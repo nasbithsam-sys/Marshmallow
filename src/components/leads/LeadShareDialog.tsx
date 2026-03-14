@@ -40,10 +40,7 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
 
     if (rolesRes.data) {
       const csUserIds = rolesRes.data.map((r: any) => r.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .in("id", csUserIds);
+      const { data: profiles } = await supabase.from("profiles").select("id, full_name, email").in("id", csUserIds);
 
       const sharedIds = new Set((sharesRes.data || []).map((s: any) => s.shared_with_user_id));
 
@@ -55,7 +52,7 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
             display_name: p.full_name,
             email: p.email,
             isShared: sharedIds.has(p.id),
-          }))
+          })),
       );
     }
   };
@@ -84,7 +81,12 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
   };
 
   const getInitials = (name: string) =>
-    name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+    name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "U";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -97,7 +99,9 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
         <DialogHeader>
           <DialogTitle className="text-base">Share "{customerName}"</DialogTitle>
         </DialogHeader>
-        <p className="text-[12px] text-muted-foreground">Select CS users who should see this lead. They'll receive a notification.</p>
+        <p className="text-[12px] text-muted-foreground">
+          Select CS users who should see this lead. They'll receive a notification.
+        </p>
         <div className="space-y-2 max-h-64 overflow-y-auto mt-2">
           {csrUsers.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-6">No CS users found.</p>
@@ -127,7 +131,10 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
                 </div>
               </div>
               {csr.isShared && (
-                <Badge variant="outline" className="text-[10px] bg-primary/6 text-primary border-primary/12 font-semibold">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] bg-primary/6 text-primary border-primary/12 font-semibold"
+                >
                   Shared
                 </Badge>
               )}
