@@ -53,14 +53,11 @@ const AllLeads = () => {
     enabled: !!user,
   });
 
-  // First apply role-based allowed status filtering
   const visibleLeads = useMemo(() => {
     return filterLeads([...leads]);
   }, [leads, filterLeads, allowedStatuses]);
 
-  // Reset invalid selected filter if admin hides that status for this role
-  const safeStatusFilter =
-    statusFilter === "all" || allowedStatuses.includes(statusFilter as any) ? statusFilter : "all";
+  const safeStatusFilter = statusFilter === "all" || allowedStatuses.has(statusFilter) ? statusFilter : "all";
 
   const filteredLeads = useMemo(() => {
     let result = [...visibleLeads];
@@ -89,7 +86,6 @@ const AllLeads = () => {
     });
   }, [visibleLeads, search, safeStatusFilter]);
 
-  // Counts must also use visibleLeads, not raw leads
   const urgentCount = visibleLeads.filter((l) => l.status === "urgent_job").length;
   const scheduledCount = visibleLeads.filter((l) => l.status === "scheduled").length;
   const activeCount = visibleLeads.filter(
@@ -157,7 +153,7 @@ const AllLeads = () => {
             <SelectItem value="all">All Statuses</SelectItem>
 
             {Object.entries(LEAD_STATUS_CONFIG)
-              .filter(([key]) => allowedStatuses.includes(key as any))
+              .filter(([key]) => allowedStatuses.has(key))
               .map(([key, cfg]) => (
                 <SelectItem key={key} value={key}>
                   {cfg.label}
