@@ -39,7 +39,7 @@ const AllLeads = () => {
     queryFn: async () => {
       let query = supabase.from("leads").select("*");
 
-      // CS can only see leads created by themselves
+      // CS can only see only his own created leads
       if (role === "customer_service") {
         query = query.eq("created_by", user!.id);
       }
