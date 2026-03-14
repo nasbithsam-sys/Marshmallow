@@ -121,9 +121,11 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const buildLeadChanges = () => {
     if (!lead) return {};
 
+    const leadRecord = lead as Record<string, any>;
+    const formRecord = form as Record<string, any>;
     const changes: Record<string, { before: unknown; after: unknown }> = {};
 
-    const fieldsToTrack: Array<keyof Lead> = [
+    const fieldsToTrack = [
       "customer_name",
       "customer_email",
       "customer_phone",
@@ -155,8 +157,8 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     ];
 
     for (const field of fieldsToTrack) {
-      const before = lead[field];
-      const after = form[field];
+      const before = leadRecord[field];
+      const after = formRecord[field];
 
       if ((before ?? null) !== (after ?? null)) {
         changes[field] = {
@@ -263,8 +265,8 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         scheduled_time_end: form.scheduled_time_end,
 
         general_notes: form.general_notes ?? null,
-        cs_notes: role !== "processor" ? form.cs_notes : lead?.cs_notes,
-        processor_notes: role !== "customer_service" ? form.processor_notes : lead?.processor_notes,
+        cs_notes: role !== "processor" ? form.cs_notes : (lead as any)?.cs_notes,
+        processor_notes: role !== "customer_service" ? form.processor_notes : (lead as any)?.processor_notes,
 
         last_edited_by: user.id,
         last_edited_at: new Date().toISOString(),
@@ -275,13 +277,13 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         customer_schedule_requirements: form.customer_schedule_requirements,
         reference_name: form.reference_name,
 
-        tech_name: role !== "customer_service" ? form.tech_name : lead?.tech_name,
-        tech_number: role !== "customer_service" ? form.tech_number : lead?.tech_number,
-        terms: role !== "customer_service" ? form.terms : lead?.terms,
-        labor_amount: role !== "customer_service" ? form.labor_amount : lead?.labor_amount,
-        material_amount: role !== "customer_service" ? form.material_amount : lead?.material_amount,
-        for_you_amount: role !== "customer_service" ? form.for_you_amount : lead?.for_you_amount,
-        for_us_amount: role !== "customer_service" ? form.for_us_amount : lead?.for_us_amount,
+        tech_name: role !== "customer_service" ? form.tech_name : (lead as any)?.tech_name,
+        tech_number: role !== "customer_service" ? form.tech_number : (lead as any)?.tech_number,
+        terms: role !== "customer_service" ? form.terms : (lead as any)?.terms,
+        labor_amount: role !== "customer_service" ? form.labor_amount : (lead as any)?.labor_amount,
+        material_amount: role !== "customer_service" ? form.material_amount : (lead as any)?.material_amount,
+        for_you_amount: role !== "customer_service" ? form.for_you_amount : (lead as any)?.for_you_amount,
+        for_us_amount: role !== "customer_service" ? form.for_us_amount : (lead as any)?.for_us_amount,
       };
 
       if (form.status === "paid") {
