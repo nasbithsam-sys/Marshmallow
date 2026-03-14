@@ -443,7 +443,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             <Label className="text-[11px] text-foreground/70 uppercase tracking-wider mb-2 block font-semibold">
               Status
             </Label>
-            <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v)} />
+            <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v)} role={role} />
           </div>
 
           {(formattedEditedAt || lastEditorName) && (
