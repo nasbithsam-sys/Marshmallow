@@ -8,7 +8,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { X, User, MapPin, Clock, MessageSquare, FileText, Check, AlertCircle, Wrench } from "lucide-react";
+import {
+  X,
+  User,
+  MapPin,
+  Clock,
+  MessageSquare,
+  FileText,
+  Check,
+  AlertCircle,
+  Wrench,
+  Sparkles,
+  ShieldCheck,
+  CalendarDays,
+  Save,
+} from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import LeadUpdatesSection from "./LeadUpdatesSection";
 import PaymentDialog from "./PaymentDialog";
@@ -16,7 +30,7 @@ import CopyLeadButton from "./CopyLeadButton";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
 import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { logActivity } from "@/lib/activity";
 import { getChangeableStatuses } from "@/lib/constants";
 
@@ -26,21 +40,40 @@ interface Props {
   onUpdate: () => void;
 }
 
-const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: string }) => (
-  <div className="flex items-center gap-2.5 mb-4">
-    <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/15 flex items-center justify-center">
-      <Icon className="h-3.5 w-3.5 text-primary/80" />
+const SectionHeader = ({
+  icon: Icon,
+  title,
+  subtitle,
+}: {
+  icon: React.ElementType;
+  title: string;
+  subtitle?: string;
+}) => (
+  <div className="mb-5 flex items-start gap-3">
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-primary/10 bg-gradient-to-br from-primary/[0.10] to-primary/[0.04] shadow-inner">
+      <Icon className="h-4 w-4 text-primary/80" />
     </div>
-    <h3 className="text-sm font-semibold text-foreground tracking-[-0.01em]">{title}</h3>
+    <div className="min-w-0">
+      <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-foreground">{title}</h3>
+      {subtitle && <p className="mt-0.5 text-[12px] text-muted-foreground">{subtitle}</p>}
+    </div>
   </div>
 );
 
-const StatusDropdownFiltered = ({ value, onChange, role }: { value: string | undefined; onChange: (v: string) => void; role?: string | null }) => {
+const StatusDropdownFiltered = ({
+  value,
+  onChange,
+  role,
+}: {
+  value: string | undefined;
+  onChange: (v: string) => void;
+  role?: string | null;
+}) => {
   const changeable = getChangeableStatuses(role);
 
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="bg-card border-border/70 text-foreground">
+      <SelectTrigger className="h-11 rounded-xl border-border/60 bg-background text-foreground shadow-sm">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -264,20 +297,16 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         scheduled_date: form.scheduled_date,
         scheduled_time_start: form.scheduled_time_start,
         scheduled_time_end: form.scheduled_time_end,
-
         general_notes: form.general_notes ?? null,
         cs_notes: role !== "processor" ? form.cs_notes : (lead as any)?.cs_notes,
         processor_notes: role !== "customer_service" ? form.processor_notes : (lead as any)?.processor_notes,
-
         last_edited_by: user.id,
         last_edited_at: new Date().toISOString(),
-
         number_name: form.number_name,
         quote: form.quote,
         service_details: form.service_details,
         customer_schedule_requirements: form.customer_schedule_requirements,
         reference_name: form.reference_name,
-
         tech_name: role !== "customer_service" ? form.tech_name : (lead as any)?.tech_name,
         tech_number: role !== "customer_service" ? form.tech_number : (lead as any)?.tech_number,
         terms: role !== "customer_service" ? form.terms : (lead as any)?.terms,
@@ -338,7 +367,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     },
     onSuccess: () => {
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      setTimeout(() => setSaved(false), 1800);
       toast.success("Lead saved");
       queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
       onUpdate();
@@ -349,18 +378,21 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
 
-  const labelClass = "text-[12px] text-foreground/80 font-semibold";
-  const fieldClass = "bg-background border-border/70 text-foreground placeholder:text-muted-foreground/60";
-  const sectionClass = "rounded-xl bg-card border border-border/60 p-5";
+  const labelClass = "text-[12px] font-semibold tracking-[-0.01em] text-foreground/82";
+  const fieldClass =
+    "h-11 rounded-xl border-border/60 bg-background text-foreground shadow-sm placeholder:text-muted-foreground/55";
+  const areaClass =
+    "rounded-xl border-border/60 bg-background text-foreground shadow-sm placeholder:text-muted-foreground/55 resize-none";
+  const sectionClass = "rounded-2xl border border-border/60 bg-card/92 p-5 shadow-[0_14px_38px_-28px_rgba(0,0,0,0.35)]";
 
   if (isLoading || !lead) {
     return (
       <div className="fixed inset-0 z-40 flex">
         <div className="flex-1 bg-foreground/15 backdrop-blur-sm" onClick={onClose} />
-        <div className="w-[55%] max-w-3xl bg-card border-l border-border p-6 flex items-center justify-center">
+        <div className="w-[58%] max-w-4xl border-l border-border bg-card p-6 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-7 h-7 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin" />
-            <p className="text-muted-foreground text-sm">Loading lead...</p>
+            <div className="h-8 w-8 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin" />
+            <p className="text-sm text-muted-foreground">Loading lead...</p>
           </div>
         </div>
       </div>
@@ -373,7 +405,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="flex-1 bg-foreground/15 backdrop-blur-sm"
+        className="flex-1 bg-foreground/20 backdrop-blur-sm"
         onClick={onClose}
       />
 
@@ -381,93 +413,108 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
-        transition={{ type: "spring", stiffness: 300, damping: 35 }}
-        className="w-[55%] max-w-3xl bg-card border-l border-border overflow-y-auto"
+        transition={{ type: "spring", stiffness: 280, damping: 30 }}
+        className="w-[58%] max-w-4xl overflow-y-auto border-l border-border bg-[linear-gradient(to_bottom,rgba(255,255,255,0.02),transparent)] bg-card"
       >
-        <div className="sticky top-0 bg-card/95 backdrop-blur-md border-b border-border/60 px-6 py-4 flex items-center justify-between z-10">
-          <div className="flex flex-col gap-1.5 min-w-0">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="font-mono text-[12px] text-muted-foreground/70">{lead.job_id}</span>
-              <span className="text-muted-foreground/30">›</span>
-              <span className="text-sm font-medium text-foreground truncate max-w-[200px]">{lead.customer_name}</span>
-              <StatusBadge status={lead.status as LeadStatus} />
+        <div className="sticky top-0 z-20 border-b border-border/60 bg-card/92 backdrop-blur-xl">
+          <div className="px-6 pt-5 pb-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="mb-3 flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-primary/10 bg-primary/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    Lead Detail
+                  </span>
+                  <span className="font-mono text-[11px] text-muted-foreground/65">{lead.job_id}</span>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h2 className="max-w-[360px] truncate text-[20px] font-semibold tracking-[-0.025em] text-foreground">
+                    {lead.customer_name}
+                  </h2>
+                  <StatusBadge status={lead.status as LeadStatus} />
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px] text-muted-foreground">
+                  {lead.created_at && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      Created {format(new Date(lead.created_at), "MMM d, yyyy")}
+                    </span>
+                  )}
+
+                  {(formattedEditedAt || lastEditorName) && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      {lastEditorName ? `Edited by ${lastEditorName}` : "Edited"}
+                      {formattedEditedAt ? ` • ${formattedEditedAt}` : ""}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                {!isCS && <CopyLeadButton lead={lead} />}
+
+                <Button
+                  onClick={() => saveMutation.mutate()}
+                  disabled={saveMutation.isPending || isDuplicate}
+                  size="sm"
+                  className="min-w-[92px] gap-1.5 rounded-xl shadow-sm"
+                >
+                  {saved ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      Saved
+                    </>
+                  ) : saveMutation.isPending ? (
+                    "Saving..."
+                  ) : (
+                    <>
+                      <Save className="h-3.5 w-3.5" />
+                      Save
+                    </>
+                  )}
+                </Button>
+
+                <button
+                  onClick={onClose}
+                  className="rounded-xl border border-border/60 bg-background p-2 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground"
+                >
+                  <X className="h-4.5 w-4.5" />
+                </button>
+              </div>
             </div>
 
-            {(formattedEditedAt || lastEditorName) && (
-              <div className="text-[12px] text-muted-foreground">
-                Last edited
-                {lastEditorName ? (
-                  <>
-                    {" "}
-                    by <span className="font-medium text-foreground/80">{lastEditorName}</span>
-                  </>
-                ) : null}
-                {formattedEditedAt ? (
-                  <>
-                    {" "}
-                    on <span className="font-medium text-foreground/80">{formattedEditedAt}</span>
-                  </>
-                ) : null}
+            <div className="mt-4 rounded-2xl border border-border/60 bg-muted/[0.24] p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/70">
+                  Current Status
+                </Label>
+                {isDuplicate && (
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-destructive/15 bg-destructive/[0.07] px-2.5 py-1 text-[10px] font-medium text-destructive">
+                    <AlertCircle className="h-3 w-3" />
+                    Duplicate phone: {duplicateLeadName}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {!isCS && <CopyLeadButton lead={lead} />}
-
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || isDuplicate}
-              size="sm"
-              className="gap-1.5 min-w-[80px]"
-            >
-              {saved ? (
-                <>
-                  <Check className="h-3.5 w-3.5" /> Saved
-                </>
-              ) : saveMutation.isPending ? (
-                "Saving..."
-              ) : (
-                "Save"
-              )}
-            </Button>
-
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-              <X className="h-5 w-5 text-muted-foreground" />
-            </button>
+              <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v)} role={role} />
+            </div>
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
-          <div className="rounded-xl bg-muted/40 border border-border/50 p-4">
-            <Label className="text-[11px] text-foreground/70 uppercase tracking-wider mb-2 block font-semibold">
-              Status
-            </Label>
-            <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v)} role={role} />
-          </div>
-
-          {(formattedEditedAt || lastEditorName) && (
-            <div className="rounded-xl bg-muted/30 border border-border/50 p-4">
-              <Label className="text-[11px] text-foreground/70 uppercase tracking-wider mb-2 block font-semibold">
-                Last Edit Info
-              </Label>
-              <div className="text-sm text-muted-foreground space-y-1">
-                {lastEditorName && (
-                  <div>
-                    Edited by: <span className="text-foreground font-medium">{lastEditorName}</span>
-                  </div>
-                )}
-                {formattedEditedAt && (
-                  <div>
-                    Edited at: <span className="text-foreground font-medium">{formattedEditedAt}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className={sectionClass}>
-            <SectionHeader icon={User} title="Customer Information" />
+        <div className="space-y-6 p-6">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22 }}
+            className={sectionClass}
+          >
+            <SectionHeader
+              icon={User}
+              title="Customer Information"
+              subtitle="Primary contact details, service request, and intake information."
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -496,16 +543,8 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                   value={form.customer_phone ?? ""}
                   onChange={(e) => update("customer_phone", e.target.value)}
                   readOnly={isProcessor}
-                  className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive" : ""}`}
+                  className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive/40" : ""}`}
                 />
-                {isDuplicate && (
-                  <div className="flex items-center gap-1.5 text-destructive text-[11px]">
-                    <AlertCircle className="h-3 w-3" />
-                    <span>
-                      Duplicate: <strong>{duplicateLeadName}</strong>
-                    </span>
-                  </div>
-                )}
               </div>
 
               <div className="space-y-1.5">
@@ -544,8 +583,8 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                   value={form.service_details ?? ""}
                   onChange={(e) => update("service_details", e.target.value)}
                   readOnly={isProcessor}
-                  rows={3}
-                  className={`${fieldClass} resize-none min-h-[96px]`}
+                  rows={4}
+                  className={`${areaClass} min-h-[108px]`}
                 />
               </div>
 
@@ -569,10 +608,19 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 />
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          <div className={sectionClass}>
-            <SectionHeader icon={MapPin} title="Address" />
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: 0.03 }}
+            className={sectionClass}
+          >
+            <SectionHeader
+              icon={MapPin}
+              title="Address"
+              subtitle="Customer location details used for routing and scheduling."
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-1.5">
@@ -617,10 +665,19 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          <div className={sectionClass}>
-            <SectionHeader icon={Wrench} title="Processor Details" />
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: 0.06 }}
+            className={sectionClass}
+          >
+            <SectionHeader
+              icon={Wrench}
+              title="Processor Details"
+              subtitle="Assigned technician, quote mode, and internal cost breakdown."
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -708,10 +765,19 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 </>
               )}
             </div>
-          </div>
+          </motion.div>
 
-          <div className={sectionClass}>
-            <SectionHeader icon={Clock} title="Schedule" />
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: 0.09 }}
+            className={sectionClass}
+          >
+            <SectionHeader
+              icon={Clock}
+              title="Schedule"
+              subtitle="Date, time window, and payment amount when applicable."
+            />
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
@@ -746,7 +812,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </div>
 
             {form.status === "paid" && (
-              <div className="mt-4 space-y-1.5 w-[180px]">
+              <div className="mt-4 w-[220px] space-y-1.5">
                 <Label className={labelClass}>Amount ($)</Label>
                 <Input
                   type="number"
@@ -757,55 +823,92 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 />
               </div>
             )}
-          </div>
+          </motion.div>
 
-          <div className={sectionClass}>
-            <SectionHeader icon={MessageSquare} title="General Notes" />
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: 0.12 }}
+            className={sectionClass}
+          >
+            <SectionHeader
+              icon={MessageSquare}
+              title="General Notes"
+              subtitle="Shared notes and customer-related context."
+            />
             <div className="space-y-1.5">
-              <Label className="text-[12px] font-semibold text-foreground">General Notes</Label>
+              <Label className={labelClass}>General Notes</Label>
               <Textarea
                 value={form.general_notes ?? ""}
                 onChange={(e) => update("general_notes", e.target.value)}
                 placeholder="Write general notes here..."
-                rows={5}
-                className={`${fieldClass} resize-none min-h-[130px]`}
+                rows={6}
+                className={`${areaClass} min-h-[150px]`}
               />
             </div>
-          </div>
+          </motion.div>
 
-          <div className={sectionClass}>
-            <SectionHeader icon={MessageSquare} title="CS Notes" />
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: 0.15 }}
+            className={sectionClass}
+          >
+            <SectionHeader
+              icon={MessageSquare}
+              title="CS Notes"
+              subtitle="Customer service notes and follow-up context."
+            />
             <div className="space-y-1.5">
-              <Label className="text-[12px] font-semibold text-foreground">CS Notes</Label>
+              <Label className={labelClass}>CS Notes</Label>
               <Textarea
                 value={form.cs_notes ?? ""}
                 onChange={(e) => update("cs_notes", e.target.value)}
                 placeholder="Write CS notes here..."
-                rows={5}
+                rows={6}
                 readOnly={isProcessor}
-                className={`${fieldClass} resize-none min-h-[130px]`}
+                className={`${areaClass} min-h-[150px]`}
               />
             </div>
-          </div>
+          </motion.div>
 
-          <div className={sectionClass}>
-            <SectionHeader icon={FileText} title="Processor Notes" />
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: 0.18 }}
+            className={sectionClass}
+          >
+            <SectionHeader
+              icon={FileText}
+              title="Processor Notes"
+              subtitle="Technician and processing-side internal notes."
+            />
             <div className="space-y-1.5">
-              <Label className="text-[12px] font-semibold text-foreground">Processor Notes</Label>
+              <Label className={labelClass}>Processor Notes</Label>
               <Textarea
                 value={form.processor_notes ?? ""}
                 onChange={(e) => update("processor_notes", e.target.value)}
                 placeholder="Write processor notes here..."
-                rows={5}
+                rows={6}
                 readOnly={isCS}
-                className={`${fieldClass} resize-none min-h-[130px]`}
+                className={`${areaClass} min-h-[150px]`}
               />
             </div>
-          </div>
+          </motion.div>
 
-          <div className={sectionClass}>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: 0.21 }}
+            className={sectionClass}
+          >
+            <SectionHeader
+              icon={FileText}
+              title="Activity & Updates"
+              subtitle="Recent changes, timeline activity, and lead history."
+            />
             <LeadUpdatesSection leadId={leadId} />
-          </div>
+          </motion.div>
         </div>
 
         <PaymentDialog
