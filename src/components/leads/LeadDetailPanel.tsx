@@ -17,8 +17,8 @@ import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
 import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { motion } from "framer-motion";
-import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
 import { logActivity } from "@/lib/activity";
+import { getChangeableStatuses } from "@/lib/constants";
 
 interface Props {
   leadId: string;
@@ -35,8 +35,8 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: 
   </div>
 );
 
-const StatusDropdownFiltered = ({ value, onChange }: { value: string | undefined; onChange: (v: string) => void }) => {
-  const { allowedStatuses } = useAllowedStatuses();
+const StatusDropdownFiltered = ({ value, onChange, role }: { value: string | undefined; onChange: (v: string) => void; role?: string | null }) => {
+  const changeable = getChangeableStatuses(role);
 
   return (
     <Select value={value} onValueChange={onChange}>
@@ -44,13 +44,14 @@ const StatusDropdownFiltered = ({ value, onChange }: { value: string | undefined
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {Object.entries(LEAD_STATUS_CONFIG)
-          .filter(([key]) => allowedStatuses.has(key))
-          .map(([key, cfg]) => (
+        {changeable.map((key) => {
+          const cfg = LEAD_STATUS_CONFIG[key];
+          return cfg ? (
             <SelectItem key={key} value={key}>
               {cfg.label}
             </SelectItem>
-          ))}
+          ) : null;
+        })}
       </SelectContent>
     </Select>
   );
@@ -442,7 +443,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             <Label className="text-[11px] text-foreground/70 uppercase tracking-wider mb-2 block font-semibold">
               Status
             </Label>
-            <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v)} />
+            <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v)} role={role} />
           </div>
 
           {(formattedEditedAt || lastEditorName) && (

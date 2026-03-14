@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import { AlertCircle, ImagePlus, X, ChevronDown, User, Wrench, Calendar } from "lucide-react";
 import { LEAD_STATUS_CONFIG, type LeadStatus } from "@/types";
+import { getChangeableStatuses } from "@/lib/constants";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { formatUSPhone } from "@/lib/phone";
 import { logActivity } from "@/lib/activity";
@@ -606,13 +607,16 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(LEAD_STATUS_CONFIG)
-                      .filter(([key]) => key !== "paid")
-                      .map(([key, cfg]) => (
-                        <SelectItem key={key} value={key}>
-                          {cfg.label}
-                        </SelectItem>
-                      ))}
+                    {getChangeableStatuses(role)
+                      .filter((key) => key !== "paid")
+                      .map((key) => {
+                        const cfg = LEAD_STATUS_CONFIG[key];
+                        return cfg ? (
+                          <SelectItem key={key} value={key}>
+                            {cfg.label}
+                          </SelectItem>
+                        ) : null;
+                      })}
                   </SelectContent>
                 </Select>
               </div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Lead, LeadStatus, STATUS_LABELS, ALL_LEAD_STATUSES } from "@/lib/constants";
+import { Lead, LeadStatus, STATUS_LABELS, ALL_LEAD_STATUSES, getChangeableStatuses } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -370,7 +370,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
               <SelectValue placeholder="Change Status" />
             </SelectTrigger>
             <SelectContent>
-              {ALL_LEAD_STATUSES.map((s) => (
+              {getChangeableStatuses(role).map((s) => (
                 <SelectItem key={s} value={s} className="text-[12px]">
                   {STATUS_LABELS[s]}
                 </SelectItem>

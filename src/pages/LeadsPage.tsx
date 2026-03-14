@@ -274,10 +274,12 @@ export default function LeadsPage() {
             </DropdownMenu>
           )}
 
-          <Button onClick={() => setShowAddDialog(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Lead
-          </Button>
+          {(isAdmin || isCS) && (
+            <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Lead
+            </Button>
+          )}
 
           <AddLeadDialog
             open={showAddDialog}

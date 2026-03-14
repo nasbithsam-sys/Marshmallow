@@ -40,7 +40,7 @@ const roleColors: Record<string, string> = {
   admin: 'bg-primary/8 text-primary border-primary/10',
   processor: 'bg-[hsl(var(--success)/0.08)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.1)]',
   customer_service: 'bg-[hsl(var(--warning)/0.08)] text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.1)]',
-  no_role: 'bg-muted text-muted-foreground border-border',
+  
 };
 
 const Settings = () => {
@@ -50,7 +50,7 @@ const Settings = () => {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newName, setNewName] = useState('');
-  const [newRole, setNewRole] = useState<AppRole>('no_role');
+  const [newRole, setNewRole] = useState<AppRole>('customer_service');
   const [creating, setCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<'users' | 'nav_permissions' | 'status_permissions' | 'security'>('users');
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -169,7 +169,7 @@ const Settings = () => {
       await adminApi.createUser(newEmail, newPassword, newName, newRole, code);
       toast.success('User created');
       setCreateOpen(false);
-      setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('no_role');
+      setNewEmail(''); setNewPassword(''); setNewName(''); setNewRole('customer_service');
       queryClient.invalidateQueries({ queryKey: ['settings-users'] });
       queryClient.invalidateQueries({ queryKey: ['user-access-codes'] });
     } catch (err: any) {
@@ -287,7 +287,6 @@ const Settings = () => {
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="processor">Processor</SelectItem>
                           <SelectItem value="customer_service">Customer Service</SelectItem>
-                          <SelectItem value="no_role">No Role</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button
@@ -520,7 +519,6 @@ const Settings = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="processor">Processor</SelectItem>
                   <SelectItem value="customer_service">Customer Service</SelectItem>
-                  <SelectItem value="no_role">No Role</SelectItem>
                 </SelectContent>
               </Select>
             </div>

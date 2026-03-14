@@ -72,3 +72,30 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
 
 export const ALL_NAV_ITEMS = ["leads", "analytics", "settings", "activity_logs", "schedule", "map", "areas"] as const;
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
+
+const CS_CHANGEABLE: LeadStatus[] = [
+  "need_tech",
+  "urgent_job",
+  "waiting_customer_response",
+  "waiting_complete_details",
+  "quote_sent_waiting",
+  "quote_sent_need_follow_up",
+  "needs_quote",
+  "needs_reschedule",
+];
+
+const PROCESSOR_CHANGEABLE: LeadStatus[] = [
+  "scheduled",
+  "job_in_progress",
+  "paid",
+  "payment_pending",
+  "job_done",
+  "needs_reschedule",
+];
+
+export function getChangeableStatuses(role?: string | null): LeadStatus[] {
+  if (role === "admin") return ALL_LEAD_STATUSES;
+  if (role === "customer_service") return CS_CHANGEABLE;
+  if (role === "processor") return PROCESSOR_CHANGEABLE;
+  return [];
+}
