@@ -59,7 +59,6 @@ export function useAllowedStatuses() {
       if (!role) return baseAllowed;
       if (role === "admin") return baseAllowed;
 
-      // Use `as any` so this works even if generated Supabase types are outdated
       const { data, error } = await (supabase as any)
         .from("lead_status_visibility")
         .select("role,status,is_visible")
@@ -74,12 +73,10 @@ export function useAllowedStatuses() {
       for (const row of data as VisibilityRow[]) {
         if (!row?.status) continue;
 
-        // admin can remove a base status from a role
         if (row.is_visible === false) {
           finalAllowed.delete(row.status);
         }
 
-        // optional: if admin explicitly enables a status already in base, keep it
         if (row.is_visible === true && baseAllowed.has(row.status)) {
           finalAllowed.add(row.status);
         }
