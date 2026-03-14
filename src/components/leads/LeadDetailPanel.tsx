@@ -35,8 +35,8 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: 
   </div>
 );
 
-const StatusDropdownFiltered = ({ value, onChange }: { value: string | undefined; onChange: (v: string) => void }) => {
-  const { allowedStatuses } = useAllowedStatuses();
+const StatusDropdownFiltered = ({ value, onChange, role }: { value: string | undefined; onChange: (v: string) => void; role?: string | null }) => {
+  const changeable = getChangeableStatuses(role);
 
   return (
     <Select value={value} onValueChange={onChange}>
@@ -44,9 +44,9 @@ const StatusDropdownFiltered = ({ value, onChange }: { value: string | undefined
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {Object.entries(LEAD_STATUS_CONFIG)
-          .filter(([key]) => allowedStatuses.has(key))
-          .map(([key, cfg]) => (
+        {changeable.map((key) => {
+          const cfg = LEAD_STATUS_CONFIG[key];
+          return cfg ? (
             <SelectItem key={key} value={key}>
               {cfg.label}
             </SelectItem>

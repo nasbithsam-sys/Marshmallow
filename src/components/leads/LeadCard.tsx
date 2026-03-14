@@ -370,7 +370,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
               <SelectValue placeholder="Change Status" />
             </SelectTrigger>
             <SelectContent>
-              {ALL_LEAD_STATUSES.map((s) => (
+              {getChangeableStatuses(role).map((s) => (
                 <SelectItem key={s} value={s} className="text-[12px]">
                   {STATUS_LABELS[s]}
                 </SelectItem>

@@ -77,10 +77,12 @@ const AllLeads = () => {
           <h1 className="text-2xl font-semibold text-foreground">All Leads</h1>
           <p className="text-sm text-muted-foreground mt-1">{leads.length} total leads</p>
         </div>
-        <Button onClick={() => setAddOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add New Lead
-        </Button>
+        {(role === 'admin' || role === 'customer_service') && (
+          <Button onClick={() => setAddOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add New Lead
+          </Button>
+        )}
       </div>
 
       {/* Summary chips */}

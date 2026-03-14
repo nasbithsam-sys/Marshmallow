@@ -519,7 +519,6 @@ const Settings = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="processor">Processor</SelectItem>
                   <SelectItem value="customer_service">Customer Service</SelectItem>
-                  <SelectItem value="no_role">No Role</SelectItem>
                 </SelectContent>
               </Select>
             </div>
