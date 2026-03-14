@@ -949,11 +949,14 @@ export default function LeadDetailPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(LEAD_STATUS_CONFIG).map(([key, cfg]) => (
-                      <SelectItem key={key} value={key}>
-                        {cfg.label}
-                      </SelectItem>
-                    ))}
+                    {getChangeableStatuses(role).map((key) => {
+                      const cfg = LEAD_STATUS_CONFIG[key];
+                      return cfg ? (
+                        <SelectItem key={key} value={key}>
+                          {cfg.label}
+                        </SelectItem>
+                      ) : null;
+                    })}
                   </SelectContent>
                 </Select>
               </div>

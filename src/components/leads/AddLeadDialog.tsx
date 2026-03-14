@@ -607,13 +607,16 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(LEAD_STATUS_CONFIG)
-                      .filter(([key]) => key !== "paid")
-                      .map(([key, cfg]) => (
-                        <SelectItem key={key} value={key}>
-                          {cfg.label}
-                        </SelectItem>
-                      ))}
+                    {getChangeableStatuses(role)
+                      .filter((key) => key !== "paid")
+                      .map((key) => {
+                        const cfg = LEAD_STATUS_CONFIG[key];
+                        return cfg ? (
+                          <SelectItem key={key} value={key}>
+                            {cfg.label}
+                          </SelectItem>
+                        ) : null;
+                      })}
                   </SelectContent>
                 </Select>
               </div>

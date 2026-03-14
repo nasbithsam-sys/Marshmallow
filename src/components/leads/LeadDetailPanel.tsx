@@ -50,7 +50,8 @@ const StatusDropdownFiltered = ({ value, onChange, role }: { value: string | und
             <SelectItem key={key} value={key}>
               {cfg.label}
             </SelectItem>
-          ))}
+          ) : null;
+        })}
       </SelectContent>
     </Select>
   );
