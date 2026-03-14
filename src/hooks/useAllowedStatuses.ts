@@ -12,9 +12,17 @@ const CS_ONLY_STATUSES: LeadStatus[] = [
   "quote_sent_waiting",
   "quote_sent_need_follow_up",
   "needs_quote",
+  "cancelled",
 ];
 
-const PROCESSOR_ONLY_STATUSES: LeadStatus[] = ["scheduled", "job_in_progress", "paid", "payment_pending", "job_done"];
+const PROCESSOR_ONLY_STATUSES: LeadStatus[] = [
+  "scheduled",
+  "job_in_progress",
+  "paid",
+  "payment_pending",
+  "job_done",
+  "cancelled",
+];
 
 const SHARED_STATUSES: LeadStatus[] = ["needs_reschedule"];
 
@@ -34,6 +42,12 @@ function getBaseAllowedStatuses(role?: string | null): Set<string> {
   return new Set<string>();
 }
 
+type VisibilityRow = {
+  role: string;
+  status: string;
+  is_visible: boolean;
+};
+
 export function useAllowedStatuses() {
   const { role } = useAuth();
 
@@ -45,22 +59,28 @@ export function useAllowedStatuses() {
       if (!role) return baseAllowed;
       if (role === "admin") return baseAllowed;
 
-      // This table must store VIEW visibility by ROLE, not change permissions by user
-      const { data, error } = await supabase
+      // Use `as any` so this works even if generated Supabase types are outdated
+      const { data, error } = await (supabase as any)
         .from("lead_status_visibility")
-        .select("status, is_visible")
+        .select("role,status,is_visible")
         .eq("role", role);
 
-      if (error || !data) {
+      if (error || !Array.isArray(data)) {
         return baseAllowed;
       }
 
       const finalAllowed = new Set<string>(baseAllowed);
 
-      for (const row of data as { status: string; is_visible: boolean }[]) {
+      for (const row of data as VisibilityRow[]) {
+        if (!row?.status) continue;
+
+        // admin can remove a base status from a role
         if (row.is_visible === false) {
           finalAllowed.delete(row.status);
-        } else if (row.is_visible === true && baseAllowed.has(row.status)) {
+        }
+
+        // optional: if admin explicitly enables a status already in base, keep it
+        if (row.is_visible === true && baseAllowed.has(row.status)) {
           finalAllowed.add(row.status);
         }
       }
