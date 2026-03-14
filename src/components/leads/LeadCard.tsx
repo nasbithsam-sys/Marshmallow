@@ -152,10 +152,18 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
 
     toast.success(`Status → ${STATUS_LABELS[newStatus as LeadStatus]}`);
 
-    await logActivity(user!.id, "status_change", "lead", lead.id, {
+    await logActivity(user!.id, "status_changed", "lead", lead.id, {
+      target_name: lead.job_id,
       customer_name: lead.customer_name,
-      from: STATUS_LABELS[lead.status],
-      to: STATUS_LABELS[newStatus as LeadStatus],
+      job_id: lead.job_id,
+      status_from: lead.status,
+      status_to: newStatus,
+      changes: {
+        status: {
+          before: lead.status,
+          after: newStatus,
+        },
+      },
     });
 
     if (newStatus === "urgent_job" || newStatus === "need_tech") {
@@ -214,6 +222,29 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
       return;
     }
 
+    await logActivity(user!.id, "payment_recorded", "lead", lead.id, {
+      target_name: lead.job_id,
+      customer_name: lead.customer_name,
+      job_id: lead.job_id,
+      amount,
+      status_from: lead.status,
+      status_to: "paid",
+      changes: {
+        status: {
+          before: lead.status,
+          after: "paid",
+        },
+        payment_amount: {
+          before: lead.payment_amount ?? null,
+          after: amount,
+        },
+        payment_screenshot_url: {
+          before: lead.payment_screenshot_url ?? null,
+          after: screenshotUrl ?? null,
+        },
+      },
+    });
+
     toast.success("Payment recorded & status updated to Paid");
     onRefresh();
   };
@@ -221,6 +252,14 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
   const handleDelete = async () => {
     try {
       await adminApi.deleteLead(lead.id);
+
+      await logActivity(user!.id, "deleted", "lead", lead.id, {
+        target_name: lead.job_id,
+        customer_name: lead.customer_name,
+        job_id: lead.job_id,
+        message: `${profiles[user!.id] || "Unknown"} deleted lead "${lead.customer_name}".`,
+      });
+
       toast.success("Lead deleted");
       onRefresh();
     } catch (err: any) {
