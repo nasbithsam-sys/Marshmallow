@@ -30,7 +30,7 @@ import CopyLeadButton from "./CopyLeadButton";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
 import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { logActivity } from "@/lib/activity";
 import { getChangeableStatuses } from "@/lib/constants";
 
@@ -262,10 +262,29 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         await logActivity(user.id, "payment_recorded", "lead", leadId, {
           target_name: lead.job_id,
           customer_name: lead.customer_name,
+          job_id: lead.job_id,
           amount,
           status_from: lead.status,
           status_to: "paid",
           screenshot_uploaded: !!screenshotUrl,
+          changes: {
+            status: {
+              before: lead.status,
+              after: "paid",
+            },
+            payment_amount: {
+              before: lead.payment_amount ?? null,
+              after: amount,
+            },
+            payment_screenshot_url: {
+              before: lead.payment_screenshot_url ?? null,
+              after: screenshotUrl ?? null,
+            },
+            amount: {
+              before: lead.amount ?? null,
+              after: amount,
+            },
+          },
         });
       }
 
@@ -352,6 +371,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         await logActivity(user.id, "updated", "lead", leadId, {
           target_name: lead?.job_id || leadId,
           customer_name: form.customer_name,
+          job_id: lead?.job_id || null,
           changes,
         });
       }
@@ -360,8 +380,15 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         await logActivity(user.id, "status_changed", "lead", leadId, {
           target_name: lead?.job_id || leadId,
           customer_name: form.customer_name,
+          job_id: lead?.job_id || null,
           status_from: previousStatus,
           status_to: newStatus,
+          changes: {
+            status: {
+              before: previousStatus ?? null,
+              after: newStatus ?? null,
+            },
+          },
         });
       }
     },
