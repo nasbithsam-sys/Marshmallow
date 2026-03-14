@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import { AlertCircle, ImagePlus, X, ChevronDown, User, Wrench, Calendar } from "lucide-react";
 import { LEAD_STATUS_CONFIG, type LeadStatus } from "@/types";
+import { getChangeableStatuses } from "@/lib/constants";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { formatUSPhone } from "@/lib/phone";
 import { logActivity } from "@/lib/activity";
