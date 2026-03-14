@@ -59,11 +59,13 @@ export function useAllowedStatuses() {
         explicitPerms.set(p.status, p.allowed);
       });
 
+      // Start with base role statuses (these are always kept)
       const finalAllowed = new Set<string>(baseAllowed);
 
-      for (const status of baseAllowed) {
-        if (explicitPerms.get(status) === false) {
-          finalAllowed.delete(status);
+      // Only ADD extra statuses that are explicitly allowed beyond the base set
+      for (const [status, allowed] of explicitPerms) {
+        if (allowed && !baseAllowed.has(status)) {
+          finalAllowed.add(status);
         }
       }
 
