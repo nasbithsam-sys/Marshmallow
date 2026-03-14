@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { motion } from "framer-motion";
 import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
+import { logActivity } from "@/lib/activity";
 
 interface Props {
   leadId: string;
@@ -117,6 +118,57 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     }
   }, [lead?.last_edited_at]);
 
+  const buildLeadChanges = () => {
+    if (!lead) return {};
+
+    const changes: Record<string, { before: unknown; after: unknown }> = {};
+
+    const fieldsToTrack: Array<keyof Lead> = [
+      "customer_name",
+      "customer_email",
+      "customer_phone",
+      "service_type",
+      "address",
+      "city",
+      "state",
+      "zip_code",
+      "status",
+      "scheduled_date",
+      "scheduled_time_start",
+      "scheduled_time_end",
+      "general_notes",
+      "cs_notes",
+      "processor_notes",
+      "number_name",
+      "quote",
+      "service_details",
+      "customer_schedule_requirements",
+      "reference_name",
+      "tech_name",
+      "tech_number",
+      "terms",
+      "labor_amount",
+      "material_amount",
+      "for_you_amount",
+      "for_us_amount",
+      "amount",
+    ];
+
+    for (const field of fieldsToTrack) {
+      const before = lead[field];
+      const after = form[field];
+
+      if ((before ?? null) !== (after ?? null)) {
+        changes[field] = {
+          before: before ?? null,
+          after: after ?? null,
+        };
+      }
+    }
+
+    return changes;
+  };
+
   const update = (key: string, value: any) => {
     if (key === "status" && value === "paid") {
       setPaymentOpen(true);
@@ -146,7 +198,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       payment_screenshot_url: screenshotUrl,
     }));
 
-    const { error } = await supabase
+    let paymentQuery = supabase
       .from("leads")
       .update({
         status: "paid",
@@ -158,12 +210,29 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       })
       .eq("id", leadId);
 
+    if (role === "customer_service" && user) {
+      paymentQuery = paymentQuery.eq("created_by", user.id);
+    }
+
+    const { error } = await paymentQuery;
+
     setPaymentLoading(false);
     setPaymentOpen(false);
 
     if (error) {
       toast.error(error.message);
     } else {
+      if (user && lead) {
+        await logActivity(user.id, "payment_recorded", "lead", leadId, {
+          target_name: lead.job_id,
+          customer_name: lead.customer_name,
+          amount,
+          status_from: lead.status,
+          status_to: "paid",
+          screenshot_uploaded: !!screenshotUrl,
+        });
+      }
+
       toast.success("Payment recorded");
       queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
       onUpdate();
@@ -174,6 +243,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     mutationFn: async () => {
       if (!user) return;
       if (isDuplicate) throw new Error(`Duplicate phone: ${duplicateLeadName}`);
+
+      const previousStatus = lead?.status;
+      const newStatus = form.status;
+      const changes = buildLeadChanges();
 
       const updateData: any = {
         customer_name: form.customer_name,
@@ -241,6 +314,23 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           }));
           await supabase.from("notifications").insert(notifs);
         }
+      }
+
+      if (Object.keys(changes).length > 0) {
+        await logActivity(user.id, "updated", "lead", leadId, {
+          target_name: lead?.job_id || leadId,
+          customer_name: form.customer_name,
+          changes,
+        });
+      }
+
+      if (previousStatus !== newStatus) {
+        await logActivity(user.id, "status_changed", "lead", leadId, {
+          target_name: lead?.job_id || leadId,
+          customer_name: form.customer_name,
+          status_from: previousStatus,
+          status_to: newStatus,
+        });
       }
     },
     onSuccess: () => {
