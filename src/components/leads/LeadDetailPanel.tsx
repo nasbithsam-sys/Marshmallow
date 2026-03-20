@@ -649,48 +649,15 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               subtitle="Customer location details used for routing and scheduling."
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-1.5">
-                <Label className={labelClass}>Street</Label>
-                <Input
-                  value={form.address ?? ""}
-                  onChange={(e) => update("address", e.target.value)}
-                  readOnly={isProcessor}
-                  className={fieldClass}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className={labelClass}>City</Label>
-                <Input
-                  value={form.city ?? ""}
-                  onChange={(e) => update("city", e.target.value)}
-                  readOnly={isProcessor}
-                  className={fieldClass}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className={labelClass}>State</Label>
-                  <Input
-                    value={form.state ?? ""}
-                    onChange={(e) => update("state", e.target.value)}
-                    readOnly={isProcessor}
-                    className={fieldClass}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className={labelClass}>Zip</Label>
-                  <Input
-                    value={form.zip_code ?? ""}
-                    onChange={(e) => update("zip_code", e.target.value)}
-                    readOnly={isProcessor}
-                    className={fieldClass}
-                  />
-                </div>
-              </div>
+            <div className="space-y-1.5">
+              <Label className={labelClass}>Address</Label>
+              <Input
+                value={form.address ?? ""}
+                onChange={(e) => update("address", e.target.value)}
+                readOnly={isProcessor}
+                placeholder="Full address"
+                className={fieldClass}
+              />
             </div>
           </motion.div>
 
