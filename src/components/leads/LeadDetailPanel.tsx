@@ -321,6 +321,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         processor_notes: role !== "customer_service" ? form.processor_notes : (lead as any)?.processor_notes,
         last_edited_by: user.id,
         last_edited_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         number_name: form.number_name,
         quote: form.quote,
         service_details: form.service_details,
