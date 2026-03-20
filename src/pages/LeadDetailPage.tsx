@@ -470,6 +470,7 @@ export default function LeadDetailPage() {
 
       last_edited_by: user.id,
       updated_at: new Date().toISOString(),
+      last_edited_at: new Date().toISOString(),
     };
 
     try {
