@@ -64,6 +64,7 @@ export interface Lead {
   amount: number | null;
   cs_notes: string | null;
   processor_notes: string | null;
+  general_notes: string | null;
   created_by: string;
   assigned_cs: string | null;
   last_edited_by: string | null;
