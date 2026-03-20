@@ -63,7 +63,7 @@ const Login = () => {
     if (userId) {
       try {
         const { data: checkData, error: checkError } = await supabase.functions.invoke("admin-users", {
-          body: { action: "check_access_code", user_id: userId },
+          body: { action: "check_access_code" },
         });
 
         if (checkError) {

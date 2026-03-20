@@ -32,7 +32,11 @@ import MFAEnroll from "@/components/auth/MFAEnroll";
 import { motion } from "framer-motion";
 import { heroTitle, staggerContainer, staggerItem } from "@/lib/motion";
 
-const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
+const generateCode = () => {
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  return String(100000 + (arr[0] % 900000));
+};
 
 const NAV_SECTION_LABELS: Record<string, string> = {
   leads: "All Leads",
