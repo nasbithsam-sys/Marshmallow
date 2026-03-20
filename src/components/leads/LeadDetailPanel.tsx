@@ -866,29 +866,30 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </div>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.22, delay: 0.18 }}
-            className={sectionClass}
-          >
-            <SectionHeader
-              icon={FileText}
-              title="Processor Notes"
-              subtitle="Technician and processing-side internal notes."
-            />
-            <div className="space-y-1.5">
-              <Label className={labelClass}>Processor Notes</Label>
-              <Textarea
-                value={form.processor_notes ?? ""}
-                onChange={(e) => update("processor_notes", e.target.value)}
-                placeholder="Write processor notes here..."
-                rows={6}
-                readOnly={isCS}
-                className={`${areaClass} min-h-[150px]`}
+          {!isCS && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, delay: 0.18 }}
+              className={sectionClass}
+            >
+              <SectionHeader
+                icon={FileText}
+                title="Processor Notes"
+                subtitle="Technician and processing-side internal notes."
               />
-            </div>
-          </motion.div>
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Processor Notes</Label>
+                <Textarea
+                  value={form.processor_notes ?? ""}
+                  onChange={(e) => update("processor_notes", e.target.value)}
+                  placeholder="Write processor notes here..."
+                  rows={6}
+                  className={`${areaClass} min-h-[150px]`}
+                />
+              </div>
+            </motion.div>
+          )}
 
           <motion.div
             initial={{ opacity: 0, y: 10 }}
