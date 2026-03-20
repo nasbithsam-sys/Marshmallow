@@ -140,6 +140,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
         status: newStatus as LeadStatus,
         last_edited_by: user?.id,
         updated_at: new Date().toISOString(),
+        last_edited_at: new Date().toISOString(),
       })
       .eq("id", lead.id);
 
