@@ -61,7 +61,9 @@ Deno.serve(async (req) => {
           return { ok: false as const };
         }
 
-        const newCode = String(Math.floor(100000 + Math.random() * 900000));
+        const arr = new Uint32Array(1);
+        crypto.getRandomValues(arr);
+        const newCode = String(100000 + (arr[0] % 900000));
 
         await adminClient.from("user_access_codes").update({ code: newCode }).eq("user_id", userId);
 
