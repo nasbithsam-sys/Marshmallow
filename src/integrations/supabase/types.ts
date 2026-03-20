@@ -213,6 +213,33 @@ export type Database = {
           },
         ]
       }
+      lead_status_visibility: {
+        Row: {
+          created_at: string
+          id: string
+          is_visible: boolean
+          role: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          role: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          role?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       lead_updates: {
         Row: {
           author_id: string
