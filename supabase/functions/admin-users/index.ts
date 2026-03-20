@@ -265,6 +265,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Unknown action: " + action }, 400);
   } catch (err) {
     console.error("Edge function error:", err);
-    return jsonResponse({ error: String(err) }, 500);
+    return jsonResponse({ error: "An internal error occurred" }, 500);
   }
 });
