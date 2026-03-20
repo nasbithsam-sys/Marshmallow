@@ -661,105 +661,101 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </div>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.22, delay: 0.06 }}
-            className={sectionClass}
-          >
-            <SectionHeader
-              icon={Wrench}
-              title="Processor Details"
-              subtitle="Assigned technician, quote mode, and internal cost breakdown."
-            />
+          {!isCS && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, delay: 0.06 }}
+              className={sectionClass}
+            >
+              <SectionHeader
+                icon={Wrench}
+                title="Processor Details"
+                subtitle="Assigned technician, quote mode, and internal cost breakdown."
+              />
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className={labelClass}>Tech Name</Label>
-                <Input
-                  value={form.tech_name ?? ""}
-                  onChange={(e) => update("tech_name", e.target.value)}
-                  readOnly={isCS}
-                  className={fieldClass}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Tech Name</Label>
+                  <Input
+                    value={form.tech_name ?? ""}
+                    onChange={(e) => update("tech_name", e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Tech Number</Label>
+                  <Input
+                    value={form.tech_number ?? ""}
+                    onChange={(e) => update("tech_number", e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+
+                <div className="col-span-2 space-y-1.5">
+                  <Label className={labelClass}>Terms</Label>
+                  <Select value={form.terms ?? ""} onValueChange={(v) => update("terms", v)}>
+                    <SelectTrigger className={fieldClass}>
+                      <SelectValue placeholder="Select terms..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free_estimate">Free Estimate Visit</SelectItem>
+                      <SelectItem value="quoted">Quoted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {form.terms === "quoted" && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>Customer Labor ($)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.labor_amount ?? ""}
+                        onChange={(e) => update("labor_amount", parseFloat(e.target.value) || null)}
+                        className={fieldClass}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>Materials ($)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.material_amount ?? ""}
+                        onChange={(e) => update("material_amount", parseFloat(e.target.value) || null)}
+                        className={fieldClass}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>For You ($)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.for_you_amount ?? ""}
+                        onChange={(e) => update("for_you_amount", parseFloat(e.target.value) || null)}
+                        className={fieldClass}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>For Us ($)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.for_us_amount ?? ""}
+                        onChange={(e) => update("for_us_amount", parseFloat(e.target.value) || null)}
+                        className={fieldClass}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
-
-              <div className="space-y-1.5">
-                <Label className={labelClass}>Tech Number</Label>
-                <Input
-                  value={form.tech_number ?? ""}
-                  onChange={(e) => update("tech_number", e.target.value)}
-                  readOnly={isCS}
-                  className={fieldClass}
-                />
-              </div>
-
-              <div className="col-span-2 space-y-1.5">
-                <Label className={labelClass}>Terms</Label>
-                <Select value={form.terms ?? ""} onValueChange={(v) => update("terms", v)} disabled={isCS}>
-                  <SelectTrigger className={fieldClass}>
-                    <SelectValue placeholder="Select terms..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="free_estimate">Free Estimate Visit</SelectItem>
-                    <SelectItem value="quoted">Quoted</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {form.terms === "quoted" && (
-                <>
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>Customer Labor ($)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.labor_amount ?? ""}
-                      onChange={(e) => update("labor_amount", parseFloat(e.target.value) || null)}
-                      readOnly={isCS}
-                      className={fieldClass}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>Materials ($)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.material_amount ?? ""}
-                      onChange={(e) => update("material_amount", parseFloat(e.target.value) || null)}
-                      readOnly={isCS}
-                      className={fieldClass}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>For You ($)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.for_you_amount ?? ""}
-                      onChange={(e) => update("for_you_amount", parseFloat(e.target.value) || null)}
-                      readOnly={isCS}
-                      className={fieldClass}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>For Us ($)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.for_us_amount ?? ""}
-                      onChange={(e) => update("for_us_amount", parseFloat(e.target.value) || null)}
-                      readOnly={isCS}
-                      className={fieldClass}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          </motion.div>
+            </motion.div>
+          )}
 
           <motion.div
             initial={{ opacity: 0, y: 10 }}

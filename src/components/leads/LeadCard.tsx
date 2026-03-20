@@ -212,6 +212,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
         payment_screenshot_url: screenshotUrl,
         last_edited_by: user?.id,
         updated_at: new Date().toISOString(),
+        last_edited_at: new Date().toISOString(),
       })
       .eq("id", lead.id);
 

@@ -586,7 +586,15 @@ export default function LeadDetailPage() {
     } as Lead;
   }, [originalLead, form, isNew, leadId, jobId, user]);
 
-  const allImageUrls = [...photos.map((p) => p.url), ...newPhotos.map((p) => URL.createObjectURL(p))];
+  const newPhotoUrls = useMemo(() => newPhotos.map((p) => URL.createObjectURL(p)), [newPhotos]);
+
+  useEffect(() => {
+    return () => {
+      newPhotoUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [newPhotoUrls]);
+
+  const allImageUrls = [...photos.map((p) => p.url), ...newPhotoUrls];
 
   const TimePicker = ({ prefix, label }: { prefix: "start" | "end"; label: string }) => (
     <div className="space-y-1.5">
