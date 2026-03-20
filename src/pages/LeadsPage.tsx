@@ -222,6 +222,7 @@ export default function LeadsPage() {
       "Material Amount": l.material_amount != null ? l.material_amount : "",
       "For You Amount": l.for_you_amount != null ? l.for_you_amount : "",
       "For Us Amount": l.for_us_amount != null ? l.for_us_amount : "",
+      "General Notes": l.general_notes || "",
       "CS Notes": l.cs_notes || "",
       "Processor Notes": l.processor_notes || "",
       "Payment Amount": l.payment_amount != null ? l.payment_amount : "",

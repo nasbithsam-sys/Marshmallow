@@ -321,6 +321,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         processor_notes: role !== "customer_service" ? form.processor_notes : (lead as any)?.processor_notes,
         last_edited_by: user.id,
         last_edited_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         number_name: form.number_name,
         quote: form.quote,
         service_details: form.service_details,
@@ -649,150 +650,113 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               subtitle="Customer location details used for routing and scheduling."
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-1.5">
-                <Label className={labelClass}>Street</Label>
-                <Input
-                  value={form.address ?? ""}
-                  onChange={(e) => update("address", e.target.value)}
-                  readOnly={isProcessor}
-                  className={fieldClass}
-                />
-              </div>
+            <div className="space-y-1.5">
+              <Label className={labelClass}>Address</Label>
+              <Input
+                value={form.address ?? ""}
+                onChange={(e) => update("address", e.target.value)}
+                readOnly={isProcessor}
+                placeholder="Full address"
+                className={fieldClass}
+              />
+            </div>
+          </motion.div>
 
-              <div className="space-y-1.5">
-                <Label className={labelClass}>City</Label>
-                <Input
-                  value={form.city ?? ""}
-                  onChange={(e) => update("city", e.target.value)}
-                  readOnly={isProcessor}
-                  className={fieldClass}
-                />
-              </div>
+          {!isCS && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, delay: 0.06 }}
+              className={sectionClass}
+            >
+              <SectionHeader
+                icon={Wrench}
+                title="Processor Details"
+                subtitle="Assigned technician, quote mode, and internal cost breakdown."
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className={labelClass}>State</Label>
+                  <Label className={labelClass}>Tech Name</Label>
                   <Input
-                    value={form.state ?? ""}
-                    onChange={(e) => update("state", e.target.value)}
-                    readOnly={isProcessor}
+                    value={form.tech_name ?? ""}
+                    onChange={(e) => update("tech_name", e.target.value)}
                     className={fieldClass}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className={labelClass}>Zip</Label>
+                  <Label className={labelClass}>Tech Number</Label>
                   <Input
-                    value={form.zip_code ?? ""}
-                    onChange={(e) => update("zip_code", e.target.value)}
-                    readOnly={isProcessor}
+                    value={form.tech_number ?? ""}
+                    onChange={(e) => update("tech_number", e.target.value)}
                     className={fieldClass}
                   />
                 </div>
+
+                <div className="col-span-2 space-y-1.5">
+                  <Label className={labelClass}>Terms</Label>
+                  <Select value={form.terms ?? ""} onValueChange={(v) => update("terms", v)}>
+                    <SelectTrigger className={fieldClass}>
+                      <SelectValue placeholder="Select terms..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free_estimate">Free Estimate Visit</SelectItem>
+                      <SelectItem value="quoted">Quoted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {form.terms === "quoted" && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>Customer Labor ($)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.labor_amount ?? ""}
+                        onChange={(e) => update("labor_amount", parseFloat(e.target.value) || null)}
+                        className={fieldClass}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>Materials ($)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.material_amount ?? ""}
+                        onChange={(e) => update("material_amount", parseFloat(e.target.value) || null)}
+                        className={fieldClass}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>For You ($)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.for_you_amount ?? ""}
+                        onChange={(e) => update("for_you_amount", parseFloat(e.target.value) || null)}
+                        className={fieldClass}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>For Us ($)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.for_us_amount ?? ""}
+                        onChange={(e) => update("for_us_amount", parseFloat(e.target.value) || null)}
+                        className={fieldClass}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.22, delay: 0.06 }}
-            className={sectionClass}
-          >
-            <SectionHeader
-              icon={Wrench}
-              title="Processor Details"
-              subtitle="Assigned technician, quote mode, and internal cost breakdown."
-            />
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className={labelClass}>Tech Name</Label>
-                <Input
-                  value={form.tech_name ?? ""}
-                  onChange={(e) => update("tech_name", e.target.value)}
-                  readOnly={isCS}
-                  className={fieldClass}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className={labelClass}>Tech Number</Label>
-                <Input
-                  value={form.tech_number ?? ""}
-                  onChange={(e) => update("tech_number", e.target.value)}
-                  readOnly={isCS}
-                  className={fieldClass}
-                />
-              </div>
-
-              <div className="col-span-2 space-y-1.5">
-                <Label className={labelClass}>Terms</Label>
-                <Select value={form.terms ?? ""} onValueChange={(v) => update("terms", v)} disabled={isCS}>
-                  <SelectTrigger className={fieldClass}>
-                    <SelectValue placeholder="Select terms..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="free_estimate">Free Estimate Visit</SelectItem>
-                    <SelectItem value="quoted">Quoted</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {form.terms === "quoted" && (
-                <>
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>Customer Labor ($)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.labor_amount ?? ""}
-                      onChange={(e) => update("labor_amount", parseFloat(e.target.value) || null)}
-                      readOnly={isCS}
-                      className={fieldClass}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>Materials ($)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.material_amount ?? ""}
-                      onChange={(e) => update("material_amount", parseFloat(e.target.value) || null)}
-                      readOnly={isCS}
-                      className={fieldClass}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>For You ($)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.for_you_amount ?? ""}
-                      onChange={(e) => update("for_you_amount", parseFloat(e.target.value) || null)}
-                      readOnly={isCS}
-                      className={fieldClass}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>For Us ($)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.for_us_amount ?? ""}
-                      onChange={(e) => update("for_us_amount", parseFloat(e.target.value) || null)}
-                      readOnly={isCS}
-                      className={fieldClass}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          </motion.div>
+            </motion.div>
+          )}
 
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -899,29 +863,30 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </div>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.22, delay: 0.18 }}
-            className={sectionClass}
-          >
-            <SectionHeader
-              icon={FileText}
-              title="Processor Notes"
-              subtitle="Technician and processing-side internal notes."
-            />
-            <div className="space-y-1.5">
-              <Label className={labelClass}>Processor Notes</Label>
-              <Textarea
-                value={form.processor_notes ?? ""}
-                onChange={(e) => update("processor_notes", e.target.value)}
-                placeholder="Write processor notes here..."
-                rows={6}
-                readOnly={isCS}
-                className={`${areaClass} min-h-[150px]`}
+          {!isCS && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, delay: 0.18 }}
+              className={sectionClass}
+            >
+              <SectionHeader
+                icon={FileText}
+                title="Processor Notes"
+                subtitle="Technician and processing-side internal notes."
               />
-            </div>
-          </motion.div>
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Processor Notes</Label>
+                <Textarea
+                  value={form.processor_notes ?? ""}
+                  onChange={(e) => update("processor_notes", e.target.value)}
+                  placeholder="Write processor notes here..."
+                  rows={6}
+                  className={`${areaClass} min-h-[150px]`}
+                />
+              </div>
+            </motion.div>
+          )}
 
           <motion.div
             initial={{ opacity: 0, y: 10 }}
