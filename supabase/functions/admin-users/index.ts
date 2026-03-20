@@ -127,13 +127,20 @@ Deno.serve(async (req) => {
     }
 
     if (action === "check_access_code") {
-      const { user_id } = body;
-
-      if (!user_id) {
-        return jsonResponse({ error: "user_id is required" }, 400);
+      // Require authentication - extract user_id from JWT instead of request body
+      const authHeaderForCheck = req.headers.get("Authorization");
+      if (!authHeaderForCheck?.startsWith("Bearer ")) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      const tokenForCheck = authHeaderForCheck.replace("Bearer ", "");
+      const { data: { user: checkUser }, error: checkUserError } = await adminClient.auth.getUser(tokenForCheck);
+      if (checkUserError || !checkUser) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
       }
 
-      const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", user_id).single();
+      const checkUserId = checkUser.id;
+
+      const { data: roleData } = await adminClient.from("user_roles").select("role").eq("user_id", checkUserId).single();
 
       if (roleData?.role === "admin") {
         return jsonResponse({ requires_code: false });
@@ -142,7 +149,7 @@ Deno.serve(async (req) => {
       const { data: codeData } = await adminClient
         .from("user_access_codes")
         .select("id")
-        .eq("user_id", user_id)
+        .eq("user_id", checkUserId)
         .single();
 
       return jsonResponse({ requires_code: !!codeData });
