@@ -340,6 +340,7 @@ export default function LeadDetailPage() {
         payment_screenshot_url: screenshotUrl,
         last_edited_by: user.id,
         updated_at: new Date().toISOString(),
+        last_edited_at: new Date().toISOString(),
       })
       .eq("id", leadId);
 
