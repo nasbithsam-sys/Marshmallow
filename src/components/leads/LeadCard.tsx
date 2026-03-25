@@ -336,13 +336,7 @@ export default function LeadCard({ lead, profiles, onRefresh }: LeadCardProps) {
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.06),transparent_28%)] opacity-80" />
 
         {isUrgent && (
-          <>
-            <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-destructive via-destructive/70 to-transparent" />
-            <div className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full border border-destructive/15 bg-destructive/[0.07] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-destructive">
-              <Sparkles className="h-2.5 w-2.5" />
-              Urgent
-            </div>
-          </>
+          <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-destructive via-destructive/70 to-transparent" />
         )}
 
         <div className="relative p-4 pb-3">
