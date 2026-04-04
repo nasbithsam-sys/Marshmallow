@@ -360,7 +360,7 @@ const Login = () => {
           transition={{ duration: 0.5 }}
           className="relative z-10 flex items-center gap-3"
         >
-          <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/10">
+          <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center border border-white/10">
             <Wrench className="h-5 w-5 text-white" />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-white">Lead CRM</h1>
@@ -401,7 +401,7 @@ const Login = () => {
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.5 + i * 0.08 }}
-                className="px-3.5 py-1.5 rounded-full bg-white/8 backdrop-blur-sm text-white/80 text-[11px] font-medium border border-white/8 tracking-wide"
+                className="px-3.5 py-1.5 rounded-full bg-white/8 text-white/80 text-[11px] font-medium border border-white/8 tracking-wide"
               >
                 {feature}
               </motion.span>

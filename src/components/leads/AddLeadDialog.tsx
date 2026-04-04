@@ -425,7 +425,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       }}
     >
       <DialogContent className="max-h-[94vh] w-[min(96vw,60rem)] overflow-y-auto rounded-[24px] border border-border/60 bg-card p-0 shadow-[0_24px_70px_-36px_rgba(0,0,0,0.50)] sm:rounded-[28px]">
-        <DialogHeader className="sticky top-0 z-10 border-b border-border/60 bg-card/95 px-4 pb-4 pt-5 backdrop-blur-xl sm:px-6 sm:pb-5 sm:pt-6">
+        <DialogHeader className="sticky top-0 z-10 border-b border-border/60 bg-card/95 px-4 pb-4 pt-5 sm:px-6 sm:pb-5 sm:pt-6">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-full border border-primary/10 bg-primary/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
@@ -834,7 +834,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
             </div>
           </div>
 
-          <DialogFooter className="sticky bottom-0 border-t border-border/60 bg-card/95 px-0 pb-0 pt-4 backdrop-blur-xl">
+          <DialogFooter className="sticky bottom-0 border-t border-border/60 bg-card/95 px-0 pb-0 pt-4">
             <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full rounded-xl sm:w-auto">
                 Cancel

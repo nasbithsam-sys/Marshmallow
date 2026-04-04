@@ -67,13 +67,13 @@ export default function AppSidebar() {
   const currentStatus = rawCurrentStatus && allowedStatuses.has(rawCurrentStatus) ? rawCurrentStatus : null;
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border/45 bg-[hsl(var(--sidebar-background)/0.8)] backdrop-blur-[14px]">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border/45 bg-[hsl(var(--sidebar-background)/0.8)]">
       <SidebarHeader className="p-4 pb-3">
         <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.28 }}
-          className="relative overflow-hidden rounded-[26px] border border-white/40 bg-[radial-gradient(circle_at_top_left,hsl(193_100%_87%/0.34),transparent_38%),radial-gradient(circle_at_bottom_right,hsl(210_100%_88%/0.18),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.96),hsl(var(--sidebar-accent)/0.66))] p-3 shadow-[0_24px_44px_-28px_rgba(59,130,246,0.2)] backdrop-blur-[14px]"
+          className="relative overflow-hidden rounded-[26px] border border-white/40 bg-[radial-gradient(circle_at_top_left,hsl(193_100%_87%/0.34),transparent_38%),radial-gradient(circle_at_bottom_right,hsl(210_100%_88%/0.18),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.96),hsl(var(--sidebar-accent)/0.66))] p-3 shadow-[0_24px_44px_-28px_rgba(59,130,246,0.2)]"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(148,197,255,0.28),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.28),transparent_54%)]" />
 
@@ -117,7 +117,7 @@ export default function AppSidebar() {
         <ScrollArea className="flex-1">
           <SidebarGroup>
             {!collapsed && (
-              <SidebarGroupLabel className="mb-2 rounded-[18px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(193_100%_86%/0.2),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.62))] px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/74 shadow-[0_16px_24px_-20px_rgba(59,130,246,0.16)] backdrop-blur-[10px]">
+              <SidebarGroupLabel className="mb-2 rounded-[18px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(193_100%_86%/0.2),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.62))] px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/74 shadow-[0_16px_24px_-20px_rgba(59,130,246,0.16)]">
                 Navigation
               </SidebarGroupLabel>
             )}
@@ -140,7 +140,7 @@ export default function AppSidebar() {
                             to={item.url}
                             className={`group/nav relative flex items-center rounded-[18px] border border-transparent px-3 py-2.5 transition-all duration-300 ${
                               isActive
-                                ? "border-white/34 bg-[radial-gradient(circle_at_left,hsl(194_100%_88%/0.18),transparent_28%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.98),hsl(var(--sidebar-accent)/0.82))] text-sidebar-accent-foreground shadow-[0_18px_28px_-20px_rgba(59,130,246,0.18)] ring-1 ring-white/12 backdrop-blur-[10px]"
+                                ? "border-white/34 bg-[radial-gradient(circle_at_left,hsl(194_100%_88%/0.18),transparent_28%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.98),hsl(var(--sidebar-accent)/0.82))] text-sidebar-accent-foreground shadow-[0_18px_28px_-20px_rgba(59,130,246,0.18)] ring-1 ring-white/12"
                                 : "hover:border-white/18 hover:bg-[linear-gradient(180deg,hsl(var(--sidebar-accent)/0.76),hsl(var(--sidebar-accent)/0.56))] hover:shadow-[0_12px_22px_-20px_rgba(59,130,246,0.12)]"
                             }`}
                             activeClassName="text-sidebar-accent-foreground"
@@ -201,7 +201,7 @@ export default function AppSidebar() {
               </div>
 
               <SidebarGroup>
-                <SidebarGroupLabel className="mb-2 rounded-[18px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(193_100%_86%/0.2),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.62))] px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/74 shadow-[0_16px_24px_-20px_rgba(59,130,246,0.16)] backdrop-blur-[10px]">
+                <SidebarGroupLabel className="mb-2 rounded-[18px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(193_100%_86%/0.2),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.62))] px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/74 shadow-[0_16px_24px_-20px_rgba(59,130,246,0.16)]">
                   By Status
                 </SidebarGroupLabel>
 
@@ -224,7 +224,7 @@ export default function AppSidebar() {
                               to={`/leads?status=${status}`}
                               className={`group/status relative flex items-center gap-2.5 rounded-[18px] border border-transparent px-3 py-2 transition-all duration-300 ${
                                 currentStatus === status
-                                  ? "border-white/34 bg-[radial-gradient(circle_at_left,hsl(194_100%_88%/0.14),transparent_28%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.96),hsl(var(--sidebar-accent)/0.76))] text-sidebar-accent-foreground shadow-[0_14px_24px_-20px_rgba(59,130,246,0.16)] ring-1 ring-white/10 backdrop-blur-[8px]"
+                                  ? "border-white/34 bg-[radial-gradient(circle_at_left,hsl(194_100%_88%/0.14),transparent_28%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.96),hsl(var(--sidebar-accent)/0.76))] text-sidebar-accent-foreground shadow-[0_14px_24px_-20px_rgba(59,130,246,0.16)] ring-1 ring-white/10"
                                   : "hover:border-white/18 hover:bg-[linear-gradient(180deg,hsl(var(--sidebar-accent)/0.68),hsl(var(--sidebar-accent)/0.5))]"
                               }`}
                               activeClassName="text-sidebar-accent-foreground font-semibold"
@@ -257,7 +257,7 @@ export default function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-3 pt-2">
-        <div className="rounded-[24px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(194_100%_88%/0.2),transparent_34%),radial-gradient(circle_at_bottom_right,hsl(210_100%_88%/0.14),transparent_32%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.58))] p-3 shadow-[0_18px_28px_-22px_rgba(59,130,246,0.16)] backdrop-blur-[12px]">
+        <div className="rounded-[24px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(194_100%_88%/0.2),transparent_34%),radial-gradient(circle_at_bottom_right,hsl(210_100%_88%/0.14),transparent_32%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.58))] p-3 shadow-[0_18px_28px_-22px_rgba(59,130,246,0.16)]">
           <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9 shrink-0 ring-1 ring-white/10 shadow-sm">
               <AvatarFallback className="bg-gradient-to-br from-primary via-[hsl(258,88%,64%)] to-[hsl(278,82%,62%)] text-primary-foreground text-[10px] font-bold">

@@ -37,7 +37,7 @@ const StatusBadge = ({ status, size = "md" }: StatusBadgeProps) => {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border font-semibold tracking-[-0.01em] backdrop-blur-[6px] transition-colors duration-150",
+        "inline-flex items-center rounded-full border font-semibold tracking-[-0.01em] transition-colors duration-150",
         bgColorMap[config.color] ?? bgColorMap["status-muted"],
         size === "sm" ? "gap-1.5 px-2.5 py-1 text-[10px]" : "gap-2 px-3 py-1.5 text-[11px]",
         isUrgent && "ring-1 ring-[hsl(var(--status-red)/0.18)]",

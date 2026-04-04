@@ -291,7 +291,7 @@ const SidebarInput = React.forwardRef<React.ElementRef<typeof Input>, React.Comp
         ref={ref}
         data-sidebar="input"
         className={cn(
-          "h-8 w-full border-sidebar-border/55 bg-[hsl(var(--sidebar-background)/0.46)] text-sidebar-foreground shadow-none backdrop-blur-xl focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+          "h-8 w-full border-sidebar-border/55 bg-[hsl(var(--sidebar-background)/0.46)] text-sidebar-foreground shadow-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
           className,
         )}
         {...props}
