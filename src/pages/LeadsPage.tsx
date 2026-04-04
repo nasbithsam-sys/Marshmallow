@@ -1,0 +1,719 @@
+﻿import { useState, useEffect, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useDeferredValue } from "react";
+import { useCallback } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Lead, LeadStatus, STATUS_LABELS, STATUS_DOT_COLORS, ALL_LEAD_STATUSES, compareLeadDisplayPriority } from "@/lib/constants";
+import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Search, Download, Share2, X, SlidersHorizontal } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import LeadCard from "@/components/leads/LeadCard";
+import AddLeadDialog from "@/components/leads/AddLeadDialog";
+import { toast } from "sonner";
+import * as XLSX from "xlsx";
+import { motion } from "framer-motion";
+import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
+import { getSignedUrls } from "@/lib/storage";
+
+const PAGE_SIZES = [20, 40, 60, 100];
+
+interface ProfileRow {
+  id: string;
+  full_name: string;
+}
+
+interface LeadShareRow {
+  lead_id: string;
+}
+
+interface LeadPhotoRow {
+  lead_id: string;
+  photo_url: string;
+}
+
+interface LeadNoteExportRow {
+  lead_id: string;
+  note_type: "general" | "cs" | "processor";
+  content: string;
+  user_id: string;
+  created_at: string | null;
+}
+
+export default function LeadsPage() {
+  const { user, role } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [sharedLeads, setSharedLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(0);
+  const [profiles, setProfiles] = useState<Record<string, string>>({});
+  const [photoUrlsByLead, setPhotoUrlsByLead] = useState<Record<string, string[]>>({});
+  const [activeTab, setActiveTab] = useState<"my" | "shared">("my");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const deferredSearch = useDeferredValue(search);
+
+  const rawStatusFilter = searchParams.get("status") || "all";
+  const isAdmin = role === "admin";
+  const isCS = role === "customer_service";
+
+  const { filterLeads, allowedStatuses } = useAllowedStatuses();
+
+  const safeStatusFilter = rawStatusFilter === "all" || allowedStatuses.has(rawStatusFilter) ? rawStatusFilter : "all";
+
+  useEffect(() => {
+    if (rawStatusFilter !== safeStatusFilter) {
+      if (safeStatusFilter === "all") setSearchParams({});
+      else setSearchParams({ status: safeStatusFilter });
+    }
+  }, [rawStatusFilter, safeStatusFilter, setSearchParams]);
+
+  const setStatusFilter = (value: string) => {
+    setPage(0);
+    if (value === "all") setSearchParams({});
+    else setSearchParams({ status: value });
+  };
+
+  const fetchProfiles = useCallback(async () => {
+    const { data, error } = await supabase.from("profiles").select("id, full_name");
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    if (data) {
+      const map: Record<string, string> = {};
+      (data as ProfileRow[]).forEach((p) => {
+        map[p.id] = p.full_name;
+      });
+      setProfiles(map);
+    }
+  }, []);
+
+  const fetchLeads = useCallback(async () => {
+    if (!user || !role) return;
+
+    setLoading(true);
+
+    let query = supabase.from("leads").select("*").order("created_at", { ascending: false });
+
+    // CS can see only own created leads
+    if (role === "customer_service") {
+      query = query.eq("created_by", user.id);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      toast.error(error.message);
+      setLeads([]);
+    } else {
+      setLeads((data ?? []) as Lead[]);
+    }
+
+    setLoading(false);
+  }, [role, user]);
+
+  const fetchSharedLeads = useCallback(async () => {
+    if (!user || role !== "customer_service") return;
+
+    const { data: shares, error: sharesError } = await supabase
+      .from("lead_shares")
+      .select("lead_id")
+      .eq("shared_with_user_id", user.id);
+
+    if (sharesError) {
+      toast.error(sharesError.message);
+      setSharedLeads([]);
+      return;
+    }
+
+    if (!shares || shares.length === 0) {
+      setSharedLeads([]);
+      return;
+    }
+
+    const leadIds = (shares as LeadShareRow[]).map((share) => share.lead_id);
+
+    const { data: leadsData, error: leadsError } = await supabase
+      .from("leads")
+      .select("*")
+      .in("id", leadIds)
+      .order("created_at", { ascending: false });
+
+    if (leadsError) {
+      toast.error(leadsError.message);
+      setSharedLeads([]);
+      return;
+    }
+
+    setSharedLeads((leadsData ?? []) as Lead[]);
+  }, [role, user]);
+
+  useEffect(() => {
+    if (!user || !role) return;
+
+    void fetchLeads();
+    void fetchProfiles();
+
+    if (role === "customer_service") {
+      void fetchSharedLeads();
+    } else {
+      setSharedLeads([]);
+    }
+  }, [fetchLeads, fetchProfiles, fetchSharedLeads, role, user]);
+
+  const visibleMyLeads = useMemo(() => filterLeads([...leads]), [leads, filterLeads]);
+  const visibleSharedLeads = useMemo(() => [...sharedLeads], [sharedLeads]);
+
+  const currentLeads = activeTab === "shared" ? visibleSharedLeads : visibleMyLeads;
+
+  const filtered = useMemo(() => {
+    let result = [...currentLeads];
+
+    if (safeStatusFilter !== "all") {
+      result = result.filter((l) => l.status === safeStatusFilter);
+    }
+
+    if (deferredSearch) {
+      const s = deferredSearch.toLowerCase();
+      result = result.filter(
+        (l) =>
+          l.customer_name?.toLowerCase().includes(s) ||
+          l.job_id?.toLowerCase().includes(s) ||
+          l.customer_phone?.toLowerCase().includes(s) ||
+          l.address?.toLowerCase().includes(s) ||
+          l.service_type?.toLowerCase().includes(s),
+      );
+    }
+
+    result.sort(compareLeadDisplayPriority);
+
+    return result;
+  }, [currentLeads, deferredSearch, safeStatusFilter]);
+
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
+  const pagedLeadIds = useMemo(() => paged.map((lead) => lead.id), [paged]);
+  const pagedLeadIdsKey = pagedLeadIds.join("|");
+
+  useEffect(() => {
+    if (filtered.length === 0 && page !== 0) {
+      setPage(0);
+      return;
+    }
+
+    if (totalPages > 0 && page >= totalPages) {
+      setPage(totalPages - 1);
+    }
+  }, [filtered.length, page, totalPages]);
+
+  useEffect(() => {
+    if (pagedLeadIds.length === 0) {
+      setPhotoUrlsByLead({});
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchPagedLeadPhotos = async () => {
+      const { data, error } = await supabase
+        .from("lead_photos")
+        .select("lead_id, photo_url")
+        .in("lead_id", pagedLeadIds)
+        .order("created_at", { ascending: true });
+
+      if (cancelled) return;
+
+      if (error || !data) {
+        setPhotoUrlsByLead({});
+        return;
+      }
+
+      const rows = data as LeadPhotoRow[];
+      const allPaths = rows.map((row) => row.photo_url).filter(Boolean);
+      const signedUrls = await getSignedUrls(allPaths);
+
+      if (cancelled) return;
+
+      const signedByPath = new Map<string, string>();
+      allPaths.forEach((path, index) => {
+        signedByPath.set(path, signedUrls[index] || path);
+      });
+
+      const grouped: Record<string, string[]> = {};
+
+      rows.forEach((row) => {
+        const url = signedByPath.get(row.photo_url) || row.photo_url;
+        if (!grouped[row.lead_id]) grouped[row.lead_id] = [];
+        grouped[row.lead_id].push(url);
+      });
+
+      setPhotoUrlsByLead(grouped);
+    };
+
+    void fetchPagedLeadPhotos();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pagedLeadIds, pagedLeadIdsKey]);
+
+  const countSource = activeTab === "shared" ? visibleSharedLeads : visibleMyLeads;
+
+  const urgentCount = countSource.filter((l) => l.status === "urgent_job").length;
+  const scheduledCount = countSource.filter((l) => l.status === "scheduled").length;
+  const activeCount = countSource.filter(
+    (l) => l.status !== "cancelled" && l.status !== "paid" && l.status !== "job_done",
+  ).length;
+  const hasActiveFilters = Boolean(search) || safeStatusFilter !== "all";
+
+  const exportData = async (format: "csv" | "xlsx") => {
+    const leadIds = filtered.map((lead) => lead.id);
+    const noteSummaryByLead: Record<string, { general: string; cs: string; processor: string }> = {};
+
+    if (leadIds.length > 0) {
+      const { data: noteRows, error } = await supabase
+        .from("lead_notes")
+        .select("lead_id, note_type, content, user_id, created_at")
+        .in("lead_id", leadIds)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        toast.error(`Failed to prepare note export: ${error.message}`);
+        return;
+      }
+
+      (noteRows as LeadNoteExportRow[] | null)?.forEach((note) => {
+        const key = note.note_type;
+        if (!noteSummaryByLead[note.lead_id]) {
+          noteSummaryByLead[note.lead_id] = { general: "", cs: "", processor: "" };
+        }
+
+        const authorName = profiles[note.user_id] || "Unknown";
+        const timestamp = note.created_at ? new Date(note.created_at).toLocaleString() : "";
+        const line = timestamp ? `[${timestamp}] ${authorName}: ${note.content}` : `${authorName}: ${note.content}`;
+
+        noteSummaryByLead[note.lead_id][key] = noteSummaryByLead[note.lead_id][key]
+          ? `${noteSummaryByLead[note.lead_id][key]}\n${line}`
+          : line;
+      });
+    }
+
+    const data = filtered.map((l) => ({
+      "Job ID": l.job_id,
+      "Customer Name": l.customer_name,
+      Phone: l.customer_phone || "",
+      Email: l.customer_email || "",
+      "Number Name": l.number_name || "",
+      Address: l.address || "",
+      City: l.city || "",
+      State: l.state || "",
+      "Zip Code": l.zip_code || "",
+      "Service Type": l.service_type || "",
+      Status: STATUS_LABELS[l.status],
+      "Scheduled Date": l.scheduled_date || "",
+      "Scheduled Time Start": l.scheduled_time_start || "",
+      "Scheduled Time End": l.scheduled_time_end || "",
+      Quote: l.quote || "",
+      "Service Details": l.service_details || "",
+      "Customer Schedule Requirements": l.customer_schedule_requirements || "",
+      Reference: l.reference_name || "",
+      "Tech Name": l.tech_name || "",
+      "Tech Number": l.tech_number || "",
+      Terms: l.terms || "",
+      "Labor Amount": l.labor_amount != null ? l.labor_amount : "",
+      "Material Amount": l.material_amount != null ? l.material_amount : "",
+      "For You Amount": l.for_you_amount != null ? l.for_you_amount : "",
+      "For Us Amount": l.for_us_amount != null ? l.for_us_amount : "",
+      "General Notes": noteSummaryByLead[l.id]?.general || "",
+      "CS Notes": noteSummaryByLead[l.id]?.cs || "",
+      "Processor Notes": noteSummaryByLead[l.id]?.processor || "",
+      "Payment Amount": l.payment_amount != null ? l.payment_amount : "",
+      "Created By": profiles[l.created_by] || l.created_by,
+      "Last Edited By": l.last_edited_by ? profiles[l.last_edited_by] || l.last_edited_by : "",
+      "Created At": new Date(l.created_at).toLocaleString(),
+      "Updated At": l.updated_at ? new Date(l.updated_at).toLocaleString() : "",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Leads");
+
+    const filename = `leads_${new Date().toISOString().slice(0, 10)}`;
+    XLSX.writeFile(wb, `${filename}.${format}`, format === "csv" ? { bookType: "csv" } : undefined);
+
+    toast.success(`Exported ${data.length} leads`);
+  };
+
+  const handleRefresh = useCallback(async () => {
+    await fetchLeads();
+    if (role === "customer_service") {
+      await fetchSharedLeads();
+    }
+  }, [fetchLeads, fetchSharedLeads, role]);
+
+  return (
+    <div className="mx-auto max-w-[1600px] space-y-6">
+      <motion.section
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: premiumEase }}
+        className="glass-panel-strong relative overflow-hidden rounded-[32px] px-5 py-5 shadow-[0_38px_82px_-42px_rgba(59,130,246,0.28),0_18px_32px_-24px_rgba(125,211,252,0.18)] sm:px-6 sm:py-6 dark:bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.16),transparent_28%),radial-gradient(circle_at_top_right,hsl(198_100%_62%/0.10),transparent_24%),linear-gradient(180deg,hsl(var(--card)/0.84),hsl(var(--muted)/0.30))] dark:shadow-none"
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(194_100%_86%/0.22),transparent_30%),radial-gradient(circle_at_top_right,hsl(211_100%_88%/0.24),transparent_30%),radial-gradient(circle_at_bottom_left,hsl(188_100%_90%/0.16),transparent_26%)]" />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <motion.div variants={heroTitle} initial="initial" animate="animate">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+            <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
+            Lead Workspace
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-[-0.04em] text-foreground">
+            {safeStatusFilter !== "all" ? (
+              <span className="flex items-center gap-2.5">
+                <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT_COLORS[safeStatusFilter as LeadStatus]}`} />
+                {STATUS_LABELS[safeStatusFilter as LeadStatus]}
+              </span>
+            ) : activeTab === "shared" ? (
+              "Shared Leads"
+            ) : (
+              "All Leads"
+            )}
+          </h1>
+          <p className="mt-2 max-w-2xl text-[15px] leading-6 text-muted-foreground/90">
+            {filtered.length} lead{filtered.length !== 1 ? "s" : ""}
+            {totalPages > 1 && ` · Page ${page + 1} of ${totalPages}`}
+            {" · "}Search fast, change status quickly, and keep work moving without clutter.
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.15, duration: 0.35 }}
+          className="flex items-center gap-2 flex-wrap"
+        >
+          {isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 text-[12px]">
+                  <Download className="h-3.5 w-3.5" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => void exportData("csv")}>Export as CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void exportData("xlsx")}>Export as XLSX</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {(isAdmin || isCS) && (
+            <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Lead
+            </Button>
+          )}
+
+          <AddLeadDialog
+            open={showAddDialog}
+            onOpenChange={setShowAddDialog}
+            onSuccess={() => {
+              fetchLeads();
+              if (role === "customer_service") {
+                fetchSharedLeads();
+              }
+            }}
+          />
+        </motion.div>
+        </div>
+      </motion.section>
+
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+      >
+        <motion.div whileHover={{ y: -3 }} transition={silkySpring} className="glass-panel rounded-[26px] p-4 shadow-[0_28px_54px_-34px_rgba(59,130,246,0.22)] dark:bg-[linear-gradient(180deg,hsl(var(--card)/0.86),hsl(var(--muted)/0.28))] dark:shadow-none">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/85">Active Pipeline</p>
+          <div className="mt-3 flex items-end justify-between gap-3">
+            <span className="text-3xl font-semibold tracking-[-0.04em] text-foreground tabular-nums">{activeCount}</span>
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/10 bg-primary/[0.08]">
+              <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+            </span>
+          </div>
+        </motion.div>
+
+        {urgentCount > 0 && (
+          <motion.div whileHover={{ y: -3 }} transition={silkySpring} className="rounded-[26px] border border-destructive/22 bg-[radial-gradient(circle_at_top_left,hsl(var(--destructive)/0.12),transparent_34%),linear-gradient(180deg,hsl(0_0%_100%/0.8),hsl(12_100%_97%/0.64))] p-4 shadow-[0_26px_50px_-30px_rgba(239,68,68,0.18),0_12px_24px_-20px_rgba(251,146,60,0.12)] backdrop-blur-[20px] dark:border-destructive/18 dark:bg-[radial-gradient(circle_at_top_left,hsl(var(--destructive)/0.12),transparent_34%),linear-gradient(180deg,hsl(225_28%_18%/0.96),hsl(226_26%_15%/0.92))] dark:shadow-[0_22px_42px_-30px_rgba(239,68,68,0.22)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-destructive/75">Urgent Attention</p>
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <span className="text-3xl font-semibold tracking-[-0.04em] text-destructive tabular-nums">{urgentCount}</span>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-destructive/15 bg-destructive/[0.1] dark:border-destructive/22 dark:bg-destructive/[0.14]">
+                <span className="h-2.5 w-2.5 rounded-full bg-destructive status-pulse" />
+              </span>
+            </div>
+          </motion.div>
+        )}
+
+        {scheduledCount > 0 && (
+          <motion.div whileHover={{ y: -3 }} transition={silkySpring} className="glass-panel rounded-[26px] p-4 shadow-[0_28px_54px_-34px_rgba(59,130,246,0.22)] dark:bg-[linear-gradient(180deg,hsl(var(--card)/0.86),hsl(var(--muted)/0.28))] dark:shadow-none">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/85">Scheduled Jobs</p>
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <span className="text-3xl font-semibold tracking-[-0.04em] text-foreground tabular-nums">{scheduledCount}</span>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/10 bg-primary/[0.06]">
+                <span className="h-2.5 w-2.5 rounded-full bg-primary/60" />
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
+
+      {isCS && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="glass-panel inline-flex gap-1 rounded-[22px] p-1.5 dark:bg-[linear-gradient(180deg,hsl(var(--card)/0.84),hsl(var(--muted)/0.28))]"
+        >
+          <button
+            onClick={() => {
+              setActiveTab("my");
+              setPage(0);
+            }}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+              activeTab === "my"
+                ? "crm-lead-card-inner text-foreground shadow-[0_12px_24px_-18px_rgba(59,130,246,0.2)]"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            My Leads
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("shared");
+              setPage(0);
+            }}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
+              activeTab === "shared"
+                ? "crm-lead-card-inner text-foreground shadow-[0_12px_24px_-18px_rgba(59,130,246,0.2)]"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Shared with me
+            {visibleSharedLeads.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                {visibleSharedLeads.length}
+              </span>
+            )}
+          </button>
+        </motion.div>
+      )}
+
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="glass-panel-strong rounded-[30px] p-3 shadow-[0_34px_74px_-40px_rgba(59,130,246,0.24)] dark:bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.10),transparent_24%),linear-gradient(180deg,hsl(var(--card)/0.84),hsl(var(--muted)/0.30))] dark:shadow-none"
+      >
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-border/50 px-1 pb-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Refine Results</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">Search, filter, and resize the workspace without losing context.</p>
+          </div>
+          {hasActiveFilters && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-10 rounded-xl px-4"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("all");
+              }}
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
+        <div className="crm-lead-card-soft flex flex-col gap-3 rounded-[26px] p-3.5 shadow-[0_20px_34px_-26px_rgba(59,130,246,0.18)] lg:flex-row lg:items-center dark:shadow-none">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40 transition-colors group-focus-within:text-primary" />
+            <Input
+              placeholder="Search by name, phone, address, job ID..."
+              className="crm-lead-card-inner h-11 rounded-[18px] border-border/70 bg-transparent pl-10 pr-10 shadow-[0_22px_32px_-24px_rgba(59,130,246,0.18)]"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setPage(0);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground/55 transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Select value={safeStatusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="crm-lead-card-inner h-11 w-full rounded-[18px] border-border/70 bg-transparent shadow-[0_18px_28px_-22px_rgba(56,189,248,0.2)] sm:w-[220px]">
+                <SlidersHorizontal className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {ALL_LEAD_STATUSES.filter((s) => allowedStatuses.has(s)).map((s) => (
+                  <SelectItem key={s} value={s}>
+                    <span className="flex items-center gap-2">
+                      <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT_COLORS[s]}`} />
+                      {STATUS_LABELS[s]}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPage(0);
+              }}
+            >
+              <SelectTrigger className="crm-lead-card-inner h-11 w-full rounded-[18px] border-border/70 bg-transparent shadow-[0_18px_28px_-22px_rgba(56,189,248,0.2)] sm:w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZES.map((s) => (
+                  <SelectItem key={s} value={String(s)}>
+                    Show {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+          </div>
+        </div>
+      </motion.div>
+
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-56 rounded-xl skeleton-shimmer border border-border/30" />
+          ))}
+        </div>
+      ) : paged.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.35 }}
+        >
+          <Card className="crm-lead-card flex min-h-[260px] flex-col items-center justify-center gap-3 border-dashed border-2 px-6 text-center shadow-[0_34px_74px_-40px_rgba(59,130,246,0.22)] dark:shadow-none">
+            <div className="crm-lead-card-inner flex h-14 w-14 items-center justify-center rounded-2xl">
+              <Search className="h-5 w-5 text-muted-foreground/30" />
+            </div>
+            <p className="font-medium text-foreground text-base">
+              {activeTab === "shared" ? "No leads have been shared with you yet" : "No leads found"}
+            </p>
+            <p className="max-w-sm text-[13px] text-muted-foreground">
+              {search || safeStatusFilter !== "all"
+                ? "Try adjusting your search or filter"
+                : 'Click "New Lead" to get started'}
+            </p>
+            {hasActiveFilters && (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-1 rounded-xl"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                }}
+              >
+                Reset Filters
+              </Button>
+            )}
+          </Card>
+        </motion.div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {paged.map((lead) => (
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              profiles={profiles}
+              onRefresh={handleRefresh}
+              photoUrls={photoUrlsByLead[lead.id]}
+            />
+          ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="flex items-center justify-center gap-1.5 pt-2"
+        >
+          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+            Previous
+          </Button>
+
+          <div className="flex gap-1">
+            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+              let p = i;
+
+              if (totalPages > 7) {
+                if (page < 4) p = i;
+                else if (page > totalPages - 5) p = totalPages - 7 + i;
+                else p = page - 3 + i;
+              }
+
+              return (
+                <Button
+                  key={p}
+                  variant={p === page ? "default" : "outline"}
+                  size="sm"
+                  className="w-9"
+                  onClick={() => setPage(p)}
+                >
+                  {p + 1}
+                </Button>
+              );
+            })}
+          </div>
+
+          <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
+            Next
+          </Button>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+

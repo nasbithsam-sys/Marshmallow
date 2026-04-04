@@ -1,0 +1,1278 @@
+﻿import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useCallback } from "react";
+import type { ChangeEvent, ElementType } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { logActivity } from "@/lib/activity";
+import { formatUSPhone } from "@/lib/phone";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  Save,
+  AlertCircle,
+  ImagePlus,
+  X,
+  ChevronDown,
+  User,
+  Wrench,
+  Calendar,
+  Check,
+  Phone,
+  MapPin,
+  Clock3,
+  BadgeDollarSign,
+  Sparkles,
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
+import PaymentDialog from "@/components/leads/PaymentDialog";
+import ImageLightbox from "@/components/leads/ImageLightbox";
+import CopyLeadButton from "@/components/leads/CopyLeadButton";
+import NoteThread from "@/components/leads/NoteThread";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
+import { getChangeableStatuses } from "@/lib/constants";
+import StatusBadge from "@/components/leads/StatusBadge";
+import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
+
+const generateJobId = () => {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "LD-";
+  for (let i = 0; i < 6; i++) result += chars[Math.floor(Math.random() * chars.length)];
+  return result;
+};
+
+const sendNotifications = async (leadName: string, status: string, leadId: string) => {
+  if (status !== "urgent_job" && status !== "need_tech") return;
+
+  const { data: roles } = await supabase.from("user_roles").select("user_id, role").in("role", ["admin", "processor"]);
+
+  if (!roles || roles.length === 0) return;
+
+  const statusLabel = status === "urgent_job" ? "Urgent Job" : "Need Tech";
+
+  const notifications = roles.map((r: { user_id: string }) => ({
+    user_id: r.user_id,
+    title: `[Alert] ${statusLabel}`,
+    message: `Lead "${leadName}" changed to ${statusLabel}`,
+    lead_id: leadId,
+    read: false,
+  }));
+
+  await supabase.from("notifications").insert(notifications);
+};
+
+const SectionHeader = ({
+  icon: Icon,
+  title,
+  subtitle,
+  open,
+}: {
+  icon: ElementType;
+  title: string;
+  subtitle?: string;
+  open: boolean;
+}) => (
+  <div className="flex w-full items-start gap-3">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary/12 bg-gradient-to-br from-primary/[0.10] to-primary/[0.04] shadow-inner">
+      <Icon className="h-4 w-4 text-primary/80" />
+    </div>
+    <div className="min-w-0 flex-1 text-left">
+      <div className="text-[14px] font-semibold tracking-[-0.015em] text-foreground">{title}</div>
+      {subtitle && <div className="mt-0.5 text-[12px] leading-5 text-muted-foreground">{subtitle}</div>}
+    </div>
+    <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+      <ChevronDown className="h-4 w-4 text-muted-foreground/70" />
+    </motion.span>
+  </div>
+);
+
+export default function LeadDetailPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { user, role } = useAuth();
+
+  const isNew = id === "new";
+  const isCS = role === "customer_service";
+  const isProcessor = role === "processor";
+  const isAdmin = role === "admin";
+
+  const [loading, setLoading] = useState(!isNew);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const [leadId, setLeadId] = useState<string | null>(isNew ? null : id || null);
+  const [originalLead, setOriginalLead] = useState<Lead | null>(null);
+
+  const [jobId, setJobId] = useState("");
+  const [createdBy, setCreatedBy] = useState("");
+  const [lastEditedBy, setLastEditedBy] = useState("");
+  const [lastEditedAt, setLastEditedAt] = useState("");
+
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
+  const [photos, setPhotos] = useState<{ id: string; url: string; path?: string }[]>([]);
+  const [newPhotos, setNewPhotos] = useState<File[]>([]);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const [csOpen, setCsOpen] = useState(true);
+  const [processorOpen, setProcessorOpen] = useState(role !== "customer_service");
+  const [scheduleOpen, setScheduleOpen] = useState(true);
+
+  const [form, setForm] = useState({
+    customer_name: "",
+    customer_phone: "",
+    customer_email: "",
+    number_name: "",
+    address: "",
+    city: "",
+    state: "",
+    zip_code: "",
+    service_type: "",
+    status: "waiting_complete_details" as LeadStatus,
+    scheduled_date: "",
+    start_hour: "12",
+    start_minute: "00",
+    start_ampm: "AM",
+    end_hour: "2",
+    end_minute: "00",
+    end_ampm: "PM",
+
+    quote: "",
+    service_details: "",
+    customer_schedule_requirements: "",
+    reference_name: "",
+
+    tech_name: "",
+    tech_number: "",
+    terms: "" as "" | "free_estimate" | "quoted",
+    labor_amount: "",
+    material_amount: "",
+    for_you_amount: "",
+    for_us_amount: "",
+
+    amount: "",
+    payment_screenshot_url: "",
+  });
+
+  const duplicateCheckId = isNew ? undefined : leadId || undefined;
+  const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone, duplicateCheckId);
+
+  const fieldClass =
+    "crm-lead-card-inner border-border/65 bg-transparent text-foreground shadow-[0_18px_30px_-24px_rgba(59,130,246,0.12)] placeholder:text-muted-foreground/65 focus-visible:border-primary/35 focus-visible:bg-[hsl(var(--background)/0.96)] dark:shadow-none";
+  const labelClass = "text-[12px] font-semibold tracking-[-0.01em] text-foreground/82";
+  const sectionClass =
+    "glass-panel rounded-[26px] border border-border/65 p-5 shadow-[0_26px_54px_-34px_rgba(59,130,246,0.18)] space-y-4 dark:shadow-none";
+  const collapsibleShellClass =
+    "glass-panel rounded-[24px] border border-border/60 px-4 py-4 text-left transition-all duration-200 hover:border-primary/18 hover:shadow-[0_22px_40px_-28px_rgba(59,130,246,0.14)] dark:shadow-none";
+
+  const fetchProfilesAndMeta = async (lead: Lead) => {
+    const { data: creator } = await supabase.from("profiles").select("full_name").eq("id", lead.created_by).single();
+    setCreatedBy(creator?.full_name || "Unknown");
+
+    if (lead.last_edited_by) {
+      const { data: editor } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", lead.last_edited_by)
+        .single();
+      setLastEditedBy(editor?.full_name || "Unknown");
+    } else {
+      setLastEditedBy("");
+    }
+
+    setLastEditedAt(lead.updated_at || "");
+  };
+
+  const setFormFromLead = (lead: Lead) => {
+    const parseTimeParts = (time?: string | null, fallbackHour = "12", fallbackMinute = "00", fallbackAmpm = "AM") => {
+      if (!time) {
+        return { hour: fallbackHour, minute: fallbackMinute, ampm: fallbackAmpm };
+      }
+
+      const [rawHour, minute] = time.split(":");
+      let hourNum = parseInt(rawHour, 10);
+      const ampm = hourNum >= 12 ? "PM" : "AM";
+      hourNum = hourNum % 12 || 12;
+
+      return {
+        hour: String(hourNum),
+        minute: minute || "00",
+        ampm,
+      };
+    };
+
+    const start = parseTimeParts(lead.scheduled_time_start, "12", "00", "AM");
+    const end = parseTimeParts(lead.scheduled_time_end, "2", "00", "PM");
+
+    setForm({
+      customer_name: lead.customer_name || "",
+      customer_phone: lead.customer_phone ? formatUSPhone(lead.customer_phone) : "",
+      customer_email: lead.customer_email || "",
+      number_name: lead.number_name || "",
+      address: lead.address || "",
+      city: lead.city || "",
+      state: lead.state || "",
+      zip_code: lead.zip_code || "",
+      service_type: lead.service_type || "",
+      status: (lead.status || "waiting_complete_details") as LeadStatus,
+      scheduled_date: lead.scheduled_date || "",
+      start_hour: start.hour,
+      start_minute: start.minute,
+      start_ampm: start.ampm,
+      end_hour: end.hour,
+      end_minute: end.minute,
+      end_ampm: end.ampm,
+
+      quote: lead.quote || "",
+      service_details: lead.service_details || "",
+      customer_schedule_requirements: lead.customer_schedule_requirements || "",
+      reference_name: lead.reference_name || "",
+
+      tech_name: lead.tech_name || "",
+      tech_number: lead.tech_number ? formatUSPhone(lead.tech_number) : "",
+      terms: lead.terms || "",
+      labor_amount: lead.labor_amount != null ? String(lead.labor_amount) : "",
+      material_amount: lead.material_amount != null ? String(lead.material_amount) : "",
+      for_you_amount: lead.for_you_amount != null ? String(lead.for_you_amount) : "",
+      for_us_amount: lead.for_us_amount != null ? String(lead.for_us_amount) : "",
+
+      amount: lead.amount != null ? String(lead.amount) : "",
+      payment_screenshot_url: lead.payment_screenshot_url || "",
+    });
+  };
+
+  const fetchLead = useCallback(async () => {
+    if (!id || isNew) return;
+
+    setLoading(true);
+
+    const { data: lead, error } = await supabase.from("leads").select("*").eq("id", id).single();
+
+    if (error || !lead) {
+      toast.error("Lead not found");
+      navigate("/leads");
+      return;
+    }
+
+    setLeadId(lead.id);
+    setOriginalLead(lead as Lead);
+    setJobId(lead.job_id);
+    setFormFromLead(lead);
+    await fetchProfilesAndMeta(lead);
+    setLoading(false);
+  }, [id, isNew, navigate]);
+
+  const fetchPhotos = async (currentLeadId: string) => {
+    const { data } = await supabase
+      .from("lead_photos")
+      .select("id, photo_url")
+      .eq("lead_id", currentLeadId)
+      .order("created_at", { ascending: true });
+
+    if (data) {
+      const { getSignedUrls } = await import("@/lib/storage");
+      const rows = data as Array<{ id: string; photo_url: string }>;
+      const paths = rows.map((p) => p.photo_url);
+      const urls = await getSignedUrls(paths);
+      setPhotos(rows.map((p, i) => ({ id: p.id, url: urls[i], path: p.photo_url })));
+    } else {
+      setPhotos([]);
+    }
+  };
+
+  useEffect(() => {
+    if (isNew) {
+      setLoading(false);
+      setJobId(generateJobId());
+      return;
+    }
+    fetchLead();
+  }, [fetchLead, id, isNew]);
+
+  useEffect(() => {
+    if (leadId) {
+      fetchPhotos(leadId);
+    }
+  }, [leadId]);
+
+  const update = (key: string, value: string) => {
+    if (key === "customer_phone" || key === "tech_number") {
+      setForm((prev) => ({ ...prev, [key]: formatUSPhone(value) }));
+      return;
+    }
+
+    if (key === "status" && value === "paid") {
+      setPaymentOpen(true);
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const parseTime = (hour: string, minute: string, ampm: string) => {
+    let h = parseInt(hour, 10);
+    if (ampm === "PM" && h !== 12) h += 12;
+    if (ampm === "AM" && h === 12) h = 0;
+    return `${h.toString().padStart(2, "0")}:${minute}`;
+  };
+
+  const handlePhotoAdd = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setNewPhotos((prev) => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const removeNewPhoto = (index: number) => {
+    setNewPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingPhoto = async (photoId: string) => {
+    const photo = photos.find((item) => item.id === photoId);
+
+    await supabase.from("lead_photos").delete().eq("id", photoId);
+
+    if (photo?.path) {
+      await supabase.storage.from("lead-photos").remove([photo.path]);
+    }
+
+    setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+  };
+
+  const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
+    if (!leadId || !user) {
+      toast.error("Save the lead first before recording payment");
+      setPaymentOpen(false);
+      return;
+    }
+
+    setPaymentLoading(true);
+    let screenshotUrl: string | null = null;
+
+    if (screenshotFile) {
+      const ext = screenshotFile.name.split(".").pop();
+      const path = `payments/${leadId}_${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, screenshotFile);
+
+      if (!uploadError) {
+        screenshotUrl = path;
+      }
+    }
+
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        status: "paid",
+        amount,
+        payment_amount: amount,
+        payment_screenshot_url: screenshotUrl,
+        last_edited_by: user.id,
+        updated_at: new Date().toISOString(),
+        last_edited_at: new Date().toISOString(),
+      })
+      .eq("id", leadId);
+
+    setPaymentLoading(false);
+    setPaymentOpen(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      status: "paid",
+      amount: String(amount),
+      payment_screenshot_url: screenshotUrl || prev.payment_screenshot_url,
+    }));
+
+    await fetchLead();
+    toast.success("Payment recorded & status updated to Paid");
+  };
+
+  const uploadNewPhotos = async (currentLeadId: string) => {
+    for (const photo of newPhotos) {
+      const ext = photo.name.split(".").pop();
+      const path = `leads/${currentLeadId}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { error: uploadErr } = await supabase.storage.from("lead-photos").upload(path, photo);
+
+      if (!uploadErr) {
+        await supabase.from("lead_photos").insert({
+          lead_id: currentLeadId,
+          photo_url: path,
+          uploaded_by: user!.id,
+        });
+      }
+    }
+
+    setNewPhotos([]);
+    await fetchPhotos(currentLeadId);
+  };
+
+  const insertInitialNotes = async (currentLeadId: string) => {
+    if (!user) return;
+
+    const noteInserts: { lead_id: string; user_id: string; note_type: "cs" | "processor" | "general"; content: string }[] = [];
+
+    if (!isProcessor && form.cs_notes.trim()) {
+      noteInserts.push({
+        lead_id: currentLeadId,
+        user_id: user.id,
+        note_type: "cs",
+        content: form.cs_notes.trim(),
+      });
+    }
+
+    if (!isCS && form.processor_notes.trim()) {
+      noteInserts.push({
+        lead_id: currentLeadId,
+        user_id: user.id,
+        note_type: "processor",
+        content: form.processor_notes.trim(),
+      });
+    }
+
+    if (form.general_notes.trim()) {
+      noteInserts.push({
+        lead_id: currentLeadId,
+        user_id: user.id,
+        note_type: "general",
+        content: form.general_notes.trim(),
+      });
+    }
+
+    if (noteInserts.length > 0) {
+      await supabase.from("lead_notes").insert(noteInserts);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    if (!form.customer_name.trim()) {
+      toast.error("Customer Name is required");
+      return;
+    }
+
+    if (!form.customer_phone.trim()) {
+      toast.error("Phone Number is required");
+      return;
+    }
+
+    if (!form.number_name.trim()) {
+      toast.error("Number Name is required");
+      return;
+    }
+
+    if (isDuplicate) {
+      toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
+      return;
+    }
+
+    setSaving(true);
+
+    let scheduled_time_start: string | null = null;
+    let scheduled_time_end: string | null = null;
+
+    if (form.scheduled_date) {
+      scheduled_time_start = parseTime(form.start_hour, form.start_minute, form.start_ampm);
+      scheduled_time_end = parseTime(form.end_hour, form.end_minute, form.end_ampm);
+    }
+
+    const payload = {
+      customer_name: form.customer_name,
+      customer_phone: form.customer_phone || null,
+      customer_email: form.customer_email || null,
+      number_name: form.number_name || null,
+      address: form.address || null,
+      city: form.city || null,
+      state: form.state || null,
+      zip_code: form.zip_code || null,
+      service_type: form.service_type || null,
+      status: form.status,
+      scheduled_date: form.scheduled_date || null,
+      scheduled_time_start,
+      scheduled_time_end,
+
+      quote: form.quote || null,
+      service_details: form.service_details || null,
+      customer_schedule_requirements: form.customer_schedule_requirements || null,
+      reference_name: form.reference_name || null,
+
+      tech_name: role !== "customer_service" ? form.tech_name || null : (originalLead?.tech_name ?? null),
+      tech_number: role !== "customer_service" ? form.tech_number || null : (originalLead?.tech_number ?? null),
+      terms: role !== "customer_service" ? form.terms || null : (originalLead?.terms ?? null),
+      labor_amount:
+        role !== "customer_service"
+          ? form.labor_amount
+            ? parseFloat(form.labor_amount)
+            : null
+          : (originalLead?.labor_amount ?? null),
+      material_amount:
+        role !== "customer_service"
+          ? form.material_amount
+            ? parseFloat(form.material_amount)
+            : null
+          : (originalLead?.material_amount ?? null),
+      for_you_amount:
+        role !== "customer_service"
+          ? form.for_you_amount
+            ? parseFloat(form.for_you_amount)
+            : null
+          : (originalLead?.for_you_amount ?? null),
+      for_us_amount:
+        role !== "customer_service"
+          ? form.for_us_amount
+            ? parseFloat(form.for_us_amount)
+            : null
+          : (originalLead?.for_us_amount ?? null),
+
+      last_edited_by: user.id,
+      updated_at: new Date().toISOString(),
+      last_edited_at: new Date().toISOString(),
+    };
+
+    try {
+      if (isNew) {
+        const insertData = {
+          ...payload,
+          job_id: jobId || generateJobId(),
+          created_by: user.id,
+          assigned_cs: isCS ? user.id : null,
+        };
+
+        const { data, error } = await supabase.from("leads").insert(insertData).select().single();
+
+        if (error) throw error;
+
+        const newLeadId = data.id;
+        setLeadId(newLeadId);
+        setOriginalLead(data as Lead);
+
+        await insertInitialNotes(newLeadId);
+
+        if (newPhotos.length > 0) {
+          await uploadNewPhotos(newLeadId);
+        }
+
+        await sendNotifications(form.customer_name, form.status, newLeadId);
+        await logActivity(user.id, "created", "lead", newLeadId, { customer_name: form.customer_name });
+
+        toast.success("Lead created!");
+
+        navigate(`/leads/${newLeadId}`, { replace: true });
+        setSaving(false);
+        return;
+      }
+
+      if (!leadId) throw new Error("Missing lead id");
+
+      const previousStatus = originalLead?.status;
+      if (form.status === "paid" && form.amount) {
+        payload.amount = parseFloat(form.amount);
+      }
+
+      const { error } = await supabase.from("leads").update(payload).eq("id", leadId);
+
+      if (error) throw error;
+
+      if (newPhotos.length > 0) {
+        await uploadNewPhotos(leadId);
+      }
+
+      if (previousStatus !== form.status && (form.status === "urgent_job" || form.status === "need_tech")) {
+        await sendNotifications(form.customer_name, form.status, leadId);
+      }
+
+      const changedDetails: Record<string, unknown> = { customer_name: form.customer_name };
+      if (previousStatus && previousStatus !== form.status) {
+        changedDetails.status_from = LEAD_STATUS_CONFIG[previousStatus]?.label || previousStatus;
+        changedDetails.status_to = LEAD_STATUS_CONFIG[form.status]?.label || form.status;
+      }
+      await logActivity(user.id, "updated", "lead", leadId, changedDetails);
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+
+      await fetchLead();
+      toast.success("Lead updated!");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to save lead";
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const currentCopyLead = useMemo(() => {
+    if (isNew || !leadId) return null;
+
+    return {
+      ...(originalLead || {}),
+      id: leadId,
+      job_id: jobId,
+      customer_name: form.customer_name,
+      customer_phone: form.customer_phone || null,
+      customer_email: form.customer_email || null,
+      number_name: form.number_name || null,
+      address: form.address || null,
+      city: form.city || null,
+      state: form.state || null,
+      zip_code: form.zip_code || null,
+      service_type: form.service_type || null,
+      status: form.status,
+      scheduled_date: form.scheduled_date || null,
+      scheduled_time_start: form.scheduled_date ? parseTime(form.start_hour, form.start_minute, form.start_ampm) : null,
+      scheduled_time_end: form.scheduled_date ? parseTime(form.end_hour, form.end_minute, form.end_ampm) : null,
+      quote: form.quote || null,
+      service_details: form.service_details || null,
+      customer_schedule_requirements: form.customer_schedule_requirements || null,
+      reference_name: form.reference_name || null,
+      tech_name: form.tech_name || null,
+      tech_number: form.tech_number || null,
+      terms: form.terms || null,
+      labor_amount: form.labor_amount ? parseFloat(form.labor_amount) : null,
+      material_amount: form.material_amount ? parseFloat(form.material_amount) : null,
+      for_you_amount: form.for_you_amount ? parseFloat(form.for_you_amount) : null,
+      for_us_amount: form.for_us_amount ? parseFloat(form.for_us_amount) : null,
+      general_notes: originalLead?.general_notes || null,
+      cs_notes: originalLead?.cs_notes || null,
+      processor_notes: originalLead?.processor_notes || null,
+      created_by: originalLead?.created_by || user?.id || "",
+      created_at: originalLead?.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_edited_by: user?.id || originalLead?.last_edited_by || "",
+      payment_screenshot_url: form.payment_screenshot_url || null,
+      amount: form.amount ? parseFloat(form.amount) : null,
+      payment_amount: form.amount ? parseFloat(form.amount) : null,
+    } as Lead;
+  }, [originalLead, form, isNew, leadId, jobId, user]);
+
+  const newPhotoUrls = useMemo(() => newPhotos.map((p) => URL.createObjectURL(p)), [newPhotos]);
+
+  useEffect(() => {
+    return () => {
+      newPhotoUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [newPhotoUrls]);
+
+  const allImageUrls = [...photos.map((p) => p.url), ...newPhotoUrls];
+  const visiblePhotoCount = photos.length + newPhotos.length;
+  const scheduleSummary = form.scheduled_date
+    ? `${new Date(form.scheduled_date).toLocaleDateString()}${
+        form.start_hour && form.end_hour ? ` · ${form.start_hour}:${form.start_minute} ${form.start_ampm} - ${form.end_hour}:${form.end_minute} ${form.end_ampm}` : ""
+      }`
+    : "Not scheduled yet";
+
+  const TimePicker = ({ prefix, label }: { prefix: "start" | "end"; label: string }) => (
+    <div className="space-y-1.5">
+      <Label className={labelClass}>{label}</Label>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Select value={form[`${prefix}_hour` as keyof typeof form]} onValueChange={(v) => update(`${prefix}_hour`, v)}>
+          <SelectTrigger className="h-10 w-[72px] border-border/60 bg-background/90">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+              <SelectItem key={h} value={String(h)}>
+                {h}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <span className="text-muted-foreground/50">:</span>
+
+        <Select
+          value={form[`${prefix}_minute` as keyof typeof form]}
+          onValueChange={(v) => update(`${prefix}_minute`, v)}
+        >
+          <SelectTrigger className="h-10 w-[72px] border-border/60 bg-background/90">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {["00", "15", "30", "45"].map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={form[`${prefix}_ampm` as keyof typeof form]} onValueChange={(v) => update(`${prefix}_ampm`, v)}>
+          <SelectTrigger className="h-10 w-[76px] border-border/60 bg-background/90">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="AM">AM</SelectItem>
+            <SelectItem value="PM">PM</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <div className="flex h-72 items-center justify-center">
+        <div className="glass-panel rounded-2xl px-5 py-4 text-sm text-muted-foreground dark:bg-[linear-gradient(180deg,hsl(var(--card)/0.94),hsl(var(--muted)/0.30))]">
+          Loading lead details...
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-6">
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: premiumEase }}
+        className="overflow-hidden rounded-[30px] border border-border/60 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.12),transparent_26%),linear-gradient(180deg,hsl(var(--card)),hsl(var(--muted)/0.18))] shadow-[0_26px_70px_-40px_rgba(0,0,0,0.48)]"
+      >
+        <div className="flex flex-col gap-5 px-5 py-5 sm:px-6 sm:py-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <Button variant="ghost" size="icon" onClick={() => navigate("/leads")} className="mt-1 shrink-0 rounded-xl">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+
+              <motion.div variants={heroTitle} initial="initial" animate="animate" className="min-w-0">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {isNew ? "Lead Creation" : "Lead Detail"}
+                </div>
+                <h1 className="truncate text-2xl font-semibold tracking-[-0.04em] text-foreground sm:text-3xl">
+                  {isNew ? "New Lead" : form.customer_name || "Lead"}
+                </h1>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  {jobId && <p className="font-mono text-[13px] text-muted-foreground">{jobId}</p>}
+                  <StatusBadge status={form.status} />
+                </div>
+                <p className="mt-3 max-w-2xl text-[14px] leading-6 text-muted-foreground">
+                  Keep customer intake, processor notes, schedule details, and photos organized in one readable workspace.
+                </p>
+              </motion.div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {!isCS && currentCopyLead && <CopyLeadButton lead={currentCopyLead} />}
+              <Button onClick={handleSave} disabled={saving || isDuplicate} className="gap-2">
+                {saved ? (
+                  <>
+                    <Check className="h-4 w-4" /> Saved
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" /> {saving ? "Saving..." : isNew ? "Create Lead" : "Save Lead"}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 border-t border-border/50 pt-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="crm-lead-card-inner rounded-2xl px-4 py-3">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <Phone className="h-3.5 w-3.5" />
+                Contact
+              </div>
+              <p className="mt-2 text-sm font-semibold text-foreground">{form.customer_phone || "Phone pending"}</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">{form.customer_email || "No email added yet"}</p>
+            </div>
+            <div className="crm-lead-card-inner rounded-2xl px-4 py-3">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5" />
+                Service
+              </div>
+              <p className="mt-2 text-sm font-semibold text-foreground">{form.service_type || "Service not set"}</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">{form.address || "Address not entered yet"}</p>
+            </div>
+            <div className="crm-lead-card-inner rounded-2xl px-4 py-3">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <Clock3 className="h-3.5 w-3.5" />
+                Schedule
+              </div>
+              <p className="mt-2 text-sm font-semibold text-foreground">{scheduleSummary}</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                {form.status === "scheduled" ? "Job is scheduled." : "Use status and timing to guide the handoff."}
+              </p>
+            </div>
+            <div className="crm-lead-card-inner rounded-2xl px-4 py-3">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <BadgeDollarSign className="h-3.5 w-3.5" />
+                Activity
+              </div>
+              <p className="mt-2 text-sm font-semibold text-foreground">
+                {isNew ? "Draft lead" : `Created by ${createdBy || "Unknown"}`}
+              </p>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                {lastEditedBy && lastEditedAt
+                  ? `Last updated by ${lastEditedBy} on ${new Date(lastEditedAt).toLocaleString()}`
+                  : `${visiblePhotoCount} photo${visiblePhotoCount !== 1 ? "s" : ""} attached`}
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.section>
+
+      <Card className="border-border/60 bg-card/95 shadow-[0_18px_42px_-30px_rgba(37,99,235,0.16)] dark:shadow-[0_22px_48px_-30px_rgba(0,0,0,0.48)]">
+        <CardContent className="space-y-5 p-4 sm:p-6">
+          <div className={sectionClass}>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/60">
+                Required Information
+              </p>
+              <p className="mt-1 text-[12px] leading-5 text-muted-foreground">
+                Capture the essential customer identity details first so this lead is valid, searchable, and ready for follow-up.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Customer Name *</Label>
+                <Input
+                  value={form.customer_name}
+                  onChange={(e) => update("customer_name", e.target.value)}
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Number Name *</Label>
+                <Input
+                  value={form.number_name}
+                  onChange={(e) => update("number_name", e.target.value)}
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Phone Number *</Label>
+                <Input
+                  value={form.customer_phone}
+                  onChange={(e) => update("customer_phone", e.target.value)}
+                  maxLength={14}
+                  className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive" : ""}`}
+                  readOnly={isProcessor}
+                />
+                {isDuplicate && (
+                  <div className="flex items-center gap-1.5 text-destructive text-[11px] mt-1">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>
+                      Duplicate: <strong>{duplicateLeadName}</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Email</Label>
+                <Input
+                  value={form.customer_email}
+                  onChange={(e) => update("customer_email", e.target.value)}
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+            </div>
+          </div>
+
+          <Collapsible open={csOpen} onOpenChange={setCsOpen}>
+            <CollapsibleTrigger className={collapsibleShellClass}>
+              <SectionHeader
+                icon={User}
+                title="Customer Service Details"
+                subtitle="Address, request details, customer expectations, and CS notes."
+                open={csOpen}
+              />
+            </CollapsibleTrigger>
+
+            <CollapsibleContent className="mt-3 space-y-4 px-1">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Address</Label>
+                <Input
+                  value={form.address}
+                  onChange={(e) => update("address", e.target.value)}
+                  placeholder="123 Main St, City, State, Zip"
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Service Type</Label>
+                  <Input
+                    value={form.service_type}
+                    onChange={(e) => update("service_type", e.target.value)}
+                    className={fieldClass}
+                    readOnly={isProcessor}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Quote</Label>
+                  <Input
+                    value={form.quote}
+                    onChange={(e) => update("quote", e.target.value)}
+                    className={fieldClass}
+                    readOnly={isProcessor}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Service Details</Label>
+                <Textarea
+                  value={form.service_details}
+                  onChange={(e) => update("service_details", e.target.value)}
+                  rows={3}
+                  className={`${fieldClass} resize-none min-h-[96px]`}
+                  readOnly={isProcessor}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Customer Schedule Requirements</Label>
+                <Input
+                  value={form.customer_schedule_requirements}
+                  onChange={(e) => update("customer_schedule_requirements", e.target.value)}
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Reference</Label>
+                <Input
+                  value={form.reference_name}
+                  onChange={(e) => update("reference_name", e.target.value)}
+                  className={fieldClass}
+                  readOnly={isProcessor}
+                />
+              </div>
+
+              {isNew ? (
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-semibold text-foreground">CS Notes</Label>
+                  <Textarea
+                    value={form.cs_notes}
+                    onChange={(e) => update("cs_notes", e.target.value)}
+                    rows={4}
+                    className={`${fieldClass} resize-none min-h-[110px]`}
+                    readOnly={isProcessor}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-[12px] font-semibold text-foreground">CS Notes</Label>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Customer service can update this thread. Processors can view it for context.
+                    </p>
+                  </div>
+                  {leadId && <NoteThread leadId={leadId} noteType="cs" label="CS Notes" />}
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
+          {!isCS && (
+            <Collapsible open={processorOpen} onOpenChange={setProcessorOpen}>
+              <CollapsibleTrigger className={collapsibleShellClass}>
+                <SectionHeader
+                  icon={Wrench}
+                  title="Processor Details"
+                  subtitle="Technician info, terms, pricing context, and processor notes."
+                  open={processorOpen}
+                />
+              </CollapsibleTrigger>
+
+              <CollapsibleContent className="mt-3 space-y-4 px-1">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className={labelClass}>Tech Name</Label>
+                    <Input
+                      value={form.tech_name}
+                      onChange={(e) => update("tech_name", e.target.value)}
+                      className={fieldClass}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className={labelClass}>Tech Number</Label>
+                    <Input
+                      value={form.tech_number}
+                      onChange={(e) => update("tech_number", e.target.value)}
+                      maxLength={14}
+                      className={fieldClass}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Terms</Label>
+                  <Select value={form.terms} onValueChange={(v) => update("terms", v)}>
+                    <SelectTrigger className={fieldClass}>
+                      <SelectValue placeholder="Select terms..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free_estimate">Free Estimate Visit</SelectItem>
+                      <SelectItem value="quoted">Quoted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {form.terms === "quoted" && (
+                  <div className="crm-lead-card-soft rounded-[22px] p-4 space-y-3 shadow-[0_18px_28px_-24px_rgba(59,130,246,0.12)] dark:shadow-none">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/60">
+                      Quoted Details
+                    </p>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className={labelClass}>Customer Labor ($)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.labor_amount}
+                          onChange={(e) => update("labor_amount", e.target.value)}
+                          className={fieldClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className={labelClass}>Materials ($)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.material_amount}
+                          onChange={(e) => update("material_amount", e.target.value)}
+                          className={fieldClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className={labelClass}>For You ($ incl. material)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.for_you_amount}
+                          onChange={(e) => update("for_you_amount", e.target.value)}
+                          className={fieldClass}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className={labelClass}>For Us ($ from labor)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.for_us_amount}
+                          onChange={(e) => update("for_us_amount", e.target.value)}
+                          className={fieldClass}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isNew ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[12px] font-semibold text-foreground">Processor Notes</Label>
+                    <Textarea
+                      value={form.processor_notes}
+                      onChange={(e) => update("processor_notes", e.target.value)}
+                      rows={4}
+                      className={`${fieldClass} resize-none min-h-[110px]`}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-[12px] font-semibold text-foreground">Processor Notes</Label>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        This thread stays hidden from CS and is editable by processors and admins.
+                      </p>
+                    </div>
+                    {leadId && <NoteThread leadId={leadId} noteType="processor" label="Processor Notes" />}
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
+          <Collapsible open={scheduleOpen} onOpenChange={setScheduleOpen}>
+            <CollapsibleTrigger className={collapsibleShellClass}>
+              <SectionHeader
+                icon={Calendar}
+                title="Schedule & Status"
+                subtitle="Control workflow stage, schedule timing, and payment state."
+                open={scheduleOpen}
+              />
+            </CollapsibleTrigger>
+
+            <CollapsibleContent className="mt-3 space-y-4 px-1">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Status</Label>
+                <Select value={form.status} onValueChange={(v) => update("status", v)}>
+                  <SelectTrigger className={fieldClass}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getChangeableStatuses(role).map((key) => {
+                      const cfg = LEAD_STATUS_CONFIG[key];
+                      return cfg ? (
+                        <SelectItem key={key} value={key}>
+                          {cfg.label}
+                        </SelectItem>
+                      ) : null;
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Job Scheduled For</Label>
+                <Input
+                  type="date"
+                  value={form.scheduled_date}
+                  onChange={(e) => update("scheduled_date", e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
+
+              {form.scheduled_date && (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <TimePicker prefix="start" label="Start Time" />
+                  <TimePicker prefix="end" label="End Time" />
+                </div>
+              )}
+
+              {form.status === "paid" && (
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Amount ($)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={form.amount}
+                    onChange={(e) => update("amount", e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
+          <div className={sectionClass}>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/60">Photos</p>
+              <p className="mt-1 text-[12px] leading-5 text-muted-foreground">
+                Add supporting images so the next teammate can understand the job without back-and-forth.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2.5">
+              {photos.map((photo, i) => (
+                <div
+                  key={photo.id}
+                  className="group crm-lead-card-inner relative h-20 w-20 overflow-hidden rounded-2xl shadow-[0_16px_24px_-22px_rgba(59,130,246,0.12)] dark:shadow-none"
+                >
+                  <img
+                    src={photo.url}
+                    alt=""
+                    className="h-full w-full object-cover cursor-pointer"
+                    onClick={() => {
+                      setLightboxIndex(i);
+                      setLightboxOpen(true);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeExistingPhoto(photo.id)}
+                    className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ))}
+
+              {newPhotos.map((photo, i) => (
+                <div
+                  key={`new-${i}`}
+                  className="group crm-lead-card-inner relative h-20 w-20 overflow-hidden rounded-2xl shadow-[0_16px_24px_-22px_rgba(59,130,246,0.12)] dark:shadow-none"
+                >
+                  <img src={URL.createObjectURL(photo)} alt="" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeNewPhoto(i)}
+                    className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ))}
+
+              <label className="crm-lead-card-soft flex h-20 w-20 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed transition-colors hover:border-primary/40">
+                <ImagePlus className="h-5 w-5 text-muted-foreground/55" />
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoAdd} />
+              </label>
+            </div>
+          </div>
+
+          <div className={sectionClass}>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/60">General Notes</p>
+              <p className="mt-1 text-[12px] leading-5 text-muted-foreground">
+                Leave context that should stay visible no matter which role opens this lead later.
+              </p>
+            </div>
+            {isNew ? (
+              <Textarea
+                value={form.general_notes}
+                onChange={(e) => update("general_notes", e.target.value)}
+                rows={4}
+                className={`${fieldClass} resize-none min-h-[110px]`}
+              />
+            ) : (
+              leadId && <NoteThread leadId={leadId} noteType="general" label="General Notes" />
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <PaymentDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        onConfirm={handlePaymentConfirm}
+        loading={paymentLoading}
+      />
+
+      <ImageLightbox
+        images={allImageUrls}
+        initialIndex={lightboxIndex}
+        open={lightboxOpen}
+        onOpenChange={setLightboxOpen}
+      />
+    </div>
+  );
+}
+
+
