@@ -271,10 +271,11 @@ export default function LeadDetailPage() {
     }
 
     setLeadId(lead.id);
-    setOriginalLead(lead as Lead);
+    const typedLead = { ...lead, status: lead.status as LeadStatus } as Lead;
+    setOriginalLead(typedLead);
     setJobId(lead.job_id);
-    setFormFromLead(lead);
-    await fetchProfilesAndMeta(lead);
+    setFormFromLead(typedLead);
+    await fetchProfilesAndMeta(typedLead);
     setLoading(false);
   }, [id, isNew, navigate]);
 
