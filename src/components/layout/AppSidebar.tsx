@@ -67,12 +67,17 @@ export default function AppSidebar() {
   const currentStatus = rawCurrentStatus && allowedStatuses.has(rawCurrentStatus) ? rawCurrentStatus : null;
 
   return (
+<<<<<<< HEAD
     <Sidebar collapsible="icon" className="border-r border-sidebar-border/45 bg-[hsl(var(--sidebar-background)/0.8)] backdrop-blur-[14px]">
+=======
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border/60 bg-sidebar/95 backdrop-blur-xl">
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       <SidebarHeader className="p-4 pb-3">
         <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.28 }}
+<<<<<<< HEAD
           className="relative overflow-hidden rounded-[26px] border border-white/40 bg-[radial-gradient(circle_at_top_left,hsl(193_100%_87%/0.34),transparent_38%),radial-gradient(circle_at_bottom_right,hsl(210_100%_88%/0.18),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.96),hsl(var(--sidebar-accent)/0.66))] p-3 shadow-[0_24px_44px_-28px_rgba(59,130,246,0.2)] backdrop-blur-[14px]"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(148,197,255,0.28),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.28),transparent_54%)]" />
@@ -84,6 +89,19 @@ export default function AppSidebar() {
                 transition={{ type: "spring", stiffness: 280, damping: 18 }}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-[hsl(230,94%,66%)] to-[hsl(260,92%,70%)] text-primary-foreground shadow-[0_14px_32px_-12px_hsl(var(--primary)/0.65)] ring-1 ring-white/18"
               >
+=======
+          className="relative overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-sidebar-accent/70 via-sidebar-accent/35 to-transparent p-3 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.45)]"
+        >
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.10),transparent_38%)]" />
+
+          <div className="relative flex items-center gap-3">
+            <motion.div
+              whileHover={{ scale: 1.06, rotate: -3 }}
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 280, damping: 18 }}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-[hsl(258,88%,64%)] to-[hsl(278,82%,62%)] text-primary-foreground shadow-[0_12px_30px_-12px_hsl(var(--primary)/0.65)] ring-1 ring-white/10"
+            >
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               <Wrench className="h-4.5 w-4.5" />
             </motion.div>
 
@@ -98,7 +116,11 @@ export default function AppSidebar() {
                   <span className="truncate text-sm font-bold tracking-tight text-sidebar-accent-foreground">
                     Lead CRM
                   </span>
+<<<<<<< HEAD
                   <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/60">
+=======
+                  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/55">
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                     <Sparkles className="h-2.5 w-2.5" />
                     Pro
                   </span>
@@ -117,7 +139,11 @@ export default function AppSidebar() {
         <ScrollArea className="flex-1">
           <SidebarGroup>
             {!collapsed && (
+<<<<<<< HEAD
               <SidebarGroupLabel className="mb-2 rounded-[18px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(193_100%_86%/0.2),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.62))] px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/74 shadow-[0_16px_24px_-20px_rgba(59,130,246,0.16)] backdrop-blur-[10px]">
+=======
+              <SidebarGroupLabel className="px-3 pb-1 text-[9px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/24">
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 Navigation
               </SidebarGroupLabel>
             )}
@@ -138,17 +164,28 @@ export default function AppSidebar() {
                         <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
                           <NavLink
                             to={item.url}
+<<<<<<< HEAD
                             className={`group/nav relative flex items-center rounded-[18px] border border-transparent px-3 py-2.5 transition-all duration-300 ${
                               isActive
                                 ? "border-white/34 bg-[radial-gradient(circle_at_left,hsl(194_100%_88%/0.18),transparent_28%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.98),hsl(var(--sidebar-accent)/0.82))] text-sidebar-accent-foreground shadow-[0_18px_28px_-20px_rgba(59,130,246,0.18)] ring-1 ring-white/12 backdrop-blur-[10px]"
                                 : "hover:border-white/18 hover:bg-[linear-gradient(180deg,hsl(var(--sidebar-accent)/0.76),hsl(var(--sidebar-accent)/0.56))] hover:shadow-[0_12px_22px_-20px_rgba(59,130,246,0.12)]"
+=======
+                            className={`group/nav relative flex items-center rounded-xl px-3 py-2.5 transition-all duration-200 ${
+                              isActive
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-[0_10px_20px_-16px_rgba(0,0,0,0.55)] ring-1 ring-white/6"
+                                : "hover:bg-sidebar-accent/55"
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                             }`}
                             activeClassName="text-sidebar-accent-foreground"
                           >
                             {isActive && (
                               <motion.div
                                 layoutId="sidebar-active-pill"
+<<<<<<< HEAD
                                 className="absolute inset-0 rounded-[18px] bg-gradient-to-r from-white/[0.10] via-white/[0.04] to-transparent"
+=======
+                                className="absolute inset-0 rounded-xl bg-gradient-to-r from-white/[0.035] to-transparent"
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                                 transition={{ type: "spring", stiffness: 380, damping: 30 }}
                               />
                             )}
@@ -201,7 +238,11 @@ export default function AppSidebar() {
               </div>
 
               <SidebarGroup>
+<<<<<<< HEAD
                 <SidebarGroupLabel className="mb-2 rounded-[18px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(193_100%_86%/0.2),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.62))] px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/74 shadow-[0_16px_24px_-20px_rgba(59,130,246,0.16)] backdrop-blur-[10px]">
+=======
+                <SidebarGroupLabel className="px-3 pb-1 text-[9px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/24">
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   By Status
                 </SidebarGroupLabel>
 
@@ -222,10 +263,17 @@ export default function AppSidebar() {
                           >
                             <NavLink
                               to={`/leads?status=${status}`}
+<<<<<<< HEAD
                               className={`group/status relative flex items-center gap-2.5 rounded-[18px] border border-transparent px-3 py-2 transition-all duration-300 ${
                                 currentStatus === status
                                   ? "border-white/34 bg-[radial-gradient(circle_at_left,hsl(194_100%_88%/0.14),transparent_28%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.96),hsl(var(--sidebar-accent)/0.76))] text-sidebar-accent-foreground shadow-[0_14px_24px_-20px_rgba(59,130,246,0.16)] ring-1 ring-white/10 backdrop-blur-[8px]"
                                   : "hover:border-white/18 hover:bg-[linear-gradient(180deg,hsl(var(--sidebar-accent)/0.68),hsl(var(--sidebar-accent)/0.5))]"
+=======
+                              className={`group/status relative flex items-center gap-2.5 rounded-xl px-3 py-2 transition-all duration-200 ${
+                                currentStatus === status
+                                  ? "bg-sidebar-accent/85 text-sidebar-accent-foreground ring-1 ring-white/6"
+                                  : "hover:bg-sidebar-accent/45"
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                               }`}
                               activeClassName="text-sidebar-accent-foreground font-semibold"
                             >
@@ -257,7 +305,11 @@ export default function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-3 pt-2">
+<<<<<<< HEAD
         <div className="rounded-[24px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(194_100%_88%/0.2),transparent_34%),radial-gradient(circle_at_bottom_right,hsl(210_100%_88%/0.14),transparent_32%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.58))] p-3 shadow-[0_18px_28px_-22px_rgba(59,130,246,0.16)] backdrop-blur-[12px]">
+=======
+        <div className="rounded-2xl border border-white/7 bg-gradient-to-br from-sidebar-accent/55 to-sidebar-accent/20 p-3 shadow-[0_10px_24px_-18px_rgba(0,0,0,0.45)]">
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9 shrink-0 ring-1 ring-white/10 shadow-sm">
               <AvatarFallback className="bg-gradient-to-br from-primary via-[hsl(258,88%,64%)] to-[hsl(278,82%,62%)] text-primary-foreground text-[10px] font-bold">

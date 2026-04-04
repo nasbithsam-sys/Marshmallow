@@ -27,7 +27,10 @@ import StatusBadge from "./StatusBadge";
 import LeadUpdatesSection from "./LeadUpdatesSection";
 import PaymentDialog from "./PaymentDialog";
 import CopyLeadButton from "./CopyLeadButton";
+<<<<<<< HEAD
 import NoteThread from "./NoteThread";
+=======
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
 import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
@@ -41,6 +44,7 @@ interface Props {
   onUpdate: () => void;
 }
 
+<<<<<<< HEAD
 type LeadFormState = Partial<Lead>;
 type TrackedLeadField =
   | "customer_name"
@@ -69,6 +73,8 @@ type TrackedLeadField =
   | "for_us_amount"
   | "amount";
 
+=======
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 const SectionHeader = ({
   icon: Icon,
   title,
@@ -162,11 +168,19 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     },
   });
 
+<<<<<<< HEAD
   const [form, setForm] = useState<LeadFormState>({});
 
   useEffect(() => {
     if (lead) {
       setForm(lead);
+=======
+  const [form, setForm] = useState<Partial<Lead> & Record<string, any>>({});
+
+  useEffect(() => {
+    if (lead) {
+      setForm(lead as any);
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     }
   }, [lead]);
 
@@ -184,9 +198,17 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const buildLeadChanges = () => {
     if (!lead) return {};
 
+<<<<<<< HEAD
     const changes: Record<string, { before: unknown; after: unknown }> = {};
 
     const fieldsToTrack: TrackedLeadField[] = [
+=======
+    const leadRecord = lead as Record<string, any>;
+    const formRecord = form as Record<string, any>;
+    const changes: Record<string, { before: unknown; after: unknown }> = {};
+
+    const fieldsToTrack = [
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       "customer_name",
       "customer_email",
       "customer_phone",
@@ -199,6 +221,12 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       "scheduled_date",
       "scheduled_time_start",
       "scheduled_time_end",
+<<<<<<< HEAD
+=======
+      "general_notes",
+      "cs_notes",
+      "processor_notes",
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       "number_name",
       "quote",
       "service_details",
@@ -215,8 +243,13 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     ];
 
     for (const field of fieldsToTrack) {
+<<<<<<< HEAD
       const before = lead[field];
       const after = form[field];
+=======
+      const before = leadRecord[field];
+      const after = formRecord[field];
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
       if ((before ?? null) !== (after ?? null)) {
         changes[field] = {
@@ -229,7 +262,11 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     return changes;
   };
 
+<<<<<<< HEAD
   const update = <K extends keyof Lead>(key: K, value: Lead[K]) => {
+=======
+  const update = (key: string, value: any) => {
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     if (key === "status" && value === "paid") {
       setPaymentOpen(true);
       return;
@@ -327,7 +364,11 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       const newStatus = form.status;
       const changes = buildLeadChanges();
 
+<<<<<<< HEAD
       const updateData: Record<string, unknown> = {
+=======
+      const updateData: any = {
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         customer_name: form.customer_name,
         customer_email: form.customer_email,
         customer_phone: form.customer_phone,
@@ -340,6 +381,12 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         scheduled_date: form.scheduled_date,
         scheduled_time_start: form.scheduled_time_start,
         scheduled_time_end: form.scheduled_time_end,
+<<<<<<< HEAD
+=======
+        general_notes: form.general_notes ?? null,
+        cs_notes: role !== "processor" ? form.cs_notes : (lead as any)?.cs_notes,
+        processor_notes: role !== "customer_service" ? form.processor_notes : (lead as any)?.processor_notes,
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         last_edited_by: user.id,
         last_edited_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -348,6 +395,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         service_details: form.service_details,
         customer_schedule_requirements: form.customer_schedule_requirements,
         reference_name: form.reference_name,
+<<<<<<< HEAD
         tech_name: role !== "customer_service" ? form.tech_name : lead?.tech_name,
         tech_number: role !== "customer_service" ? form.tech_number : lead?.tech_number,
         terms: role !== "customer_service" ? form.terms : lead?.terms,
@@ -355,6 +403,15 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         material_amount: role !== "customer_service" ? form.material_amount : lead?.material_amount,
         for_you_amount: role !== "customer_service" ? form.for_you_amount : lead?.for_you_amount,
         for_us_amount: role !== "customer_service" ? form.for_us_amount : lead?.for_us_amount,
+=======
+        tech_name: role !== "customer_service" ? form.tech_name : (lead as any)?.tech_name,
+        tech_number: role !== "customer_service" ? form.tech_number : (lead as any)?.tech_number,
+        terms: role !== "customer_service" ? form.terms : (lead as any)?.terms,
+        labor_amount: role !== "customer_service" ? form.labor_amount : (lead as any)?.labor_amount,
+        material_amount: role !== "customer_service" ? form.material_amount : (lead as any)?.material_amount,
+        for_you_amount: role !== "customer_service" ? form.for_you_amount : (lead as any)?.for_you_amount,
+        for_us_amount: role !== "customer_service" ? form.for_us_amount : (lead as any)?.for_us_amount,
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       };
 
       if (form.status === "paid") {
@@ -378,7 +435,11 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
         if (roles) {
           const statusLabel = form.status === "urgent_job" ? "Urgent Job" : "Need Tech";
+<<<<<<< HEAD
           const notifs = roles.map((r: { user_id: string }) => ({
+=======
+          const notifs = roles.map((r: any) => ({
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             user_id: r.user_id,
             title: `🚨 ${statusLabel}`,
             message: `Lead "${form.customer_name}" changed to ${statusLabel}`,
@@ -421,7 +482,11 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
       onUpdate();
     },
+<<<<<<< HEAD
     onError: (err: unknown) => toast.error("Save failed: " + (err instanceof Error ? err.message : "Unknown error")),
+=======
+    onError: (err: any) => toast.error("Save failed: " + err.message),
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   });
 
   const isCS = role === "customer_service";
@@ -429,10 +494,17 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
   const labelClass = "text-[12px] font-semibold tracking-[-0.01em] text-foreground/82";
   const fieldClass =
+<<<<<<< HEAD
     "crm-lead-card-inner h-11 rounded-xl border-border/60 bg-transparent text-foreground shadow-[0_16px_24px_-22px_rgba(59,130,246,0.12)] placeholder:text-muted-foreground/55 dark:shadow-none";
   const areaClass =
     "crm-lead-card-inner rounded-xl border-border/60 bg-transparent text-foreground shadow-[0_16px_24px_-22px_rgba(59,130,246,0.12)] placeholder:text-muted-foreground/55 resize-none dark:shadow-none";
   const sectionClass = "glass-panel rounded-[26px] border border-border/65 p-5 shadow-[0_24px_46px_-32px_rgba(59,130,246,0.16)] dark:shadow-none";
+=======
+    "h-11 rounded-xl border-border/60 bg-background text-foreground shadow-sm placeholder:text-muted-foreground/55";
+  const areaClass =
+    "rounded-xl border-border/60 bg-background text-foreground shadow-sm placeholder:text-muted-foreground/55 resize-none";
+  const sectionClass = "rounded-2xl border border-border/60 bg-card/92 p-5 shadow-[0_14px_38px_-28px_rgba(0,0,0,0.35)]";
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   if (isLoading || !lead) {
     return (
@@ -465,7 +537,11 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         transition={{ type: "spring", stiffness: 280, damping: 30 }}
         className="w-[58%] max-w-4xl overflow-y-auto border-l border-border bg-[linear-gradient(to_bottom,rgba(255,255,255,0.02),transparent)] bg-card"
       >
+<<<<<<< HEAD
         <div className="glass-panel-strong sticky top-0 z-20 border-b border-border/60 backdrop-blur-xl">
+=======
+        <div className="sticky top-0 z-20 border-b border-border/60 bg-card/92 backdrop-blur-xl">
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           <div className="px-6 pt-5 pb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
@@ -535,7 +611,11 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               </div>
             </div>
 
+<<<<<<< HEAD
             <div className="crm-lead-card-footer mt-4 rounded-2xl p-4">
+=======
+            <div className="mt-4 rounded-2xl border border-border/60 bg-muted/[0.24] p-4">
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               <div className="mb-2 flex items-center justify-between">
                 <Label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/70">
                   Current Status
@@ -848,7 +928,20 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               title="General Notes"
               subtitle="Shared notes and customer-related context."
             />
+<<<<<<< HEAD
             <NoteThread leadId={leadId} noteType="general" label="General Notes" />
+=======
+            <div className="space-y-1.5">
+              <Label className={labelClass}>General Notes</Label>
+              <Textarea
+                value={form.general_notes ?? ""}
+                onChange={(e) => update("general_notes", e.target.value)}
+                placeholder="Write general notes here..."
+                rows={6}
+                className={`${areaClass} min-h-[150px]`}
+              />
+            </div>
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           </motion.div>
 
           <motion.div
@@ -862,7 +955,21 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               title="CS Notes"
               subtitle="Customer service notes and follow-up context."
             />
+<<<<<<< HEAD
             <NoteThread leadId={leadId} noteType="cs" label="CS Notes" />
+=======
+            <div className="space-y-1.5">
+              <Label className={labelClass}>CS Notes</Label>
+              <Textarea
+                value={form.cs_notes ?? ""}
+                onChange={(e) => update("cs_notes", e.target.value)}
+                placeholder="Write CS notes here..."
+                rows={6}
+                readOnly={isProcessor}
+                className={`${areaClass} min-h-[150px]`}
+              />
+            </div>
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           </motion.div>
 
           {!isCS && (
@@ -877,7 +984,20 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 title="Processor Notes"
                 subtitle="Technician and processing-side internal notes."
               />
+<<<<<<< HEAD
               <NoteThread leadId={leadId} noteType="processor" label="Processor Notes" />
+=======
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Processor Notes</Label>
+                <Textarea
+                  value={form.processor_notes ?? ""}
+                  onChange={(e) => update("processor_notes", e.target.value)}
+                  placeholder="Write processor notes here..."
+                  rows={6}
+                  className={`${areaClass} min-h-[150px]`}
+                />
+              </div>
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             </motion.div>
           )}
 

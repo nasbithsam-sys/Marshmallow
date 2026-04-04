@@ -4,7 +4,11 @@ import { cn } from "@/lib/utils";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
+<<<<<<< HEAD
     <div className="data-surface relative w-full overflow-auto rounded-[24px] p-1">
+=======
+    <div className="relative w-full overflow-auto">
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   ),
@@ -12,9 +16,13 @@ const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableE
 Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
+<<<<<<< HEAD
   ({ className, ...props }, ref) => (
     <thead ref={ref} className={cn("[&_tr]:border-b [&_tr]:border-border/55 [&_tr]:bg-[hsl(var(--background)/0.82)]", className)} {...props} />
   ),
+=======
+  ({ className, ...props }, ref) => <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />,
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 );
 TableHeader.displayName = "TableHeader";
 
@@ -36,10 +44,14 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
   ({ className, ...props }, ref) => (
     <tr
       ref={ref}
+<<<<<<< HEAD
       className={cn(
         "border-b border-border/45 transition-colors data-[state=selected]:bg-primary/[0.08] hover:bg-[hsl(var(--background)/0.84)]",
         className,
       )}
+=======
+      className={cn("border-b transition-colors data-[state=selected]:bg-muted hover:bg-muted/50", className)}
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       {...props}
     />
   ),
@@ -51,7 +63,11 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
     <th
       ref={ref}
       className={cn(
+<<<<<<< HEAD
         "h-12 px-4 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground [&:has([role=checkbox])]:pr-0",
+=======
+        "h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         className,
       )}
       {...props}

@@ -218,28 +218,46 @@ export type Database = {
           created_at: string
           id: string
           is_visible: boolean
+<<<<<<< HEAD
           role: string | null
           status: string
           updated_at: string
           user_id: string | null
+=======
+          role: string
+          status: string
+          updated_at: string
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         }
         Insert: {
           created_at?: string
           id?: string
           is_visible?: boolean
+<<<<<<< HEAD
           role?: string | null
           status: string
           updated_at?: string
           user_id?: string | null
+=======
+          role: string
+          status: string
+          updated_at?: string
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         }
         Update: {
           created_at?: string
           id?: string
           is_visible?: boolean
+<<<<<<< HEAD
           role?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null
+=======
+          role?: string
+          status?: string
+          updated_at?: string
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         }
         Relationships: []
       }

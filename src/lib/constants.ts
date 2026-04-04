@@ -73,6 +73,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
 export const ALL_NAV_ITEMS = ["leads", "analytics", "settings", "activity_logs", "schedule", "map", "areas"] as const;
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 
+<<<<<<< HEAD
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
   urgent_job: 0,
   need_tech: 1,
@@ -96,6 +97,8 @@ export function compareLeadDisplayPriority(
   return getLeadCreatedAtTime(b) - getLeadCreatedAtTime(a);
 }
 
+=======
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 const CS_CHANGEABLE: LeadStatus[] = [
   "need_tech",
   "urgent_job",

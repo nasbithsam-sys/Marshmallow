@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+=======
+import { useState, useEffect, useRef } from "react";
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -21,6 +25,7 @@ interface Props {
   leadId: string;
   noteType: "cs" | "processor" | "general";
   label: string;
+<<<<<<< HEAD
   profiles?: Record<string, string>;
 }
 
@@ -28,6 +33,14 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
   const { user, role } = useAuth();
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [resolvedProfiles, setResolvedProfiles] = useState<Record<string, string>>({});
+=======
+  profiles: Record<string, string>;
+}
+
+export default function NoteThread({ leadId, noteType, label, profiles }: Props) {
+  const { user, role } = useAuth();
+  const [notes, setNotes] = useState<LeadNote[]>([]);
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   const [newNote, setNewNote] = useState("");
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -35,6 +48,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = role === "admin";
+<<<<<<< HEAD
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
 
@@ -98,6 +112,12 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
       cancelled = true;
     };
   }, [notes, profiles]);
+=======
+
+  useEffect(() => {
+    fetchNotes();
+  }, [leadId, noteType]);
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -105,8 +125,23 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
     }
   }, [notes]);
 
+<<<<<<< HEAD
   const handleSend = async () => {
     if (!canWriteThread || !newNote.trim() || !user) return;
+=======
+  const fetchNotes = async () => {
+    const { data } = await supabase
+      .from("lead_notes")
+      .select("*")
+      .eq("lead_id", leadId)
+      .eq("note_type", noteType)
+      .order("created_at", { ascending: true });
+    if (data) setNotes(data as LeadNote[]);
+  };
+
+  const handleSend = async () => {
+    if (!newNote.trim() || !user) return;
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     setSending(true);
     const { error } = await supabase.from("lead_notes").insert({
       lead_id: leadId,
@@ -156,12 +191,16 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
   };
 
   const canEdit = (note: LeadNote) => {
+<<<<<<< HEAD
     if (!canWriteThread) return false;
+=======
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     if (isAdmin) return true;
     return note.user_id === user?.id;
   };
 
   const getInitials = (userId: string) => {
+<<<<<<< HEAD
     const name = profiles[userId] || resolvedProfiles[userId] || "?";
     return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   };
@@ -177,6 +216,19 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
       </div>
 
       <div ref={scrollRef} className="max-h-60 space-y-3 overflow-y-auto p-3">
+=======
+    const name = profiles[userId] || "?";
+    return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  };
+
+  return (
+    <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-border/30 bg-muted/20">
+        <h4 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/50">{label}</h4>
+      </div>
+
+      <div ref={scrollRef} className="max-h-60 overflow-y-auto p-3 space-y-3">
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         {notes.length === 0 && (
           <p className="text-[12px] text-muted-foreground/40 text-center py-6">No notes yet. Start the conversation.</p>
         )}
@@ -187,9 +239,15 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
             return (
               <motion.div
                 key={note.id}
+<<<<<<< HEAD
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.16 }}
+=======
+                initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: "spring", stiffness: 320, damping: 28 }}
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 className={`flex gap-2.5 ${isMe ? "flex-row-reverse" : ""}`}
               >
                 <Avatar className="h-6 w-6 shrink-0">
@@ -200,7 +258,11 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
                 <div className={`max-w-[75%] space-y-0.5 ${isMe ? "items-end text-right" : ""}`}>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-medium text-foreground">
+<<<<<<< HEAD
                       {getName(note.user_id)}
+=======
+                      {profiles[note.user_id] || "Unknown"}
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                     </span>
                     <span className="text-[9px] text-muted-foreground/40">
                       {new Date(note.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -234,10 +296,17 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
                     </div>
                   ) : (
                     <div
+<<<<<<< HEAD
                       className={`group/note relative rounded-[16px] px-3 py-2 text-[13px] leading-relaxed ${
                         isMe
                           ? "border border-primary/15 bg-[linear-gradient(180deg,hsl(var(--primary)),hsl(223_85%_60%))] text-primary-foreground rounded-tr-sm shadow-[0_12px_22px_-18px_hsl(var(--primary)/0.55)]"
                           : "crm-lead-card-inner rounded-tl-sm text-foreground shadow-[0_14px_22px_-20px_rgba(59,130,246,0.12)] dark:shadow-none"
+=======
+                      className={`group/note rounded-xl px-3 py-2 text-[13px] leading-relaxed relative ${
+                        isMe
+                          ? "bg-primary text-primary-foreground rounded-tr-sm"
+                          : "bg-muted/50 text-foreground rounded-tl-sm border border-border/30"
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                       }`}
                     >
                       {note.content}
@@ -259,6 +328,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
         </AnimatePresence>
       </div>
 
+<<<<<<< HEAD
       {canWriteThread ? (
         <div className="flex gap-2 border-t border-border/35 bg-[hsl(var(--background)/0.54)] p-2 dark:bg-[hsl(var(--background)/0.12)]">
           <Textarea
@@ -283,6 +353,21 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
           This note thread is view-only for your role.
         </div>
       )}
+=======
+      <div className="border-t border-border/30 p-2 flex gap-2">
+        <Textarea
+          value={newNote}
+          onChange={(e) => setNewNote(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={`Add a note...`}
+          className="min-h-[36px] max-h-20 text-sm resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none"
+          rows={1}
+        />
+        <Button size="icon" className="h-9 w-9 shrink-0 rounded-lg" onClick={handleSend} disabled={sending || !newNote.trim()}>
+          <Send className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     </div>
   );
 }

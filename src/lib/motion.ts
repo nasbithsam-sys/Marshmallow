@@ -12,6 +12,7 @@ export const premiumEase = [0.16, 1, 0.3, 1] as const;
 export const smoothEase = [0.25, 0.46, 0.45, 0.94] as const;
 
 export const pageVariants: Variants = {
+<<<<<<< HEAD
   initial: { opacity: 0, y: 8 },
   animate: {
     opacity: 1,
@@ -22,11 +23,26 @@ export const pageVariants: Variants = {
     opacity: 0,
     y: -4,
     transition: { duration: 0.16, ease: smoothEase },
+=======
+  initial: { opacity: 0, y: 12, filter: "blur(4px)" },
+  animate: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.4, ease: premiumEase },
+  },
+  exit: {
+    opacity: 0,
+    y: -8,
+    filter: "blur(3px)",
+    transition: { duration: 0.2, ease: smoothEase },
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   },
 };
 
 export const staggerContainer: Variants = {
   initial: {},
+<<<<<<< HEAD
   animate: { transition: { staggerChildren: 0.03, delayChildren: 0.02 } },
 };
 
@@ -36,6 +52,18 @@ export const staggerItem: Variants = {
     opacity: 1,
     y: 0,
     transition: { duration: 0.2, ease: premiumEase },
+=======
+  animate: { transition: { staggerChildren: 0.06, delayChildren: 0.06 } },
+};
+
+export const staggerItem: Variants = {
+  initial: { opacity: 0, y: 14, scale: 0.97 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { ...silkySpring },
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   },
 };
 
@@ -74,11 +102,20 @@ export const listItem: Variants = {
 };
 
 export const heroTitle: Variants = {
+<<<<<<< HEAD
   initial: { opacity: 0, y: 18 },
   animate: {
     opacity: 1,
     y: 0,
     transition: { duration: 0.3, ease: premiumEase },
+=======
+  initial: { opacity: 0, y: 28, filter: "blur(6px)" },
+  animate: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.55, ease: premiumEase },
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   },
 };
 

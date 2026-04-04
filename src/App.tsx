@@ -1,6 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+<<<<<<< HEAD
 import type { ReactNode } from "react";
+=======
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -54,6 +57,7 @@ function LoginRoute() {
   return <Login />;
 }
 
+<<<<<<< HEAD
 function PageRoute({ navItem, children }: { navItem: string; children: ReactNode }) {
   const { canAccess } = useAuth();
 
@@ -64,6 +68,8 @@ function PageRoute({ navItem, children }: { navItem: string; children: ReactNode
   return children;
 }
 
+=======
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -75,6 +81,7 @@ const App = () => (
             <Route path="/login" element={<LoginRoute />} />
             <Route path="/" element={<ProtectedRoutes />}>
               <Route index element={<Navigate to="/leads" replace />} />
+<<<<<<< HEAD
               <Route path="leads" element={<PageRoute navItem="leads"><LeadsPage /></PageRoute>} />
               <Route path="leads/:id" element={<PageRoute navItem="leads"><LeadDetailPage /></PageRoute>} />
               <Route path="schedule" element={<PageRoute navItem="schedule"><SchedulePage /></PageRoute>} />
@@ -83,6 +90,16 @@ const App = () => (
               <Route path="map" element={<PageRoute navItem="map"><MapPage /></PageRoute>} />
               <Route path="activity-logs" element={<PageRoute navItem="activity_logs"><ActivityLogs /></PageRoute>} />
               <Route path="settings" element={<PageRoute navItem="settings"><Settings /></PageRoute>} />
+=======
+              <Route path="leads" element={<LeadsPage />} />
+              <Route path="leads/:id" element={<LeadDetailPage />} />
+              <Route path="schedule" element={<SchedulePage />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="areas" element={<AreasPage />} />
+              <Route path="map" element={<MapPage />} />
+              <Route path="activity-logs" element={<ActivityLogs />} />
+              <Route path="settings" element={<Settings />} />
+>>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
