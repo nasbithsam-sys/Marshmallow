@@ -22,7 +22,7 @@ import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
-import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
+import { heroTitle, premiumEase, silkySpring, cardGridContainer, cardGridItem } from "@/lib/motion";
 import { getSignedUrls } from "@/lib/storage";
 
 const PAGE_SIZES = [20, 40, 60, 100];
