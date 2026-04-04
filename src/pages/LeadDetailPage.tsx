@@ -586,8 +586,9 @@ export default function LeadDetailPage() {
       if (!leadId) throw new Error("Missing lead id");
 
       const previousStatus = originalLead?.status;
+      const updatePayload: Record<string, unknown> = { ...payload };
       if (form.status === "paid" && form.amount) {
-        payload.amount = parseFloat(form.amount);
+        updatePayload.amount = parseFloat(form.amount);
       }
 
       const { error } = await supabase.from("leads").update(payload).eq("id", leadId);
