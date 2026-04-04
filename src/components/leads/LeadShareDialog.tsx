@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 import { useState, useEffect, useCallback } from "react";
-=======
-import { useState, useEffect } from "react";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,18 +9,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Share2 } from "lucide-react";
 import { motion } from "framer-motion";
-<<<<<<< HEAD
 import { cn } from "@/lib/utils";
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
 interface Props {
   leadId: string;
   customerName: string;
-<<<<<<< HEAD
   className?: string;
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 }
 
 interface CSRUser {
@@ -34,7 +24,6 @@ interface CSRUser {
   isShared: boolean;
 }
 
-<<<<<<< HEAD
 interface CustomerServiceRoleRow {
   user_id: string;
 }
@@ -50,29 +39,17 @@ interface ProfileRow {
 }
 
 export default function LeadShareDialog({ leadId, customerName, className }: Props) {
-=======
-export default function LeadShareDialog({ leadId, customerName }: Props) {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [csrUsers, setCsrUsers] = useState<CSRUser[]>([]);
   const [saving, setSaving] = useState(false);
 
-<<<<<<< HEAD
   const fetchCSRUsers = useCallback(async () => {
-=======
-  useEffect(() => {
-    if (open) fetchCSRUsers();
-  }, [open]);
-
-  const fetchCSRUsers = async () => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     const [rolesRes, sharesRes] = await Promise.all([
       supabase.from("user_roles").select("user_id, role").eq("role", "customer_service"),
       supabase.from("lead_shares").select("shared_with_user_id").eq("lead_id", leadId),
     ]);
 
-<<<<<<< HEAD
     if (!rolesRes.data) return;
 
     const csUserIds = (rolesRes.data as CustomerServiceRoleRow[]).map((roleRow) => roleRow.user_id);
@@ -102,45 +79,16 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
   const toggleShare = async (userId: string, share: boolean) => {
     setSaving(true);
 
-=======
-    if (rolesRes.data) {
-      const csUserIds = rolesRes.data.map((r: any) => r.user_id);
-      const { data: profiles } = await supabase.from("profiles").select("id, full_name, email").in("id", csUserIds);
-
-      const sharedIds = new Set((sharesRes.data || []).map((s: any) => s.shared_with_user_id));
-
-      setCsrUsers(
-        (profiles || [])
-          .filter((p: any) => p.id !== user?.id)
-          .map((p: any) => ({
-            user_id: p.id,
-            display_name: p.full_name,
-            email: p.email,
-            isShared: sharedIds.has(p.id),
-          })),
-      );
-    }
-  };
-
-  const toggleShare = async (userId: string, share: boolean) => {
-    setSaving(true);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     if (share) {
       await supabase.from("lead_shares").insert({
         lead_id: leadId,
         shared_with_user_id: userId,
         shared_by: user!.id,
       });
-<<<<<<< HEAD
 
       await supabase.from("notifications").insert({
         user_id: userId,
         title: "Lead Shared with You",
-=======
-      await supabase.from("notifications").insert({
-        user_id: userId,
-        title: "📋 Lead Shared with You",
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         message: `"${customerName}" has been shared with you by admin`,
         lead_id: leadId,
         read: false,
@@ -148,10 +96,7 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
     } else {
       await supabase.from("lead_shares").delete().eq("lead_id", leadId).eq("shared_with_user_id", userId);
     }
-<<<<<<< HEAD
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     await fetchCSRUsers();
     toast.success(share ? "Lead shared & notification sent" : "Share removed");
     setSaving(false);
@@ -159,13 +104,8 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
 
   const getInitials = (name: string) =>
     name
-<<<<<<< HEAD
       .split(" ")
       .map((chunk) => chunk[0])
-=======
-      ?.split(" ")
-      .map((n) => n[0])
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       .join("")
       .toUpperCase()
       .slice(0, 2) || "U";
@@ -173,23 +113,15 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-<<<<<<< HEAD
         <Button variant="outline" size="icon" className={cn("h-9 w-9", className)} onClick={(e) => e.stopPropagation()}>
           <Share2 className="h-3.5 w-3.5" />
         </Button>
       </DialogTrigger>
 
-=======
-        <Button variant="outline" size="icon" className="h-9 w-9" onClick={(e) => e.stopPropagation()}>
-          <Share2 className="h-3.5 w-3.5" />
-        </Button>
-      </DialogTrigger>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle className="text-base">Share "{customerName}"</DialogTitle>
         </DialogHeader>
-<<<<<<< HEAD
 
         <p className="text-[12px] text-muted-foreground">
           Select CS users who should see this lead. They'll receive a notification.
@@ -198,26 +130,13 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
         <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">
           {csrUsers.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No CS users found.</p>}
 
-=======
-        <p className="text-[12px] text-muted-foreground">
-          Select CS users who should see this lead. They'll receive a notification.
-        </p>
-        <div className="space-y-2 max-h-64 overflow-y-auto mt-2">
-          {csrUsers.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-6">No CS users found.</p>
-          )}
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           {csrUsers.map((csr, i) => (
             <motion.div
               key={csr.user_id}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.04, type: "spring", stiffness: 350, damping: 28 }}
-<<<<<<< HEAD
               className="crm-lead-card-inner flex items-center justify-between rounded-[18px] p-3 transition-all duration-200 hover:border-primary/24 hover:bg-primary/[0.04] dark:hover:bg-primary/[0.08]"
-=======
-              className="flex items-center justify-between rounded-xl border border-border/40 p-3 hover:bg-muted/20 transition-colors"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             >
               <div className="flex items-center gap-3">
                 <Checkbox
@@ -225,7 +144,6 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
                   onCheckedChange={(checked) => toggleShare(csr.user_id, !!checked)}
                   disabled={saving}
                 />
-<<<<<<< HEAD
 
                 <Avatar className="h-7 w-7">
                   <AvatarFallback className="bg-primary/8 text-[9px] font-bold text-primary">
@@ -243,22 +161,6 @@ export default function LeadShareDialog({ leadId, customerName }: Props) {
                 <Badge
                   variant="outline"
                   className="border-primary/14 bg-primary/6 text-[10px] font-semibold text-primary dark:border-primary/22 dark:bg-primary/[0.14]"
-=======
-                <Avatar className="h-7 w-7">
-                  <AvatarFallback className="bg-primary/8 text-primary text-[9px] font-bold">
-                    {getInitials(csr.display_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-[13px] font-medium">{csr.display_name}</p>
-                  <p className="text-[11px] text-muted-foreground/50">{csr.email}</p>
-                </div>
-              </div>
-              {csr.isShared && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] bg-primary/6 text-primary border-primary/12 font-semibold"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 >
                   Shared
                 </Badge>

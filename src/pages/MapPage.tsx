@@ -1,24 +1,14 @@
-<<<<<<< HEAD
 ﻿import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus, STATUS_LABELS, ALL_LEAD_STATUSES } from "@/lib/constants";
 import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
 import { Button } from "@/components/ui/button";
-=======
-import { useState, useEffect, useMemo, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Lead, LeadStatus, STATUS_LABELS, ALL_LEAD_STATUSES } from "@/lib/constants";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Search, Loader2, Calendar, Filter, Sparkles, Map, Navigation, Clock3 } from "lucide-react";
 import { motion } from "framer-motion";
 import { fadeUp } from "@/lib/motion";
-<<<<<<< HEAD
-=======
-import { useNavigate } from "react-router-dom";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -57,13 +47,9 @@ async function geocodeAddress(address: string): Promise<[number, number] | null>
     );
     const data = await res.json();
     if (data.length > 0) return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-<<<<<<< HEAD
   } catch {
     return null;
   }
-=======
-  } catch {}
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   return null;
 }
 
@@ -89,42 +75,27 @@ const STATUS_MARKER_COLORS: Record<LeadStatus, string> = {
 };
 
 export default function MapPage() {
-<<<<<<< HEAD
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<L.CircleMarker[]>([]);
   const geocodeRunRef = useRef(0);
   const initialGeoCache = useMemo(() => loadGeoCache(), []);
   const addressCoordsRef = useRef<Record<string, [number, number]>>(initialGeoCache);
-=======
-  const navigate = useNavigate();
-  const mapRef = useRef<L.Map | null>(null);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const markersRef = useRef<L.CircleMarker[]>([]);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeProgress, setGeocodeProgress] = useState({ done: 0, total: 0 });
-<<<<<<< HEAD
   const [addressCoords, setAddressCoords] = useState<Record<string, [number, number]>>(initialGeoCache);
-=======
-  const [geocodedLeads, setGeocodedLeads] = useState<GeocodedLead[]>([]);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   const [datePreset, setDatePreset] = useState("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<Set<LeadStatus>>(new Set(ALL_LEAD_STATUSES));
-<<<<<<< HEAD
   const { allowedStatuses } = useAllowedStatuses();
   const availableStatuses = useMemo(
     () => ALL_LEAD_STATUSES.filter((status) => allowedStatuses.has(status)),
     [allowedStatuses],
   );
-=======
-  const geocodingRef = useRef(false);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -144,7 +115,6 @@ export default function MapPage() {
       map.remove();
       mapRef.current = null;
     };
-<<<<<<< HEAD
   }, []);
 
   useEffect(() => {
@@ -211,9 +181,6 @@ export default function MapPage() {
       }),
     [addressCoords, dateFiltered],
   );
-=======
-  }, [loading]);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   useEffect(() => {
     const map = mapRef.current;
@@ -222,11 +189,7 @@ export default function MapPage() {
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-<<<<<<< HEAD
     visibleGeocodedLeads.forEach((g) => {
-=======
-    geocodedLeads.forEach((g) => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       const marker = L.circleMarker([g.lat, g.lng], {
         radius: 8,
         fillColor: STATUS_MARKER_COLORS[g.lead.status] || "#3b82f6",
@@ -254,7 +217,6 @@ export default function MapPage() {
       markersRef.current.push(marker);
     });
 
-<<<<<<< HEAD
     if (visibleGeocodedLeads.length > 0) {
       const bounds = L.latLngBounds(visibleGeocodedLeads.map((g) => [g.lat, g.lng] as [number, number]));
       map.fitBounds(bounds, { padding: [30, 30] });
@@ -332,115 +294,6 @@ export default function MapPage() {
       isActive = false;
     };
   }, [geocodeEligibleAddresses]);
-=======
-    if (geocodedLeads.length > 0) {
-      const bounds = L.latLngBounds(geocodedLeads.map((g) => [g.lat, g.lng] as [number, number]));
-      map.fitBounds(bounds, { padding: [30, 30] });
-    }
-  }, [geocodedLeads, navigate]);
-
-  useEffect(() => {
-    fetchLeads();
-  }, []);
-
-  const fetchLeads = async () => {
-    setLoading(true);
-    const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
-    if (data) setLeads(data as Lead[]);
-    setLoading(false);
-  };
-
-  const toggleStatus = (status: LeadStatus) => {
-    setSelectedStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(status)) next.delete(status);
-      else next.add(status);
-      return next;
-    });
-  };
-
-  const dateFiltered = useMemo(() => {
-    const now = new Date();
-
-    return leads.filter((l) => {
-      if (!l.address) return false;
-      if (!selectedStatuses.has(l.status)) return false;
-
-      const created = new Date(l.created_at);
-
-      if (datePreset === "week") {
-        const weekAgo = new Date(now);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        return created >= weekAgo;
-      }
-
-      if (datePreset === "month") {
-        const monthAgo = new Date(now);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        return created >= monthAgo;
-      }
-
-      if (datePreset === "custom") {
-        if (customFrom && created < new Date(customFrom)) return false;
-        if (customTo && created > new Date(customTo + "T23:59:59")) return false;
-      }
-
-      return true;
-    });
-  }, [leads, datePreset, customFrom, customTo, selectedStatuses]);
-
-  useEffect(() => {
-    if (dateFiltered.length === 0) {
-      setGeocodedLeads([]);
-      return;
-    }
-    geocodeLeads(dateFiltered);
-  }, [dateFiltered]);
-
-  const geocodeLeads = async (leadsToGeocode: Lead[]) => {
-    if (geocodingRef.current) return;
-
-    geocodingRef.current = true;
-    setGeocoding(true);
-
-    const cache = loadGeoCache();
-    const results: GeocodedLead[] = [];
-    const needsGeocode: Lead[] = [];
-
-    for (const lead of leadsToGeocode) {
-      if (!lead.address) continue;
-      const cached = cache[lead.address];
-      if (cached) results.push({ lead, lat: cached[0], lng: cached[1] });
-      else needsGeocode.push(lead);
-    }
-
-    setGeocodedLeads([...results]);
-    setGeocodeProgress({ done: results.length, total: results.length + needsGeocode.length });
-
-    for (let i = 0; i < needsGeocode.length; i++) {
-      const lead = needsGeocode[i];
-      if (!lead.address) continue;
-
-      const coords = await geocodeAddress(lead.address);
-      if (coords) {
-        cache[lead.address] = coords;
-        results.push({ lead, lat: coords[0], lng: coords[1] });
-        setGeocodedLeads([...results]);
-      }
-
-      setGeocodeProgress({
-        done: results.length,
-        total: results.length + needsGeocode.length - i - 1,
-      });
-
-      if (i < needsGeocode.length - 1) await sleep(1100);
-    }
-
-    saveGeoCache(cache);
-    setGeocoding(false);
-    geocodingRef.current = false;
-  };
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -451,22 +304,14 @@ export default function MapPage() {
       return;
     }
 
-<<<<<<< HEAD
     const match = visibleGeocodedLeads.find((g) => g.lead.address?.toLowerCase().includes(searchQuery.toLowerCase()));
-=======
-    const match = geocodedLeads.find((g) => g.lead.address?.toLowerCase().includes(searchQuery.toLowerCase()));
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
     if (match && mapRef.current) {
       mapRef.current.flyTo([match.lat, match.lng], 13, { duration: 1.5 });
     }
   };
 
-<<<<<<< HEAD
   const plottedCount = visibleGeocodedLeads.length;
-=======
-  const plottedCount = geocodedLeads.length;
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   const activeStatusCount = selectedStatuses.size;
 
   return (
@@ -584,10 +429,7 @@ export default function MapPage() {
 
             <div className="flex items-center gap-2">
               <button
-<<<<<<< HEAD
                 type="button"
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 onClick={handleSearch}
                 className="inline-flex h-11 items-center justify-center rounded-xl border border-border/60 bg-background px-4 text-sm font-medium text-foreground shadow-sm transition-all duration-200 hover:border-primary/25 hover:bg-primary/[0.03]"
               >
@@ -622,7 +464,6 @@ export default function MapPage() {
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <Filter className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
-<<<<<<< HEAD
             <Button
               type="button"
               variant="outline"
@@ -645,11 +486,6 @@ export default function MapPage() {
               <button
                 key={status}
                 type="button"
-=======
-            {ALL_LEAD_STATUSES.map((status) => (
-              <button
-                key={status}
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 onClick={() => toggleStatus(status)}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-all duration-200 ${
                   selectedStatuses.has(status)
@@ -702,22 +538,13 @@ export default function MapPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-<<<<<<< HEAD
             {availableStatuses.map((status) => (
-=======
-            {Object.entries(STATUS_MARKER_COLORS).map(([status, color]) => (
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               <div
                 key={status}
                 className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-muted/[0.18] px-3 py-1.5 text-[11px]"
               >
-<<<<<<< HEAD
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: STATUS_MARKER_COLORS[status] }} />
                 <span className="text-muted-foreground">{STATUS_LABELS[status]}</span>
-=======
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
-                <span className="text-muted-foreground">{STATUS_LABELS[status as LeadStatus]}</span>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               </div>
             ))}
           </div>
@@ -726,8 +553,5 @@ export default function MapPage() {
     </div>
   );
 }
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f

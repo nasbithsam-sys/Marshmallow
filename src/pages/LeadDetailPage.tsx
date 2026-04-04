@@ -1,12 +1,7 @@
-<<<<<<< HEAD
 ﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCallback } from "react";
 import type { ChangeEvent, ElementType } from "react";
-=======
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { logActivity } from "@/lib/activity";
@@ -17,7 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-<<<<<<< HEAD
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -36,28 +30,17 @@ import {
   BadgeDollarSign,
   Sparkles,
 } from "lucide-react";
-=======
-import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import { ArrowLeft, Save, AlertCircle, ImagePlus, X, ChevronDown, User, Wrench, Calendar, Check } from "lucide-react";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { motion } from "framer-motion";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import PaymentDialog from "@/components/leads/PaymentDialog";
 import ImageLightbox from "@/components/leads/ImageLightbox";
 import CopyLeadButton from "@/components/leads/CopyLeadButton";
-<<<<<<< HEAD
 import NoteThread from "@/components/leads/NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
 import { getChangeableStatuses } from "@/lib/constants";
 import StatusBadge from "@/components/leads/StatusBadge";
 import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
-=======
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
-import { getChangeableStatuses } from "@/lib/constants";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
 const generateJobId = () => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -75,15 +58,9 @@ const sendNotifications = async (leadName: string, status: string, leadId: strin
 
   const statusLabel = status === "urgent_job" ? "Urgent Job" : "Need Tech";
 
-<<<<<<< HEAD
   const notifications = roles.map((r: { user_id: string }) => ({
     user_id: r.user_id,
     title: `[Alert] ${statusLabel}`,
-=======
-  const notifications = roles.map((r: any) => ({
-    user_id: r.user_id,
-    title: `🚨 ${statusLabel}`,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     message: `Lead "${leadName}" changed to ${statusLabel}`,
     lead_id: leadId,
     read: false,
@@ -92,7 +69,6 @@ const sendNotifications = async (leadName: string, status: string, leadId: strin
   await supabase.from("notifications").insert(notifications);
 };
 
-<<<<<<< HEAD
 const SectionHeader = ({
   icon: Icon,
   title,
@@ -112,14 +88,6 @@ const SectionHeader = ({
       <div className="text-[14px] font-semibold tracking-[-0.015em] text-foreground">{title}</div>
       {subtitle && <div className="mt-0.5 text-[12px] leading-5 text-muted-foreground">{subtitle}</div>}
     </div>
-=======
-const SectionHeader = ({ icon: Icon, title, open }: { icon: React.ElementType; title: string; open: boolean }) => (
-  <div className="flex items-center gap-2.5 w-full">
-    <div className="w-7 h-7 rounded-md bg-primary/10 border border-primary/15 flex items-center justify-center">
-      <Icon className="h-3.5 w-3.5 text-primary/80" />
-    </div>
-    <span className="text-[13px] font-semibold text-foreground flex-1">{title}</span>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
       <ChevronDown className="h-4 w-4 text-muted-foreground/70" />
     </motion.span>
@@ -192,13 +160,6 @@ export default function LeadDetailPage() {
     for_you_amount: "",
     for_us_amount: "",
 
-<<<<<<< HEAD
-=======
-    cs_notes: "",
-    processor_notes: "",
-    general_notes: "",
-
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     amount: "",
     payment_screenshot_url: "",
   });
@@ -206,7 +167,6 @@ export default function LeadDetailPage() {
   const duplicateCheckId = isNew ? undefined : leadId || undefined;
   const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone, duplicateCheckId);
 
-<<<<<<< HEAD
   const fieldClass =
     "crm-lead-card-inner border-border/65 bg-transparent text-foreground shadow-[0_18px_30px_-24px_rgba(59,130,246,0.12)] placeholder:text-muted-foreground/65 focus-visible:border-primary/35 focus-visible:bg-[hsl(var(--background)/0.96)] dark:shadow-none";
   const labelClass = "text-[12px] font-semibold tracking-[-0.01em] text-foreground/82";
@@ -216,13 +176,6 @@ export default function LeadDetailPage() {
     "glass-panel rounded-[24px] border border-border/60 px-4 py-4 text-left transition-all duration-200 hover:border-primary/18 hover:shadow-[0_22px_40px_-28px_rgba(59,130,246,0.14)] dark:shadow-none";
 
   const fetchProfilesAndMeta = async (lead: Lead) => {
-=======
-  const fieldClass = "bg-background border-border/70 text-foreground placeholder:text-muted-foreground/60";
-  const labelClass = "text-[12px] font-semibold text-foreground/80";
-  const sectionClass = "rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3";
-
-  const fetchProfilesAndMeta = async (lead: any) => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     const { data: creator } = await supabase.from("profiles").select("full_name").eq("id", lead.created_by).single();
     setCreatedBy(creator?.full_name || "Unknown");
 
@@ -240,11 +193,7 @@ export default function LeadDetailPage() {
     setLastEditedAt(lead.updated_at || "");
   };
 
-<<<<<<< HEAD
   const setFormFromLead = (lead: Lead) => {
-=======
-  const setFormFromLead = (lead: any) => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     const parseTimeParts = (time?: string | null, fallbackHour = "12", fallbackMinute = "00", fallbackAmpm = "AM") => {
       if (!time) {
         return { hour: fallbackHour, minute: fallbackMinute, ampm: fallbackAmpm };
@@ -297,23 +246,12 @@ export default function LeadDetailPage() {
       for_you_amount: lead.for_you_amount != null ? String(lead.for_you_amount) : "",
       for_us_amount: lead.for_us_amount != null ? String(lead.for_us_amount) : "",
 
-<<<<<<< HEAD
-=======
-      cs_notes: lead.cs_notes || "",
-      processor_notes: lead.processor_notes || "",
-      general_notes: lead.general_notes || "",
-
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       amount: lead.amount != null ? String(lead.amount) : "",
       payment_screenshot_url: lead.payment_screenshot_url || "",
     });
   };
 
-<<<<<<< HEAD
   const fetchLead = useCallback(async () => {
-=======
-  const fetchLead = async () => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     if (!id || isNew) return;
 
     setLoading(true);
@@ -332,11 +270,7 @@ export default function LeadDetailPage() {
     setFormFromLead(lead);
     await fetchProfilesAndMeta(lead);
     setLoading(false);
-<<<<<<< HEAD
   }, [id, isNew, navigate]);
-=======
-  };
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   const fetchPhotos = async (currentLeadId: string) => {
     const { data } = await supabase
@@ -347,16 +281,10 @@ export default function LeadDetailPage() {
 
     if (data) {
       const { getSignedUrls } = await import("@/lib/storage");
-<<<<<<< HEAD
       const rows = data as Array<{ id: string; photo_url: string }>;
       const paths = rows.map((p) => p.photo_url);
       const urls = await getSignedUrls(paths);
       setPhotos(rows.map((p, i) => ({ id: p.id, url: urls[i], path: p.photo_url })));
-=======
-      const paths = data.map((p: any) => p.photo_url);
-      const urls = await getSignedUrls(paths);
-      setPhotos(data.map((p: any, i: number) => ({ id: p.id, url: urls[i], path: p.photo_url })));
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     } else {
       setPhotos([]);
     }
@@ -369,11 +297,7 @@ export default function LeadDetailPage() {
       return;
     }
     fetchLead();
-<<<<<<< HEAD
   }, [fetchLead, id, isNew]);
-=======
-  }, [id, isNew]);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   useEffect(() => {
     if (leadId) {
@@ -402,11 +326,7 @@ export default function LeadDetailPage() {
     return `${h.toString().padStart(2, "0")}:${minute}`;
   };
 
-<<<<<<< HEAD
   const handlePhotoAdd = (e: ChangeEvent<HTMLInputElement>) => {
-=======
-  const handlePhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     if (e.target.files) {
       setNewPhotos((prev) => [...prev, ...Array.from(e.target.files!)]);
     }
@@ -417,7 +337,6 @@ export default function LeadDetailPage() {
   };
 
   const removeExistingPhoto = async (photoId: string) => {
-<<<<<<< HEAD
     const photo = photos.find((item) => item.id === photoId);
 
     await supabase.from("lead_photos").delete().eq("id", photoId);
@@ -426,9 +345,6 @@ export default function LeadDetailPage() {
       await supabase.storage.from("lead-photos").remove([photo.path]);
     }
 
-=======
-    await supabase.from("lead_photos").delete().eq("id", photoId);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     setPhotos((prev) => prev.filter((p) => p.id !== photoId));
   };
 
@@ -504,7 +420,6 @@ export default function LeadDetailPage() {
     await fetchPhotos(currentLeadId);
   };
 
-<<<<<<< HEAD
   const insertInitialNotes = async (currentLeadId: string) => {
     if (!user) return;
 
@@ -542,8 +457,6 @@ export default function LeadDetailPage() {
     }
   };
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   const handleSave = async () => {
     if (!user) return;
 
@@ -577,11 +490,7 @@ export default function LeadDetailPage() {
       scheduled_time_end = parseTime(form.end_hour, form.end_minute, form.end_ampm);
     }
 
-<<<<<<< HEAD
     const payload = {
-=======
-    const payload: any = {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       customer_name: form.customer_name,
       customer_phone: form.customer_phone || null,
       customer_email: form.customer_email || null,
@@ -601,13 +510,6 @@ export default function LeadDetailPage() {
       customer_schedule_requirements: form.customer_schedule_requirements || null,
       reference_name: form.reference_name || null,
 
-<<<<<<< HEAD
-=======
-      general_notes: form.general_notes || null,
-      cs_notes: form.cs_notes || null,
-      processor_notes: form.processor_notes || null,
-
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       tech_name: role !== "customer_service" ? form.tech_name || null : (originalLead?.tech_name ?? null),
       tech_number: role !== "customer_service" ? form.tech_number || null : (originalLead?.tech_number ?? null),
       terms: role !== "customer_service" ? form.terms || null : (originalLead?.terms ?? null),
@@ -658,11 +560,8 @@ export default function LeadDetailPage() {
         setLeadId(newLeadId);
         setOriginalLead(data as Lead);
 
-<<<<<<< HEAD
         await insertInitialNotes(newLeadId);
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         if (newPhotos.length > 0) {
           await uploadNewPhotos(newLeadId);
         }
@@ -708,14 +607,9 @@ export default function LeadDetailPage() {
 
       await fetchLead();
       toast.success("Lead updated!");
-<<<<<<< HEAD
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to save lead";
       toast.error(message);
-=======
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save lead");
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     } finally {
       setSaving(false);
     }
@@ -752,15 +646,9 @@ export default function LeadDetailPage() {
       material_amount: form.material_amount ? parseFloat(form.material_amount) : null,
       for_you_amount: form.for_you_amount ? parseFloat(form.for_you_amount) : null,
       for_us_amount: form.for_us_amount ? parseFloat(form.for_us_amount) : null,
-<<<<<<< HEAD
       general_notes: originalLead?.general_notes || null,
       cs_notes: originalLead?.cs_notes || null,
       processor_notes: originalLead?.processor_notes || null,
-=======
-      general_notes: form.general_notes || null,
-      cs_notes: form.cs_notes || null,
-      processor_notes: form.processor_notes || null,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       created_by: originalLead?.created_by || user?.id || "",
       created_at: originalLead?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -780,28 +668,19 @@ export default function LeadDetailPage() {
   }, [newPhotoUrls]);
 
   const allImageUrls = [...photos.map((p) => p.url), ...newPhotoUrls];
-<<<<<<< HEAD
   const visiblePhotoCount = photos.length + newPhotos.length;
   const scheduleSummary = form.scheduled_date
     ? `${new Date(form.scheduled_date).toLocaleDateString()}${
         form.start_hour && form.end_hour ? ` · ${form.start_hour}:${form.start_minute} ${form.start_ampm} - ${form.end_hour}:${form.end_minute} ${form.end_ampm}` : ""
       }`
     : "Not scheduled yet";
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   const TimePicker = ({ prefix, label }: { prefix: "start" | "end"; label: string }) => (
     <div className="space-y-1.5">
       <Label className={labelClass}>{label}</Label>
-<<<<<<< HEAD
       <div className="flex flex-wrap items-center gap-1.5">
         <Select value={form[`${prefix}_hour` as keyof typeof form]} onValueChange={(v) => update(`${prefix}_hour`, v)}>
           <SelectTrigger className="h-10 w-[72px] border-border/60 bg-background/90">
-=======
-      <div className="flex items-center gap-1.5">
-        <Select value={form[`${prefix}_hour` as keyof typeof form]} onValueChange={(v) => update(`${prefix}_hour`, v)}>
-          <SelectTrigger className="w-[60px] h-9 bg-background border-border/70">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -819,11 +698,7 @@ export default function LeadDetailPage() {
           value={form[`${prefix}_minute` as keyof typeof form]}
           onValueChange={(v) => update(`${prefix}_minute`, v)}
         >
-<<<<<<< HEAD
           <SelectTrigger className="h-10 w-[72px] border-border/60 bg-background/90">
-=======
-          <SelectTrigger className="w-[60px] h-9 bg-background border-border/70">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -836,11 +711,7 @@ export default function LeadDetailPage() {
         </Select>
 
         <Select value={form[`${prefix}_ampm` as keyof typeof form]} onValueChange={(v) => update(`${prefix}_ampm`, v)}>
-<<<<<<< HEAD
           <SelectTrigger className="h-10 w-[76px] border-border/60 bg-background/90">
-=======
-          <SelectTrigger className="w-[60px] h-9 bg-background border-border/70">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -853,7 +724,6 @@ export default function LeadDetailPage() {
   );
 
   if (loading) {
-<<<<<<< HEAD
     return (
       <div className="flex h-72 items-center justify-center">
         <div className="glass-panel rounded-2xl px-5 py-4 text-sm text-muted-foreground dark:bg-[linear-gradient(180deg,hsl(var(--card)/0.94),hsl(var(--muted)/0.30))]">
@@ -970,64 +840,6 @@ export default function LeadDetailPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-=======
-    return <div className="flex h-64 items-center justify-center text-muted-foreground">Loading...</div>;
-  }
-
-  return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/leads")} className="shrink-0">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold truncate">{isNew ? "New Lead" : form.customer_name || "Lead"}</h1>
-          {jobId && <p className="text-sm text-muted-foreground font-mono">{jobId}</p>}
-        </div>
-
-        <Badge variant="outline" className="shrink-0 text-xs">
-          {LEAD_STATUS_CONFIG[form.status]?.label || form.status}
-        </Badge>
-
-        {!isCS && currentCopyLead && <CopyLeadButton lead={currentCopyLead} />}
-
-        <Button onClick={handleSave} disabled={saving || isDuplicate} className="gap-2 shrink-0">
-          {saved ? (
-            <>
-              <Check className="h-4 w-4" /> Saved
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" /> {saving ? "Saving..." : isNew ? "Create Lead" : "Save"}
-            </>
-          )}
-        </Button>
-      </div>
-
-      {!isNew && (
-        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-          <span>
-            Created by: <strong className="text-foreground">{createdBy}</strong>
-          </span>
-          {lastEditedBy && lastEditedAt && (
-            <span>
-              Last edited by: <strong className="text-foreground">{lastEditedBy}</strong> on{" "}
-              {new Date(lastEditedAt).toLocaleString()}
-            </span>
-          )}
-        </div>
-      )}
-
-      <Card className="border-border/60">
-        <CardContent className="p-6 space-y-4">
-          <div className={sectionClass}>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
-              Required Information
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               <div className="space-y-1.5">
                 <Label className={labelClass}>Customer Name *</Label>
                 <Input
@@ -1082,7 +894,6 @@ export default function LeadDetailPage() {
           </div>
 
           <Collapsible open={csOpen} onOpenChange={setCsOpen}>
-<<<<<<< HEAD
             <CollapsibleTrigger className={collapsibleShellClass}>
               <SectionHeader
                 icon={User}
@@ -1093,13 +904,6 @@ export default function LeadDetailPage() {
             </CollapsibleTrigger>
 
             <CollapsibleContent className="mt-3 space-y-4 px-1">
-=======
-            <CollapsibleTrigger className="w-full rounded-lg border border-border/50 px-4 py-3 hover:bg-muted/20 transition-colors">
-              <SectionHeader icon={User} title="Customer Service Details" open={csOpen} />
-            </CollapsibleTrigger>
-
-            <CollapsibleContent className="mt-2 space-y-3 px-1">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               <div className="space-y-1.5">
                 <Label className={labelClass}>Address</Label>
                 <Input
@@ -1112,11 +916,7 @@ export default function LeadDetailPage() {
               </div>
 
 
-<<<<<<< HEAD
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-=======
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 <div className="space-y-1.5">
                   <Label className={labelClass}>Service Type</Label>
                   <Input
@@ -1169,7 +969,6 @@ export default function LeadDetailPage() {
                 />
               </div>
 
-<<<<<<< HEAD
               {isNew ? (
                 <div className="space-y-1.5">
                   <Label className="text-[12px] font-semibold text-foreground">CS Notes</Label>
@@ -1192,24 +991,11 @@ export default function LeadDetailPage() {
                   {leadId && <NoteThread leadId={leadId} noteType="cs" label="CS Notes" />}
                 </div>
               )}
-=======
-              <div className="space-y-1.5">
-                <Label className="text-[12px] font-semibold text-foreground">CS Notes</Label>
-                <Textarea
-                  value={form.cs_notes}
-                  onChange={(e) => update("cs_notes", e.target.value)}
-                  rows={4}
-                  className={`${fieldClass} resize-none min-h-[110px]`}
-                  readOnly={isProcessor}
-                />
-              </div>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             </CollapsibleContent>
           </Collapsible>
 
           {!isCS && (
             <Collapsible open={processorOpen} onOpenChange={setProcessorOpen}>
-<<<<<<< HEAD
               <CollapsibleTrigger className={collapsibleShellClass}>
                 <SectionHeader
                   icon={Wrench}
@@ -1221,14 +1007,6 @@ export default function LeadDetailPage() {
 
               <CollapsibleContent className="mt-3 space-y-4 px-1">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-=======
-              <CollapsibleTrigger className="w-full rounded-lg border border-border/50 px-4 py-3 hover:bg-muted/20 transition-colors">
-                <SectionHeader icon={Wrench} title="Processor Details" open={processorOpen} />
-              </CollapsibleTrigger>
-
-              <CollapsibleContent className="mt-2 space-y-3 px-1">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   <div className="space-y-1.5">
                     <Label className={labelClass}>Tech Name</Label>
                     <Input
@@ -1263,21 +1041,12 @@ export default function LeadDetailPage() {
                 </div>
 
                 {form.terms === "quoted" && (
-<<<<<<< HEAD
                   <div className="crm-lead-card-soft rounded-[22px] p-4 space-y-3 shadow-[0_18px_28px_-24px_rgba(59,130,246,0.12)] dark:shadow-none">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/60">
                       Quoted Details
                     </p>
 
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-=======
-                  <div className="rounded-lg border border-border/40 bg-background/70 p-3 space-y-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
-                      Quoted Details
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                       <div className="space-y-1.5">
                         <Label className={labelClass}>Customer Labor ($)</Label>
                         <Input
@@ -1325,7 +1094,6 @@ export default function LeadDetailPage() {
                   </div>
                 )}
 
-<<<<<<< HEAD
                 {isNew ? (
                   <div className="space-y-1.5">
                     <Label className="text-[12px] font-semibold text-foreground">Processor Notes</Label>
@@ -1347,23 +1115,11 @@ export default function LeadDetailPage() {
                     {leadId && <NoteThread leadId={leadId} noteType="processor" label="Processor Notes" />}
                   </div>
                 )}
-=======
-                <div className="space-y-1.5">
-                  <Label className="text-[12px] font-semibold text-foreground">Processor Notes</Label>
-                  <Textarea
-                    value={form.processor_notes}
-                    onChange={(e) => update("processor_notes", e.target.value)}
-                    rows={4}
-                    className={`${fieldClass} resize-none min-h-[110px]`}
-                  />
-                </div>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               </CollapsibleContent>
             </Collapsible>
           )}
 
           <Collapsible open={scheduleOpen} onOpenChange={setScheduleOpen}>
-<<<<<<< HEAD
             <CollapsibleTrigger className={collapsibleShellClass}>
               <SectionHeader
                 icon={Calendar}
@@ -1374,13 +1130,6 @@ export default function LeadDetailPage() {
             </CollapsibleTrigger>
 
             <CollapsibleContent className="mt-3 space-y-4 px-1">
-=======
-            <CollapsibleTrigger className="w-full rounded-lg border border-border/50 px-4 py-3 hover:bg-muted/20 transition-colors">
-              <SectionHeader icon={Calendar} title="Schedule & Status" open={scheduleOpen} />
-            </CollapsibleTrigger>
-
-            <CollapsibleContent className="mt-2 space-y-3 px-1">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               <div className="space-y-1.5">
                 <Label className={labelClass}>Status</Label>
                 <Select value={form.status} onValueChange={(v) => update("status", v)}>
@@ -1411,11 +1160,7 @@ export default function LeadDetailPage() {
               </div>
 
               {form.scheduled_date && (
-<<<<<<< HEAD
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-=======
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   <TimePicker prefix="start" label="Start Time" />
                   <TimePicker prefix="end" label="End Time" />
                 </div>
@@ -1436,7 +1181,6 @@ export default function LeadDetailPage() {
             </CollapsibleContent>
           </Collapsible>
 
-<<<<<<< HEAD
           <div className={sectionClass}>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/60">Photos</p>
@@ -1450,15 +1194,6 @@ export default function LeadDetailPage() {
                 <div
                   key={photo.id}
                   className="group crm-lead-card-inner relative h-20 w-20 overflow-hidden rounded-2xl shadow-[0_16px_24px_-22px_rgba(59,130,246,0.12)] dark:shadow-none"
-=======
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Photos</Label>
-            <div className="flex flex-wrap gap-2">
-              {photos.map((photo, i) => (
-                <div
-                  key={photo.id}
-                  className="relative h-16 w-16 rounded-lg overflow-hidden border border-border/50 group"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 >
                   <img
                     src={photo.url}
@@ -1472,11 +1207,7 @@ export default function LeadDetailPage() {
                   <button
                     type="button"
                     onClick={() => removeExistingPhoto(photo.id)}
-<<<<<<< HEAD
                     className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
-=======
-                    className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   >
                     <X className="h-2.5 w-2.5" />
                   </button>
@@ -1486,40 +1217,26 @@ export default function LeadDetailPage() {
               {newPhotos.map((photo, i) => (
                 <div
                   key={`new-${i}`}
-<<<<<<< HEAD
                   className="group crm-lead-card-inner relative h-20 w-20 overflow-hidden rounded-2xl shadow-[0_16px_24px_-22px_rgba(59,130,246,0.12)] dark:shadow-none"
-=======
-                  className="relative h-16 w-16 rounded-lg overflow-hidden border border-border/50 group"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 >
                   <img src={URL.createObjectURL(photo)} alt="" className="h-full w-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removeNewPhoto(i)}
-<<<<<<< HEAD
                     className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
-=======
-                    className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   >
                     <X className="h-2.5 w-2.5" />
                   </button>
                 </div>
               ))}
 
-<<<<<<< HEAD
               <label className="crm-lead-card-soft flex h-20 w-20 cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed transition-colors hover:border-primary/40">
                 <ImagePlus className="h-5 w-5 text-muted-foreground/55" />
-=======
-              <label className="h-16 w-16 rounded-lg border-2 border-dashed border-border/50 flex items-center justify-center cursor-pointer hover:border-primary/40 transition-colors bg-background/60">
-                <ImagePlus className="h-5 w-5 text-muted-foreground/50" />
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoAdd} />
               </label>
             </div>
           </div>
 
-<<<<<<< HEAD
           <div className={sectionClass}>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/60">General Notes</p>
@@ -1537,16 +1254,6 @@ export default function LeadDetailPage() {
             ) : (
               leadId && <NoteThread leadId={leadId} noteType="general" label="General Notes" />
             )}
-=======
-          <div className="space-y-1.5">
-            <Label className="text-[12px] font-semibold text-foreground">General Notes</Label>
-            <Textarea
-              value={form.general_notes}
-              onChange={(e) => update("general_notes", e.target.value)}
-              rows={4}
-              className={`${fieldClass} resize-none min-h-[110px]`}
-            />
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           </div>
         </CardContent>
       </Card>
@@ -1567,8 +1274,5 @@ export default function LeadDetailPage() {
     </div>
   );
 }
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f

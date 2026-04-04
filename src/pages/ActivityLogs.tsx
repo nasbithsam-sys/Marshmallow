@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 ﻿import { useMemo, useState } from "react";
-=======
-import { useMemo, useState } from "react";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -365,11 +361,7 @@ const ActivityLogs = () => {
                                     <div key={idx} className="text-[12px] leading-5 text-muted-foreground">
                                       <span className="font-semibold text-foreground">{line.field}:</span>{" "}
                                       <span className="text-red-600">{line.before}</span>{" "}
-<<<<<<< HEAD
                                       <span className="text-muted-foreground">{"->"}</span>{" "}
-=======
-                                      <span className="text-muted-foreground">→</span>{" "}
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                                       <span className="text-emerald-600">{line.after}</span>
                                     </div>
                                   ))}
@@ -464,8 +456,5 @@ const ActivityLogs = () => {
 };
 
 export default ActivityLogs;
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
