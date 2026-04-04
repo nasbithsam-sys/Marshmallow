@@ -151,6 +151,9 @@ export default function LeadDetailPage() {
     service_details: "",
     customer_schedule_requirements: "",
     reference_name: "",
+    cs_notes: "",
+    processor_notes: "",
+    general_notes: "",
 
     tech_name: "",
     tech_number: "",
