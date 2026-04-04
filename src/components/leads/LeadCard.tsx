@@ -623,7 +623,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls }: LeadCardProps) {
           onOpenChange={setLightboxOpen}
         />
       </Card>
-    </div>
+    </motion.div>
   );
 }
 
