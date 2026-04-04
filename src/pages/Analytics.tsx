@@ -191,7 +191,7 @@ const Analytics = () => {
     if (!active || !payload?.length) return null;
 
     return (
-      <div className="rounded-2xl border border-border/60 bg-card/95 px-4 py-3 shadow-[0_18px_40px_-26px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+      <div className="rounded-2xl border border-border/60 bg-card/95 px-4 py-3 shadow-[0_18px_40px_-26px_rgba(0,0,0,0.45)]">
         <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
         <p className="mt-1 text-sm font-semibold text-foreground">{payload[0].value} leads</p>
       </div>

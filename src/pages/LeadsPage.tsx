@@ -459,7 +459,7 @@ export default function LeadsPage() {
         </motion.div>
 
         {urgentCount > 0 && (
-          <motion.div whileHover={{ y: -3 }} transition={silkySpring} className="rounded-[26px] border border-destructive/22 bg-[radial-gradient(circle_at_top_left,hsl(var(--destructive)/0.12),transparent_34%),linear-gradient(180deg,hsl(0_0%_100%/0.8),hsl(12_100%_97%/0.64))] p-4 shadow-[0_26px_50px_-30px_rgba(239,68,68,0.18),0_12px_24px_-20px_rgba(251,146,60,0.12)] backdrop-blur-[20px] dark:border-destructive/18 dark:bg-[radial-gradient(circle_at_top_left,hsl(var(--destructive)/0.12),transparent_34%),linear-gradient(180deg,hsl(225_28%_18%/0.96),hsl(226_26%_15%/0.92))] dark:shadow-[0_22px_42px_-30px_rgba(239,68,68,0.22)]">
+          <motion.div whileHover={{ y: -3 }} transition={silkySpring} className="rounded-[26px] border border-destructive/22 bg-[radial-gradient(circle_at_top_left,hsl(var(--destructive)/0.12),transparent_34%),linear-gradient(180deg,hsl(0_0%_100%/0.8),hsl(12_100%_97%/0.64))] p-4 shadow-[0_26px_50px_-30px_rgba(239,68,68,0.18),0_12px_24px_-20px_rgba(251,146,60,0.12)] dark:border-destructive/18 dark:bg-[radial-gradient(circle_at_top_left,hsl(var(--destructive)/0.12),transparent_34%),linear-gradient(180deg,hsl(225_28%_18%/0.96),hsl(226_26%_15%/0.92))] dark:shadow-[0_22px_42px_-30px_rgba(239,68,68,0.22)]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-destructive/75">Urgent Attention</p>
             <div className="mt-3 flex items-end justify-between gap-3">
               <span className="text-3xl font-semibold tracking-[-0.04em] text-destructive tabular-nums">{urgentCount}</span>

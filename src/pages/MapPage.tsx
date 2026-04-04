@@ -520,7 +520,7 @@ export default function MapPage() {
           </div>
         ) : (
           <div className="relative">
-            <div className="pointer-events-none absolute left-4 top-4 z-[500] rounded-2xl border border-border/60 bg-card/92 px-3 py-2 text-[12px] text-muted-foreground shadow-sm backdrop-blur-xl">
+            <div className="pointer-events-none absolute left-4 top-4 z-[500] rounded-2xl border border-border/60 bg-card/92 px-3 py-2 text-[12px] text-muted-foreground shadow-sm">
               Interactive map · click markers for lead preview
             </div>
             <div ref={mapContainerRef} className="z-0 h-[calc(100vh-320px)] min-h-[440px]" />
