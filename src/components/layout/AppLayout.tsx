@@ -3,8 +3,8 @@ import AppSidebar from "@/components/layout/AppSidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Outlet, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
-import { premiumEase } from "@/lib/motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { premiumEase, pageVariants } from "@/lib/motion";
 
 export default function AppLayout() {
   const location = useLocation();
@@ -42,11 +42,31 @@ export default function AppLayout() {
                     Lead CRM
                   </span>
                   <span className="hidden h-1 w-1 rounded-full bg-border/80 sm:block" />
-                  <span className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground">
-                    {activeMeta.title}
-                  </span>
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={activeMeta.title}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2, ease: premiumEase }}
+                      className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground"
+                    >
+                      {activeMeta.title}
+                    </motion.span>
+                  </AnimatePresence>
                 </div>
-                <p className="mt-0.5 hidden text-[13px] text-muted-foreground sm:block">{activeMeta.subtitle}</p>
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={activeMeta.subtitle}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="mt-0.5 hidden text-[13px] text-muted-foreground sm:block"
+                  >
+                    {activeMeta.subtitle}
+                  </motion.p>
+                </AnimatePresence>
               </div>
               <div className="flex items-center gap-2">
                 <ThemeToggle />
@@ -56,9 +76,18 @@ export default function AppLayout() {
           </header>
           <main className="relative flex-1 overflow-auto px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-6 lg:px-8 lg:py-7">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_8%,hsl(194_100%_84%/0.18),transparent_18%),radial-gradient(circle_at_88%_12%,hsl(211_100%_88%/0.18),transparent_16%),radial-gradient(circle_at_46%_28%,hsl(188_100%_91%/0.12),transparent_22%),radial-gradient(circle_at_50%_100%,hsl(196_100%_88%/0.1),transparent_26%)]" />
-            <div key={location.pathname} className="relative">
-              <Outlet />
-            </div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={location.pathname}
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="relative"
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
           </main>
         </div>
       </div>

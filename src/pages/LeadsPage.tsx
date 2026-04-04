@@ -22,7 +22,7 @@ import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
-import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
+import { heroTitle, premiumEase, silkySpring, cardGridContainer, cardGridItem } from "@/lib/motion";
 import { getSignedUrls } from "@/lib/storage";
 
 const PAGE_SIZES = [20, 40, 60, 100];
@@ -659,17 +659,23 @@ export default function LeadsPage() {
           </Card>
         </motion.div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <motion.div
+          variants={cardGridContainer}
+          initial="initial"
+          animate="animate"
+          className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+        >
           {paged.map((lead) => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              profiles={profiles}
-              onRefresh={handleRefresh}
-              photoUrls={photoUrlsByLead[lead.id]}
-            />
+            <motion.div key={lead.id} variants={cardGridItem}>
+              <LeadCard
+                lead={lead}
+                profiles={profiles}
+                onRefresh={handleRefresh}
+                photoUrls={photoUrlsByLead[lead.id]}
+              />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {totalPages > 1 && (

@@ -160,6 +160,13 @@
 @layer base {
   * {
     @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-timing-function: cubic-bezier(0.22, 0.68, 0, 1);
   }
 
   body {
