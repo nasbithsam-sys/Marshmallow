@@ -240,6 +240,9 @@ export default function LeadDetailPage() {
       service_details: lead.service_details || "",
       customer_schedule_requirements: lead.customer_schedule_requirements || "",
       reference_name: lead.reference_name || "",
+      cs_notes: lead.cs_notes || "",
+      processor_notes: lead.processor_notes || "",
+      general_notes: lead.general_notes || "",
 
       tech_name: lead.tech_name || "",
       tech_number: lead.tech_number ? formatUSPhone(lead.tech_number) : "",
