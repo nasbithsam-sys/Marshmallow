@@ -547,7 +547,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                   </div>
                 )}
               </div>
-              <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v)} role={role} />
+              <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v as LeadStatus)} role={role} />
             </div>
           </div>
         </div>
@@ -717,7 +717,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
                 <div className="col-span-2 space-y-1.5">
                   <Label className={labelClass}>Terms</Label>
-                  <Select value={form.terms ?? ""} onValueChange={(v) => update("terms", v)}>
+                  <Select value={form.terms ?? ""} onValueChange={(v) => update("terms", v as "free_estimate" | "quoted")}>
                     <SelectTrigger className={fieldClass}>
                       <SelectValue placeholder="Select terms..." />
                     </SelectTrigger>

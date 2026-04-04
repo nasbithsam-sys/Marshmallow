@@ -151,6 +151,9 @@ export default function LeadDetailPage() {
     service_details: "",
     customer_schedule_requirements: "",
     reference_name: "",
+    cs_notes: "",
+    processor_notes: "",
+    general_notes: "",
 
     tech_name: "",
     tech_number: "",
@@ -237,6 +240,9 @@ export default function LeadDetailPage() {
       service_details: lead.service_details || "",
       customer_schedule_requirements: lead.customer_schedule_requirements || "",
       reference_name: lead.reference_name || "",
+      cs_notes: lead.cs_notes || "",
+      processor_notes: lead.processor_notes || "",
+      general_notes: lead.general_notes || "",
 
       tech_name: lead.tech_name || "",
       tech_number: lead.tech_number ? formatUSPhone(lead.tech_number) : "",
@@ -265,10 +271,11 @@ export default function LeadDetailPage() {
     }
 
     setLeadId(lead.id);
-    setOriginalLead(lead as Lead);
+    const typedLead = { ...lead, status: lead.status as LeadStatus } as Lead;
+    setOriginalLead(typedLead);
     setJobId(lead.job_id);
-    setFormFromLead(lead);
-    await fetchProfilesAndMeta(lead);
+    setFormFromLead(typedLead);
+    await fetchProfilesAndMeta(typedLead);
     setLoading(false);
   }, [id, isNew, navigate]);
 
@@ -579,11 +586,12 @@ export default function LeadDetailPage() {
       if (!leadId) throw new Error("Missing lead id");
 
       const previousStatus = originalLead?.status;
+      const updatePayload: Record<string, unknown> = { ...payload };
       if (form.status === "paid" && form.amount) {
-        payload.amount = parseFloat(form.amount);
+        updatePayload.amount = parseFloat(form.amount);
       }
 
-      const { error } = await supabase.from("leads").update(payload).eq("id", leadId);
+      const { error } = await supabase.from("leads").update(updatePayload).eq("id", leadId);
 
       if (error) throw error;
 
