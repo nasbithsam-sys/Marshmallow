@@ -368,9 +368,14 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls }: LeadCardProps) {
   };
 
   return (
-    <div className="h-full">
+    <motion.div
+      className="h-full"
+      whileHover={reduceMotion ? undefined : { y: -4, scale: 1.006 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.985 }}
+      transition={{ type: "spring", stiffness: 200, damping: 24, mass: 0.6 }}
+    >
       <Card
-        className={`crm-lead-card group relative flex h-full flex-col overflow-hidden rounded-[30px] transition-all duration-300 hover:-translate-y-1 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
+        className={`crm-lead-card group relative flex h-full flex-col overflow-hidden rounded-[30px] transition-shadow duration-500 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
           isUrgent ? "ring-1 ring-destructive/15 border-destructive/15" : "border-border/60"
         }`}
       >
