@@ -437,7 +437,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   if (isLoading || !lead) {
     return (
       <div className="fixed inset-0 z-40 flex">
-        <div className="flex-1 bg-foreground/15 backdrop-blur-sm" onClick={onClose} />
+        <div className="flex-1 bg-foreground/15" onClick={onClose} />
         <div className="w-[58%] max-w-4xl border-l border-border bg-card p-6 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="h-8 w-8 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin" />
@@ -454,7 +454,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="flex-1 bg-foreground/20 backdrop-blur-sm"
+        className="flex-1 bg-foreground/20"
         onClick={onClose}
       />
 
@@ -465,7 +465,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         transition={{ type: "spring", stiffness: 280, damping: 30 }}
         className="w-[58%] max-w-4xl overflow-y-auto border-l border-border bg-[linear-gradient(to_bottom,rgba(255,255,255,0.02),transparent)] bg-card"
       >
-        <div className="glass-panel-strong sticky top-0 z-20 border-b border-border/60 backdrop-blur-xl">
+        <div className="glass-panel-strong sticky top-0 z-20 border-b border-border/60">
           <div className="px-6 pt-5 pb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
