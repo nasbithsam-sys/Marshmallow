@@ -547,7 +547,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                   </div>
                 )}
               </div>
-              <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v)} role={role} />
+              <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v as LeadStatus)} role={role} />
             </div>
           </div>
         </div>
