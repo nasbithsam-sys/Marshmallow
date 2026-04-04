@@ -8,17 +8,11 @@ import {
 import { Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Lead } from '@/types';
-<<<<<<< HEAD
 import { cn } from '@/lib/utils';
 
 interface Props {
   lead: Lead;
   className?: string;
-=======
-
-interface Props {
-  lead: Lead;
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 }
 
 const formatScheduleDate = (lead: Lead) => {
@@ -50,11 +44,7 @@ const formatScheduleDate = (lead: Lead) => {
   return `${isToday ? 'Today ' : ''}${dayName} ${day}${suffix} ${month}${timeRange}`;
 };
 
-<<<<<<< HEAD
 export default function CopyLeadButton({ lead, className }: Props) {
-=======
-export default function CopyLeadButton({ lead }: Props) {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   const [open, setOpen] = useState(false);
   const [customerNumber, setCustomerNumber] = useState('');
   const [referenceName, setReferenceName] = useState(lead.reference_name || '');
@@ -120,11 +110,7 @@ Scheduled: ${schedule}`;
       <Button
         variant="outline"
         size="sm"
-<<<<<<< HEAD
         className={cn("gap-1.5 text-[11px]", className)}
-=======
-        className="gap-1.5 text-[11px]"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         onClick={() => setOpen(true)}
       >
         <Copy className="h-3 w-3" />

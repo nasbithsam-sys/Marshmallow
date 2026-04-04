@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 import { useState, useEffect, useCallback } from 'react';
-=======
-import { useState, useEffect } from 'react';
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -11,10 +7,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Bell, CheckCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-<<<<<<< HEAD
-=======
-import { motion, AnimatePresence } from 'framer-motion';
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
 interface Notification {
   id: string;
@@ -31,11 +23,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
 
-<<<<<<< HEAD
   const fetchNotifications = useCallback(async () => {
-=======
-  const fetchNotifications = async () => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     if (!user) return;
     const { data } = await supabase
       .from('notifications')
@@ -44,7 +32,6 @@ export default function NotificationBell() {
       .order('created_at', { ascending: false })
       .limit(20);
     if (data) setNotifications(data as Notification[]);
-<<<<<<< HEAD
   }, [user]);
 
   useEffect(() => {
@@ -71,16 +58,6 @@ export default function NotificationBell() {
     }
   }, [fetchNotifications, open]);
 
-=======
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [user]);
-
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const markAllRead = async () => {
@@ -108,19 +85,9 @@ export default function NotificationBell() {
         <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-lg">
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
-<<<<<<< HEAD
             <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground shadow-[0_0_10px_hsl(var(--destructive)/0.3)]">
               {unreadCount}
             </span>
-=======
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="absolute -top-0.5 -right-0.5 h-4 min-w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center px-1 pulse-glow"
-            >
-              {unreadCount}
-            </motion.span>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           )}
         </Button>
       </PopoverTrigger>
@@ -143,7 +110,6 @@ export default function NotificationBell() {
             </div>
           ) : (
             <div className="divide-y divide-border/20">
-<<<<<<< HEAD
               {notifications.map((n) => (
                 <button
                   key={n.id}
@@ -162,31 +128,6 @@ export default function NotificationBell() {
                   </div>
                 </button>
               ))}
-=======
-              <AnimatePresence>
-                {notifications.map((n, i) => (
-                  <motion.button
-                    key={n.id}
-                    initial={{ opacity: 0, x: -6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.02 }}
-                    onClick={() => handleClick(n)}
-                    className={`w-full text-left px-4 py-3 hover:bg-muted/40 transition-colors ${!n.read ? 'bg-primary/[0.03]' : ''}`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      {!n.read && <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-[13px] ${!n.read ? 'font-semibold' : 'font-medium'} text-foreground`}>{n.title}</p>
-                        <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
-                        <p className="text-[10px] text-muted-foreground/40 mt-1">
-                          {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.button>
-                ))}
-              </AnimatePresence>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             </div>
           )}
         </ScrollArea>

@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 ﻿import { useState, useEffect, useMemo } from "react";
-=======
-import { useState, useEffect, useMemo } from "react";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { supabase } from "@/integrations/supabase/client";
 import { Lead } from "@/lib/constants";
 import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
@@ -28,11 +24,7 @@ import {
 } from "lucide-react";
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isAfter, isBefore } from "date-fns";
 import { useNavigate } from "react-router-dom";
-<<<<<<< HEAD
 import { motion, useReducedMotion } from "framer-motion";
-=======
-import { motion } from "framer-motion";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import StatusBadge from "@/components/leads/StatusBadge";
 
 const EMPLOYEE_COLORS = [
@@ -58,10 +50,7 @@ const getBlockColor = (status: string) => STATUS_BLOCK_COLORS[status] || DEFAULT
 
 export default function SchedulePage() {
   const navigate = useNavigate();
-<<<<<<< HEAD
   const reduceMotion = useReducedMotion();
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   const [leads, setLeads] = useState<Lead[]>([]);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -74,10 +63,7 @@ export default function SchedulePage() {
   const [toDate, setToDate] = useState("");
   const [appliedFromDate, setAppliedFromDate] = useState("");
   const [appliedToDate, setAppliedToDate] = useState("");
-<<<<<<< HEAD
   const [showFilters, setShowFilters] = useState(false);
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
   const hasCustomRange = !!appliedFromDate && !!appliedToDate;
@@ -140,11 +126,7 @@ export default function SchedulePage() {
 
     if (profilesRes.data) {
       const map: Record<string, string> = {};
-<<<<<<< HEAD
       profilesRes.data.forEach((p: { id: string; full_name: string }) => {
-=======
-      profilesRes.data.forEach((p: any) => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         map[p.id] = p.full_name;
       });
       setProfiles(map);
@@ -333,11 +315,7 @@ export default function SchedulePage() {
               <ChevronRight className="h-4 w-4" />
             </Button>
 
-<<<<<<< HEAD
             <div className="rounded-2xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm">
-=======
-            <div className="ml-1 rounded-2xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               <span className="text-sm font-medium text-muted-foreground">
                 {hasCustomRange
                   ? `${format(new Date(appliedFromDate + "T00:00:00"), "MMM d, yyyy")} - ${format(
@@ -372,7 +350,6 @@ export default function SchedulePage() {
                 Week
               </button>
             </div>
-<<<<<<< HEAD
 
             <Button
               variant="outline"
@@ -383,17 +360,11 @@ export default function SchedulePage() {
               <Filter className="mr-2 h-4 w-4" />
               {showFilters ? "Hide Filters" : "Show Filters"}
             </Button>
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           </motion.div>
         </div>
       </div>
 
-<<<<<<< HEAD
       <div className={`grid grid-cols-1 gap-4 xl:grid xl:grid-cols-[1.35fr_0.65fr] ${showFilters ? "block" : "hidden xl:grid"}`}>
-=======
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.65fr]">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         <Card className="rounded-[28px] border-border/60 bg-card/95 shadow-[0_18px_52px_-34px_rgba(0,0,0,0.42)]">
           <CardContent className="p-5">
             <div className="mb-4 flex items-center gap-2">
@@ -427,11 +398,7 @@ export default function SchedulePage() {
                 />
               </div>
 
-<<<<<<< HEAD
               <div className="flex flex-col gap-2 sm:flex-row">
-=======
-              <div className="flex gap-2">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 <Button
                   onClick={handleApplyRange}
                   disabled={!fromDate || !toDate || fromDate > toDate}
@@ -484,15 +451,9 @@ export default function SchedulePage() {
         return (
           <motion.div
             key={day.toISOString()}
-<<<<<<< HEAD
             initial={reduceMotion ? false : { opacity: 0, y: 16 }}
             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             transition={reduceMotion ? undefined : { delay: dayIdx * 0.05 + 0.12, duration: 0.35 }}
-=======
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: dayIdx * 0.05 + 0.12, duration: 0.35 }}
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             className="space-y-3"
           >
             <div className="flex items-center gap-3">
@@ -508,11 +469,7 @@ export default function SchedulePage() {
 
             <Card className="overflow-hidden rounded-[28px] border-border/50 shadow-[0_18px_46px_-34px_rgba(0,0,0,0.38)] transition-all duration-300 hover:shadow-[0_22px_56px_-34px_rgba(0,0,0,0.45)]">
               <CardContent className="overflow-x-auto p-0">
-<<<<<<< HEAD
                 <div className="min-w-[1380px] xl:min-w-[1800px]">
-=======
-                <div className="min-w-[1800px]">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   <div className="flex border-b border-border/30 bg-gradient-to-r from-muted/[0.25] via-muted/[0.12] to-transparent">
                     <div className="w-[120px] shrink-0 border-r border-border/20 p-4">
                       <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/60">
@@ -544,18 +501,9 @@ export default function SchedulePage() {
                     </div>
                   ) : (
                     rows.map((row, rowIndex) => (
-<<<<<<< HEAD
                       <div
                         key={rowIndex}
                         className="flex border-b border-border/15 last:border-b-0 transition-colors duration-150 hover:bg-muted/[0.04]"
-=======
-                      <motion.div
-                        key={rowIndex}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: rowIndex * 0.04 }}
-                        className="flex border-b border-border/15 last:border-b-0 hover:bg-muted/[0.04] transition-colors duration-200"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                       >
                         <div className="w-[120px] shrink-0 border-r border-border/15 p-3 flex items-center justify-center">
                           <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/45">
@@ -581,18 +529,9 @@ export default function SchedulePage() {
                             const leadBlockColor = getBlockColor(lead.status);
 
                             return (
-<<<<<<< HEAD
                               <div
                                 key={lead.id}
                                 className={`absolute bottom-2 top-2 flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 text-white shadow-[0_14px_30px_-18px_rgba(0,0,0,0.45)] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-18px_rgba(0,0,0,0.48)] ${leadBlockColor}`}
-=======
-                              <motion.div
-                                key={lead.id}
-                                initial={{ opacity: 0, scale: 0.92 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                whileHover={{ scale: 1.025, y: -1 }}
-                                className={`absolute bottom-2 top-2 flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 text-white shadow-[0_14px_30px_-18px_rgba(0,0,0,0.45)] transition-all ${leadBlockColor}`}
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                                 style={{ left: pos.left, width: pos.width }}
                                 onClick={() => setSelectedLead(lead)}
                               >
@@ -605,19 +544,11 @@ export default function SchedulePage() {
                                     {getInitials(empName)}
                                   </AvatarFallback>
                                 </Avatar>
-<<<<<<< HEAD
                               </div>
                             );
                           })}
                         </div>
                       </div>
-=======
-                              </motion.div>
-                            );
-                          })}
-                        </div>
-                      </motion.div>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                     ))
                   )}
                 </div>
@@ -688,11 +619,7 @@ export default function SchedulePage() {
                         <Clock className="h-4 w-4 text-primary" />
                         <span>
                           {formatTime(selectedLead.scheduled_time_start)}
-<<<<<<< HEAD
                           {selectedLead.scheduled_time_end && ` - ${formatTime(selectedLead.scheduled_time_end)}`}
-=======
-                          {selectedLead.scheduled_time_end && ` – ${formatTime(selectedLead.scheduled_time_end)}`}
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                         </span>
                       </div>
                     )}
@@ -705,11 +632,7 @@ export default function SchedulePage() {
                   </div>
                 </div>
 
-<<<<<<< HEAD
                 <motion.div whileHover={reduceMotion ? undefined : { scale: 1.01 }} whileTap={reduceMotion ? undefined : { scale: 0.99 }}>
-=======
-                <motion.div whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   <Button
                     className="w-full gap-2 rounded-xl shadow-sm"
                     onClick={() => {
@@ -729,8 +652,5 @@ export default function SchedulePage() {
     </div>
   );
 }
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f

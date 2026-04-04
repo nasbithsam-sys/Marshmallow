@@ -1,11 +1,6 @@
-<<<<<<< HEAD
 ﻿import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-=======
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -33,18 +28,11 @@ import { cn } from "@/lib/utils";
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from "@/lib/constants";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
-<<<<<<< HEAD
 import { getDefaultNavAccess } from "@/lib/access";
 import type { AppRole } from "@/types";
 import MFAEnroll from "@/components/auth/MFAEnroll";
 import { motion } from "framer-motion";
 import { heroTitle } from "@/lib/motion";
-=======
-import type { AppRole } from "@/types";
-import MFAEnroll from "@/components/auth/MFAEnroll";
-import { motion } from "framer-motion";
-import { heroTitle, staggerContainer, staggerItem } from "@/lib/motion";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
 const generateCode = () => {
   const arr = new Uint32Array(1);
@@ -66,26 +54,14 @@ const roleColors: Record<string, string> = {
   admin: "bg-primary/8 text-primary border-primary/10",
   processor: "bg-[hsl(var(--success)/0.08)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.1)]",
   customer_service: "bg-[hsl(var(--warning)/0.08)] text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.1)]",
-<<<<<<< HEAD
   no_role: "bg-muted/70 text-muted-foreground border-border/60",
 };
 
-=======
-  
-};
-
-const VISIBILITY_ROLES: Array<{ key: "customer_service" | "processor"; label: string }> = [
-  { key: "customer_service", label: "Customer Service" },
-  { key: "processor", label: "Processor" },
-];
-
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 const formatRoleLabel = (role?: string | null) => {
   if (!role) return "No Role";
   return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
-<<<<<<< HEAD
 type ManagedRole = AppRole | "no_role";
 
 interface SettingsUser {
@@ -115,8 +91,6 @@ interface StatusVisibilityRow {
   is_visible: boolean;
 }
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 const Settings = () => {
   const { user, role: currentRole } = useAuth();
   const queryClient = useQueryClient();
@@ -135,7 +109,6 @@ const Settings = () => {
 
   const isAdmin = currentRole === "admin";
 
-<<<<<<< HEAD
   const { data: users = [] } = useQuery<SettingsUser[]>({
     queryKey: ["settings-users"],
     queryFn: async () => {
@@ -148,54 +121,27 @@ const Settings = () => {
         email: profile.email,
         full_name: profile.full_name,
         role: roleByUserId.get(profile.id) ?? "no_role",
-=======
-  const { data: users = [] } = useQuery({
-    queryKey: ["settings-users"],
-    queryFn: async () => {
-      const { data: profiles } = await supabase.from("profiles").select("*");
-      const { data: roles } = await supabase.from("user_roles").select("*");
-
-      return (profiles ?? []).map((p: any) => ({
-        ...p,
-        role: roles?.find((r: any) => r.user_id === p.id)?.role ?? "no_role",
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       }));
     },
   });
 
-<<<<<<< HEAD
   const { data: accessCodes = [] } = useQuery<AccessCodeRow[]>({
     queryKey: ["user-access-codes"],
     enabled: isAdmin,
     queryFn: async () => {
       const { data } = await supabase.from("user_access_codes").select("user_id, code");
-=======
-  const { data: accessCodes = [] } = useQuery({
-    queryKey: ["user-access-codes"],
-    enabled: isAdmin,
-    queryFn: async () => {
-      const { data } = await supabase.from("user_access_codes").select("*");
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       return data ?? [];
     },
   });
 
-<<<<<<< HEAD
   const { data: navPermissions = [] } = useQuery<NavPermissionRow[]>({
     queryKey: ["settings-nav-permissions"],
     queryFn: async () => {
       const { data } = await supabase.from("navigation_permissions").select("id, user_id, nav_section, allowed");
-=======
-  const { data: navPermissions = [] } = useQuery({
-    queryKey: ["settings-nav-permissions"],
-    queryFn: async () => {
-      const { data } = await supabase.from("navigation_permissions").select("*");
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       return data ?? [];
     },
   });
 
-<<<<<<< HEAD
   const { data: statusVisibility = [] } = useQuery<StatusVisibilityRow[]>({
     queryKey: ["settings-status-visibility"],
     enabled: isAdmin,
@@ -203,13 +149,6 @@ const Settings = () => {
       const { data, error } = await supabase
         .from("lead_status_visibility")
         .select("id, user_id, role, status, is_visible");
-=======
-  const { data: statusVisibility = [] } = useQuery({
-    queryKey: ["settings-status-visibility"],
-    enabled: isAdmin,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).from("lead_status_visibility").select("*");
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
       if (error) {
         throw error;
@@ -219,7 +158,6 @@ const Settings = () => {
     },
   });
 
-<<<<<<< HEAD
   const userById = useMemo(() => new Map(users.map((targetUser) => [targetUser.id, targetUser])), [users]);
   const accessCodeByUserId = useMemo(() => new Map(accessCodes.map((row) => [row.user_id, row.code])), [accessCodes]);
   const navPermissionByUserAndSection = useMemo(
@@ -238,17 +176,6 @@ const Settings = () => {
   const handleGenerateCode = async (userId: string) => {
     const code = generateCode();
     const existing = accessCodes.find((row) => row.user_id === userId);
-=======
-  const getUserById = (userId: string) => users.find((u: any) => u.id === userId);
-
-  const getAccessCode = (userId: string) => {
-    return (accessCodes as any[]).find((c: any) => c.user_id === userId)?.code ?? null;
-  };
-
-  const handleGenerateCode = async (userId: string) => {
-    const code = generateCode();
-    const existing = (accessCodes as any[]).find((c: any) => c.user_id === userId);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     const targetUser = getUserById(userId);
 
     if (existing) {
@@ -329,25 +256,15 @@ const Settings = () => {
 
   const toggleNavPermission = useMutation({
     mutationFn: async ({ userId, section, allowed }: { userId: string; section: string; allowed: boolean }) => {
-<<<<<<< HEAD
       const existing = navPermissions.find((permission) => permission.user_id === userId && permission.nav_section === section);
       const targetUser = getUserById(userId);
       const beforeAllowed = existing?.allowed ?? false;
-=======
-      const existing = navPermissions.find((p: any) => p.user_id === userId && p.nav_section === section);
-      const targetUser = getUserById(userId);
-      const beforeAllowed = (existing as any)?.allowed ?? false;
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
       if (existing) {
         await supabase
           .from("navigation_permissions")
           .update({ allowed })
-<<<<<<< HEAD
           .eq("id", existing.id);
-=======
-          .eq("id", (existing as any).id);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       } else {
         await supabase.from("navigation_permissions").insert({ user_id: userId, nav_section: section, allowed });
       }
@@ -374,7 +291,6 @@ const Settings = () => {
 
   const toggleStatusVisibility = useMutation({
     mutationFn: async ({
-<<<<<<< HEAD
       userId,
       status,
       isVisible,
@@ -389,35 +305,15 @@ const Settings = () => {
 
       if (existing) {
         const { error } = await supabase
-=======
-      role,
-      status,
-      isVisible,
-    }: {
-      role: "customer_service" | "processor";
-      status: string;
-      isVisible: boolean;
-    }) => {
-      const existing = (statusVisibility as any[]).find((row: any) => row.role === role && row.status === status);
-      const beforeVisible = existing?.is_visible ?? true;
-
-      if (existing) {
-        const { error } = await (supabase as any)
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           .from("lead_status_visibility")
           .update({ is_visible: isVisible })
           .eq("id", existing.id);
 
         if (error) throw error;
       } else {
-<<<<<<< HEAD
         const { error } = await supabase.from("lead_status_visibility").insert({
           user_id: userId,
           role: targetUser?.role ?? null,
-=======
-        const { error } = await (supabase as any).from("lead_status_visibility").insert({
-          role,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           status,
           is_visible: isVisible,
         });
@@ -426,25 +322,16 @@ const Settings = () => {
       }
 
       if (user) {
-<<<<<<< HEAD
         await logActivity(user.id, "updated", "user", userId, {
           target_name: targetUser?.full_name || targetUser?.email || userId,
           email: targetUser?.email || null,
-=======
-        await logActivity(user.id, "updated", "user", `${role}_${status}`, {
-          target_name: `${formatRoleLabel(role)} role`,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           changes: {
             [status]: {
               before: beforeVisible,
               after: isVisible,
             },
           },
-<<<<<<< HEAD
           message: `Admin ${isVisible ? "showed" : "hid"} "${STATUS_LABELS[status] || status}" status for "${targetUser?.full_name || targetUser?.email || "user"}".`,
-=======
-          message: `Admin ${isVisible ? "showed" : "hid"} "${STATUS_LABELS[status] || status}" status for "${formatRoleLabel(role)}" role.`,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         });
       }
     },
@@ -454,13 +341,8 @@ const Settings = () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast.success("Status visibility updated");
     },
-<<<<<<< HEAD
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Failed to update status visibility");
-=======
-    onError: (err: any) => {
-      toast.error(err?.message || "Failed to update status visibility");
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     },
   });
 
@@ -509,13 +391,8 @@ const Settings = () => {
 
       queryClient.invalidateQueries({ queryKey: ["settings-users"] });
       queryClient.invalidateQueries({ queryKey: ["user-access-codes"] });
-<<<<<<< HEAD
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to create user");
-=======
-    } catch (err: any) {
-      toast.error(err.message || "Failed to create user");
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     }
 
     setCreating(false);
@@ -545,13 +422,8 @@ const Settings = () => {
       toast.success(`Password updated for ${passwordUserName}`);
       setPasswordDialogOpen(false);
       setNewPasswordValue("");
-<<<<<<< HEAD
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to set password");
-=======
-    } catch (err: any) {
-      toast.error(err.message || "Failed to set password");
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     }
 
     setSettingPassword(false);
@@ -574,18 +446,12 @@ const Settings = () => {
       toast.success("User deleted");
       queryClient.invalidateQueries({ queryKey: ["settings-users"] });
       queryClient.invalidateQueries({ queryKey: ["user-access-codes"] });
-<<<<<<< HEAD
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to delete user");
-=======
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete user");
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     }
   };
 
   const getNavPermission = (userId: string, section: string) => {
-<<<<<<< HEAD
     const targetUser = getUserById(userId);
     const override = navPermissionByUserAndSection.get(`${userId}:${section}`);
 
@@ -604,18 +470,6 @@ const Settings = () => {
     statusVisibilityByUserAndStatus.get(`${userId}:${status}`) ?? true;
 
   const getInitials = (name?: string | null) =>
-=======
-    const perm = navPermissions.find((p: any) => p.user_id === userId && p.nav_section === section);
-    return (perm as any)?.allowed ?? false;
-  };
-
-  const getStatusVisibility = (role: "customer_service" | "processor", status: string) => {
-    const row = (statusVisibility as any[]).find((p: any) => p.role === role && p.status === status);
-    return row?.is_visible ?? true;
-  };
-
-  const getInitials = (name: string) =>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     name
       ?.split(" ")
       .map((n: string) => n[0])
@@ -623,7 +477,6 @@ const Settings = () => {
       .toUpperCase()
       .slice(0, 2) || "U";
 
-<<<<<<< HEAD
   const nonAdminUsers = useMemo(() => users.filter((targetUser) => targetUser.role !== "admin"), [users]);
   const enabledNavPermissions = useMemo(
     () =>
@@ -721,32 +574,6 @@ const Settings = () => {
             { key: "users", label: "Users", icon: Shield },
             { key: "nav_permissions", label: "Tab Permissions", icon: Shield },
             { key: "status_permissions", label: "Status Visibility", icon: Eye },
-=======
-  const nonAdminUsers = users.filter((u: any) => u.role !== "admin");
-
-  return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
-      <div className="flex items-center justify-between">
-        <motion.div variants={heroTitle} initial="initial" animate="animate">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage users, permissions, and security</p>
-        </motion.div>
-
-        {isAdmin && (
-          <Button onClick={() => setCreateOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Create User
-          </Button>
-        )}
-      </div>
-
-      <div className="flex gap-1 bg-muted/50 rounded-lg p-1 w-fit flex-wrap border border-border/30">
-        {(
-          [
-            { key: "users", label: "Users", icon: null },
-            { key: "nav_permissions", label: "Tab Permissions", icon: null },
-            { key: "status_permissions", label: "Status Visibility", icon: null },
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             { key: "security", label: "Security", icon: ShieldCheck },
           ] as const
         ).map((tab) => (
@@ -754,7 +581,6 @@ const Settings = () => {
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-<<<<<<< HEAD
               "inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold tracking-[-0.01em] transition-all duration-300",
               activeTab === tab.key
                 ? "bg-card text-foreground shadow-premium-sm ring-1 ring-border/50"
@@ -762,22 +588,12 @@ const Settings = () => {
             )}
           >
             <tab.icon className="h-3.5 w-3.5" />
-=======
-              "px-4 py-2 rounded-md text-[13px] font-medium transition-all duration-200 flex items-center gap-1.5",
-              activeTab === tab.key
-                ? "bg-card text-foreground shadow-premium-xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {tab.icon && <tab.icon className="h-3.5 w-3.5" />}
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             {tab.label}
           </button>
         ))}
       </div>
 
       {activeTab === "users" && (
-<<<<<<< HEAD
         <div className="grid gap-3">
           {users.map((u) => (
             <Card key={u.id} className="overflow-hidden border-border/60 bg-card/95 hover:shadow-premium-md">
@@ -928,154 +744,6 @@ const Settings = () => {
                 </div>
               </div>
               <span className="text-[11px] font-medium text-muted-foreground">{ALL_NAV_ITEMS.length} controllable tabs</span>
-=======
-        <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid gap-3">
-          {users.map((u: any) => (
-            <motion.div key={u.id} variants={staggerItem}>
-              <Card className="hover:shadow-premium-md">
-                <CardContent className="p-4 flex items-center gap-4">
-                  <Avatar className="h-9 w-9 shrink-0">
-                    <AvatarFallback className="bg-primary/8 text-primary text-[11px] font-bold">
-                      {getInitials(u.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold text-foreground">{u.full_name}</p>
-                    <p className="text-[11px] text-muted-foreground truncate">{u.email}</p>
-                  </div>
-
-                  <span
-                    className={cn(
-                      "px-2.5 py-1 rounded-full text-[10px] font-semibold capitalize border",
-                      roleColors[u.role] || roleColors.no_role,
-                    )}
-                  >
-                    {u.role.replace("_", " ")}
-                  </span>
-
-                  {isAdmin && (
-                    <>
-                      <Select
-                        value={u.role}
-                        onValueChange={(v) => updateRole.mutate({ userId: u.id, role: v as AppRole })}
-                      >
-                        <SelectTrigger className="w-[140px] h-9 text-[12px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="processor">Processor</SelectItem>
-                          <SelectItem value="customer_service">Customer Service</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 text-[11px]"
-                        onClick={() => {
-                          setPasswordUserId(u.id);
-                          setPasswordUserName(u.full_name);
-                          setNewPasswordValue("");
-                          setPasswordDialogOpen(true);
-                        }}
-                      >
-                        <Lock className="h-3 w-3" />
-                        Password
-                      </Button>
-
-                      {u.role !== "admin" && (
-                        <>
-                          <div className="flex items-center gap-1.5 border-l border-border/30 pl-3 ml-1">
-                            {getAccessCode(u.id) ? (
-                              <>
-                                <code className="font-mono text-[13px] font-bold text-foreground bg-muted/60 px-2.5 py-1 rounded-md border border-border/40 tracking-[0.15em]">
-                                  {getAccessCode(u.id)}
-                                </code>
-
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                  onClick={() => handleCopyCode(getAccessCode(u.id)!)}
-                                  title="Copy code"
-                                >
-                                  <Copy className="h-3 w-3" />
-                                </Button>
-
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                  onClick={() => handleGenerateCode(u.id)}
-                                  title="Regenerate code"
-                                >
-                                  <RefreshCw className="h-3 w-3" />
-                                </Button>
-                              </>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1.5 text-[11px]"
-                                onClick={() => handleGenerateCode(u.id)}
-                              >
-                                <KeyRound className="h-3 w-3" />
-                                Generate Code
-                              </Button>
-                            )}
-                          </div>
-
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8 text-destructive/50 hover:text-destructive hover:bg-destructive/5 hover:border-destructive/20"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete user "{u.full_name}"?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will remove the user's profile, roles, and permissions. The authentication
-                                  account will be deactivated.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDeleteUser(u.id)}
-                                  className="bg-destructive text-destructive-foreground"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </>
-                      )}
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
-
-      {activeTab === "nav_permissions" && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="px-5 py-3.5 border-b border-border/40 flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-primary/6 border border-primary/8 flex items-center justify-center">
-                <Shield className="h-3.5 w-3.5 text-primary/70" />
-              </div>
-              <span className="text-sm font-semibold text-foreground">Navigation Access per User</span>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             </div>
 
             <div className="overflow-x-auto">
@@ -1097,11 +765,7 @@ const Settings = () => {
                 </thead>
 
                 <tbody>
-<<<<<<< HEAD
                   {nonAdminUsers.map((u) => (
-=======
-                  {nonAdminUsers.map((u: any) => (
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                     <tr
                       key={u.id}
                       className="border-b border-border/20 last:border-b-0 hover:bg-muted/10 transition-colors"
@@ -1142,7 +806,6 @@ const Settings = () => {
       )}
 
       {activeTab === "status_permissions" && (
-<<<<<<< HEAD
         <Card className="overflow-hidden border-border/60 bg-card/95">
           <CardContent className="p-0">
             <div className="flex flex-col gap-2 border-b border-border/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1158,18 +821,6 @@ const Settings = () => {
                 </div>
               </div>
               <span className="text-[11px] font-medium text-muted-foreground">{ALL_LEAD_STATUSES.length} workflow states</span>
-=======
-        <Card>
-          <CardContent className="p-0">
-            <div className="px-5 py-3.5 border-b border-border/40 flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-primary/6 border border-primary/8 flex items-center justify-center">
-                <Eye className="h-3.5 w-3.5 text-primary/70" />
-              </div>
-              <span className="text-sm font-semibold text-foreground">Status Visibility by Role</span>
-              <span className="text-[10px] text-muted-foreground/40 ml-2">
-                Hidden statuses disappear from All Leads, tabs, counters, and filters
-              </span>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             </div>
 
             <div className="overflow-x-auto">
@@ -1177,11 +828,7 @@ const Settings = () => {
                 <thead>
                   <tr className="border-b border-border/30 bg-muted/20">
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground/60 sticky left-0 bg-muted/20 z-10 uppercase tracking-wider">
-<<<<<<< HEAD
                       User
-=======
-                      Role
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                     </th>
                     {ALL_LEAD_STATUSES.map((status) => (
                       <th
@@ -1195,7 +842,6 @@ const Settings = () => {
                 </thead>
 
                 <tbody>
-<<<<<<< HEAD
                   {nonAdminUsers.map((targetUser) => (
                     <tr
                       key={targetUser.id}
@@ -1214,34 +860,16 @@ const Settings = () => {
                               {targetUser.role.replace("_", " ")}
                             </p>
                           </div>
-=======
-                  {VISIBILITY_ROLES.map((roleRow) => (
-                    <tr
-                      key={roleRow.key}
-                      className="border-b border-border/20 last:border-b-0 hover:bg-muted/10 transition-colors"
-                    >
-                      <td className="px-4 py-3 sticky left-0 bg-card z-10">
-                        <div>
-                          <p className="text-[12px] font-medium">{roleRow.label}</p>
-                          <p className="text-[10px] text-muted-foreground/50">{roleRow.key}</p>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                         </div>
                       </td>
 
                       {ALL_LEAD_STATUSES.map((status) => (
                         <td key={status} className="px-2 py-3 text-center">
                           <Switch
-<<<<<<< HEAD
                             checked={getStatusVisibility(targetUser.id, status)}
                             onCheckedChange={(checked) =>
                               toggleStatusVisibility.mutate({
                                 userId: targetUser.id,
-=======
-                            checked={getStatusVisibility(roleRow.key, status)}
-                            onCheckedChange={(checked) =>
-                              toggleStatusVisibility.mutate({
-                                role: roleRow.key,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                                 status,
                                 isVisible: checked,
                               })
@@ -1259,15 +887,9 @@ const Settings = () => {
       )}
 
       {activeTab === "security" && (
-<<<<<<< HEAD
         <div className="space-y-6">
           <MFAEnroll />
         </div>
-=======
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-          <MFAEnroll />
-        </motion.div>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -1298,11 +920,7 @@ const Settings = () => {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-<<<<<<< HEAD
                 placeholder="********"
-=======
-                placeholder="••••••••"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               />
             </div>
 
@@ -1335,11 +953,7 @@ const Settings = () => {
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-<<<<<<< HEAD
             <DialogTitle>Change Password - {passwordUserName}</DialogTitle>
-=======
-            <DialogTitle>Change Password — {passwordUserName}</DialogTitle>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           </DialogHeader>
 
           <div className="space-y-4">
@@ -1349,11 +963,7 @@ const Settings = () => {
                 type="password"
                 value={newPasswordValue}
                 onChange={(e) => setNewPasswordValue(e.target.value)}
-<<<<<<< HEAD
                 placeholder="********"
-=======
-                placeholder="••••••••"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 onKeyDown={(e) => e.key === "Enter" && handleSetPassword()}
               />
             </div>
@@ -1374,8 +984,5 @@ const Settings = () => {
 };
 
 export default Settings;
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f

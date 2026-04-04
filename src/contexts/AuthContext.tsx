@@ -2,10 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Profile, NavigationPermission } from "@/types";
-<<<<<<< HEAD
 import { canAccessNavItem } from "@/lib/access";
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
 const VERIFIED_USER_KEY = "auth_verified_user_id";
 const PENDING_AUTH_KEY = "auth_pending_state";
@@ -230,15 +227,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const canAccess = (navItem: string): boolean => {
-<<<<<<< HEAD
     if (navItem in userOverrides) return userOverrides[navItem];
     return canAccessNavItem(role, navItem, permissions);
-=======
-    if (role === "admin") return true;
-    if (navItem in userOverrides) return userOverrides[navItem];
-
-    return permissions.some((p: any) => p.nav_section === navItem && p.allowed);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   };
 
   const markFullyAuthenticated = () => {

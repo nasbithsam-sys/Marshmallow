@@ -1,11 +1,6 @@
-<<<<<<< HEAD
 ﻿import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChangeEvent, ElementType, FormEvent } from "react";
-=======
-import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -56,15 +51,9 @@ const sendNotifications = async (leadName: string, status: string, leadId: strin
 
   const statusLabel = status === "urgent_job" ? "Urgent Job" : "Need Tech";
 
-<<<<<<< HEAD
   const notifications = roles.map((r: { user_id: string }) => ({
     user_id: r.user_id,
     title: `[Alert] ${statusLabel}`,
-=======
-  const notifications = roles.map((r: any) => ({
-    user_id: r.user_id,
-    title: `🚨 ${statusLabel}`,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     message: `New lead "${leadName}" requires attention - marked as ${statusLabel}`,
     lead_id: leadId,
     read: false,
@@ -79,11 +68,7 @@ const SectionHeader = ({
   subtitle,
   open,
 }: {
-<<<<<<< HEAD
   icon: ElementType;
-=======
-  icon: React.ElementType;
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   title: string;
   subtitle?: string;
   open: boolean;
@@ -149,10 +134,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone);
 
   const isCS = role === "customer_service";
-<<<<<<< HEAD
   const isProcessor = role === "processor";
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   const fieldClass =
     "h-11 rounded-xl border-border/60 bg-background text-foreground shadow-sm placeholder:text-muted-foreground/55";
@@ -167,11 +149,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
     }
   };
 
-<<<<<<< HEAD
   const handlePhotoAdd = (e: ChangeEvent<HTMLInputElement>) => {
-=======
-  const handlePhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     if (e.target.files) {
       setPhotos((prev) => [...prev, ...Array.from(e.target.files)]);
     }
@@ -224,11 +202,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
     setScheduleOpen(false);
   };
 
-<<<<<<< HEAD
   const handleSubmit = async (e: FormEvent) => {
-=======
-  const handleSubmit = async (e: React.FormEvent) => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     e.preventDefault();
     if (!user) return;
 
@@ -261,11 +235,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       scheduled_time_end = parseTime(form.end_hour, form.end_minute, form.end_ampm);
     }
 
-<<<<<<< HEAD
     const insertData = {
-=======
-    const insertData: any = {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       job_id: jobId,
       customer_name: form.customer_name,
       customer_phone: form.customer_phone || null,
@@ -279,13 +249,6 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       created_by: user.id,
       assigned_cs: isCS ? user.id : null,
 
-<<<<<<< HEAD
-=======
-      cs_notes: form.cs_notes || null,
-      processor_notes: form.processor_notes || null,
-      general_notes: form.general_notes || null,
-
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       quote: form.quote || null,
       service_details: form.service_details || null,
       customer_schedule_requirements: form.customer_schedule_requirements || null,
@@ -325,17 +288,10 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       }
 
       const noteInserts: { lead_id: string; user_id: string; note_type: string; content: string }[] = [];
-<<<<<<< HEAD
       if (!isProcessor && form.cs_notes.trim()) {
         noteInserts.push({ lead_id: data.id, user_id: user.id, note_type: "cs", content: form.cs_notes.trim() });
       }
       if (!isCS && form.processor_notes.trim()) {
-=======
-      if (form.cs_notes.trim()) {
-        noteInserts.push({ lead_id: data.id, user_id: user.id, note_type: "cs", content: form.cs_notes.trim() });
-      }
-      if (form.processor_notes.trim()) {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         noteInserts.push({
           lead_id: data.id,
           user_id: user.id,
@@ -468,17 +424,10 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
         }
       }}
     >
-<<<<<<< HEAD
       <DialogContent className="max-h-[94vh] w-[min(96vw,60rem)] overflow-y-auto rounded-[24px] border border-border/60 bg-card p-0 shadow-[0_24px_70px_-36px_rgba(0,0,0,0.50)] sm:rounded-[28px]">
         <DialogHeader className="sticky top-0 z-10 border-b border-border/60 bg-card/95 px-4 pb-4 pt-5 backdrop-blur-xl sm:px-6 sm:pb-5 sm:pt-6">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-2">
-=======
-      <DialogContent className="max-h-[94vh] max-w-3xl overflow-y-auto rounded-[28px] border border-border/60 bg-card p-0 shadow-[0_24px_70px_-36px_rgba(0,0,0,0.50)]">
-        <DialogHeader className="sticky top-0 z-10 border-b border-border/60 bg-card/95 px-6 pb-5 pt-6 backdrop-blur-xl">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               <span className="inline-flex items-center gap-1 rounded-full border border-primary/10 bg-primary/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
                 <Sparkles className="h-2.5 w-2.5" />
                 New Lead
@@ -489,7 +438,6 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
               </span>
             </div>
 
-<<<<<<< HEAD
               <div>
                 <DialogTitle className="text-[24px] font-semibold tracking-[-0.03em] text-foreground">
                   Add New Lead
@@ -502,20 +450,6 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
           </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 px-4 py-4 sm:space-y-5 sm:px-6 sm:py-6">
-=======
-            <div>
-              <DialogTitle className="text-[24px] font-semibold tracking-[-0.03em] text-foreground">
-                Add New Lead
-              </DialogTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Create a polished intake entry with customer details, status, schedule, notes, and photos.
-              </p>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-5 px-6 py-6">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           <div className={`${sectionShell} p-5`}>
             <div className="mb-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/60">
@@ -526,11 +460,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
               </p>
             </div>
 
-<<<<<<< HEAD
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-=======
-            <div className="grid grid-cols-2 gap-4">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               <div className="space-y-1.5">
                 <Label className={labelClass}>Customer Name *</Label>
                 <Input
@@ -590,11 +520,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                   />
                 </div>
 
-<<<<<<< HEAD
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-=======
-                <div className="grid grid-cols-2 gap-4">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   <div className="space-y-1.5">
                     <Label className={labelClass}>Service Type</Label>
                     <Input
@@ -652,16 +578,10 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                   <Textarea
                     value={form.cs_notes}
                     onChange={(e) => update("cs_notes", e.target.value)}
-<<<<<<< HEAD
                     placeholder={isProcessor ? "Processors can view CS notes later, but cannot create them." : "Write CS notes here..."}
                     rows={5}
                     className="min-h-[130px] rounded-xl border-border/60 bg-background text-foreground shadow-sm placeholder:text-muted-foreground/55 resize-none"
                     readOnly={isProcessor}
-=======
-                    placeholder="Write CS notes here..."
-                    rows={5}
-                    className="min-h-[130px] rounded-xl border-border/60 bg-background text-foreground shadow-sm placeholder:text-muted-foreground/55 resize-none"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   />
                 </div>
               </div>
@@ -677,11 +597,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
               subtitle: "Technician assignment, terms, pricing breakdown, and processor notes.",
               children: (
                 <div className="space-y-4">
-<<<<<<< HEAD
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-=======
-                  <div className="grid grid-cols-2 gap-4">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                     <div className="space-y-1.5">
                       <Label className={labelClass}>Tech Name</Label>
                       <Input
@@ -731,11 +647,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                             Quoted Details
                           </p>
 
-<<<<<<< HEAD
                           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-=======
-                          <div className="grid grid-cols-2 gap-4">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                             <div className="space-y-1.5">
                               <Label className={labelClass}>Customer Labor ($)</Label>
                               <Input
@@ -843,11 +755,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                 </div>
 
                 {form.scheduled_date && (
-<<<<<<< HEAD
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-=======
-                  <div className="grid grid-cols-2 gap-4">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                     <TimePicker prefix="start" label="Start Time" />
                     <TimePicker prefix="end" label="End Time" />
                   </div>
@@ -888,11 +796,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                   <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoAdd} />
                 </label>
 
-<<<<<<< HEAD
                 <label className="flex min-h-[80px] min-w-[220px] flex-1 cursor-pointer items-center gap-3 rounded-2xl border border-border/50 bg-muted/[0.12] px-4 transition-all duration-200 hover:border-primary/25 hover:bg-primary/[0.03]">
-=======
-                <label className="flex min-h-[80px] flex-1 cursor-pointer items-center gap-3 rounded-2xl border border-border/50 bg-muted/[0.12] px-4 transition-all duration-200 hover:border-primary/25 hover:bg-primary/[0.03]">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/10 bg-primary/[0.06]">
                     <ImagePlus className="h-4 w-4 text-primary/80" />
                   </div>
@@ -931,19 +835,11 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
           </div>
 
           <DialogFooter className="sticky bottom-0 border-t border-border/60 bg-card/95 px-0 pb-0 pt-4 backdrop-blur-xl">
-<<<<<<< HEAD
             <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full rounded-xl sm:w-auto">
                 Cancel
               </Button>
               <Button type="submit" disabled={loading || isDuplicate} className="w-full rounded-xl px-5 sm:w-auto">
-=======
-            <div className="flex w-full items-center justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">
-                Cancel
-              </Button>
-              <Button type="submit" disabled={loading || isDuplicate} className="rounded-xl px-5">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 {loading ? "Creating..." : "Create Lead"}
               </Button>
             </div>
@@ -955,9 +851,6 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 };
 
 export default AddLeadDialog;
-<<<<<<< HEAD
 
 
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f

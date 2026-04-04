@@ -15,15 +15,7 @@ import type { Lead } from "@/types";
 import { LEAD_STATUS_CONFIG } from "@/types";
 import { format } from "date-fns";
 import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
-<<<<<<< HEAD
 import { compareLeadDisplayPriority } from "@/lib/constants";
-=======
-
-const statusOrder: Record<string, number> = {
-  urgent_job: -1,
-  cancelled: 100,
-};
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
 const AllLeads = () => {
   const { user, role } = useAuth();
@@ -59,11 +51,7 @@ const AllLeads = () => {
 
   const visibleLeads = useMemo(() => {
     return filterLeads([...leads]);
-<<<<<<< HEAD
   }, [leads, filterLeads]);
-=======
-  }, [leads, filterLeads, allowedStatuses]);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   const safeStatusFilter = statusFilter === "all" || allowedStatuses.has(statusFilter) ? statusFilter : "all";
 
@@ -85,17 +73,7 @@ const AllLeads = () => {
       result = result.filter((l) => l.status === safeStatusFilter);
     }
 
-<<<<<<< HEAD
     return result.sort(compareLeadDisplayPriority);
-=======
-    return result.sort((a, b) => {
-      const orderA = statusOrder[a.status] ?? 0;
-      const orderB = statusOrder[b.status] ?? 0;
-
-      if (orderA !== orderB) return orderA - orderB;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   }, [visibleLeads, search, safeStatusFilter]);
 
   const urgentCount = visibleLeads.filter((l) => l.status === "urgent_job").length;

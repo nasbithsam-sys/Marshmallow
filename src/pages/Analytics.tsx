@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 ﻿import { useMemo, useState } from "react";
-=======
-import { useMemo, useState } from "react";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,16 +7,12 @@ import { format, subDays, eachDayOfInterval, parseISO, startOfDay } from "date-f
 import { TrendingUp, Users, Calendar, Sparkles, Activity, CheckCircle2, AlertTriangle, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-<<<<<<< HEAD
 import { heroTitle } from "@/lib/motion";
 
 interface AnalyticsLeadRow {
   created_at: string;
   status: string;
 }
-=======
-import { staggerContainer, staggerItem, heroTitle } from "@/lib/motion";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
 const ranges = [
   { label: "7d", days: 7 },
@@ -33,30 +25,11 @@ const Analytics = () => {
   const startDate = format(subDays(new Date(), activeDays), "yyyy-MM-dd");
   const endDate = format(new Date(), "yyyy-MM-dd");
 
-<<<<<<< HEAD
   const { data: allLeads = [] } = useQuery<AnalyticsLeadRow[]>({
-=======
-  const { data: leads = [] } = useQuery({
-    queryKey: ["analytics-leads", startDate, endDate],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("leads")
-        .select("created_at, status")
-        .gte("created_at", startDate + "T00:00:00")
-        .lte("created_at", endDate + "T23:59:59");
-
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const { data: allLeads = [] } = useQuery({
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     queryKey: ["analytics-total"],
     queryFn: async () => {
       const { data, error } = await supabase.from("leads").select("status, created_at");
       if (error) throw error;
-<<<<<<< HEAD
       return (data ?? []) as AnalyticsLeadRow[];
     },
   });
@@ -69,12 +42,6 @@ const Analytics = () => {
     [allLeads, startDate, endDate],
   );
 
-=======
-      return data ?? [];
-    },
-  });
-
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
   const days = useMemo(
     () =>
       eachDayOfInterval({
@@ -85,7 +52,6 @@ const Analytics = () => {
   );
 
   const chartData = useMemo(() => {
-<<<<<<< HEAD
     const countsByDate = new Map<string, number>();
 
     for (const lead of leads) {
@@ -96,12 +62,6 @@ const Analytics = () => {
     return days.map((day) => {
       const dateStr = format(day, "yyyy-MM-dd");
       return { date: format(day, "MMM d"), count: countsByDate.get(dateStr) ?? 0 };
-=======
-    return days.map((day) => {
-      const dateStr = format(day, "yyyy-MM-dd");
-      const count = leads.filter((l: any) => l.created_at.startsWith(dateStr)).length;
-      return { date: format(day, "MMM d"), count };
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     });
   }, [days, leads]);
 
@@ -116,24 +76,15 @@ const Analytics = () => {
     });
   }, [chartData]);
 
-<<<<<<< HEAD
   const summary = useMemo(() => {
     const todayStart = startOfDay(new Date());
     const weekAgo = subDays(new Date(), 7);
-=======
-  const todayStart = startOfDay(new Date());
-  const thisWeekLeads = leads.filter((l: any) => new Date(l.created_at) >= subDays(new Date(), 7)).length;
-  const todayLeads = allLeads.filter((l: any) => new Date(l.created_at) >= todayStart).length;
-
-  const statusCounts = useMemo(() => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     const counts = {
       urgent: 0,
       scheduled: 0,
       done: 0,
       cancelled: 0,
       waiting: 0,
-<<<<<<< HEAD
       today: 0,
       thisWeek: 0,
     };
@@ -143,11 +94,6 @@ const Analytics = () => {
 
       if (createdAt >= weekAgo) counts.thisWeek += 1;
       if (createdAt >= todayStart) counts.today += 1;
-=======
-    };
-
-    for (const lead of allLeads as any[]) {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       if (lead.status === "urgent_job") counts.urgent += 1;
       if (lead.status === "scheduled") counts.scheduled += 1;
       if (lead.status === "job_done" || lead.status === "paid") counts.done += 1;
@@ -185,11 +131,7 @@ const Analytics = () => {
     },
     {
       label: "This Week",
-<<<<<<< HEAD
       value: summary.thisWeek,
-=======
-      value: thisWeekLeads,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       sub: "Created in last 7 days",
       icon: TrendingUp,
       tone: "bg-[hsl(var(--success)/0.08)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.12)]",
@@ -203,11 +145,7 @@ const Analytics = () => {
     },
     {
       label: "Today",
-<<<<<<< HEAD
       value: summary.today,
-=======
-      value: todayLeads,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       sub: "New leads today",
       icon: Activity,
       tone: "bg-muted/70 text-foreground border-border",
@@ -217,47 +155,30 @@ const Analytics = () => {
   const statusSummary = [
     {
       label: "Urgent",
-<<<<<<< HEAD
       value: summary.urgent,
-=======
-      value: statusCounts.urgent,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       icon: AlertTriangle,
       tone: "bg-destructive/[0.08] text-destructive border-destructive/10",
     },
     {
       label: "Scheduled",
-<<<<<<< HEAD
       value: summary.scheduled,
-=======
-      value: statusCounts.scheduled,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       icon: Calendar,
       tone: "bg-primary/[0.08] text-primary border-primary/10",
     },
     {
       label: "Completed / Paid",
-<<<<<<< HEAD
       value: summary.done,
-=======
-      value: statusCounts.done,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       icon: CheckCircle2,
       tone: "bg-[hsl(var(--success)/0.08)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.12)]",
     },
     {
       label: "Waiting",
-<<<<<<< HEAD
       value: summary.waiting,
-=======
-      value: statusCounts.waiting,
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       icon: Clock3,
       tone: "bg-[hsl(var(--warning)/0.08)] text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.12)]",
     },
   ];
 
-<<<<<<< HEAD
   const CustomTooltip = ({
     active,
     payload,
@@ -267,9 +188,6 @@ const Analytics = () => {
     payload?: Array<{ value: number }>;
     label?: string;
   }) => {
-=======
-  const CustomTooltip = ({ active, payload, label }: any) => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     if (!active || !payload?.length) return null;
 
     return (
@@ -317,20 +235,9 @@ const Analytics = () => {
         </div>
       </div>
 
-<<<<<<< HEAD
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
           <div key={stat.label}>
-=======
-      <motion.div
-        variants={staggerContainer}
-        initial="initial"
-        animate="animate"
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
-      >
-        {stats.map((stat) => (
-          <motion.div key={stat.label} variants={staggerItem}>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             <Card className="rounded-2xl border-border/60 bg-card/90 shadow-[0_14px_40px_-28px_rgba(0,0,0,0.35)]">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -350,25 +257,12 @@ const Analytics = () => {
                 </div>
               </CardContent>
             </Card>
-<<<<<<< HEAD
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.5fr_1fr]">
         <div>
-=======
-          </motion.div>
-        ))}
-      </motion.div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.18, duration: 0.35 }}
-        >
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           <Card className="rounded-[28px] border-border/60 bg-card/95 shadow-[0_18px_52px_-34px_rgba(0,0,0,0.42)]">
             <CardContent className="p-6">
               <div className="mb-5 flex items-center justify-between gap-4">
@@ -402,30 +296,15 @@ const Analytics = () => {
                       axisLine={false}
                     />
                     <Tooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--muted) / 0.35)" }} />
-<<<<<<< HEAD
                     <Bar dataKey="count" fill="hsl(var(--brand))" radius={[8, 8, 0, 0]} isAnimationActive={false} />
-=======
-                    <Bar dataKey="count" fill="hsl(var(--brand))" radius={[8, 8, 0, 0]} />
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
-<<<<<<< HEAD
         </div>
 
         <div className="space-y-6">
-=======
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.22, duration: 0.35 }}
-          className="space-y-6"
-        >
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           <Card className="rounded-[28px] border-border/60 bg-card/95 shadow-[0_18px_52px_-34px_rgba(0,0,0,0.42)]">
             <CardContent className="p-6">
               <div className="mb-5">
@@ -462,10 +341,7 @@ const Analytics = () => {
                       stroke="hsl(var(--brand))"
                       strokeWidth={2.5}
                       fill="url(#leadArea)"
-<<<<<<< HEAD
                       isAnimationActive={false}
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -517,19 +393,12 @@ const Analytics = () => {
               </div>
             </CardContent>
           </Card>
-<<<<<<< HEAD
         </div>
-=======
-        </motion.div>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       </div>
     </div>
   );
 };
 
 export default Analytics;
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f

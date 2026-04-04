@@ -1,16 +1,9 @@
-<<<<<<< HEAD
 ﻿import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDeferredValue } from "react";
 import { useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Lead, LeadStatus, STATUS_LABELS, STATUS_DOT_COLORS, ALL_LEAD_STATUSES, compareLeadDisplayPriority } from "@/lib/constants";
-=======
-import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { Lead, LeadStatus, STATUS_LABELS, STATUS_DOT_COLORS, ALL_LEAD_STATUSES } from "@/lib/constants";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,18 +15,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-<<<<<<< HEAD
 import { Plus, Search, Download, Share2, X, SlidersHorizontal } from "lucide-react";
-=======
-import { Plus, Search, Download, Share2 } from "lucide-react";
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 import { useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
 import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
-<<<<<<< HEAD
 import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
 import { getSignedUrls } from "@/lib/storage";
 
@@ -61,12 +49,6 @@ interface LeadNoteExportRow {
   created_at: string | null;
 }
 
-=======
-import { staggerContainer, staggerItem, heroTitle } from "@/lib/motion";
-
-const PAGE_SIZES = [20, 40, 60, 100];
-
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 export default function LeadsPage() {
   const { user, role } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -78,15 +60,10 @@ export default function LeadsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(0);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
-<<<<<<< HEAD
   const [photoUrlsByLead, setPhotoUrlsByLead] = useState<Record<string, string[]>>({});
   const [activeTab, setActiveTab] = useState<"my" | "shared">("my");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const deferredSearch = useDeferredValue(search);
-=======
-  const [activeTab, setActiveTab] = useState<"my" | "shared">("my");
-  const [showAddDialog, setShowAddDialog] = useState(false);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   const rawStatusFilter = searchParams.get("status") || "all";
   const isAdmin = role === "admin";
@@ -109,24 +86,7 @@ export default function LeadsPage() {
     else setSearchParams({ status: value });
   };
 
-<<<<<<< HEAD
   const fetchProfiles = useCallback(async () => {
-=======
-  useEffect(() => {
-    if (!user || !role) return;
-
-    fetchLeads();
-    fetchProfiles();
-
-    if (role === "customer_service") {
-      fetchSharedLeads();
-    } else {
-      setSharedLeads([]);
-    }
-  }, [user?.id, role]);
-
-  const fetchProfiles = async () => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     const { data, error } = await supabase.from("profiles").select("id, full_name");
 
     if (error) {
@@ -136,24 +96,14 @@ export default function LeadsPage() {
 
     if (data) {
       const map: Record<string, string> = {};
-<<<<<<< HEAD
       (data as ProfileRow[]).forEach((p) => {
-=======
-      data.forEach((p: any) => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         map[p.id] = p.full_name;
       });
       setProfiles(map);
     }
-<<<<<<< HEAD
   }, []);
 
   const fetchLeads = useCallback(async () => {
-=======
-  };
-
-  const fetchLeads = async () => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     if (!user || !role) return;
 
     setLoading(true);
@@ -175,15 +125,9 @@ export default function LeadsPage() {
     }
 
     setLoading(false);
-<<<<<<< HEAD
   }, [role, user]);
 
   const fetchSharedLeads = useCallback(async () => {
-=======
-  };
-
-  const fetchSharedLeads = async () => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     if (!user || role !== "customer_service") return;
 
     const { data: shares, error: sharesError } = await supabase
@@ -202,11 +146,7 @@ export default function LeadsPage() {
       return;
     }
 
-<<<<<<< HEAD
     const leadIds = (shares as LeadShareRow[]).map((share) => share.lead_id);
-=======
-    const leadIds = shares.map((s: any) => s.lead_id);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
     const { data: leadsData, error: leadsError } = await supabase
       .from("leads")
@@ -221,7 +161,6 @@ export default function LeadsPage() {
     }
 
     setSharedLeads((leadsData ?? []) as Lead[]);
-<<<<<<< HEAD
   }, [role, user]);
 
   useEffect(() => {
@@ -239,12 +178,6 @@ export default function LeadsPage() {
 
   const visibleMyLeads = useMemo(() => filterLeads([...leads]), [leads, filterLeads]);
   const visibleSharedLeads = useMemo(() => [...sharedLeads], [sharedLeads]);
-=======
-  };
-
-  const visibleMyLeads = useMemo(() => filterLeads([...leads]), [leads, filterLeads, allowedStatuses]);
-  const visibleSharedLeads = useMemo(() => filterLeads([...sharedLeads]), [sharedLeads, filterLeads, allowedStatuses]);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   const currentLeads = activeTab === "shared" ? visibleSharedLeads : visibleMyLeads;
 
@@ -255,13 +188,8 @@ export default function LeadsPage() {
       result = result.filter((l) => l.status === safeStatusFilter);
     }
 
-<<<<<<< HEAD
     if (deferredSearch) {
       const s = deferredSearch.toLowerCase();
-=======
-    if (search) {
-      const s = search.toLowerCase();
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       result = result.filter(
         (l) =>
           l.customer_name?.toLowerCase().includes(s) ||
@@ -272,7 +200,6 @@ export default function LeadsPage() {
       );
     }
 
-<<<<<<< HEAD
     result.sort(compareLeadDisplayPriority);
 
     return result;
@@ -344,21 +271,6 @@ export default function LeadsPage() {
       cancelled = true;
     };
   }, [pagedLeadIds, pagedLeadIdsKey]);
-=======
-    result.sort((a, b) => {
-      if (a.status === "urgent_job" && b.status !== "urgent_job") return -1;
-      if (b.status === "urgent_job" && a.status !== "urgent_job") return 1;
-      if (a.status === "cancelled" && b.status !== "cancelled") return 1;
-      if (b.status === "cancelled" && a.status !== "cancelled") return -1;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-
-    return result;
-  }, [currentLeads, search, safeStatusFilter]);
-
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
   const countSource = activeTab === "shared" ? visibleSharedLeads : visibleMyLeads;
 
@@ -367,7 +279,6 @@ export default function LeadsPage() {
   const activeCount = countSource.filter(
     (l) => l.status !== "cancelled" && l.status !== "paid" && l.status !== "job_done",
   ).length;
-<<<<<<< HEAD
   const hasActiveFilters = Boolean(search) || safeStatusFilter !== "all";
 
   const exportData = async (format: "csv" | "xlsx") => {
@@ -402,10 +313,6 @@ export default function LeadsPage() {
       });
     }
 
-=======
-
-  const exportData = (format: "csv" | "xlsx") => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     const data = filtered.map((l) => ({
       "Job ID": l.job_id,
       "Customer Name": l.customer_name,
@@ -432,15 +339,9 @@ export default function LeadsPage() {
       "Material Amount": l.material_amount != null ? l.material_amount : "",
       "For You Amount": l.for_you_amount != null ? l.for_you_amount : "",
       "For Us Amount": l.for_us_amount != null ? l.for_us_amount : "",
-<<<<<<< HEAD
       "General Notes": noteSummaryByLead[l.id]?.general || "",
       "CS Notes": noteSummaryByLead[l.id]?.cs || "",
       "Processor Notes": noteSummaryByLead[l.id]?.processor || "",
-=======
-      "General Notes": l.general_notes || "",
-      "CS Notes": l.cs_notes || "",
-      "Processor Notes": l.processor_notes || "",
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       "Payment Amount": l.payment_amount != null ? l.payment_amount : "",
       "Created By": profiles[l.created_by] || l.created_by,
       "Last Edited By": l.last_edited_by ? profiles[l.last_edited_by] || l.last_edited_by : "",
@@ -458,16 +359,11 @@ export default function LeadsPage() {
     toast.success(`Exported ${data.length} leads`);
   };
 
-<<<<<<< HEAD
   const handleRefresh = useCallback(async () => {
-=======
-  const handleRefresh = async () => {
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
     await fetchLeads();
     if (role === "customer_service") {
       await fetchSharedLeads();
     }
-<<<<<<< HEAD
   }, [fetchLeads, fetchSharedLeads, role]);
 
   return (
@@ -486,15 +382,6 @@ export default function LeadsPage() {
             Lead Workspace
           </div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-[-0.04em] text-foreground">
-=======
-  };
-
-  return (
-    <div className="space-y-6 max-w-[1600px] mx-auto">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <motion.div variants={heroTitle} initial="initial" animate="animate">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
             {safeStatusFilter !== "all" ? (
               <span className="flex items-center gap-2.5">
                 <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT_COLORS[safeStatusFilter as LeadStatus]}`} />
@@ -506,16 +393,10 @@ export default function LeadsPage() {
               "All Leads"
             )}
           </h1>
-<<<<<<< HEAD
           <p className="mt-2 max-w-2xl text-[15px] leading-6 text-muted-foreground/90">
             {filtered.length} lead{filtered.length !== 1 ? "s" : ""}
             {totalPages > 1 && ` · Page ${page + 1} of ${totalPages}`}
             {" · "}Search fast, change status quickly, and keep work moving without clutter.
-=======
-          <p className="text-sm text-muted-foreground mt-1">
-            {filtered.length} lead{filtered.length !== 1 ? "s" : ""}
-            {totalPages > 1 && ` · Page ${page + 1} of ${totalPages}`}
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
           </p>
         </motion.div>
 
@@ -534,13 +415,8 @@ export default function LeadsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-<<<<<<< HEAD
                 <DropdownMenuItem onClick={() => void exportData("csv")}>Export as CSV</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => void exportData("xlsx")}>Export as XLSX</DropdownMenuItem>
-=======
-                <DropdownMenuItem onClick={() => exportData("csv")}>Export as CSV</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportData("xlsx")}>Export as XLSX</DropdownMenuItem>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -563,18 +439,13 @@ export default function LeadsPage() {
             }}
           />
         </motion.div>
-<<<<<<< HEAD
         </div>
       </motion.section>
-=======
-      </div>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
 
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-<<<<<<< HEAD
         className="grid grid-cols-1 gap-3 sm:grid-cols-3"
       >
         <motion.div whileHover={{ y: -3 }} transition={silkySpring} className="glass-panel rounded-[26px] p-4 shadow-[0_28px_54px_-34px_rgba(59,130,246,0.22)] dark:bg-[linear-gradient(180deg,hsl(var(--card)/0.86),hsl(var(--muted)/0.28))] dark:shadow-none">
@@ -609,30 +480,6 @@ export default function LeadsPage() {
               </span>
             </div>
           </motion.div>
-=======
-        className="flex gap-2.5 flex-wrap"
-      >
-        <div className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-card border border-border/50 text-sm shadow-premium-xs">
-          <span className="w-2 h-2 rounded-full bg-primary" />
-          <span className="font-bold text-foreground tabular-nums">{activeCount}</span>
-          <span className="text-muted-foreground text-[12px]">Active</span>
-        </div>
-
-        {urgentCount > 0 && (
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-destructive/5 border border-destructive/10 text-sm shadow-premium-xs">
-            <span className="w-2 h-2 rounded-full bg-destructive status-pulse" />
-            <span className="font-bold text-destructive tabular-nums">{urgentCount}</span>
-            <span className="text-destructive/70 text-[12px]">Urgent</span>
-          </div>
-        )}
-
-        {scheduledCount > 0 && (
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-card border border-border/50 text-sm shadow-premium-xs">
-            <span className="w-2 h-2 rounded-full bg-primary/50" />
-            <span className="font-bold tabular-nums">{scheduledCount}</span>
-            <span className="text-muted-foreground text-[12px]">Scheduled</span>
-          </div>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         )}
       </motion.div>
 
@@ -641,11 +488,7 @@ export default function LeadsPage() {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-<<<<<<< HEAD
           className="glass-panel inline-flex gap-1 rounded-[22px] p-1.5 dark:bg-[linear-gradient(180deg,hsl(var(--card)/0.84),hsl(var(--muted)/0.28))]"
-=======
-          className="flex gap-1 bg-muted/50 rounded-lg p-1 w-fit border border-border/30"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
         >
           <button
             onClick={() => {
@@ -654,11 +497,7 @@ export default function LeadsPage() {
             }}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
               activeTab === "my"
-<<<<<<< HEAD
                 ? "crm-lead-card-inner text-foreground shadow-[0_12px_24px_-18px_rgba(59,130,246,0.2)]"
-=======
-                ? "bg-card text-foreground shadow-premium-xs"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -672,11 +511,7 @@ export default function LeadsPage() {
             }}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
               activeTab === "shared"
-<<<<<<< HEAD
                 ? "crm-lead-card-inner text-foreground shadow-[0_12px_24px_-18px_rgba(59,130,246,0.2)]"
-=======
-                ? "bg-card text-foreground shadow-premium-xs"
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -695,7 +530,6 @@ export default function LeadsPage() {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-<<<<<<< HEAD
         className="glass-panel-strong rounded-[30px] p-3 shadow-[0_34px_74px_-40px_rgba(59,130,246,0.24)] dark:bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.10),transparent_24%),linear-gradient(180deg,hsl(var(--card)/0.84),hsl(var(--muted)/0.30))] dark:shadow-none"
       >
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-border/50 px-1 pb-3">
@@ -783,58 +617,6 @@ export default function LeadsPage() {
 
           </div>
         </div>
-=======
-        className="flex flex-col gap-3 sm:flex-row"
-      >
-        <div className="relative flex-1 group">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40 transition-colors group-focus-within:text-primary" />
-          <Input
-            placeholder="Search by name, phone, address, job ID..."
-            className="pl-10 h-10"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-          />
-        </div>
-
-        <Select value={safeStatusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[200px] h-10">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {ALL_LEAD_STATUSES.filter((s) => allowedStatuses.has(s)).map((s) => (
-              <SelectItem key={s} value={s}>
-                <span className="flex items-center gap-2">
-                  <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT_COLORS[s]}`} />
-                  {STATUS_LABELS[s]}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={String(pageSize)}
-          onValueChange={(v) => {
-            setPageSize(Number(v));
-            setPage(0);
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-[110px] h-10">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PAGE_SIZES.map((s) => (
-              <SelectItem key={s} value={String(s)}>
-                Show {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       </motion.div>
 
       {loading ? (
@@ -849,7 +631,6 @@ export default function LeadsPage() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.35 }}
         >
-<<<<<<< HEAD
           <Card className="crm-lead-card flex min-h-[260px] flex-col items-center justify-center gap-3 border-dashed border-2 px-6 text-center shadow-[0_34px_74px_-40px_rgba(59,130,246,0.22)] dark:shadow-none">
             <div className="crm-lead-card-inner flex h-14 w-14 items-center justify-center rounded-2xl">
               <Search className="h-5 w-5 text-muted-foreground/30" />
@@ -858,21 +639,10 @@ export default function LeadsPage() {
               {activeTab === "shared" ? "No leads have been shared with you yet" : "No leads found"}
             </p>
             <p className="max-w-sm text-[13px] text-muted-foreground">
-=======
-          <Card className="flex flex-col h-48 items-center justify-center border-dashed border-2 border-border/40 gap-3">
-            <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center">
-              <Search className="h-5 w-5 text-muted-foreground/30" />
-            </div>
-            <p className="font-medium text-foreground text-sm">
-              {activeTab === "shared" ? "No leads have been shared with you yet" : "No leads found"}
-            </p>
-            <p className="text-[12px] text-muted-foreground">
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
               {search || safeStatusFilter !== "all"
                 ? "Try adjusting your search or filter"
                 : 'Click "New Lead" to get started'}
             </p>
-<<<<<<< HEAD
             {hasActiveFilters && (
               <Button
                 type="button"
@@ -900,23 +670,6 @@ export default function LeadsPage() {
             />
           ))}
         </div>
-=======
-          </Card>
-        </motion.div>
-      ) : (
-        <motion.div
-          variants={staggerContainer}
-          initial="initial"
-          animate="animate"
-          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
-        >
-          {paged.map((lead) => (
-            <motion.div key={lead.id} variants={staggerItem} layout>
-              <LeadCard lead={lead} profiles={profiles} onRefresh={handleRefresh} />
-            </motion.div>
-          ))}
-        </motion.div>
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
       )}
 
       {totalPages > 1 && (
@@ -962,8 +715,5 @@ export default function LeadsPage() {
     </div>
   );
 }
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 06a14ca75a4b59c1d58671f9a65a8cc79bc88a8f
