@@ -301,10 +301,10 @@ export default function LeadDetailPage() {
       const { getSignedUrls } = await import("@/lib/storage");
       const rows = data as Array<{ id: string; photo_url: string }>;
       const paths = rows.map((p) => p.photo_url);
-      const [previewUrls, originalUrls] = await Promise.all([
-        getSignedUrls(paths, { width: 320, height: 320, resize: "cover", quality: 60 }),
-        getSignedUrls(paths),
-      ]);
+      // Only load preview thumbnails up front. Originals are lazy-loaded
+      // when the user opens the lightbox to slash storage egress.
+      const previewUrls = await getSignedUrls(paths, { width: 240, height: 240, resize: "cover", quality: 50 });
+      const originalUrls = previewUrls;
       setPhotos(
         rows.map((p, i) => ({
           id: p.id,
