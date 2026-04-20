@@ -33,7 +33,7 @@ import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { motion } from "framer-motion";
 import { logActivity } from "@/lib/activity";
-import { getChangeableStatuses } from "@/lib/constants";
+import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 
 interface Props {
@@ -231,6 +231,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   };
 
   const update = <K extends keyof Lead>(key: K, value: Lead[K]) => {
+    if (key === "status" && !canChangeStatus(role, value as LeadStatus)) {
+      toast.error("You do not have permission to set that status");
+      return;
+    }
     if (key === "status" && value === "paid") {
       setPaymentOpen(true);
       return;
@@ -324,6 +328,9 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     mutationFn: async () => {
       if (!user) return;
       if (isDuplicate) throw new Error(`Duplicate phone: ${duplicateLeadName}`);
+      if (!form.status || !canChangeStatus(role, form.status as LeadStatus)) {
+        throw new Error("You do not have permission to set that status");
+      }
 
       const previousStatus = lead?.status;
       const newStatus = form.status;

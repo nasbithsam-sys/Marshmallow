@@ -108,33 +108,37 @@ export function compareLeadDisplayPriority(
   return getLeadCreatedAtTime(b) - getLeadCreatedAtTime(a);
 }
 
-const CS_CHANGEABLE: LeadStatus[] = [
-  "need_tech",
-  "urgent_job",
-  "waiting_customer_response",
-  "waiting_complete_details",
-  "quote_sent_waiting",
-  "ready_to_schedule",
-  "quote_sent_need_follow_up",
-  "needs_quote",
-  "needs_reschedule",
-];
-
-const PROCESSOR_CHANGEABLE: LeadStatus[] = [
-  "post_visit_quote_sent_waiting",
-  "activate_customer",
-  "ready_to_schedule",
-  "scheduled",
-  "job_in_progress",
-  "paid",
-  "payment_pending",
-  "job_done",
-  "needs_reschedule",
-];
+const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
+  admin: ALL_LEAD_STATUSES,
+  customer_service: [
+    "need_tech",
+    "urgent_job",
+    "waiting_customer_response",
+    "waiting_complete_details",
+    "quote_sent_waiting",
+    "ready_to_schedule",
+    "quote_sent_need_follow_up",
+    "needs_quote",
+    "needs_reschedule",
+  ],
+  processor: [
+    "post_visit_quote_sent_waiting",
+    "activate_customer",
+    "ready_to_schedule",
+    "scheduled",
+    "job_in_progress",
+    "paid",
+    "payment_pending",
+    "job_done",
+    "needs_reschedule",
+  ],
+  no_role: [],
+};
 
 export function getChangeableStatuses(role?: string | null): LeadStatus[] {
-  if (role === "admin") return ALL_LEAD_STATUSES;
-  if (role === "customer_service") return CS_CHANGEABLE;
-  if (role === "processor") return PROCESSOR_CHANGEABLE;
-  return [];
+  return STATUS_CHANGE_ACCESS[(role as AppRole) || "no_role"] ?? [];
+}
+
+export function canChangeStatus(role: string | null | undefined, status: LeadStatus): boolean {
+  return getChangeableStatuses(role).includes(status);
 }

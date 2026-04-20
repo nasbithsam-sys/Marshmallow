@@ -38,7 +38,7 @@ import CopyLeadButton from "@/components/leads/CopyLeadButton";
 import NoteThread from "@/components/leads/NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
-import { getChangeableStatuses } from "@/lib/constants";
+import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import StatusBadge from "@/components/leads/StatusBadge";
 import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
@@ -511,6 +511,10 @@ export default function LeadDetailPage() {
 
     if (isDuplicate) {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
+      return;
+    }
+    if (!canChangeStatus(role, form.status)) {
+      toast.error("You do not have permission to set that status");
       return;
     }
 

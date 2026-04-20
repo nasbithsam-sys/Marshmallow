@@ -23,7 +23,7 @@ import {
   Phone,
 } from "lucide-react";
 import { LEAD_STATUS_CONFIG, type LeadStatus } from "@/types";
-import { getChangeableStatuses } from "@/lib/constants";
+import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { formatUSPhone } from "@/lib/phone";
 import { logActivity } from "@/lib/activity";
@@ -204,6 +204,10 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
     }
     if (isDuplicate) {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
+      return;
+    }
+    if (!canChangeStatus(role, form.status)) {
+      toast.error("You do not have permission to set that status");
       return;
     }
 

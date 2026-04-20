@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Lead, LeadStatus, STATUS_LABELS, getChangeableStatuses } from "@/lib/constants";
+import { Lead, LeadStatus, STATUS_LABELS, getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -220,6 +220,10 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
   const handleStatusChange = async (newStatus: string) => {
     if (isPaid) return;
+    if (!canChangeStatus(role, newStatus as LeadStatus)) {
+      toast.error("You do not have permission to set that status");
+      return;
+    }
 
     if (newStatus === "paid") {
       setPaymentOpen(true);
