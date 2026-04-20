@@ -82,9 +82,11 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [photoOriginals, setPhotoOriginals] = useState<string[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [resolvedPaymentUrl, setResolvedPaymentUrl] = useState<string | null>(null);
+  const [resolvedPaymentOriginal, setResolvedPaymentOriginal] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
 
   const isAdmin = role === "admin";
@@ -148,10 +150,12 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
       const paths = data.map((photo: { photo_url: string }) => photo.photo_url);
       const { getSignedUrls } = await import("@/lib/storage");
-      const urls = await getSignedUrls(paths);
+      // Tiny thumbnails for card preview — originals only loaded on lightbox open.
+      const urls = await getSignedUrls(paths, { width: 200, height: 200, resize: "cover", quality: 50 });
 
       if (!cancelled) {
         setPhotos(urls);
+        setPhotoOriginals([]); // reset; lazy-load on lightbox open
       }
     };
 
@@ -165,18 +169,53 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   useEffect(() => {
     if (isPaid && lead.payment_screenshot_url) {
       import("@/lib/storage").then(({ getSignedUrl }) =>
-        getSignedUrl(lead.payment_screenshot_url!).then(setResolvedPaymentUrl),
+        getSignedUrl(lead.payment_screenshot_url!, { width: 200, height: 200, resize: "cover", quality: 50 }).then(
+          setResolvedPaymentUrl,
+        ),
       );
     } else {
       setResolvedPaymentUrl(null);
     }
+    setResolvedPaymentOriginal(null);
   }, [lead.payment_screenshot_url, isPaid]);
 
   const allImages = disablePhotoPreview ? [] : [...(isPaid && resolvedPaymentUrl ? [resolvedPaymentUrl] : []), ...photos];
 
+  // Lazy-load full-size originals only when the lightbox opens.
+  const loadOriginals = async () => {
+    const { getSignedUrl, getSignedUrls } = await import("@/lib/storage");
+    const tasks: Promise<void>[] = [];
+    if (isPaid && lead.payment_screenshot_url && !resolvedPaymentOriginal) {
+      tasks.push(getSignedUrl(lead.payment_screenshot_url).then(setResolvedPaymentOriginal));
+    }
+    if (photos.length && photoOriginals.length === 0) {
+      const { data } = await supabase
+        .from("lead_photos")
+        .select("photo_url")
+        .eq("lead_id", lead.id)
+        .order("created_at", { ascending: true });
+      if (data) {
+        const paths = data.map((p: { photo_url: string }) => p.photo_url);
+        const urls = await getSignedUrls(paths);
+        setPhotoOriginals(urls);
+      }
+    }
+    await Promise.all(tasks);
+  };
+
+  const lightboxImages = disablePhotoPreview
+    ? []
+    : [
+        ...(isPaid && (resolvedPaymentOriginal || resolvedPaymentUrl)
+          ? [resolvedPaymentOriginal || resolvedPaymentUrl!]
+          : []),
+        ...(photoOriginals.length ? photoOriginals : photos),
+      ];
+
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
     setLightboxOpen(true);
+    void loadOriginals();
   };
 
   const handleStatusChange = async (newStatus: string) => {
@@ -639,7 +678,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
         />
 
         <ImageLightbox
-          images={allImages}
+          images={lightboxImages.length ? lightboxImages : allImages}
           initialIndex={lightboxIndex}
           open={lightboxOpen}
           onOpenChange={setLightboxOpen}
