@@ -1,58 +1,59 @@
 
 
-# Fix: Resolve Git Merge Conflict Markers Across 41 Files
+# Reduce Storage Egress by ~5x (Currently 100x → Target 20x)
 
-## Problem
+## Why egress is so high right now
 
-The entire project is broken due to **unresolved git merge conflict markers** in 41 files. Every file contains `<<<<<<< HEAD`, `=======`, and `>>>>>>> 06a14ca...` blocks, causing TypeScript/build failures everywhere.
+1. **Full-size originals loaded as thumbnails** — `LeadCard.tsx` calls `getSignedUrls(paths)` with NO transform, so every lead card on `/leads` downloads full-resolution photos (often 1–3 MB each) just to render a small preview.
+2. **Re-fetched on every mount** — Each card re-queries `lead_photos` and re-signs URLs every time the list re-renders or you navigate back. Browser cache helps, but signed URLs change → cache miss.
+3. **Detail page double-loads** — `LeadDetailPage.tsx` already fetches both a 320×320 preview AND the full original in parallel, even when the lightbox is never opened.
+4. **Payment screenshots** — Loaded at full size on every card where `isPaid` is true.
+5. **Build error** — `transform` option is being passed to `createSignedUrls` (batch), but the Supabase JS SDK only supports `transform` on the single `createSignedUrl`. That's the TS2353 error.
 
-## Root Cause
+## Fix Plan (4 small edits)
 
-A git merge was attempted but never resolved. Both versions of code remain in the files with conflict markers separating them.
+### 1. `src/lib/storage.ts`
+- **Fix build error**: Remove `transform` from the batch `createSignedUrls` call (SDK doesn't support it). For batch + transform, fall back to per-item `createSignedUrl` calls in parallel.
+- **Bump expiry** from 1 hour → 24 hours so URLs cache longer in the browser/CDN (fewer re-signs, more cache hits = less egress).
+- **Add in-memory cache** keyed by `path + transform` so repeated calls within the session don't re-hit Supabase.
 
-## Resolution Strategy
+### 2. `src/components/leads/LeadCard.tsx`
+- Request **thumbnail transforms** (e.g. `width: 200, quality: 50, resize: "cover"`) instead of full originals. A 1.5 MB photo becomes ~15 KB → **~100x reduction** for card previews alone.
+- Same for payment screenshot preview (`width: 200`).
+- Only load originals when the lightbox actually opens.
 
-For each file, resolve conflicts by keeping the **HEAD version** (the newer/intended code) since that represents the latest planned changes (theme provider, PageRoute access control, premium styling, etc.). The HEAD side includes:
+### 3. `src/pages/LeadDetailPage.tsx`
+- **Lazy-load originals**: only fetch full-size signed URLs when the user opens the lightbox, not upfront. Keep the 320×320 preview load.
+- Reduce preview size from 320 → 240 and quality 60 → 50.
 
-- `ThemeProvider` + `MotionConfig` wrappers in `main.tsx`
-- `PageRoute` access control in `App.tsx`
-- Premium glass-panel styling in `AppLayout.tsx`
-- `ThemeToggle` in the header
-- Typed interfaces in `LeadShareDialog.tsx`
-- All other recent feature additions
+### 4. (Optional, larger payoff) `src/lib/image-upload.ts`
+- Lower `MAX_DIMENSION` from 1600 → 1280 and `JPEG_QUALITY` from 0.78 → 0.72 for new uploads. Doesn't affect existing photos but caps future growth.
 
-## Files to Fix (41 total)
+## Expected Impact
 
-### Core App Files
-- `src/main.tsx` — keep ThemeProvider + MotionConfig wrapper
-- `src/App.tsx` — keep PageRoute access control
-- `src/components/layout/AppLayout.tsx` — keep premium header with ThemeToggle
-- `src/components/layout/AppSidebar.tsx`
-- `src/contexts/AuthContext.tsx`
+| Source | Before | After | Reduction |
+|---|---|---|---|
+| Lead card photo preview | ~1.5 MB × N cards | ~15 KB × N cards | ~100x |
+| Payment screenshot preview | ~800 KB | ~10 KB | ~80x |
+| Detail page (no lightbox) | preview + original | preview only | ~50% |
+| Signed URL re-signs | every navigation | cached 24h | large |
 
-### Lead Components (heaviest conflicts)
-- `src/pages/LeadDetailPage.tsx` — ~25 conflict blocks
-- `src/components/leads/LeadCard.tsx`
-- `src/components/leads/LeadDetailPanel.tsx`
-- `src/components/leads/AddLeadDialog.tsx`
-- `src/components/leads/LeadShareDialog.tsx`
-- `src/components/leads/NoteThread.tsx`
-- `src/components/leads/CopyLeadButton.tsx`
-- `src/components/leads/StatusBadge.tsx`
+**Net result: ~5–8x egress reduction** (gets you from 100x → 15–20x). Combined with the longer signed-URL TTL improving cached egress hit rate, you should land in your target zone.
 
-### Pages
-- `src/pages/LeadsPage.tsx`, `AllLeads.tsx`, `Analytics.tsx`, `AreasPage.tsx` (if present), `MapPage.tsx`, `SchedulePage.tsx`, `ActivityLogs.tsx`, `Settings.tsx`
+## Pros & Cons
 
-### Hooks & Utilities
-- `src/hooks/useAllowedStatuses.ts`, `useDuplicatePhoneCheck.ts`, `useNavPermissions.ts`
-- `src/lib/constants.ts`, `src/lib/motion.ts`
-- `src/integrations/supabase/types.ts`
+**Pros**
+- Massive egress reduction with no UX regression — thumbnails look identical at card size
+- Faster page loads (smaller images = quicker render)
+- Originals still available on lightbox open (full quality preserved)
+- Fixes the current TS build error
 
-### UI Components (13 files)
-- `badge.tsx`, `button.tsx`, `card.tsx`, `dialog.tsx`, `dropdown-menu.tsx`, `input.tsx`, `pagination.tsx`, `popover.tsx`, `select.tsx`, `sheet.tsx`, `sidebar.tsx`, `table.tsx`, `tabs.tsx`, `textarea.tsx`
-- `src/components/notifications/NotificationBell.tsx`
+**Cons**
+- First lightbox open will have a small delay (1 round trip to sign + download original) instead of being instant. Mitigation: prefetch on hover.
+- Supabase image transforms are a Pro-tier feature — confirm your plan supports them. If not, we'd switch to client-side resize-on-upload + storing a separate `_thumb` variant (more complex, but free).
+- 24h signed URLs slightly increase the window if a URL leaks (still RLS-protected on regenerate; low risk).
+- Cached in-memory map grows over long sessions — add a soft cap (e.g. 500 entries LRU).
 
-## Approach
-
-Each file will be read in full, the HEAD version of each conflict block will be kept, and the file will be rewritten clean. This is a large but mechanical fix — no logic changes, just removing conflict markers and keeping the correct side.
+## What you'll need to confirm
+- Are you on Supabase Pro? (Required for image transforms.) If unsure, I'll add a graceful fallback so transforms are skipped on free tier and we still get the cache + TTL benefits.
 
