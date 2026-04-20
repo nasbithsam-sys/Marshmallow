@@ -68,8 +68,8 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
+      <AuthProvider>
+        <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginRoute />} />
             <Route path="/" element={<ProtectedRoutes />}>
