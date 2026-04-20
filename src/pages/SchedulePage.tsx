@@ -13,6 +13,7 @@ import {
   Clock,
   MapPin,
   Phone,
+  BadgeInfo,
   User,
   Calendar,
   Wrench,
@@ -116,7 +117,7 @@ export default function SchedulePage() {
       supabase
         .from("leads")
         .select(
-          "id, job_id, customer_name, customer_phone, address, service_type, status, scheduled_date, scheduled_time_start, scheduled_time_end, assigned_cs, created_by",
+          "id, job_id, customer_name, customer_phone, address, service_type, status, scheduled_date, scheduled_time_start, scheduled_time_end, assigned_cs, created_by, tech_name, tech_number",
         )
         .not("scheduled_date", "is", null)
         .gte("scheduled_date", startStr)
@@ -538,9 +539,16 @@ export default function SchedulePage() {
                                 onClick={() => setSelectedLead(lead)}
                               >
                                 <Wrench className="h-3.5 w-3.5 shrink-0 opacity-85" />
-                                <span className="truncate text-[11px] font-semibold tracking-[-0.01em]">
-                                  {lead.customer_name}
-                                </span>
+                                <div className="min-w-0">
+                                  <span className="block truncate text-[11px] font-semibold tracking-[-0.01em]">
+                                    {lead.customer_name}
+                                  </span>
+                                  {(lead.tech_name || lead.tech_number) && (
+                                    <span className="block truncate text-[9px] text-white/85">
+                                      {[lead.tech_name, lead.tech_number].filter(Boolean).join(" - ")}
+                                    </span>
+                                  )}
+                                </div>
                                 <Avatar className="ml-auto h-6 w-6 shrink-0 ring-1 ring-white/20">
                                   <AvatarFallback className={`text-[8px] font-bold ${colorClass}`}>
                                     {getInitials(empName)}
@@ -600,6 +608,15 @@ export default function SchedulePage() {
                     <div className="flex items-center gap-2.5 text-muted-foreground">
                       <Wrench className="h-4 w-4" />
                       <span className="font-medium text-foreground">{selectedLead.service_type}</span>
+                    </div>
+                  )}
+
+                  {(selectedLead.tech_name || selectedLead.tech_number) && (
+                    <div className="flex items-center gap-2.5 text-muted-foreground">
+                      <BadgeInfo className="h-4 w-4" />
+                      <span className="text-foreground">
+                        {[selectedLead.tech_name, selectedLead.tech_number].filter(Boolean).join(" - ")}
+                      </span>
                     </div>
                   )}
 

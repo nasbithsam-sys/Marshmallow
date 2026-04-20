@@ -90,6 +90,8 @@ interface StatusVisibilityRow {
   is_visible: boolean;
 }
 
+const MANAGED_ROLES: AppRole[] = ["customer_service", "processor"];
+
 const Settings = () => {
   const { user, role: currentRole } = useAuth();
   const queryClient = useQueryClient();
@@ -165,6 +167,15 @@ const Settings = () => {
   );
   const statusVisibilityByUserAndStatus = useMemo(
     () => new Map(statusVisibility.map((row) => [`${row.user_id}:${row.status}`, row.is_visible])),
+    [statusVisibility],
+  );
+  const statusVisibilityByRoleAndStatus = useMemo(
+    () =>
+      new Map(
+        statusVisibility
+          .filter((row) => !row.user_id && row.role)
+          .map((row) => [`${row.role}:${row.status}`, row.is_visible]),
+      ),
     [statusVisibility],
   );
 
@@ -291,15 +302,19 @@ const Settings = () => {
   const toggleStatusVisibility = useMutation({
     mutationFn: async ({
       userId,
+      role,
       status,
       isVisible,
     }: {
-      userId: string;
+      userId?: string;
+      role?: AppRole;
       status: string;
       isVisible: boolean;
     }) => {
-      const targetUser = getUserById(userId);
-      const existing = statusVisibility.find((row) => row.user_id === userId && row.status === status);
+      const targetUser = userId ? getUserById(userId) : undefined;
+      const existing = statusVisibility.find((row) =>
+        userId ? row.user_id === userId && row.status === status : !row.user_id && row.role === role && row.status === status,
+      );
       const beforeVisible = existing?.is_visible ?? true;
 
       if (existing) {
@@ -311,8 +326,8 @@ const Settings = () => {
         if (error) throw error;
       } else {
         const { error } = await supabase.from("lead_status_visibility").insert({
-          user_id: userId,
-          role: targetUser?.role ?? null,
+          user_id: userId ?? null,
+          role: role ?? targetUser?.role ?? null,
           status,
           is_visible: isVisible,
         });
@@ -321,8 +336,10 @@ const Settings = () => {
       }
 
       if (user) {
-        await logActivity(user.id, "updated", "user", userId, {
-          target_name: targetUser?.full_name || targetUser?.email || userId,
+        await logActivity(user.id, "updated", userId ? "user" : "role", userId ?? role ?? status, {
+          target_name: userId
+            ? targetUser?.full_name || targetUser?.email || userId
+            : `${formatRoleLabel(role)} role`,
           email: targetUser?.email || null,
           changes: {
             [status]: {
@@ -330,7 +347,9 @@ const Settings = () => {
               after: isVisible,
             },
           },
-          message: `Admin ${isVisible ? "showed" : "hid"} "${STATUS_LABELS[status] || status}" status for "${targetUser?.full_name || targetUser?.email || "user"}".`,
+          message: userId
+            ? `Admin ${isVisible ? "showed" : "hid"} "${STATUS_LABELS[status] || status}" status for "${targetUser?.full_name || targetUser?.email || "user"}".`
+            : `Admin ${isVisible ? "showed" : "hid"} "${STATUS_LABELS[status] || status}" status for the "${formatRoleLabel(role)}" role.`,
         });
       }
     },
@@ -465,8 +484,22 @@ const Settings = () => {
     return getDefaultNavAccess(targetUser.role).has(section as (typeof ALL_NAV_ITEMS)[number]);
   };
 
-  const getStatusVisibility = (userId: string, status: string) =>
-    statusVisibilityByUserAndStatus.get(`${userId}:${status}`) ?? true;
+  const getRoleStatusVisibility = (managedRole: AppRole, status: string) =>
+    statusVisibilityByRoleAndStatus.get(`${managedRole}:${status}`) ?? true;
+  const getStatusVisibility = (userId: string, status: string) => {
+    const targetUser = getUserById(userId);
+    const userOverride = statusVisibilityByUserAndStatus.get(`${userId}:${status}`);
+
+    if (typeof userOverride === "boolean") {
+      return userOverride;
+    }
+
+    if (!targetUser || targetUser.role === "admin" || targetUser.role === "no_role") {
+      return true;
+    }
+
+    return getRoleStatusVisibility(targetUser.role, status);
+  };
 
   const getInitials = (name?: string | null) =>
     name
@@ -498,12 +531,10 @@ const Settings = () => {
   const hiddenStatusCount = useMemo(
     () =>
       nonAdminUsers.reduce((count, targetUser) => {
-        const hiddenForUser = ALL_LEAD_STATUSES.filter(
-          (status) => !(statusVisibilityByUserAndStatus.get(`${targetUser.id}:${status}`) ?? true),
-        ).length;
+        const hiddenForUser = ALL_LEAD_STATUSES.filter((status) => !getStatusVisibility(targetUser.id, status)).length;
         return count + hiddenForUser;
       }, 0),
-    [nonAdminUsers, statusVisibilityByUserAndStatus],
+    [nonAdminUsers, statusVisibilityByRoleAndStatus, statusVisibilityByUserAndStatus, userById],
   );
 
   return (
@@ -823,6 +854,66 @@ const Settings = () => {
             </div>
 
             <div className="overflow-x-auto">
+              <div className="border-b border-border/30 bg-muted/10 px-5 py-4">
+                <div className="mb-3">
+                  <span className="text-sm font-semibold text-foreground">Role Defaults</span>
+                  <p className="text-[12px] text-muted-foreground">
+                    Turn a status off for a role to hide leads in that workflow state for that whole role by default.
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/30 bg-muted/20">
+                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider">
+                          Role
+                        </th>
+                        {ALL_LEAD_STATUSES.map((status) => (
+                          <th
+                            key={`role-${status}`}
+                            className="px-2 py-3 text-[9px] font-semibold text-muted-foreground/60 text-center min-w-[80px] uppercase tracking-wider"
+                          >
+                            {STATUS_LABELS[status]}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {MANAGED_ROLES.map((managedRole) => (
+                        <tr
+                          key={managedRole}
+                          className="border-b border-border/20 last:border-b-0 hover:bg-muted/10 transition-colors"
+                        >
+                          <td className="px-4 py-3">
+                            <div>
+                              <p className="text-[12px] font-medium">{formatRoleLabel(managedRole)}</p>
+                              <p className="text-[10px] text-muted-foreground/50">Role-wide default visibility</p>
+                            </div>
+                          </td>
+
+                          {ALL_LEAD_STATUSES.map((status) => (
+                            <td key={`${managedRole}-${status}`} className="px-2 py-3 text-center">
+                              <Switch
+                                checked={getRoleStatusVisibility(managedRole, status)}
+                                onCheckedChange={(checked) =>
+                                  toggleStatusVisibility.mutate({
+                                    role: managedRole,
+                                    status,
+                                    isVisible: checked,
+                                  })
+                                }
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/30 bg-muted/20">

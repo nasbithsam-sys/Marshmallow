@@ -4,6 +4,9 @@ export type LeadStatus =
   | 'waiting_complete_details'
   | 'urgent_job'
   | 'quote_sent_waiting'
+  | 'post_visit_quote_sent_waiting'
+  | 'activate_customer'
+  | 'ready_to_schedule'
   | 'quote_sent_need_follow_up'
   | 'needs_quote'
   | 'waiting_customer_response'
@@ -20,6 +23,9 @@ export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: stri
   waiting_complete_details: { label: 'Waiting Complete Details', color: 'status-amber' },
   urgent_job: { label: 'Urgent Job', color: 'status-red' },
   quote_sent_waiting: { label: 'Quote Sent - Waiting', color: 'status-blue' },
+  post_visit_quote_sent_waiting: { label: 'Post Visit-Quote Sent-Waiting', color: 'status-blue' },
+  activate_customer: { label: 'Activate Customer', color: 'status-green' },
+  ready_to_schedule: { label: 'Ready To Schedule', color: 'status-indigo' },
   quote_sent_need_follow_up: { label: 'Quote Sent - Need Follow Up', color: 'status-amber' },
   needs_quote: { label: 'Needs Quote', color: 'status-amber' },
   waiting_customer_response: { label: 'Waiting Customer Response', color: 'status-blue' },

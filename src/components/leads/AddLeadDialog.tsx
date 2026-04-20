@@ -36,6 +36,36 @@ interface Props {
   onSuccess: () => void;
 }
 
+const initialFormState = {
+  customer_name: "",
+  customer_phone: "",
+  number_name: "",
+  address: "",
+  service_type: "",
+  status: "waiting_complete_details" as LeadStatus,
+  scheduled_date: "",
+  start_hour: "12",
+  start_minute: "00",
+  start_ampm: "AM",
+  end_hour: "2",
+  end_minute: "00",
+  end_ampm: "PM",
+  quote: "",
+  service_details: "",
+  customer_schedule_requirements: "",
+  reference_name: "",
+  tech_name: "",
+  tech_number: "",
+  terms: "" as "" | "free_estimate" | "quoted",
+  labor_amount: "",
+  material_amount: "",
+  for_you_amount: "",
+  for_us_amount: "",
+  cs_notes: "",
+  processor_notes: "",
+  general_notes: "",
+};
+
 const generateJobId = () => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let result = "LD-";
@@ -93,39 +123,9 @@ const SectionHeader = ({
 const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   const { user, role } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [shouldResetOnClose, setShouldResetOnClose] = useState(true);
 
-  const [form, setForm] = useState({
-    customer_name: "",
-    customer_phone: "",
-    number_name: "",
-    address: "",
-    service_type: "",
-    status: "waiting_complete_details" as LeadStatus,
-    scheduled_date: "",
-    start_hour: "12",
-    start_minute: "00",
-    start_ampm: "AM",
-    end_hour: "2",
-    end_minute: "00",
-    end_ampm: "PM",
-
-    quote: "",
-    service_details: "",
-    customer_schedule_requirements: "",
-    reference_name: "",
-
-    tech_name: "",
-    tech_number: "",
-    terms: "" as "" | "free_estimate" | "quoted",
-    labor_amount: "",
-    material_amount: "",
-    for_you_amount: "",
-    for_us_amount: "",
-
-    cs_notes: "",
-    processor_notes: "",
-    general_notes: "",
-  });
+  const [form, setForm] = useState(initialFormState);
 
   const [photos, setPhotos] = useState<File[]>([]);
   const [csOpen, setCsOpen] = useState(true);
@@ -143,6 +143,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   const sectionShell = "rounded-2xl border border-border/60 bg-card/90 shadow-[0_14px_38px_-28px_rgba(0,0,0,0.35)]";
 
   const update = (key: string, value: string) => {
+    setShouldResetOnClose(false);
     if (key === "customer_phone" || key === "tech_number") {
       setForm((prev) => ({ ...prev, [key]: formatUSPhone(value) }));
     } else {
@@ -152,6 +153,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
   const handlePhotoAdd = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
+      setShouldResetOnClose(false);
       setPhotos((prev) => [...prev, ...Array.from(e.target.files)]);
     }
   };
@@ -168,39 +170,20 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   };
 
   const resetForm = () => {
-    setForm({
-      customer_name: "",
-      customer_phone: "",
-      number_name: "",
-      address: "",
-      service_type: "",
-      status: "waiting_complete_details",
-      scheduled_date: "",
-      start_hour: "12",
-      start_minute: "00",
-      start_ampm: "AM",
-      end_hour: "2",
-      end_minute: "00",
-      end_ampm: "PM",
-      quote: "",
-      service_details: "",
-      customer_schedule_requirements: "",
-      reference_name: "",
-      tech_name: "",
-      tech_number: "",
-      terms: "",
-      labor_amount: "",
-      material_amount: "",
-      for_you_amount: "",
-      for_us_amount: "",
-      cs_notes: "",
-      processor_notes: "",
-      general_notes: "",
-    });
+    setForm(initialFormState);
     setPhotos([]);
     setCsOpen(true);
     setProcessorOpen(role !== "customer_service");
     setScheduleOpen(false);
+    setShouldResetOnClose(true);
+  };
+
+  const closeDialog = (resetDraft: boolean) => {
+    setShouldResetOnClose(resetDraft);
+    onOpenChange(false);
+    if (resetDraft) {
+      resetForm();
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -321,8 +304,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
       toast.success("Lead created successfully!");
       onSuccess();
-      onOpenChange(false);
-      resetForm();
+      closeDialog(true);
     }
 
     setLoading(false);
@@ -421,7 +403,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next);
-        if (!next && !loading) {
+        if (!next && !loading && shouldResetOnClose) {
           resetForm();
         }
       }}
@@ -838,7 +820,12 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
           <DialogFooter className="sticky bottom-0 border-t border-border/60 bg-card/95 px-0 pb-0 pt-4">
             <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full rounded-xl sm:w-auto">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => closeDialog(true)}
+                className="w-full rounded-xl sm:w-auto"
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={loading || isDuplicate} className="w-full rounded-xl px-5 sm:w-auto">

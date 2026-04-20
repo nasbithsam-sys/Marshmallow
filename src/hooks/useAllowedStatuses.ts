@@ -33,11 +33,14 @@ export function useAllowedStatuses() {
       }
 
       const finalAllowed = new Set<string>(baseAllowed);
-      const userSpecificRows = (data as VisibilityRow[]).filter((row) => row.user_id === user.id);
-      const fallbackRows = userSpecificRows.length > 0 ? userSpecificRows : (data as VisibilityRow[]);
+      const rows = data as VisibilityRow[];
+      const roleRows = rows.filter((row) => !row.user_id && row.role === role);
+      const userSpecificRows = rows.filter((row) => row.user_id === user.id);
 
-      for (const row of fallbackRows) {
-        if (!row?.status) continue;
+      for (const row of [...roleRows, ...userSpecificRows]) {
+        if (!row?.status) {
+          continue;
+        }
 
         if (row.is_visible === false) {
           finalAllowed.delete(row.status);

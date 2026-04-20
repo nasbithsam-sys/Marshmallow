@@ -13,6 +13,7 @@ import {
   Phone,
   MapPin,
   Wrench,
+  UserRound,
   Trash2,
   Pencil,
   MessageSquare,
@@ -112,6 +113,13 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       label: "Service",
       value: lead.service_type,
       icon: Wrench,
+      wrap: true,
+    },
+    {
+      key: "technician",
+      label: "Technician",
+      value: [lead.tech_name, lead.tech_number].filter(Boolean).join(" - "),
+      icon: UserRound,
       wrap: true,
     },
   ].filter((row): row is { key: string; label: string; value: string; icon: typeof Phone; wrap: boolean } => Boolean(row.value));
@@ -415,6 +423,12 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
                 <div className="mt-1 flex items-center gap-2 flex-wrap">
                   <p className="font-mono text-[10px] text-muted-foreground/70">{lead.job_id}</p>
+                  {(lead.tech_name || lead.tech_number) && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/75 px-2 py-0.5 text-[10px] text-muted-foreground/80">
+                      <UserRound className="h-3 w-3" />
+                      {[lead.tech_name, lead.tech_number].filter(Boolean).join(" - ")}
+                    </span>
+                  )}
                   {lead.created_at && (
                     <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
                       <CalendarDays className="h-3 w-3" />
