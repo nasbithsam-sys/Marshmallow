@@ -73,7 +73,7 @@ export default function AreasPage() {
     setLoading(true);
     const { data } = await supabase
       .from("leads")
-      .select("*")
+      .select("id, address, city, service_type, status, created_at")
       .gte("created_at", dateRange.from.toISOString())
       .lte("created_at", dateRange.to.toISOString());
     if (data) setLeads(data as Lead[]);

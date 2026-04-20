@@ -36,7 +36,6 @@ import { motion } from "framer-motion";
 
 const navItems = [
   { title: "All Leads", url: "/leads", icon: Users, navKey: "leads" },
-  { title: "Lead Map", url: "/map", icon: MapPin, navKey: "map" },
   { title: "Schedule", url: "/schedule", icon: Calendar, navKey: "schedule" },
   { title: "Analytics", url: "/analytics", icon: BarChart3, navKey: "analytics" },
   { title: "Area Insights", url: "/areas", icon: MapPin, navKey: "areas" },

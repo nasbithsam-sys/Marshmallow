@@ -13,7 +13,6 @@ export default function AppLayout() {
     "/schedule": { title: "Schedule", subtitle: "Review jobs by day, week, and date range." },
     "/analytics": { title: "Analytics", subtitle: "Watch volume, pace, and operational trends." },
     "/areas": { title: "Areas", subtitle: "Compare neighborhoods and service performance." },
-    "/map": { title: "Map", subtitle: "Locate leads visually and spot clustering faster." },
     "/activity-logs": { title: "Activity", subtitle: "Audit recent actions across the workspace." },
     "/settings": { title: "Settings", subtitle: "Manage users, permissions, and security controls." },
   };

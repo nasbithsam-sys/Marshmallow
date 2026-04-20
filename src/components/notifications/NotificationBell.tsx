@@ -8,6 +8,8 @@ import { Bell, CheckCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 
+const NOTIFICATION_POLL_INTERVAL_MS = 5 * 60 * 1000;
+
 interface Notification {
   id: string;
   title: string;
@@ -43,7 +45,7 @@ export default function NotificationBell() {
 
     refreshIfVisible();
 
-    const interval = setInterval(refreshIfVisible, 60000);
+    const interval = setInterval(refreshIfVisible, NOTIFICATION_POLL_INTERVAL_MS);
     document.addEventListener('visibilitychange', refreshIfVisible);
 
     return () => {

@@ -27,6 +27,7 @@ import { getChangeableStatuses } from "@/lib/constants";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { formatUSPhone } from "@/lib/phone";
 import { logActivity } from "@/lib/activity";
+import { optimizeImageForUpload } from "@/lib/image-upload";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
@@ -273,10 +274,11 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
     if (data) {
       for (const photo of photos) {
-        const ext = photo.name.split(".").pop();
+        const optimizedPhoto = await optimizeImageForUpload(photo);
+        const ext = optimizedPhoto.name.split(".").pop();
         const path = `leads/${data.id}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
-        const { error: uploadErr } = await supabase.storage.from("lead-photos").upload(path, photo);
+        const { error: uploadErr } = await supabase.storage.from("lead-photos").upload(path, optimizedPhoto);
 
         if (!uploadErr) {
           await supabase.from("lead_photos").insert({

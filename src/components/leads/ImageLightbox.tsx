@@ -1,7 +1,7 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface ImageLightboxProps {
   images: string[];
@@ -12,6 +12,12 @@ interface ImageLightboxProps {
 
 export default function ImageLightbox({ images, initialIndex = 0, open, onOpenChange }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+
+  useEffect(() => {
+    if (open) {
+      setCurrentIndex(initialIndex);
+    }
+  }, [initialIndex, open]);
 
   const handlePrev = () => setCurrentIndex((i) => (i > 0 ? i - 1 : images.length - 1));
   const handleNext = () => setCurrentIndex((i) => (i < images.length - 1 ? i + 1 : 0));
@@ -45,6 +51,7 @@ export default function ImageLightbox({ images, initialIndex = 0, open, onOpenCh
           <img
             src={images[currentIndex]}
             alt={`Image ${currentIndex + 1}`}
+            loading="lazy"
             className="max-w-full max-h-[85vh] object-contain"
           />
 

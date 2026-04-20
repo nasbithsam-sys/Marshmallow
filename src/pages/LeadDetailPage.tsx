@@ -39,8 +39,18 @@ import NoteThread from "@/components/leads/NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
 import { getChangeableStatuses } from "@/lib/constants";
+import { optimizeImageForUpload } from "@/lib/image-upload";
 import StatusBadge from "@/components/leads/StatusBadge";
 import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
+
+const PHOTO_PREVIEW_LIMIT = 1;
+
+interface ExistingPhoto {
+  id: string;
+  previewUrl: string;
+  originalUrl: string;
+  path?: string;
+}
 
 const generateJobId = () => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -119,10 +129,11 @@ export default function LeadDetailPage() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
 
-  const [photos, setPhotos] = useState<{ id: string; url: string; path?: string }[]>([]);
+  const [photos, setPhotos] = useState<ExistingPhoto[]>([]);
   const [newPhotos, setNewPhotos] = useState<File[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [showAllPhotos, setShowAllPhotos] = useState(false);
 
   const [csOpen, setCsOpen] = useState(true);
   const [processorOpen, setProcessorOpen] = useState(role !== "customer_service");
@@ -290,8 +301,18 @@ export default function LeadDetailPage() {
       const { getSignedUrls } = await import("@/lib/storage");
       const rows = data as Array<{ id: string; photo_url: string }>;
       const paths = rows.map((p) => p.photo_url);
-      const urls = await getSignedUrls(paths);
-      setPhotos(rows.map((p, i) => ({ id: p.id, url: urls[i], path: p.photo_url })));
+      const [previewUrls, originalUrls] = await Promise.all([
+        getSignedUrls(paths, { width: 320, height: 320, resize: "cover", quality: 60 }),
+        getSignedUrls(paths),
+      ]);
+      setPhotos(
+        rows.map((p, i) => ({
+          id: p.id,
+          previewUrl: previewUrls[i],
+          originalUrl: originalUrls[i],
+          path: p.photo_url,
+        })),
+      );
     } else {
       setPhotos([]);
     }
@@ -308,8 +329,12 @@ export default function LeadDetailPage() {
 
   useEffect(() => {
     if (leadId) {
-      fetchPhotos(leadId);
+      void fetchPhotos(leadId);
     }
+  }, [leadId]);
+
+  useEffect(() => {
+    setShowAllPhotos(false);
   }, [leadId]);
 
   const update = (key: string, value: string) => {
@@ -366,9 +391,10 @@ export default function LeadDetailPage() {
     let screenshotUrl: string | null = null;
 
     if (screenshotFile) {
-      const ext = screenshotFile.name.split(".").pop();
+      const optimizedScreenshot = await optimizeImageForUpload(screenshotFile);
+      const ext = optimizedScreenshot.name.split(".").pop();
       const path = `payments/${leadId}_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, screenshotFile);
+      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, optimizedScreenshot);
 
       if (!uploadError) {
         screenshotUrl = path;
@@ -409,10 +435,11 @@ export default function LeadDetailPage() {
 
   const uploadNewPhotos = async (currentLeadId: string) => {
     for (const photo of newPhotos) {
-      const ext = photo.name.split(".").pop();
+      const optimizedPhoto = await optimizeImageForUpload(photo);
+      const ext = optimizedPhoto.name.split(".").pop();
       const path = `leads/${currentLeadId}_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
-      const { error: uploadErr } = await supabase.storage.from("lead-photos").upload(path, photo);
+      const { error: uploadErr } = await supabase.storage.from("lead-photos").upload(path, optimizedPhoto);
 
       if (!uploadErr) {
         await supabase.from("lead_photos").insert({
@@ -675,7 +702,9 @@ export default function LeadDetailPage() {
     };
   }, [newPhotoUrls]);
 
-  const allImageUrls = [...photos.map((p) => p.url), ...newPhotoUrls];
+  const allImageUrls = [...photos.map((p) => p.originalUrl), ...newPhotoUrls];
+  const displayedPhotos = showAllPhotos ? photos : photos.slice(0, PHOTO_PREVIEW_LIMIT);
+  const hiddenPhotoCount = Math.max(photos.length - displayedPhotos.length, 0);
   const visiblePhotoCount = photos.length + newPhotos.length;
   const scheduleSummary = form.scheduled_date
     ? `${new Date(form.scheduled_date).toLocaleDateString()}${
@@ -1197,18 +1226,38 @@ export default function LeadDetailPage() {
               </p>
             </div>
 
+            {photos.length > PHOTO_PREVIEW_LIMIT && (
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-muted/[0.12] px-3.5 py-2.5">
+                <p className="text-[12px] text-muted-foreground">
+                  Showing {displayedPhotos.length} of {photos.length} uploaded photos by default.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  onClick={() => setShowAllPhotos((value) => !value)}
+                >
+                  {showAllPhotos ? "Show less" : `Show all ${photos.length}`}
+                </Button>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2.5">
-              {photos.map((photo, i) => (
+              {displayedPhotos.map((photo, i) => {
+                const lightboxTargetIndex = photos.findIndex((item) => item.id === photo.id);
+                return (
                 <div
                   key={photo.id}
                   className="group crm-lead-card-inner relative h-20 w-20 overflow-hidden rounded-2xl shadow-[0_16px_24px_-22px_rgba(59,130,246,0.12)] dark:shadow-none"
                 >
                   <img
-                    src={photo.url}
+                    src={photo.previewUrl}
                     alt=""
+                    loading="lazy"
                     className="h-full w-full object-cover cursor-pointer"
                     onClick={() => {
-                      setLightboxIndex(i);
+                      setLightboxIndex(lightboxTargetIndex >= 0 ? lightboxTargetIndex : i);
                       setLightboxOpen(true);
                     }}
                   />
@@ -1220,14 +1269,25 @@ export default function LeadDetailPage() {
                     <X className="h-2.5 w-2.5" />
                   </button>
                 </div>
-              ))}
+                );
+              })}
+
+              {!showAllPhotos && hiddenPhotoCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllPhotos(true)}
+                  className="crm-lead-card-soft flex h-20 w-20 items-center justify-center rounded-2xl border text-[12px] font-semibold text-foreground/75 transition-colors hover:border-primary/40"
+                >
+                  +{hiddenPhotoCount}
+                </button>
+              )}
 
               {newPhotos.map((photo, i) => (
                 <div
                   key={`new-${i}`}
                   className="group crm-lead-card-inner relative h-20 w-20 overflow-hidden rounded-2xl shadow-[0_16px_24px_-22px_rgba(59,130,246,0.12)] dark:shadow-none"
                 >
-                  <img src={URL.createObjectURL(photo)} alt="" className="h-full w-full object-cover" />
+                  <img src={URL.createObjectURL(photo)} alt="" loading="lazy" className="h-full w-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removeNewPhoto(i)}

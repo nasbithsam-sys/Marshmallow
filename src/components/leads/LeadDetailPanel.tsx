@@ -34,6 +34,7 @@ import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { motion } from "framer-motion";
 import { logActivity } from "@/lib/activity";
 import { getChangeableStatuses } from "@/lib/constants";
+import { optimizeImageForUpload } from "@/lib/image-upload";
 
 interface Props {
   leadId: string;
@@ -242,9 +243,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     let screenshotUrl: string | null = null;
 
     if (screenshotFile) {
-      const ext = screenshotFile.name.split(".").pop();
+      const optimizedScreenshot = await optimizeImageForUpload(screenshotFile);
+      const ext = optimizedScreenshot.name.split(".").pop();
       const path = `payments/${leadId}_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, screenshotFile);
+      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, optimizedScreenshot);
       if (!uploadError) {
         screenshotUrl = path;
       }

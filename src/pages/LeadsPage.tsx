@@ -23,7 +23,6 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
 import { heroTitle, premiumEase, silkySpring, cardGridContainer, cardGridItem } from "@/lib/motion";
-import { getSignedUrls } from "@/lib/storage";
 
 const PAGE_SIZES = [20, 40, 60, 100];
 
@@ -34,11 +33,6 @@ interface ProfileRow {
 
 interface LeadShareRow {
   lead_id: string;
-}
-
-interface LeadPhotoRow {
-  lead_id: string;
-  photo_url: string;
 }
 
 interface LeadNoteExportRow {
@@ -60,7 +54,6 @@ export default function LeadsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(0);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
-  const [photoUrlsByLead, setPhotoUrlsByLead] = useState<Record<string, string[]>>({});
   const [activeTab, setActiveTab] = useState<"my" | "shared">("my");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const deferredSearch = useDeferredValue(search);
@@ -207,9 +200,6 @@ export default function LeadsPage() {
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
-  const pagedLeadIds = useMemo(() => paged.map((lead) => lead.id), [paged]);
-  const pagedLeadIdsKey = pagedLeadIds.join("|");
-
   useEffect(() => {
     if (filtered.length === 0 && page !== 0) {
       setPage(0);
@@ -220,57 +210,6 @@ export default function LeadsPage() {
       setPage(totalPages - 1);
     }
   }, [filtered.length, page, totalPages]);
-
-  useEffect(() => {
-    if (pagedLeadIds.length === 0) {
-      setPhotoUrlsByLead({});
-      return;
-    }
-
-    let cancelled = false;
-
-    const fetchPagedLeadPhotos = async () => {
-      const { data, error } = await supabase
-        .from("lead_photos")
-        .select("lead_id, photo_url")
-        .in("lead_id", pagedLeadIds)
-        .order("created_at", { ascending: true });
-
-      if (cancelled) return;
-
-      if (error || !data) {
-        setPhotoUrlsByLead({});
-        return;
-      }
-
-      const rows = data as LeadPhotoRow[];
-      const allPaths = rows.map((row) => row.photo_url).filter(Boolean);
-      const signedUrls = await getSignedUrls(allPaths);
-
-      if (cancelled) return;
-
-      const signedByPath = new Map<string, string>();
-      allPaths.forEach((path, index) => {
-        signedByPath.set(path, signedUrls[index] || path);
-      });
-
-      const grouped: Record<string, string[]> = {};
-
-      rows.forEach((row) => {
-        const url = signedByPath.get(row.photo_url) || row.photo_url;
-        if (!grouped[row.lead_id]) grouped[row.lead_id] = [];
-        grouped[row.lead_id].push(url);
-      });
-
-      setPhotoUrlsByLead(grouped);
-    };
-
-    void fetchPagedLeadPhotos();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pagedLeadIds, pagedLeadIdsKey]);
 
   const countSource = activeTab === "shared" ? visibleSharedLeads : visibleMyLeads;
 
@@ -671,7 +610,7 @@ export default function LeadsPage() {
                 lead={lead}
                 profiles={profiles}
                 onRefresh={handleRefresh}
-                photoUrls={photoUrlsByLead[lead.id]}
+                disablePhotoPreview
               />
             </motion.div>
           ))}

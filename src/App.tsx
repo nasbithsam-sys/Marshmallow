@@ -12,7 +12,6 @@ import LeadDetailPage from "@/pages/LeadDetailPage";
 import SchedulePage from "@/pages/SchedulePage";
 import Analytics from "@/pages/Analytics";
 import AreasPage from "@/pages/AreasPage";
-import MapPage from "@/pages/MapPage";
 import ActivityLogs from "@/pages/ActivityLogs";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
@@ -80,7 +79,6 @@ const App = () => (
               <Route path="schedule" element={<PageRoute navItem="schedule"><SchedulePage /></PageRoute>} />
               <Route path="analytics" element={<PageRoute navItem="analytics"><Analytics /></PageRoute>} />
               <Route path="areas" element={<PageRoute navItem="areas"><AreasPage /></PageRoute>} />
-              <Route path="map" element={<PageRoute navItem="map"><MapPage /></PageRoute>} />
               <Route path="activity-logs" element={<PageRoute navItem="activity_logs"><ActivityLogs /></PageRoute>} />
               <Route path="settings" element={<PageRoute navItem="settings"><Settings /></PageRoute>} />
             </Route>

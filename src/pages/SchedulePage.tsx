@@ -115,7 +115,9 @@ export default function SchedulePage() {
     const [leadsRes, profilesRes] = await Promise.all([
       supabase
         .from("leads")
-        .select("*")
+        .select(
+          "id, job_id, customer_name, customer_phone, address, service_type, status, scheduled_date, scheduled_time_start, scheduled_time_end, assigned_cs, created_by",
+        )
         .not("scheduled_date", "is", null)
         .gte("scheduled_date", startStr)
         .lte("scheduled_date", endStr),

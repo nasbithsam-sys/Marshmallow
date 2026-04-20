@@ -42,6 +42,7 @@ import ImageLightbox from "./ImageLightbox";
 import CopyLeadButton from "./CopyLeadButton";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
+import { optimizeImageForUpload } from "@/lib/image-upload";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 interface LeadCardProps {
@@ -49,6 +50,7 @@ interface LeadCardProps {
   profiles: Record<string, string>;
   onRefresh: () => void;
   photoUrls?: string[];
+  disablePhotoPreview?: boolean;
 }
 
 function formatDateTime(value?: string | null) {
@@ -69,7 +71,7 @@ function formatDate(value?: string | null) {
   }
 }
 
-function LeadCard({ lead, profiles, onRefresh, photoUrls }: LeadCardProps) {
+function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = false }: LeadCardProps) {
   const navigate = useNavigate();
   const { user, role } = useAuth();
   const [changingStatus, setChangingStatus] = useState(false);
@@ -117,6 +119,11 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls }: LeadCardProps) {
   useEffect(() => {
     let cancelled = false;
 
+    if (disablePhotoPreview) {
+      setPhotos([]);
+      return;
+    }
+
     if (photoUrls) {
       setPhotos(photoUrls);
       return;
@@ -145,7 +152,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls }: LeadCardProps) {
     return () => {
       cancelled = true;
     };
-  }, [lead.id, photoUrls]);
+  }, [disablePhotoPreview, lead.id, photoUrls]);
 
   useEffect(() => {
     if (isPaid && lead.payment_screenshot_url) {
@@ -157,7 +164,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls }: LeadCardProps) {
     }
   }, [lead.payment_screenshot_url, isPaid]);
 
-  const allImages = [...(isPaid && resolvedPaymentUrl ? [resolvedPaymentUrl] : []), ...photos];
+  const allImages = disablePhotoPreview ? [] : [...(isPaid && resolvedPaymentUrl ? [resolvedPaymentUrl] : []), ...photos];
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
@@ -234,9 +241,10 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls }: LeadCardProps) {
     let screenshotUrl: string | null = null;
 
     if (screenshotFile) {
-      const ext = screenshotFile.name.split(".").pop();
+      const optimizedScreenshot = await optimizeImageForUpload(screenshotFile);
+      const ext = optimizedScreenshot.name.split(".").pop();
       const path = `payments/${lead.id}_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, screenshotFile);
+      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, optimizedScreenshot);
 
       if (!uploadError) {
         screenshotUrl = path;

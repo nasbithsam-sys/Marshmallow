@@ -46,7 +46,6 @@ const NAV_SECTION_LABELS: Record<string, string> = {
   settings: "Settings",
   activity_logs: "Activity Logs",
   schedule: "Schedule",
-  map: "Lead Map",
   areas: "Area Insights",
 };
 
