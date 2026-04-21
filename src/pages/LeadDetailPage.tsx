@@ -48,8 +48,8 @@ const PHOTO_PREVIEW_LIMIT = 1;
 interface ExistingPhoto {
   id: string;
   previewUrl: string;
-  originalUrl: string;
-  path?: string;
+  originalUrl?: string;
+  path: string;
 }
 
 const generateJobId = () => {
