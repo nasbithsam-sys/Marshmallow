@@ -128,27 +128,19 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
   // Reload triggers when transforms get marked broken mid-session.
   const [reloadKey, setReloadKey] = useState(0);
+  const transformCleanupRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     let alive = true;
     void import("@/lib/storage").then(({ onTransformsBroken }) => {
       if (!alive) return;
-      const off = onTransformsBroken(() => setReloadKey((k) => k + 1));
-      // store off on cleanup via closure
-      cleanupRef.current = off;
+      transformCleanupRef.current = onTransformsBroken(() => setReloadKey((k) => k + 1));
     });
     return () => {
       alive = false;
-      cleanupRef.current?.();
+      transformCleanupRef.current?.();
+      transformCleanupRef.current = null;
     };
   }, []);
-  const cleanupRef = (LeadCard as unknown as { _ref?: { current?: () => void } });
-  // local mutable ref without importing useRef twice
-  const cleanupRefObj = (LeadCard as unknown as { _refMap?: Map<unknown, { current?: () => void }> });
-  // Simple per-instance ref via a closure variable using useState's setter pattern would be cleaner,
-  // but to keep edits minimal we just store via a module-scoped WeakMap.
-  // (See line below for actual storage.)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _cleanupRefDecl = cleanupRef; // silence unused
 
   useEffect(() => {
     let cancelled = false;
