@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -126,6 +126,22 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     },
   ].filter((row): row is { key: string; label: string; value: string; icon: typeof Phone; wrap: boolean } => Boolean(row.value));
 
+  // Reload triggers when transforms get marked broken mid-session.
+  const [reloadKey, setReloadKey] = useState(0);
+  const transformCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void import("@/lib/storage").then(({ onTransformsBroken }) => {
+      if (!alive) return;
+      transformCleanupRef.current = onTransformsBroken(() => setReloadKey((k) => k + 1));
+    });
+    return () => {
+      alive = false;
+      transformCleanupRef.current?.();
+      transformCleanupRef.current = null;
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -164,7 +180,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     return () => {
       cancelled = true;
     };
-  }, [disablePhotoPreview, lead.id, photoUrls]);
+  }, [disablePhotoPreview, lead.id, photoUrls, reloadKey]);
 
   useEffect(() => {
     if (isPaid && lead.payment_screenshot_url) {
@@ -177,7 +193,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       setResolvedPaymentUrl(null);
     }
     setResolvedPaymentOriginal(null);
-  }, [lead.payment_screenshot_url, isPaid]);
+  }, [lead.payment_screenshot_url, isPaid, reloadKey]);
 
   const allImages = disablePhotoPreview ? [] : [...(isPaid && resolvedPaymentUrl ? [resolvedPaymentUrl] : []), ...photos];
 
@@ -203,13 +219,19 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     await Promise.all(tasks);
   };
 
-  const lightboxImages = disablePhotoPreview
+  // Build lightbox slides as { src, fallback } so a broken original
+  // (e.g. when Supabase image transforms aren't enabled on the bucket)
+  // gracefully falls back to the small cached preview thumbnail.
+  const lightboxImages: Array<{ src: string; fallback?: string }> = disablePhotoPreview
     ? []
     : [
         ...(isPaid && (resolvedPaymentOriginal || resolvedPaymentUrl)
-          ? [resolvedPaymentOriginal || resolvedPaymentUrl!]
+          ? [{ src: resolvedPaymentOriginal || resolvedPaymentUrl!, fallback: resolvedPaymentUrl ?? undefined }]
           : []),
-        ...(photoOriginals.length ? photoOriginals : photos),
+        ...photos.map((preview, i) => ({
+          src: photoOriginals[i] ?? preview,
+          fallback: preview,
+        })),
       ];
 
   const openLightbox = (index: number) => {
@@ -532,6 +554,12 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                       src={url}
                       alt=""
                       loading="lazy"
+                      onError={() => {
+                        // Image transforms aren't supported on this bucket
+                        // (likely Free-tier Supabase). Disable transforms session-wide
+                        // and reload thumbnails using plain signed URLs.
+                        void import("@/lib/storage").then(({ markTransformsBroken }) => markTransformsBroken());
+                      }}
                       className="h-full w-full object-cover blur-[3px] scale-110 transition-all duration-300 group-hover/image:blur-0 group-hover/image:scale-105"
                     />
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent transition-opacity duration-200 group-hover/image:opacity-0" />

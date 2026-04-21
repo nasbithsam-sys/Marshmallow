@@ -10,6 +10,57 @@ interface ImageTransformOptions {
   resize?: "cover" | "contain" | "fill";
 }
 
+/**
+ * Supabase image transforms require the Pro tier. If the project is on Free,
+ * transform-signed URLs return errors when the browser fetches the image.
+ * Components can call `markTransformsBroken()` from `<img onError>` once,
+ * and we'll skip transforms (and clear the cached broken URLs) for the
+ * remainder of the session. We persist the decision in sessionStorage so
+ * the flag survives reloads within the tab.
+ */
+const TRANSFORMS_BROKEN_KEY = 'lovable_supabase_transforms_broken';
+let transformsBroken: boolean = (() => {
+  try {
+    return sessionStorage.getItem(TRANSFORMS_BROKEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+})();
+
+const transformBrokenListeners = new Set<() => void>();
+
+export function markTransformsBroken() {
+  if (transformsBroken) return;
+  transformsBroken = true;
+  try {
+    sessionStorage.setItem(TRANSFORMS_BROKEN_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+  // Drop any cached transformed URLs so we don't keep handing out broken ones.
+  for (const key of Array.from(urlCache.keys())) {
+    if (key.includes('|') && !key.endsWith('|')) {
+      urlCache.delete(key);
+    }
+  }
+  transformBrokenListeners.forEach((cb) => {
+    try {
+      cb();
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
+export function onTransformsBroken(cb: () => void): () => void {
+  transformBrokenListeners.add(cb);
+  return () => transformBrokenListeners.delete(cb);
+}
+
+export function areTransformsBroken() {
+  return transformsBroken;
+}
+
 // In-memory cache to avoid re-signing the same path within a session.
 // Keyed by `${path}|${transformKey}`. Soft cap to prevent unbounded growth.
 const URL_CACHE_MAX = 500;
@@ -18,6 +69,11 @@ const urlCache = new Map<string, { url: string; expiresAt: number }>();
 function transformKey(t?: ImageTransformOptions): string {
   if (!t) return '';
   return `${t.width ?? ''}x${t.height ?? ''}q${t.quality ?? ''}r${t.resize ?? ''}`;
+}
+
+function effectiveTransform(t?: ImageTransformOptions): ImageTransformOptions | undefined {
+  if (transformsBroken) return undefined;
+  return t;
 }
 
 function cacheGet(path: string, t?: ImageTransformOptions): string | null {
@@ -75,17 +131,18 @@ export async function uploadToStorage(path: string, file: File) {
  */
 export async function getSignedUrl(urlOrPath: string, transform?: ImageTransformOptions): Promise<string> {
   const path = extractPath(urlOrPath);
-  const cached = cacheGet(path, transform);
+  const t = effectiveTransform(transform);
+  const cached = cacheGet(path, t);
   if (cached) return cached;
 
   const { data, error } = await supabase.storage
     .from(BUCKET)
-    .createSignedUrl(path, SIGNED_URL_EXPIRY, transform ? { transform } : undefined);
+    .createSignedUrl(path, SIGNED_URL_EXPIRY, t ? { transform: t } : undefined);
   if (error || !data?.signedUrl) {
     console.warn('Failed to create signed URL, falling back:', error?.message);
     return urlOrPath;
   }
-  cacheSet(path, data.signedUrl, transform);
+  cacheSet(path, data.signedUrl, t);
   return data.signedUrl;
 }
 
@@ -96,13 +153,14 @@ export async function getSignedUrl(urlOrPath: string, transform?: ImageTransform
  */
 export async function getSignedUrls(urlsOrPaths: string[], transform?: ImageTransformOptions): Promise<string[]> {
   if (urlsOrPaths.length === 0) return [];
+  const t = effectiveTransform(transform);
   const paths = urlsOrPaths.map(extractPath);
 
   // Fast path with cache: collect any missing paths and only sign those.
   const results: string[] = new Array(paths.length);
   const missingIdx: number[] = [];
   paths.forEach((p, i) => {
-    const cached = cacheGet(p, transform);
+    const cached = cacheGet(p, t);
     if (cached) {
       results[i] = cached;
     } else {
@@ -111,16 +169,16 @@ export async function getSignedUrls(urlsOrPaths: string[], transform?: ImageTran
   });
   if (missingIdx.length === 0) return results;
 
-  if (transform) {
+  if (t) {
     // Per-item parallel calls (SDK batch API doesn't support transforms).
     const signed = await Promise.all(
       missingIdx.map((i) =>
         supabase.storage
           .from(BUCKET)
-          .createSignedUrl(paths[i], SIGNED_URL_EXPIRY, { transform })
+          .createSignedUrl(paths[i], SIGNED_URL_EXPIRY, { transform: t })
           .then(({ data, error }) => {
             if (error || !data?.signedUrl) return urlsOrPaths[i];
-            cacheSet(paths[i], data.signedUrl, transform);
+            cacheSet(paths[i], data.signedUrl, t);
             return data.signedUrl;
           }),
       ),
