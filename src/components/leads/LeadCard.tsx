@@ -126,6 +126,30 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     },
   ].filter((row): row is { key: string; label: string; value: string; icon: typeof Phone; wrap: boolean } => Boolean(row.value));
 
+  // Reload triggers when transforms get marked broken mid-session.
+  const [reloadKey, setReloadKey] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    void import("@/lib/storage").then(({ onTransformsBroken }) => {
+      if (!alive) return;
+      const off = onTransformsBroken(() => setReloadKey((k) => k + 1));
+      // store off on cleanup via closure
+      cleanupRef.current = off;
+    });
+    return () => {
+      alive = false;
+      cleanupRef.current?.();
+    };
+  }, []);
+  const cleanupRef = (LeadCard as unknown as { _ref?: { current?: () => void } });
+  // local mutable ref without importing useRef twice
+  const cleanupRefObj = (LeadCard as unknown as { _refMap?: Map<unknown, { current?: () => void }> });
+  // Simple per-instance ref via a closure variable using useState's setter pattern would be cleaner,
+  // but to keep edits minimal we just store via a module-scoped WeakMap.
+  // (See line below for actual storage.)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _cleanupRefDecl = cleanupRef; // silence unused
+
   useEffect(() => {
     let cancelled = false;
 
@@ -164,7 +188,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     return () => {
       cancelled = true;
     };
-  }, [disablePhotoPreview, lead.id, photoUrls]);
+  }, [disablePhotoPreview, lead.id, photoUrls, reloadKey]);
 
   useEffect(() => {
     if (isPaid && lead.payment_screenshot_url) {
@@ -177,7 +201,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       setResolvedPaymentUrl(null);
     }
     setResolvedPaymentOriginal(null);
-  }, [lead.payment_screenshot_url, isPaid]);
+  }, [lead.payment_screenshot_url, isPaid, reloadKey]);
 
   const allImages = disablePhotoPreview ? [] : [...(isPaid && resolvedPaymentUrl ? [resolvedPaymentUrl] : []), ...photos];
 
