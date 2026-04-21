@@ -203,13 +203,19 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     await Promise.all(tasks);
   };
 
-  const lightboxImages = disablePhotoPreview
+  // Build lightbox slides as { src, fallback } so a broken original
+  // (e.g. when Supabase image transforms aren't enabled on the bucket)
+  // gracefully falls back to the small cached preview thumbnail.
+  const lightboxImages: Array<{ src: string; fallback?: string }> = disablePhotoPreview
     ? []
     : [
         ...(isPaid && (resolvedPaymentOriginal || resolvedPaymentUrl)
-          ? [resolvedPaymentOriginal || resolvedPaymentUrl!]
+          ? [{ src: resolvedPaymentOriginal || resolvedPaymentUrl!, fallback: resolvedPaymentUrl ?? undefined }]
           : []),
-        ...(photoOriginals.length ? photoOriginals : photos),
+        ...photos.map((preview, i) => ({
+          src: photoOriginals[i] ?? preview,
+          fallback: preview,
+        })),
       ];
 
   const openLightbox = (index: number) => {
