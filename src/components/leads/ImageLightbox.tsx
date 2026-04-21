@@ -3,26 +3,41 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
+export interface LightboxImage {
+  src: string;
+  fallback?: string;
+}
+
 interface ImageLightboxProps {
-  images: string[];
+  images: Array<string | LightboxImage>;
   initialIndex?: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+function normalize(item: string | LightboxImage): LightboxImage {
+  return typeof item === "string" ? { src: item } : item;
+}
+
 export default function ImageLightbox({ images, initialIndex = 0, open, onOpenChange }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [usedFallback, setUsedFallback] = useState(false);
   const [imgErrored, setImgErrored] = useState(false);
 
   useEffect(() => {
     if (open) setCurrentIndex(initialIndex);
   }, [initialIndex, open]);
 
-  // Reset load/error state when the source for the current slide changes.
-  const currentSrc = images[currentIndex];
+  const current = images[currentIndex] ? normalize(images[currentIndex]) : undefined;
+  const currentSrc = current?.src;
+  const currentFallback = current?.fallback;
+  const displaySrc = usedFallback && currentFallback ? currentFallback : currentSrc;
+
+  // Reset state when the source for the current slide changes.
   useEffect(() => {
     setImgLoaded(false);
+    setUsedFallback(false);
     setImgErrored(false);
   }, [currentSrc]);
 
@@ -55,23 +70,31 @@ export default function ImageLightbox({ images, initialIndex = 0, open, onOpenCh
             </Button>
           )}
 
-          {/* Loading spinner overlays until the image is fully loaded */}
-          {!imgLoaded && !imgErrored && currentSrc && (
+          {!imgLoaded && !imgErrored && displaySrc && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/70">
               <div className="w-8 h-8 rounded-full border-2 border-white/30 border-t-white animate-spin" />
               <p className="text-xs">Loading image…</p>
             </div>
           )}
 
-          {currentSrc && !imgErrored && (
+          {displaySrc && !imgErrored && (
             <img
-              key={currentSrc}
-              src={currentSrc}
+              key={displaySrc}
+              src={displaySrc}
               alt={`Image ${currentIndex + 1}`}
               className="max-w-full max-h-[85vh] object-contain"
               style={{ opacity: imgLoaded ? 1 : 0, transition: "opacity 200ms ease" }}
               onLoad={() => setImgLoaded(true)}
-              onError={() => setImgErrored(true)}
+              onError={() => {
+                console.error("[Lightbox] Image failed to load:", displaySrc);
+                if (!usedFallback && currentFallback && currentFallback !== currentSrc) {
+                  // Try fallback (usually a smaller cached preview)
+                  setUsedFallback(true);
+                  setImgLoaded(false);
+                } else {
+                  setImgErrored(true);
+                }
+              }}
             />
           )}
 
@@ -96,6 +119,7 @@ export default function ImageLightbox({ images, initialIndex = 0, open, onOpenCh
         {images.length > 1 && (
           <div className="text-center text-white/50 text-xs pb-3">
             {currentIndex + 1} / {images.length}
+            {usedFallback && <span className="ml-2 opacity-70">(preview quality)</span>}
           </div>
         )}
       </DialogContent>

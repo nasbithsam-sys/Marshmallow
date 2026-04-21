@@ -725,9 +725,12 @@ export default function LeadDetailPage() {
     };
   }, [newPhotoUrls]);
 
-  const allImageUrls = [
-    ...photos.map((p) => p.originalUrl ?? p.previewUrl),
-    ...newPhotoUrls,
+  const allImageUrls: Array<{ src: string; fallback?: string }> = [
+    ...photos.map((p) => ({
+      src: p.originalUrl ?? p.previewUrl,
+      fallback: p.previewUrl,
+    })),
+    ...newPhotoUrls.map((url) => ({ src: url })),
   ];
   const displayedPhotos = showAllPhotos ? photos : photos.slice(0, PHOTO_PREVIEW_LIMIT);
   const hiddenPhotoCount = Math.max(photos.length - displayedPhotos.length, 0);
