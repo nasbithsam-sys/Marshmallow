@@ -2,6 +2,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { getSignedUrl } from "@/lib/storage";
 
 interface ImageLightboxProps {
   images: string[];
@@ -12,12 +13,51 @@ interface ImageLightboxProps {
 
 export default function ImageLightbox({ images, initialIndex = 0, open, onOpenChange }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [errored, setErrored] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setCurrentIndex(initialIndex);
-    }
+    if (open) setCurrentIndex(initialIndex);
   }, [initialIndex, open]);
+
+  useEffect(() => {
+    if (!open || !images.length) return;
+    const src = images[currentIndex];
+    if (!src) return;
+
+    // Blob/data/object URLs (newly added local previews) — use as-is.
+    if (src.startsWith("blob:") || src.startsWith("data:")) {
+      setResolvedUrl(src);
+      setLoading(false);
+      setErrored(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setErrored(false);
+    setResolvedUrl(null);
+
+    // Re-sign at full resolution (no transform) to ensure a fresh, working URL.
+    getSignedUrl(src)
+      .then((url) => {
+        if (!cancelled) {
+          setResolvedUrl(url);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedUrl(src);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, currentIndex, images]);
 
   const handlePrev = () => setCurrentIndex((i) => (i > 0 ? i - 1 : images.length - 1));
   const handleNext = () => setCurrentIndex((i) => (i < images.length - 1 ? i + 1 : 0));
@@ -48,12 +88,27 @@ export default function ImageLightbox({ images, initialIndex = 0, open, onOpenCh
             </Button>
           )}
 
-          <img
-            src={images[currentIndex]}
-            alt={`Image ${currentIndex + 1}`}
-            loading="lazy"
-            className="max-w-full max-h-[85vh] object-contain"
-          />
+          {loading && (
+            <div className="flex flex-col items-center gap-2 text-white/70">
+              <div className="w-8 h-8 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              <p className="text-xs">Loading image…</p>
+            </div>
+          )}
+
+          {!loading && resolvedUrl && !errored && (
+            <img
+              src={resolvedUrl}
+              alt={`Image ${currentIndex + 1}`}
+              className="max-w-full max-h-[85vh] object-contain"
+              onError={() => setErrored(true)}
+            />
+          )}
+
+          {!loading && errored && (
+            <div className="text-white/60 text-sm px-6 text-center">
+              Couldn't load this image. Try closing and reopening.
+            </div>
+          )}
 
           {images.length > 1 && (
             <Button
