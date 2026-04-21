@@ -71,7 +71,10 @@ export default function ImageLightbox({ images, initialIndex = 0, open, onOpenCh
               className="max-w-full max-h-[85vh] object-contain"
               style={{ opacity: imgLoaded ? 1 : 0, transition: "opacity 200ms ease" }}
               onLoad={() => setImgLoaded(true)}
-              onError={() => setImgErrored(true)}
+              onError={(e) => {
+                console.error("[Lightbox] Image failed to load:", currentSrc, e);
+                setImgErrored(true);
+              }}
             />
           )}
 
