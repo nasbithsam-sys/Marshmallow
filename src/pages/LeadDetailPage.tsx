@@ -1284,6 +1284,15 @@ export default function LeadDetailPage() {
                     src={photo.previewUrl}
                     alt=""
                     loading="lazy"
+                    onError={() => {
+                      // Bucket transforms unsupported (Free tier) — disable session-wide and refetch.
+                      void import("@/lib/storage").then(({ markTransformsBroken, areTransformsBroken }) => {
+                        if (!areTransformsBroken()) {
+                          markTransformsBroken();
+                          if (leadId) void fetchPhotos(leadId);
+                        }
+                      });
+                    }}
                     className="h-full w-full object-cover cursor-pointer"
                     onClick={() => {
                       openLightbox(lightboxTargetIndex >= 0 ? lightboxTargetIndex : i);
