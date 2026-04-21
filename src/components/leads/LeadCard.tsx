@@ -531,9 +531,10 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                     <img
                       src={url}
                       alt=""
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover/image:scale-105"
+                      loading="lazy"
+                      className="h-full w-full object-cover blur-[3px] scale-110 transition-all duration-300 group-hover/image:blur-0 group-hover/image:scale-105"
                     />
-                    <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover/image:bg-black/10" />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent transition-opacity duration-200 group-hover/image:opacity-0" />
                   </button>
                 ))}
               </div>
