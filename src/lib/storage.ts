@@ -46,10 +46,16 @@ function cacheSet(path: string, url: string, t?: ImageTransformOptions) {
  * Extract the storage path from a full public URL or return path as-is.
  */
 function extractPath(urlOrPath: string): string {
-  const marker = `/object/public/${BUCKET}/`;
-  const idx = urlOrPath.indexOf(marker);
-  if (idx !== -1) {
-    return decodeURIComponent(urlOrPath.substring(idx + marker.length));
+  // Handle signed URLs: /object/sign/<bucket>/<path>?token=...
+  // Handle public URLs: /object/public/<bucket>/<path>
+  const markers = [`/object/sign/${BUCKET}/`, `/object/public/${BUCKET}/`];
+  for (const marker of markers) {
+    const idx = urlOrPath.indexOf(marker);
+    if (idx !== -1) {
+      const after = urlOrPath.substring(idx + marker.length);
+      const pathOnly = after.split("?")[0];
+      return decodeURIComponent(pathOnly);
+    }
   }
   return urlOrPath;
 }
