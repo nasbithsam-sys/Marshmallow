@@ -554,6 +554,12 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                       src={url}
                       alt=""
                       loading="lazy"
+                      onError={() => {
+                        // Image transforms aren't supported on this bucket
+                        // (likely Free-tier Supabase). Disable transforms session-wide
+                        // and reload thumbnails using plain signed URLs.
+                        void import("@/lib/storage").then(({ markTransformsBroken }) => markTransformsBroken());
+                      }}
                       className="h-full w-full object-cover blur-[3px] scale-110 transition-all duration-300 group-hover/image:blur-0 group-hover/image:scale-105"
                     />
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent transition-opacity duration-200 group-hover/image:opacity-0" />
