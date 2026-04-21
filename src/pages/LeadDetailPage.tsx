@@ -48,8 +48,8 @@ const PHOTO_PREVIEW_LIMIT = 1;
 interface ExistingPhoto {
   id: string;
   previewUrl: string;
-  originalUrl: string;
-  path?: string;
+  originalUrl?: string;
+  path: string;
 }
 
 const generateJobId = () => {
@@ -304,18 +304,37 @@ export default function LeadDetailPage() {
       // Only load preview thumbnails up front. Originals are lazy-loaded
       // when the user opens the lightbox to slash storage egress.
       const previewUrls = await getSignedUrls(paths, { width: 240, height: 240, resize: "cover", quality: 50 });
-      const originalUrls = previewUrls;
       setPhotos(
         rows.map((p, i) => ({
           id: p.id,
           previewUrl: previewUrls[i],
-          originalUrl: originalUrls[i],
           path: p.photo_url,
         })),
       );
     } else {
       setPhotos([]);
     }
+  };
+
+  // Lazy-load full-resolution signed URLs only when the lightbox opens.
+  const loadPhotoOriginals = async () => {
+    const missing = photos.filter((p) => !p.originalUrl);
+    if (missing.length === 0) return;
+    const { getSignedUrls } = await import("@/lib/storage");
+    const urls = await getSignedUrls(missing.map((p) => p.path));
+    setPhotos((prev) =>
+      prev.map((p) => {
+        const idx = missing.findIndex((m) => m.id === p.id);
+        if (idx === -1) return p;
+        return { ...p, originalUrl: urls[idx] };
+      }),
+    );
+  };
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+    void loadPhotoOriginals();
   };
 
   useEffect(() => {
@@ -706,7 +725,10 @@ export default function LeadDetailPage() {
     };
   }, [newPhotoUrls]);
 
-  const allImageUrls = [...photos.map((p) => p.originalUrl), ...newPhotoUrls];
+  const allImageUrls = [
+    ...photos.map((p) => p.originalUrl ?? p.previewUrl),
+    ...newPhotoUrls,
+  ];
   const displayedPhotos = showAllPhotos ? photos : photos.slice(0, PHOTO_PREVIEW_LIMIT);
   const hiddenPhotoCount = Math.max(photos.length - displayedPhotos.length, 0);
   const visiblePhotoCount = photos.length + newPhotos.length;
@@ -1261,8 +1283,7 @@ export default function LeadDetailPage() {
                     loading="lazy"
                     className="h-full w-full object-cover cursor-pointer"
                     onClick={() => {
-                      setLightboxIndex(lightboxTargetIndex >= 0 ? lightboxTargetIndex : i);
-                      setLightboxOpen(true);
+                      openLightbox(lightboxTargetIndex >= 0 ? lightboxTargetIndex : i);
                     }}
                   />
                   <button
