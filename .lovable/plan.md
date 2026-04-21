@@ -1,59 +1,44 @@
 
 
-# Reduce Storage Egress by ~5x (Currently 100x → Target 20x)
+## Goal
 
-## Why egress is so high right now
+Get Lovable to pick up the freshly re-authorized Lovable app in your **Acc Boosters** Supabase org so database migrations and queries work again. Once that's done, run the queued security migration.
 
-1. **Full-size originals loaded as thumbnails** — `LeadCard.tsx` calls `getSignedUrls(paths)` with NO transform, so every lead card on `/leads` downloads full-resolution photos (often 1–3 MB each) just to render a small preview.
-2. **Re-fetched on every mount** — Each card re-queries `lead_photos` and re-signs URLs every time the list re-renders or you navigate back. Browser cache helps, but signed URLs change → cache miss.
-3. **Detail page double-loads** — `LeadDetailPage.tsx` already fetches both a 320×320 preview AND the full original in parallel, even when the lightbox is never opened.
-4. **Payment screenshots** — Loaded at full size on every card where `isPaid` is true.
-5. **Build error** — `transform` option is being passed to `createSignedUrls` (batch), but the Supabase JS SDK only supports `transform` on the single `createSignedUrl`. That's the TS2353 error.
+## Why it's still failing
 
-## Fix Plan (4 small edits)
+- Supabase side: ✅ Lovable is authorized in Acc Boosters (confirmed in your screenshot, 21/04/2026 19:07).
+- Lovable side: ❌ Still holding the old expired OAuth token. Test query just returned `SUPABASE_UNAUTHORIZED — Your Supabase authentication has expired`.
 
-### 1. `src/lib/storage.ts`
-- **Fix build error**: Remove `transform` from the batch `createSignedUrls` call (SDK doesn't support it). For batch + transform, fall back to per-item `createSignedUrl` calls in parallel.
-- **Bump expiry** from 1 hour → 24 hours so URLs cache longer in the browser/CDN (fewer re-signs, more cache hits = less egress).
-- **Add in-memory cache** keyed by `path + transform` so repeated calls within the session don't re-hit Supabase.
+Revoking + re-authorizing on Supabase generated a **new** grant, but Lovable's cached token is from the **old** grant. Lovable has to redo its own OAuth flow to swap the token.
 
-### 2. `src/components/leads/LeadCard.tsx`
-- Request **thumbnail transforms** (e.g. `width: 200, quality: 50, resize: "cover"`) instead of full originals. A 1.5 MB photo becomes ~15 KB → **~100x reduction** for card previews alone.
-- Same for payment screenshot preview (`width: 200`).
-- Only load originals when the lightbox actually opens.
+## Steps for you (in order, stop when it works)
 
-### 3. `src/pages/LeadDetailPage.tsx`
-- **Lazy-load originals**: only fetch full-size signed URLs when the user opens the lightbox, not upfront. Keep the 320×320 preview load.
-- Reduce preview size from 320 → 240 and quality 60 → 50.
+1. **Hard refresh Lovable** — `Ctrl + Shift + R` (or `Cmd + Shift + R` on Mac). Sometimes a stale browser cache is the only thing standing in the way.
 
-### 4. (Optional, larger payoff) `src/lib/image-upload.ts`
-- Lower `MAX_DIMENSION` from 1600 → 1280 and `JPEG_QUALITY` from 0.78 → 0.72 for new uploads. Doesn't affect existing photos but caps future growth.
+2. **Trigger Lovable's reconnect flow:**
+   - Open the **Cloud view** (☁ icon, top toolbar).
+   - Click **"Manage organizations"** (the button referenced in your current view).
+   - In the dialog, click **"Add More Organizations"** or **"Reconnect"**.
+   - Supabase will open in a new tab — pick **Acc Boosters** → **Authorize**.
+   - Return to Lovable; the orange banner should disappear.
 
-## Expected Impact
+3. **If "Manage organizations" still shows Acc Boosters as missing** — fully sign out and back in:
+   - Lovable: profile menu (top-right) → **Log out**.
+   - Log back in.
+   - Open the project → Cloud view → the org list should now include Acc Boosters.
 
-| Source | Before | After | Reduction |
-|---|---|---|---|
-| Lead card photo preview | ~1.5 MB × N cards | ~15 KB × N cards | ~100x |
-| Payment screenshot preview | ~800 KB | ~10 KB | ~80x |
-| Detail page (no lightbox) | preview + original | preview only | ~50% |
-| Signed URL re-signs | every navigation | cached 24h | large |
+4. **Reply "done"** once the orange "Supabase connection issue" banner is gone.
 
-**Net result: ~5–8x egress reduction** (gets you from 100x → 15–20x). Combined with the longer signed-URL TTL improving cached egress hit rate, you should land in your target zone.
+## What I'll do once you reply "done"
 
-## Pros & Cons
+1. Re-run `SELECT 1` to confirm Lovable's token is fresh.
+2. Apply the queued security migration:
+   - **profiles** — restrict the public-readable email column (currently every authenticated user can read all emails).
+   - **activity_logs** — lock SELECT to admins only.
+   - **lead-photos bucket** — tighten storage policies so only the lead's owner / shared users / admins can read.
+3. Re-run the security scanner and report the resulting findings list.
 
-**Pros**
-- Massive egress reduction with no UX regression — thumbnails look identical at card size
-- Faster page loads (smaller images = quicker render)
-- Originals still available on lightbox open (full quality preserved)
-- Fixes the current TS build error
+## If step 2 still fails
 
-**Cons**
-- First lightbox open will have a small delay (1 round trip to sign + download original) instead of being instant. Mitigation: prefetch on hover.
-- Supabase image transforms are a Pro-tier feature — confirm your plan supports them. If not, we'd switch to client-side resize-on-upload + storing a separate `_thumb` variant (more complex, but free).
-- 24h signed URLs slightly increase the window if a URL leaks (still RLS-protected on regenerate; low risk).
-- Cached in-memory map grows over long sessions — add a soft cap (e.g. 500 entries LRU).
-
-## What you'll need to confirm
-- Are you on Supabase Pro? (Required for image transforms.) If unsure, I'll add a graceful fallback so transforms are skipped on free tier and we still get the cache + TTL benefits.
+The fallback is account-level: in Lovable open **Account Settings → Integrations → Supabase → Disconnect**, then reconnect. That nukes any cached token completely. I'll only suggest this if steps 1–3 above don't clear the banner, since it requires re-picking every org.
 
