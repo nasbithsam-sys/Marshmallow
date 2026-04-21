@@ -1283,8 +1283,7 @@ export default function LeadDetailPage() {
                     loading="lazy"
                     className="h-full w-full object-cover cursor-pointer"
                     onClick={() => {
-                      setLightboxIndex(lightboxTargetIndex >= 0 ? lightboxTargetIndex : i);
-                      setLightboxOpen(true);
+                      openLightbox(lightboxTargetIndex >= 0 ? lightboxTargetIndex : i);
                     }}
                   />
                   <button
