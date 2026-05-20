@@ -53,6 +53,7 @@ export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
   ready_to_schedule: "bg-indigo-500",
   quote_sent_need_follow_up: "bg-orange-400",
   needs_quote: "bg-purple-400",
+  tech_making_quote: "bg-violet-400",
   waiting_customer_response: "bg-yellow-400",
   need_tech: "bg-indigo-400",
   scheduled: "bg-cyan-400",
