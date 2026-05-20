@@ -74,6 +74,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "ready_to_schedule",
   "quote_sent_need_follow_up",
   "needs_quote",
+  "tech_making_quote",
   "waiting_customer_response",
   "need_tech",
   "scheduled",
