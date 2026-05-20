@@ -1,44 +1,66 @@
 
+## The connection problem — what to do now
 
-## Goal
+Lovable's OAuth token to your Supabase org is genuinely stuck and I cannot make it refresh from my side. After this many retries, the next step is **Lovable support** — this is a platform-side bug, not something you can fix by clicking reconnect again.
 
-Get Lovable to pick up the freshly re-authorized Lovable app in your **Acc Boosters** Supabase org so database migrations and queries work again. Once that's done, run the queued security migration.
+In the meantime, you can do everything yourself directly in the Supabase dashboard. No code changes required from me to get unblocked.
 
-## Why it's still failing
+---
 
-- Supabase side: ✅ Lovable is authorized in Acc Boosters (confirmed in your screenshot, 21/04/2026 19:07).
-- Lovable side: ❌ Still holding the old expired OAuth token. Test query just returned `SUPABASE_UNAUTHORIZED — Your Supabase authentication has expired`.
+## Part 1 — Create your admin user manually
 
-Revoking + re-authorizing on Supabase generated a **new** grant, but Lovable's cached token is from the **old** grant. Lovable has to redo its own OAuth flow to swap the token.
+Since I can't run the admin edge function or migrations right now, do this in the Supabase dashboard for project `kxiqholnmhkwhdkhtopp`:
 
-## Steps for you (in order, stop when it works)
+**Step 1 — Create the auth user**
+- Go to **Authentication → Users → Add user → Create new user**
+- Email: *(you pick)*  e.g. `admin@accboosters.com`
+- Password: *(you pick a strong one, write it down)*
+- ✅ Check **Auto Confirm User**
 
-1. **Hard refresh Lovable** — `Ctrl + Shift + R` (or `Cmd + Shift + R` on Mac). Sometimes a stale browser cache is the only thing standing in the way.
+**Step 2 — Make them admin (run in SQL Editor)**
 
-2. **Trigger Lovable's reconnect flow:**
-   - Open the **Cloud view** (☁ icon, top toolbar).
-   - Click **"Manage organizations"** (the button referenced in your current view).
-   - In the dialog, click **"Add More Organizations"** or **"Reconnect"**.
-   - Supabase will open in a new tab — pick **Acc Boosters** → **Authorize**.
-   - Return to Lovable; the orange banner should disappear.
+Replace the email with whatever you used above:
 
-3. **If "Manage organizations" still shows Acc Boosters as missing** — fully sign out and back in:
-   - Lovable: profile menu (top-right) → **Log out**.
-   - Log back in.
-   - Open the project → Cloud view → the org list should now include Acc Boosters.
+```sql
+WITH u AS (
+  SELECT id, email FROM auth.users WHERE email = 'admin@accboosters.com'
+)
+INSERT INTO public.profiles (id, full_name, email)
+SELECT id, 'Admin', email FROM u
+ON CONFLICT (id) DO NOTHING;
 
-4. **Reply "done"** once the orange "Supabase connection issue" banner is gone.
+INSERT INTO public.user_roles (user_id, role)
+SELECT id, 'admin' FROM auth.users WHERE email = 'admin@accboosters.com'
+ON CONFLICT DO NOTHING;
+```
 
-## What I'll do once you reply "done"
+That's it — log in with that email/password and you're admin. No access code needed (admins skip it).
 
-1. Re-run `SELECT 1` to confirm Lovable's token is fresh.
-2. Apply the queued security migration:
-   - **profiles** — restrict the public-readable email column (currently every authenticated user can read all emails).
-   - **activity_logs** — lock SELECT to admins only.
-   - **lead-photos bucket** — tighten storage policies so only the lead's owner / shared users / admins can read.
-3. Re-run the security scanner and report the resulting findings list.
+---
 
-## If step 2 still fails
+## Part 2 — Add the new status: **Tech Making Quote**
 
-The fallback is account-level: in Lovable open **Account Settings → Integrations → Supabase → Disconnect**, then reconnect. That nukes any cached token completely. I'll only suggest this if steps 1–3 above don't clear the banner, since it requires re-picking every org.
+**Behavior**
+- New status appears in the list, color: purple-ish (distinct from existing)
+- Visible to **everyone** (Admin, Processor, CS)
+- Only **Admin and Processor** can set/change a lead to it
+- CS cannot select it from the dropdown
 
+**Code files I'll edit** (in build mode, after you approve):
+
+1. `src/types/index.ts` — add `'tech_making_quote'` to `LeadStatus` union + `LEAD_STATUS_CONFIG`
+2. `src/lib/constants.ts` — add to `STATUS_LABELS`, `STATUS_COLORS`, `STATUS_DOT_COLORS`, `ALL_LEAD_STATUSES`, and add it to `STATUS_CHANGE_ACCESS.processor` (admin already gets all via `ALL_LEAD_STATUSES`). **Do NOT** add to `customer_service` → that enforces CS can't change to it.
+
+Everyone seeing it is already handled — `getDefaultVisibleStatuses` returns all statuses for any non-`no_role` user, so no extra DB visibility row is needed.
+
+**No database migration needed.** The `leads.status` column is `text`, not an enum, so new status values work without schema changes.
+
+---
+
+## What I need from you
+
+1. Reply with the **email** you want for the admin user (and confirm you'll set the password yourself in Supabase dashboard)
+2. Approve this plan → I'll implement Part 2 in build mode
+3. Separately, please contact Lovable support about the stuck Supabase token — mention you've reconnected 100+ times with no effect, org "final 21 april", project ref `kxiqholnmhkwhdkhtopp`
+
+Once support fixes the token, I can do admin user creation, migrations, and everything else from here directly.
