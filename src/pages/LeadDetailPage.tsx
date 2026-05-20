@@ -641,7 +641,7 @@ export default function LeadDetailPage() {
         updatePayload.amount = parseFloat(form.amount);
       }
 
-      const { error } = await supabase.from("leads").update(updatePayload).eq("id", leadId);
+      const { error } = await supabase.from("leads").update(updatePayload as never).eq("id", leadId);
 
       if (error) throw error;
 

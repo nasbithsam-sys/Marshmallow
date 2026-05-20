@@ -370,7 +370,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         updateData.amount = form.amount;
       }
 
-      let updateQuery = supabase.from("leads").update(updateData).eq("id", leadId);
+      let updateQuery = supabase.from("leads").update(updateData as never).eq("id", leadId);
 
       if (role === "customer_service") {
         updateQuery = updateQuery.eq("created_by", user.id);
