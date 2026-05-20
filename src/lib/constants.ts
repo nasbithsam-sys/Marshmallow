@@ -11,6 +11,7 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   ready_to_schedule: "Ready To Schedule",
   quote_sent_need_follow_up: "Quote Sent - Need Follow Up",
   needs_quote: "Needs Quote",
+  tech_making_quote: "Tech Making Quote",
   waiting_customer_response: "Waiting Customer Response",
   need_tech: "Need Tech",
   scheduled: "Scheduled",
