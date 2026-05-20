@@ -32,6 +32,7 @@ export const STATUS_COLORS: Record<LeadStatus, string> = {
   ready_to_schedule: "bg-indigo-100 text-indigo-800 border-indigo-200",
   quote_sent_need_follow_up: "bg-orange-100 text-orange-800 border-orange-200",
   needs_quote: "bg-purple-100 text-purple-800 border-purple-200",
+  tech_making_quote: "bg-violet-100 text-violet-800 border-violet-200",
   waiting_customer_response: "bg-yellow-100 text-yellow-800 border-yellow-200",
   need_tech: "bg-indigo-100 text-indigo-800 border-indigo-200",
   scheduled: "bg-cyan-100 text-cyan-800 border-cyan-200",
