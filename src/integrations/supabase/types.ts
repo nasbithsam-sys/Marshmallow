@@ -302,6 +302,7 @@ export type Database = {
           customer_name: string
           customer_phone: string
           customer_schedule_requirements: string | null
+          direction: string | null
           for_us_amount: number | null
           for_you_amount: number | null
           general_notes: string | null
@@ -342,6 +343,7 @@ export type Database = {
           customer_name: string
           customer_phone: string
           customer_schedule_requirements?: string | null
+          direction?: string | null
           for_us_amount?: number | null
           for_you_amount?: number | null
           general_notes?: string | null
@@ -382,6 +384,7 @@ export type Database = {
           customer_name?: string
           customer_phone?: string
           customer_schedule_requirements?: string | null
+          direction?: string | null
           for_us_amount?: number | null
           for_you_amount?: number | null
           general_notes?: string | null
