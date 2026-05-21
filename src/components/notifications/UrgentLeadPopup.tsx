@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -23,18 +23,33 @@ export default function UrgentLeadPopup() {
 
   const eligible = role === "admin" || role === "processor";
 
-  const fetchUrgent = useCallback(async () => {
-    if (!user || !eligible) return;
-    const { data } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("read", false)
-      .ilike("title", "%Urgent Job%")
-      .order("created_at", { ascending: false })
-      .limit(5);
-    if (data) setItems(data as UrgentNotification[]);
-  }, [user, eligible]);
+const mountedAt = useRef(new Date().toISOString());
+
+const fetchUrgent = useCallback(async () => {
+  if (!user || !eligible) return;
+
+  const { data } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("read", false)
+    .ilike("title", "%Urgent Job%")
+    .gt("created_at", mountedAt.current)
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  if (data) {
+    setItems((prev) => {
+      const existingIds = new Set(prev.map((i) => i.id));
+
+      const newItems = (data as UrgentNotification[]).filter(
+        (item) => !existingIds.has(item.id)
+      );
+
+      return [...newItems, ...prev];
+    });
+  }
+}, [user, eligible]);
 
   useEffect(() => {
     if (!eligible) return;
