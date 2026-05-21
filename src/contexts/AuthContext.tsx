@@ -224,6 +224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(null);
     setRole("no_role");
     setPermissions([]);
+    setProfileLoaded(false);
     window.localStorage.removeItem(VERIFIED_USER_KEY);
     window.localStorage.removeItem(PENDING_AUTH_KEY);
     setFullyAuthenticated(false);
