@@ -40,6 +40,7 @@ const initialFormState = {
   customer_name: "",
   customer_phone: "",
   number_name: "",
+  direction: "" as "" | "incoming" | "outgoing",
   address: "",
   service_type: "",
   status: "waiting_complete_details" as LeadStatus,
@@ -202,6 +203,10 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       toast.error("Number Name is required");
       return;
     }
+    if (!form.direction) {
+      toast.error("Please select Incoming or Outgoing");
+      return;
+    }
     if (isDuplicate) {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
       return;
@@ -228,6 +233,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       customer_name: form.customer_name,
       customer_phone: form.customer_phone || null,
       number_name: form.number_name || null,
+      direction: form.direction || null,
       address: form.address || null,
       service_type: form.service_type || null,
       status: form.status,
@@ -487,6 +493,32 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                   </span>
                 </div>
               )}
+            </div>
+
+            <div className="mt-4 space-y-1.5">
+              <Label className={labelClass}>Direction *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["incoming", "outgoing"] as const).map((dir) => {
+                  const selected = form.direction === dir;
+                  return (
+                    <button
+                      key={dir}
+                      type="button"
+                      onClick={() => update("direction", dir)}
+                      className={`flex items-center justify-center gap-2 h-11 rounded-xl border text-[13px] font-medium capitalize transition-all ${
+                        selected
+                          ? "border-primary bg-primary/[0.08] text-primary shadow-sm"
+                          : "border-border/60 bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                      }`}
+                    >
+                      <span className={`flex h-4 w-4 items-center justify-center rounded-full border-2 ${selected ? "border-primary" : "border-muted-foreground/40"}`}>
+                        {selected && <span className="h-2 w-2 rounded-full bg-primary" />}
+                      </span>
+                      {dir}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -832,7 +864,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading || isDuplicate} className="w-full rounded-xl px-5 sm:w-auto">
+              <Button type="submit" disabled={loading || isDuplicate || !form.direction} className="w-full rounded-xl px-5 sm:w-auto">
                 {loading ? "Creating..." : "Create Lead"}
               </Button>
             </div>

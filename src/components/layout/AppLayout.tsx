@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/layout/AppSidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import UrgentLeadPopup from "@/components/notifications/UrgentLeadPopup";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Outlet, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -89,6 +90,7 @@ export default function AppLayout() {
             </AnimatePresence>
           </main>
         </div>
+        <UrgentLeadPopup />
       </div>
     </SidebarProvider>
   );

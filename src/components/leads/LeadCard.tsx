@@ -484,6 +484,15 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                       {lead.service_type}
                     </span>
                   )}
+                  {lead.direction && (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider border ${
+                      lead.direction === "incoming"
+                        ? "border-emerald-300/70 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                        : "border-orange-300/70 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-300"
+                    }`}>
+                      {lead.direction === "incoming" ? "↓ Incoming" : "↑ Outgoing"}
+                    </span>
+                  )}
                 </div>
 
                 <div className="mt-1 flex items-center gap-2 flex-wrap">

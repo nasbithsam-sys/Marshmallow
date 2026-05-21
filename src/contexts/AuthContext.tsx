@@ -22,6 +22,7 @@ interface AuthContextType {
   role: AppRole;
   permissions: NavigationPermission[];
   loading: boolean;
+  profileLoaded: boolean;
   fullyAuthenticated: boolean;
   pendingStep: PendingStep;
   pendingUserId: string | null;
@@ -29,7 +30,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   canAccess: (navItem: string) => boolean;
   refetchProfile: () => Promise<void>;
-  markFullyAuthenticated: () => void;
+  markFullyAuthenticated: (userId?: string) => void;
   startPendingAccessCode: (userId: string) => void;
   startPendingMfa: (userId: string, factorId: string) => void;
   clearPendingAuth: () => void;
@@ -52,6 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<AppRole>("no_role");
   const [permissions, setPermissions] = useState<NavigationPermission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [userOverrides] = useState<Record<string, boolean>>({});
   const [fullyAuthenticated, setFullyAuthenticated] = useState(false);
   const [pendingStep, setPendingStep] = useState<PendingStep>("none");
@@ -132,6 +134,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       setPermissions([]);
     }
+
+    setProfileLoaded(true);
   };
 
   const refetchProfile = async () => {
@@ -155,6 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         setRole("no_role");
         setPermissions([]);
+        setProfileLoaded(false);
       }
 
       syncVerifiedState(nextSession);
@@ -171,6 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         setRole("no_role");
         setPermissions([]);
+        setProfileLoaded(true);
       }
 
       syncVerifiedState(initialSession);
@@ -218,6 +224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(null);
     setRole("no_role");
     setPermissions([]);
+    setProfileLoaded(false);
     window.localStorage.removeItem(VERIFIED_USER_KEY);
     window.localStorage.removeItem(PENDING_AUTH_KEY);
     setFullyAuthenticated(false);
@@ -231,8 +238,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return canAccessNavItem(role, navItem, permissions);
   };
 
-  const markFullyAuthenticated = () => {
-    const currentUserId = user?.id ?? session?.user?.id;
+  const markFullyAuthenticated = (userId?: string) => {
+    const currentUserId = userId ?? user?.id ?? session?.user?.id;
     if (!currentUserId) return;
 
     window.localStorage.setItem(VERIFIED_USER_KEY, currentUserId);
@@ -249,6 +256,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role,
         permissions,
         loading,
+        profileLoaded,
         fullyAuthenticated,
         pendingStep,
         pendingUserId,

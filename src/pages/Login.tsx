@@ -85,7 +85,7 @@ const Login = () => {
     }
 
     clearPendingAuth();
-    markFullyAuthenticated();
+    markFullyAuthenticated(userId);
     setLoading(false);
   };
 

@@ -54,7 +54,15 @@ function LoginRoute() {
 }
 
 function PageRoute({ navItem, children }: { navItem: string; children: ReactNode }) {
-  const { canAccess } = useAuth();
+  const { canAccess, profileLoaded } = useAuth();
+
+  if (!profileLoaded) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/30 border-t-foreground animate-spin" />
+      </div>
+    );
+  }
 
   if (!canAccess(navItem)) {
     return <Navigate to="/leads" replace />;
