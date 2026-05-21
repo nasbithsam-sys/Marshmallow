@@ -864,7 +864,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading || isDuplicate} className="w-full rounded-xl px-5 sm:w-auto">
+              <Button type="submit" disabled={loading || isDuplicate || !form.direction} className="w-full rounded-xl px-5 sm:w-auto">
                 {loading ? "Creating..." : "Create Lead"}
               </Button>
             </div>
