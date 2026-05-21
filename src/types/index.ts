@@ -92,6 +92,7 @@ export interface Lead {
   tech_name: string | null;
   tech_number: string | null;
   terms: 'free_estimate' | 'quoted' | null;
+  direction: 'incoming' | 'outgoing' | null;
   labor_amount: number | null;
   material_amount: number | null;
   for_you_amount: number | null;

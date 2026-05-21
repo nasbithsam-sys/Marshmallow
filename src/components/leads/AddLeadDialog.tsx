@@ -40,6 +40,7 @@ const initialFormState = {
   customer_name: "",
   customer_phone: "",
   number_name: "",
+  direction: "" as "" | "incoming" | "outgoing",
   address: "",
   service_type: "",
   status: "waiting_complete_details" as LeadStatus,
@@ -202,6 +203,10 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       toast.error("Number Name is required");
       return;
     }
+    if (!form.direction) {
+      toast.error("Please select Incoming or Outgoing");
+      return;
+    }
     if (isDuplicate) {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
       return;
@@ -228,6 +233,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       customer_name: form.customer_name,
       customer_phone: form.customer_phone || null,
       number_name: form.number_name || null,
+      direction: form.direction || null,
       address: form.address || null,
       service_type: form.service_type || null,
       status: form.status,
