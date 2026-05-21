@@ -134,6 +134,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       setPermissions([]);
     }
+
+    setProfileLoaded(true);
   };
 
   const refetchProfile = async () => {
@@ -157,6 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         setRole("no_role");
         setPermissions([]);
+        setProfileLoaded(false);
       }
 
       syncVerifiedState(nextSession);
@@ -173,6 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         setRole("no_role");
         setPermissions([]);
+        setProfileLoaded(true);
       }
 
       syncVerifiedState(initialSession);
@@ -233,8 +237,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return canAccessNavItem(role, navItem, permissions);
   };
 
-  const markFullyAuthenticated = () => {
-    const currentUserId = user?.id ?? session?.user?.id;
+  const markFullyAuthenticated = (userId?: string) => {
+    const currentUserId = userId ?? user?.id ?? session?.user?.id;
     if (!currentUserId) return;
 
     window.localStorage.setItem(VERIFIED_USER_KEY, currentUserId);
@@ -251,6 +255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role,
         permissions,
         loading,
+        profileLoaded,
         fullyAuthenticated,
         pendingStep,
         pendingUserId,
