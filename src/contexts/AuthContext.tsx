@@ -22,6 +22,7 @@ interface AuthContextType {
   role: AppRole;
   permissions: NavigationPermission[];
   loading: boolean;
+  profileLoaded: boolean;
   fullyAuthenticated: boolean;
   pendingStep: PendingStep;
   pendingUserId: string | null;
