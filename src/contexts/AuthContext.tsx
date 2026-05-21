@@ -30,7 +30,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   canAccess: (navItem: string) => boolean;
   refetchProfile: () => Promise<void>;
-  markFullyAuthenticated: () => void;
+  markFullyAuthenticated: (userId?: string) => void;
   startPendingAccessCode: (userId: string) => void;
   startPendingMfa: (userId: string, factorId: string) => void;
   clearPendingAuth: () => void;
@@ -53,6 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<AppRole>("no_role");
   const [permissions, setPermissions] = useState<NavigationPermission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [userOverrides] = useState<Record<string, boolean>>({});
   const [fullyAuthenticated, setFullyAuthenticated] = useState(false);
   const [pendingStep, setPendingStep] = useState<PendingStep>("none");
