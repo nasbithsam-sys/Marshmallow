@@ -15,8 +15,17 @@ import AreasPage from "@/pages/AreasPage";
 import ActivityLogs from "@/pages/ActivityLogs";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
+import CallsPage from "@/pages/CallsPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 30_000,
+    },
+  },
+});
 
 function ProtectedRoutes() {
   const { fullyAuthenticated, loading } = useAuth();
