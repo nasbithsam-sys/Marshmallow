@@ -47,6 +47,51 @@ export type Database = {
         }
         Relationships: []
       }
+      calls: {
+        Row: {
+          call_date: string
+          created_at: string
+          created_by: string
+          customer_message: string | null
+          direction: string
+          flag: string
+          handled_by: string | null
+          id: string
+          linked_lead_id: string | null
+          notes: string | null
+          number_name: string
+          updated_at: string
+        }
+        Insert: {
+          call_date?: string
+          created_at?: string
+          created_by: string
+          customer_message?: string | null
+          direction: string
+          flag?: string
+          handled_by?: string | null
+          id?: string
+          linked_lead_id?: string | null
+          notes?: string | null
+          number_name: string
+          updated_at?: string
+        }
+        Update: {
+          call_date?: string
+          created_at?: string
+          created_by?: string
+          customer_message?: string | null
+          direction?: string
+          flag?: string
+          handled_by?: string | null
+          id?: string
+          linked_lead_id?: string | null
+          notes?: string | null
+          number_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       lead_drafts: {
         Row: {
           draft_data: Json

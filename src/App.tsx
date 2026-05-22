@@ -15,8 +15,17 @@ import AreasPage from "@/pages/AreasPage";
 import ActivityLogs from "@/pages/ActivityLogs";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
+import CallsPage from "@/pages/CallsPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 30_000,
+    },
+  },
+});
 
 function ProtectedRoutes() {
   const { fullyAuthenticated, loading } = useAuth();
@@ -88,6 +97,7 @@ const App = () => (
               <Route path="analytics" element={<PageRoute navItem="analytics"><Analytics /></PageRoute>} />
               <Route path="areas" element={<PageRoute navItem="areas"><AreasPage /></PageRoute>} />
               <Route path="activity-logs" element={<PageRoute navItem="activity_logs"><ActivityLogs /></PageRoute>} />
+              <Route path="calls" element={<PageRoute navItem="calls"><CallsPage /></PageRoute>} />
               <Route path="settings" element={<PageRoute navItem="settings"><Settings /></PageRoute>} />
             </Route>
             <Route path="*" element={<NotFound />} />
