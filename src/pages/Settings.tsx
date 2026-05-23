@@ -91,7 +91,7 @@ interface StatusVisibilityRow {
   is_visible: boolean;
 }
 
-const MANAGED_ROLES: AppRole[] = ["customer_service", "processor"];
+const MANAGED_ROLES: AppRole[] = ["customer_service", "processor", "opr"];
 
 const Settings = () => {
   const { user, role: currentRole } = useAuth();
