@@ -1,4 +1,11 @@
-export type AppRole = 'admin' | 'processor' | 'customer_service' | 'no_role';
+export type AppRole = 'admin' | 'processor' | 'customer_service' | 'opr' | 'no_role';
+
+export type CsTag = 'confirmation_sent' | 'waiting_schedule_confirmation';
+
+export const CS_TAG_LABELS: Record<CsTag, string> = {
+  confirmation_sent: 'Confirmation sent to CX',
+  waiting_schedule_confirmation: 'Waiting for CX for schedule confirmation',
+};
 
 export type LeadStatus =
   | 'waiting_complete_details'
