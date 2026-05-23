@@ -291,7 +291,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       const { data: roles } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("role", ["admin", "processor"]);
+        .in("role", ["admin", "processor", "customer_service", "opr"]);
 
       if (roles) {
         const statusLabel = newStatus === "urgent_job" ? "Urgent Job" : "Need Tech";
