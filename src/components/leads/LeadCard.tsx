@@ -623,7 +623,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           </div>
         )}
 
-        <div className="space-y-2 px-4 pt-3"></div>
+        <div className="space-y-2 px-4 pt-3">
           {renderCollapsible({
             open: generalOpen,
             setOpen: setGeneralOpen,
