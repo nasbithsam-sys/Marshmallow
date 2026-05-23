@@ -53,6 +53,7 @@ const roleColors: Record<string, string> = {
   admin: "bg-primary/8 text-primary border-primary/10",
   processor: "bg-[hsl(var(--success)/0.08)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.1)]",
   customer_service: "bg-[hsl(var(--warning)/0.08)] text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.1)]",
+  opr: "bg-[hsl(var(--destructive)/0.08)] text-[hsl(var(--destructive))] border-[hsl(var(--destructive)/0.12)]",
   no_role: "bg-muted/70 text-muted-foreground border-border/60",
 };
 
