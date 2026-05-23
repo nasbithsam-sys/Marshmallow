@@ -5,6 +5,7 @@ const DEFAULT_NAV_ACCESS: Record<AppRole, Set<NavItem>> = {
   admin: new Set(ALL_NAV_ITEMS),
   processor: new Set(["leads", "schedule", "analytics", "areas", "activity_logs"]),
   customer_service: new Set(["leads", "schedule", "calls"]),
+  opr: new Set(["leads"]),
   no_role: new Set(),
 };
 
