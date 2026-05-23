@@ -77,7 +77,10 @@ const generateJobId = () => {
 const sendNotifications = async (leadName: string, status: string, leadId: string) => {
   if (status !== "urgent_job" && status !== "need_tech") return;
 
-  const { data: roles } = await supabase.from("user_roles").select("user_id, role").in("role", ["admin", "processor"]);
+  const { data: roles } = await supabase
+    .from("user_roles")
+    .select("user_id, role")
+    .in("role", ["admin", "processor", "customer_service", "opr"]);
 
   if (!roles || roles.length === 0) return;
 

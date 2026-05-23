@@ -90,7 +90,7 @@ export default function AppLayout() {
             </AnimatePresence>
           </main>
         </div>
-        <UrgentLeadPopup key={location.key} />
+        <UrgentLeadPopup />
       </div>
     </SidebarProvider>
   );

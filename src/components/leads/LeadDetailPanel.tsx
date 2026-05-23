@@ -383,13 +383,13 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         const { data: roles } = await supabase
           .from("user_roles")
           .select("user_id, role")
-          .in("role", ["admin", "processor"]);
+          .in("role", ["admin", "processor", "customer_service", "opr"]);
 
         if (roles) {
           const statusLabel = form.status === "urgent_job" ? "Urgent Job" : "Need Tech";
           const notifs = roles.map((r: { user_id: string }) => ({
             user_id: r.user_id,
-            title: `🚨 ${statusLabel}`,
+            title: `[Alert] ${statusLabel}`,
             message: `Lead "${form.customer_name}" changed to ${statusLabel}`,
             lead_id: leadId,
             read: false,

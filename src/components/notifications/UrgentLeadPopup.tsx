@@ -14,42 +14,48 @@ interface UrgentNotification {
   read: boolean;
 }
 
-const POLL_MS = 30000;
+const POLL_MS = 20000;
+const BASELINE_KEY = "urgent_popup_baseline_at";
+
+function getOrInitBaseline(): string {
+  let v = window.sessionStorage.getItem(BASELINE_KEY);
+  if (!v) {
+    v = new Date().toISOString();
+    window.sessionStorage.setItem(BASELINE_KEY, v);
+  }
+  return v;
+}
 
 export default function UrgentLeadPopup() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<UrgentNotification[]>([]);
+  const baselineRef = useRef<string>(getOrInitBaseline());
 
-  const eligible = role === "admin" || role === "processor";
+  // Every role gets urgent popups
+  const eligible = Boolean(role) && role !== "no_role";
 
-const mountedAt = useRef(new Date().toISOString());
+  const fetchUrgent = useCallback(async () => {
+    if (!user || !eligible) return;
 
-const fetchUrgent = useCallback(async () => {
-  if (!user || !eligible) return;
+    const { data } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("read", false)
+      .ilike("title", "%Urgent Job%")
+      .gt("created_at", baselineRef.current)
+      .order("created_at", { ascending: false })
+      .limit(10);
 
-  const { data } = await supabase
-    .from("notifications")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("read", false)
-    .ilike("title", "%Urgent Job%")
-    .gt("created_at", mountedAt.current)
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  if (data) {
-    setItems((prev) => {
-      const existingIds = new Set(prev.map((i) => i.id));
-
-      const newItems = (data as UrgentNotification[]).filter(
-        (item) => !existingIds.has(item.id)
-      );
-
-      return [...newItems, ...prev];
-    });
-  }
-}, [user, eligible]);
+    if (data) {
+      setItems((prev) => {
+        const existing = new Set(prev.map((i) => i.id));
+        const next = (data as UrgentNotification[]).filter((n) => !existing.has(n.id));
+        return [...next, ...prev];
+      });
+    }
+  }, [user, eligible]);
 
   useEffect(() => {
     if (!eligible) return;
@@ -71,46 +77,72 @@ const fetchUrgent = useCallback(async () => {
   if (!eligible || items.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-[min(92vw,360px)] flex-col gap-2.5">
-      <AnimatePresence initial={false}>
-        {items.map((n) => (
-          <motion.div
-            key={n.id}
-            layout
-            initial={{ opacity: 0, x: 40, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 40, scale: 0.95, transition: { duration: 0.15 } }}
-            transition={{ type: "spring", stiffness: 320, damping: 28 }}
-            className="pointer-events-auto relative overflow-hidden rounded-2xl border-2 border-destructive/40 bg-card shadow-[0_22px_50px_-18px_rgba(239,68,68,0.45)]"
-          >
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-destructive via-destructive/80 to-destructive/40 animate-pulse" />
-            <div className="flex items-start gap-3 p-4">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
-                <AlertTriangle className="h-4.5 w-4.5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-bold text-destructive">{n.title}</p>
-                <p className="mt-0.5 text-[12px] leading-5 text-foreground/85 line-clamp-3">{n.message}</p>
-                {n.lead_id && (
-                  <button
-                    onClick={() => openLead(n)}
-                    className="mt-2 inline-flex items-center gap-1 rounded-lg bg-destructive/10 px-2.5 py-1 text-[11px] font-semibold text-destructive hover:bg-destructive/15"
-                  >
-                    View lead <ArrowUpRight className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={() => dismiss(n.id)}
-                aria-label="Dismiss"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    <>
+      {/* Backdrop blocker - but we don't block clicks on rest of app, just dim slightly */}
+      <div className="pointer-events-none fixed inset-0 z-[90] bg-foreground/10" />
+
+      <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="pointer-events-auto flex w-full max-w-[520px] flex-col gap-3">
+          <AnimatePresence initial={false}>
+            {items.map((n, idx) => (
+              <motion.div
+                key={n.id}
+                layout
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: -10, transition: { duration: 0.18 } }}
+                transition={{ type: "spring", stiffness: 280, damping: 26 }}
+                className="relative overflow-hidden rounded-3xl border-2 border-destructive/45 bg-card shadow-[0_40px_80px_-20px_rgba(239,68,68,0.55)]"
               >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
+                <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-destructive via-destructive/85 to-destructive/40 animate-pulse" />
+
+                <div className="flex items-start gap-4 p-6">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-destructive/12 text-destructive ring-2 ring-destructive/25">
+                    <AlertTriangle className="h-7 w-7" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[15px] font-bold text-destructive">{n.title}</p>
+                      {items.length > 1 && (
+                        <span className="rounded-full bg-destructive/12 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                          {idx + 1} / {items.length}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1.5 text-[14px] leading-6 text-foreground/90">{n.message}</p>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {n.lead_id && (
+                        <button
+                          onClick={() => openLead(n)}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-destructive px-4 py-2 text-[13px] font-semibold text-destructive-foreground shadow-[0_8px_20px_-8px_hsl(var(--destructive)/0.65)] transition-transform hover:-translate-y-0.5"
+                        >
+                          Open lead <ArrowUpRight className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => dismiss(n.id)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-4 py-2 text-[13px] font-semibold text-foreground transition-colors hover:bg-muted"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => dismiss(n.id)}
+                    aria-label="Close"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      </div>
+    </>
   );
 }

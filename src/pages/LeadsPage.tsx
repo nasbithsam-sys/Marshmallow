@@ -18,6 +18,7 @@ import {
 import { Plus, Search, Download, Share2, X, SlidersHorizontal } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
+import OprLeadCard from "@/components/leads/OprLeadCard";
 import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -606,12 +607,16 @@ export default function LeadsPage() {
         >
           {paged.map((lead) => (
             <motion.div key={lead.id} variants={cardGridItem}>
-              <LeadCard
-                lead={lead}
-                profiles={profiles}
-                onRefresh={handleRefresh}
-                disablePhotoPreview
-              />
+              {role === "opr" ? (
+                <OprLeadCard lead={lead} />
+              ) : (
+                <LeadCard
+                  lead={lead}
+                  profiles={profiles}
+                  onRefresh={handleRefresh}
+                  disablePhotoPreview
+                />
+              )}
             </motion.div>
           ))}
         </motion.div>

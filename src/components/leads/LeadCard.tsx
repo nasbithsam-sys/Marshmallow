@@ -4,6 +4,7 @@ import { memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Lead, LeadStatus, STATUS_LABELS, getChangeableStatuses, canChangeStatus } from "@/lib/constants";
+import { CS_TAG_LABELS, type CsTag } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -291,7 +292,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       const { data: roles } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("role", ["admin", "processor"]);
+        .in("role", ["admin", "processor", "customer_service", "opr"]);
 
       if (roles) {
         const statusLabel = newStatus === "urgent_job" ? "Urgent Job" : "Need Tech";
@@ -391,6 +392,25 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     }
   };
 
+  const handleCsTagChange = async (value: string) => {
+    const newTag = value === "__clear__" ? null : (value as CsTag);
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        cs_tag: newTag,
+        last_edited_by: user?.id,
+        updated_at: new Date().toISOString(),
+        last_edited_at: new Date().toISOString(),
+      } as never)
+      .eq("id", lead.id);
+    if (error) {
+      toast.error("Failed to update tag");
+      return;
+    }
+    toast.success(newTag ? `Tag: ${CS_TAG_LABELS[newTag]}` : "Tag cleared");
+    onRefresh();
+  };
+
   const renderCollapsible = ({
     open,
     setOpen,
@@ -429,21 +449,19 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           </Button>
         </CollapsibleTrigger>
 
-        <AnimatePresence initial={false}>
-          {open && (
-            <CollapsibleContent forceMount asChild>
-              <motion.div
-                initial={{ opacity: 0, y: reduceMotion ? 0 : -4, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: "auto" }}
-                exit={{ opacity: 0, y: reduceMotion ? 0 : -4, height: 0 }}
-                transition={{ duration: reduceMotion ? 0.01 : 0.16 }}
-                className="overflow-hidden pt-2"
-              >
-                <NoteThread leadId={lead.id} noteType={noteType} label={label} profiles={profiles} />
-              </motion.div>
-            </CollapsibleContent>
-          )}
-        </AnimatePresence>
+        {open && (
+          <CollapsibleContent forceMount asChild>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
+              className="pt-2"
+            >
+              <NoteThread leadId={lead.id} noteType={noteType} label={label} profiles={profiles} />
+            </motion.div>
+          </CollapsibleContent>
+        )}
       </Collapsible>
     );
   };
@@ -488,6 +506,12 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
                 <div className="mt-1 flex items-center gap-2 flex-wrap">
                   <p className="font-mono text-[10px] text-muted-foreground/70">{lead.job_id}</p>
+                  {lead.number_name && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/[0.07] px-2 py-0.5 text-[10px] font-semibold text-primary/85">
+                      <Phone className="h-3 w-3" />
+                      {lead.number_name}
+                    </span>
+                  )}
                   {(lead.tech_name || lead.tech_number) && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/75 px-2 py-0.5 text-[10px] text-muted-foreground/80">
                       <UserRound className="h-3 w-3" />
@@ -567,6 +591,35 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {(isCS || isAdmin) && (
+          <div className="px-4 pt-2">
+            <Select
+              value={(lead as { cs_tag?: string | null }).cs_tag ?? "__clear__"}
+              onValueChange={handleCsTagChange}
+            >
+              <SelectTrigger className="crm-lead-card-inner h-9 w-full rounded-[14px] text-[12px] font-medium">
+                <SelectValue placeholder="CS Tag (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__clear__" className="text-[12px] text-muted-foreground">
+                  No tag
+                </SelectItem>
+                <SelectItem value="confirmation_sent" className="text-[12px]">
+                  {CS_TAG_LABELS.confirmation_sent}
+                </SelectItem>
+                <SelectItem value="waiting_schedule_confirmation" className="text-[12px]">
+                  {CS_TAG_LABELS.waiting_schedule_confirmation}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {(lead as { cs_tag?: string | null }).cs_tag && (
+              <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-400/20 dark:text-amber-200">
+                📌 {CS_TAG_LABELS[(lead as { cs_tag: CsTag }).cs_tag]}
+              </p>
+            )}
           </div>
         )}
 

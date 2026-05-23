@@ -1,4 +1,11 @@
-export type AppRole = 'admin' | 'processor' | 'customer_service' | 'no_role';
+export type AppRole = 'admin' | 'processor' | 'customer_service' | 'opr' | 'no_role';
+
+export type CsTag = 'confirmation_sent' | 'waiting_schedule_confirmation';
+
+export const CS_TAG_LABELS: Record<CsTag, string> = {
+  confirmation_sent: 'Confirmation sent to CX',
+  waiting_schedule_confirmation: 'Waiting for CX for schedule confirmation',
+};
 
 export type LeadStatus =
   | 'waiting_complete_details'
@@ -93,6 +100,7 @@ export interface Lead {
   tech_number: string | null;
   terms: 'free_estimate' | 'quoted' | null;
   direction: 'incoming' | 'outgoing' | null;
+  cs_tag?: CsTag | null;
   labor_amount: number | null;
   material_amount: number | null;
   for_you_amount: number | null;
