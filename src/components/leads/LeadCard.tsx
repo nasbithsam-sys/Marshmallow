@@ -594,7 +594,36 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           </div>
         )}
 
-        <div className="space-y-2 px-4 pt-3">
+        {(isCS || isAdmin) && (
+          <div className="px-4 pt-2">
+            <Select
+              value={(lead as { cs_tag?: string | null }).cs_tag ?? "__clear__"}
+              onValueChange={handleCsTagChange}
+            >
+              <SelectTrigger className="crm-lead-card-inner h-9 w-full rounded-[14px] text-[12px] font-medium">
+                <SelectValue placeholder="CS Tag (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__clear__" className="text-[12px] text-muted-foreground">
+                  No tag
+                </SelectItem>
+                <SelectItem value="confirmation_sent" className="text-[12px]">
+                  {CS_TAG_LABELS.confirmation_sent}
+                </SelectItem>
+                <SelectItem value="waiting_schedule_confirmation" className="text-[12px]">
+                  {CS_TAG_LABELS.waiting_schedule_confirmation}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {(lead as { cs_tag?: string | null }).cs_tag && (
+              <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-400/20 dark:text-amber-200">
+                📌 {CS_TAG_LABELS[(lead as { cs_tag: CsTag }).cs_tag]}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="space-y-2 px-4 pt-3"></div>
           {renderCollapsible({
             open: generalOpen,
             setOpen: setGeneralOpen,
