@@ -486,6 +486,12 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
                 <div className="mt-1 flex items-center gap-2 flex-wrap">
                   <p className="font-mono text-[10px] text-muted-foreground/70">{lead.job_id}</p>
+                  {lead.number_name && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/[0.07] px-2 py-0.5 text-[10px] font-semibold text-primary/85">
+                      <Phone className="h-3 w-3" />
+                      {lead.number_name}
+                    </span>
+                  )}
                   {(lead.tech_name || lead.tech_number) && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/75 px-2 py-0.5 text-[10px] text-muted-foreground/80">
                       <UserRound className="h-3 w-3" />
