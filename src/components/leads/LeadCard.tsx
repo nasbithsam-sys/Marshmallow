@@ -429,21 +429,19 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           </Button>
         </CollapsibleTrigger>
 
-        <AnimatePresence initial={false}>
-          {open && (
-            <CollapsibleContent forceMount asChild>
-              <motion.div
-                initial={{ opacity: 0, y: reduceMotion ? 0 : -4, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: "auto" }}
-                exit={{ opacity: 0, y: reduceMotion ? 0 : -4, height: 0 }}
-                transition={{ duration: reduceMotion ? 0.01 : 0.16 }}
-                className="overflow-hidden pt-2"
-              >
-                <NoteThread leadId={lead.id} noteType={noteType} label={label} profiles={profiles} />
-              </motion.div>
-            </CollapsibleContent>
-          )}
-        </AnimatePresence>
+        {open && (
+          <CollapsibleContent forceMount asChild>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
+              className="pt-2"
+            >
+              <NoteThread leadId={lead.id} noteType={noteType} label={label} profiles={profiles} />
+            </motion.div>
+          </CollapsibleContent>
+        )}
       </Collapsible>
     );
   };
