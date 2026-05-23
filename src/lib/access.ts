@@ -38,6 +38,9 @@ export function getDefaultVisibleStatuses(role: AppRole): Set<LeadStatus> {
   if (role === "no_role") {
     return new Set();
   }
+  if (role === "opr") {
+    return new Set<LeadStatus>(["urgent_job"]);
+  }
 
   return new Set(ALL_LEAD_STATUSES);
 }
