@@ -91,7 +91,7 @@ export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
   urgent_job: 0,
-  need_tech: 1,
+  need_tech: 2,
   cancelled: 99,
 };
 
@@ -101,11 +101,15 @@ function getLeadCreatedAtTime(lead: Pick<Lead, "created_at">) {
 }
 
 export function compareLeadDisplayPriority(
-  a: Pick<Lead, "status" | "created_at">,
-  b: Pick<Lead, "status" | "created_at">,
+  a: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
+  b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
 ) {
-  const rankA = LEAD_PRIORITY_RANK[a.status] ?? 10;
-  const rankB = LEAD_PRIORITY_RANK[b.status] ?? 10;
+  // CS-tagged leads (except already Scheduled) pin to top, just below urgent
+  const aPinned = Boolean(a.cs_tag) && a.status !== "scheduled" ? 1 : 10;
+  const bPinned = Boolean(b.cs_tag) && b.status !== "scheduled" ? 1 : 10;
+
+  const rankA = LEAD_PRIORITY_RANK[a.status] ?? aPinned;
+  const rankB = LEAD_PRIORITY_RANK[b.status] ?? bPinned;
 
   if (rankA !== rankB) return rankA - rankB;
 
