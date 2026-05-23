@@ -100,7 +100,7 @@ export interface Lead {
   tech_number: string | null;
   terms: 'free_estimate' | 'quoted' | null;
   direction: 'incoming' | 'outgoing' | null;
-  cs_tag: CsTag | null;
+  cs_tag?: CsTag | null;
   labor_amount: number | null;
   material_amount: number | null;
   for_you_amount: number | null;
