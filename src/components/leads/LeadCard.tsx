@@ -392,6 +392,25 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     }
   };
 
+  const handleCsTagChange = async (value: string) => {
+    const newTag = value === "__clear__" ? null : (value as CsTag);
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        cs_tag: newTag,
+        last_edited_by: user?.id,
+        updated_at: new Date().toISOString(),
+        last_edited_at: new Date().toISOString(),
+      } as never)
+      .eq("id", lead.id);
+    if (error) {
+      toast.error("Failed to update tag");
+      return;
+    }
+    toast.success(newTag ? `Tag: ${CS_TAG_LABELS[newTag]}` : "Tag cleared");
+    onRefresh();
+  };
+
   const renderCollapsible = ({
     open,
     setOpen,
