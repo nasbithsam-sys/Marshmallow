@@ -148,8 +148,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      // Skip noisy TOKEN_REFRESHED events that fire on tab refocus — they cause
+      // full app refetches even though the user did not change.
+      if (_event === "TOKEN_REFRESHED") {
+        setSession(nextSession);
+        setLoading(false);
+        return;
+      }
+
       setSession(nextSession);
-      setUser(nextSession?.user ?? null);
+      setUser((prev) => {
+        const nextUser = nextSession?.user ?? null;
+        if (prev?.id === nextUser?.id) return prev; // keep reference stable
+        return nextUser;
+      });
 
       if (nextSession?.user) {
         setTimeout(() => {
