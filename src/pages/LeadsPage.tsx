@@ -606,12 +606,16 @@ export default function LeadsPage() {
         >
           {paged.map((lead) => (
             <motion.div key={lead.id} variants={cardGridItem}>
-              <LeadCard
-                lead={lead}
-                profiles={profiles}
-                onRefresh={handleRefresh}
-                disablePhotoPreview
-              />
+              {role === "opr" ? (
+                <OprLeadCard lead={lead} />
+              ) : (
+                <LeadCard
+                  lead={lead}
+                  profiles={profiles}
+                  onRefresh={handleRefresh}
+                  disablePhotoPreview
+                />
+              )}
             </motion.div>
           ))}
         </motion.div>
