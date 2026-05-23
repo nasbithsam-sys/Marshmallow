@@ -138,6 +138,7 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "needs_reschedule",
   ],
   no_role: [],
+  opr: [],
 };
 
 export function getChangeableStatuses(role?: string | null): LeadStatus[] {
