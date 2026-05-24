@@ -49,6 +49,7 @@ type TrackedLeadField =
   | "customer_phone"
   | "service_type"
   | "address"
+  | "half_address"
   | "city"
   | "state"
   | "zip_code"
