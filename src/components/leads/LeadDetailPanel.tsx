@@ -693,6 +693,17 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 className={fieldClass}
               />
             </div>
+
+            <div className="mt-4 space-y-1.5">
+              <Label className={labelClass}>Half Address</Label>
+              <Input
+                value={form.half_address ?? ""}
+                onChange={(e) => update("half_address", e.target.value)}
+                readOnly={isProcessor}
+                placeholder="Shortened address shown to operators"
+                className={fieldClass}
+              />
+            </div>
           </motion.div>
 
           {!isCS && (
