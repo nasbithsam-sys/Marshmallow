@@ -13,7 +13,6 @@ import {
   UserCircle,
   Phone,
   MapPin,
-  Wrench,
   UserRound,
   Trash2,
   Pencil,
