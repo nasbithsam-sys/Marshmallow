@@ -42,6 +42,7 @@ const initialFormState = {
   number_name: "",
   direction: "" as "" | "incoming" | "outgoing",
   address: "",
+  half_address: "",
   service_type: "",
   status: "waiting_complete_details" as LeadStatus,
   scheduled_date: "",
@@ -238,6 +239,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       number_name: form.number_name || null,
       direction: form.direction || null,
       address: form.address || null,
+      half_address: form.half_address || null,
       service_type: form.service_type || null,
       status: form.status,
       scheduled_date: form.scheduled_date || null,
@@ -542,6 +544,17 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                     className={fieldClass}
                   />
                 </div>
+
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Half Address</Label>
+                  <Input
+                    value={form.half_address}
+                    onChange={(e) => update("half_address", e.target.value)}
+                    placeholder="Partial address shown to operators (e.g. street + city only)"
+                    className={fieldClass}
+                  />
+                </div>
+
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-1.5">

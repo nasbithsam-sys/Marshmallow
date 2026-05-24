@@ -623,6 +623,14 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           </div>
         )}
 
+        {isProcessor && (lead as { cs_tag?: string | null }).cs_tag && (
+          <div className="px-4 pt-2">
+            <p className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-400/20 dark:text-amber-200">
+              📌 {CS_TAG_LABELS[(lead as { cs_tag: CsTag }).cs_tag]}
+            </p>
+          </div>
+        )}
+
         <div className="space-y-2 px-4 pt-3">
           {renderCollapsible({
             open: generalOpen,

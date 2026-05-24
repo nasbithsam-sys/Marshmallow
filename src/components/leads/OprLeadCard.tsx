@@ -2,20 +2,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Lead } from "@/lib/constants";
-import { Wrench, MapPin, FileText, CalendarClock, Image as ImageIcon, AlertTriangle } from "lucide-react";
+import { Wrench, MapPin, FileText, CalendarClock, Image as ImageIcon, AlertTriangle, DollarSign } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
 import { motion } from "framer-motion";
 
 interface Props {
   lead: Lead;
-}
-
-// Show only first half (rounded up) of the address
-function halfAddress(addr?: string | null) {
-  if (!addr) return "";
-  const half = Math.ceil(addr.length / 2);
-  return addr.slice(0, half) + "…";
 }
 
 export default function OprLeadCard({ lead }: Props) {
@@ -89,8 +82,11 @@ export default function OprLeadCard({ lead }: Props) {
           {lead.service_details && (
             <Row icon={FileText} label="Service Details" value={lead.service_details} wrap />
           )}
-          {lead.address && (
-            <Row icon={MapPin} label="Area (partial)" value={halfAddress(lead.address)} />
+          {lead.half_address && (
+            <Row icon={MapPin} label="Area (partial)" value={lead.half_address} />
+          )}
+          {lead.quote && (
+            <Row icon={DollarSign} label="Quote" value={lead.quote} wrap />
           )}
           {lead.customer_schedule_requirements && (
             <Row

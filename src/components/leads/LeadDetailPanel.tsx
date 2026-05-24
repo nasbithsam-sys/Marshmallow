@@ -49,6 +49,7 @@ type TrackedLeadField =
   | "customer_phone"
   | "service_type"
   | "address"
+  | "half_address"
   | "city"
   | "state"
   | "zip_code"
@@ -193,6 +194,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       "customer_phone",
       "service_type",
       "address",
+      "half_address",
       "city",
       "state",
       "zip_code",
@@ -342,6 +344,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         customer_phone: form.customer_phone,
         service_type: form.service_type,
         address: form.address,
+        half_address: form.half_address,
         city: form.city,
         state: form.state,
         zip_code: form.zip_code,
@@ -687,6 +690,17 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 onChange={(e) => update("address", e.target.value)}
                 readOnly={isProcessor}
                 placeholder="Full address"
+                className={fieldClass}
+              />
+            </div>
+
+            <div className="mt-4 space-y-1.5">
+              <Label className={labelClass}>Half Address</Label>
+              <Input
+                value={form.half_address ?? ""}
+                onChange={(e) => update("half_address", e.target.value)}
+                readOnly={isProcessor}
+                placeholder="Shortened address shown to operators"
                 className={fieldClass}
               />
             </div>

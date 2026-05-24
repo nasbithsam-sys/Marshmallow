@@ -352,6 +352,7 @@ export type Database = {
           for_us_amount: number | null
           for_you_amount: number | null
           general_notes: string | null
+          half_address: string | null
           id: string
           job_id: string
           labor_amount: number | null
@@ -394,6 +395,7 @@ export type Database = {
           for_us_amount?: number | null
           for_you_amount?: number | null
           general_notes?: string | null
+          half_address?: string | null
           id?: string
           job_id: string
           labor_amount?: number | null
@@ -436,6 +438,7 @@ export type Database = {
           for_us_amount?: number | null
           for_you_amount?: number | null
           general_notes?: string | null
+          half_address?: string | null
           id?: string
           job_id?: string
           labor_amount?: number | null
