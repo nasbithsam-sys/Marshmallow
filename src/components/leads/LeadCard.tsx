@@ -724,7 +724,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                       <Button
                         variant="outline"
                         size="icon"
-                        className="crm-lead-card-inner h-10 w-full rounded-[16px] text-destructive/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/30 hover:bg-destructive/[0.06] hover:text-destructive hover:shadow-[0_18px_26px_-20px_rgba(239,68,68,0.22)] sm:w-10 dark:hover:shadow-none"
+                        className="crm-lead-card-inner h-10 flex-1 rounded-[16px] text-destructive/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/30 hover:bg-destructive/[0.06] hover:text-destructive hover:shadow-[0_18px_26px_-20px_rgba(239,68,68,0.22)] sm:w-10 sm:flex-none dark:hover:shadow-none"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
