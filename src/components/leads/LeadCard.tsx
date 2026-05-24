@@ -112,16 +112,9 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       wrap: true,
     },
     {
-      key: "service",
-      label: "Service",
-      value: lead.service_type,
-      icon: Wrench,
-      wrap: true,
-    },
-    {
       key: "technician",
       label: "Technician",
-      value: [lead.tech_name, lead.tech_number].filter(Boolean).join(" - "),
+      value: [lead.tech_name, lead.tech_number].filter(Boolean).join(" · "),
       icon: UserRound,
       wrap: true,
     },
