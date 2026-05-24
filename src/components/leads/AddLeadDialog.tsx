@@ -545,6 +545,17 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                   />
                 </div>
 
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Half Address</Label>
+                  <Input
+                    value={form.half_address}
+                    onChange={(e) => update("half_address", e.target.value)}
+                    placeholder="Partial address shown to operators (e.g. street + city only)"
+                    className={fieldClass}
+                  />
+                </div>
+
+
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className={labelClass}>Service Type</Label>
