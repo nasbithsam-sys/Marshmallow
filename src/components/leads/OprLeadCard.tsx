@@ -82,8 +82,11 @@ export default function OprLeadCard({ lead }: Props) {
           {lead.service_details && (
             <Row icon={FileText} label="Service Details" value={lead.service_details} wrap />
           )}
-          {lead.address && (
-            <Row icon={MapPin} label="Area (partial)" value={halfAddress(lead.address)} />
+          {lead.half_address && (
+            <Row icon={MapPin} label="Area (partial)" value={lead.half_address} />
+          )}
+          {lead.quote && (
+            <Row icon={DollarSign} label="Quote" value={lead.quote} wrap />
           )}
           {lead.customer_schedule_requirements && (
             <Row
