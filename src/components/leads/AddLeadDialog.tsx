@@ -42,6 +42,7 @@ const initialFormState = {
   number_name: "",
   direction: "" as "" | "incoming" | "outgoing",
   address: "",
+  half_address: "",
   service_type: "",
   status: "waiting_complete_details" as LeadStatus,
   scheduled_date: "",
