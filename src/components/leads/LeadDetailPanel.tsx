@@ -344,6 +344,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         customer_phone: form.customer_phone,
         service_type: form.service_type,
         address: form.address,
+        half_address: form.half_address,
         city: form.city,
         state: form.state,
         zip_code: form.zip_code,
