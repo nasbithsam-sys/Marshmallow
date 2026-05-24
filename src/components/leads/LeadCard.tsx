@@ -702,7 +702,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                 <ArrowUpRight className="ml-auto h-3.5 w-3.5 opacity-35" />
               </Button>
 
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
+              <div className="flex flex-wrap items-center gap-2 sm:w-auto">
                 {!isCS && (
                   <CopyLeadButton
                     lead={lead}
