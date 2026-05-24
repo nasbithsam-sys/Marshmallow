@@ -92,20 +92,20 @@ export default function UrgentLeadPopup() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.92, y: -10, transition: { duration: 0.18 } }}
                 transition={{ type: "spring", stiffness: 280, damping: 26 }}
-                className="relative overflow-hidden rounded-3xl border-2 border-destructive/45 bg-card shadow-[0_40px_80px_-20px_rgba(239,68,68,0.55)]"
+                className="relative overflow-hidden rounded-3xl border-2 border-amber-400/60 bg-card shadow-[0_40px_80px_-20px_rgba(234,179,8,0.55)]"
               >
-                <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-destructive via-destructive/85 to-destructive/40 animate-pulse" />
+                <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-300/50 animate-pulse" />
 
                 <div className="flex items-start gap-4 p-6">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-destructive/12 text-destructive ring-2 ring-destructive/25">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-400/15 text-amber-600 ring-2 ring-amber-400/30 dark:text-amber-300">
                     <AlertTriangle className="h-7 w-7" />
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-[15px] font-bold text-destructive">{n.title}</p>
+                      <p className="text-[15px] font-bold text-amber-600 dark:text-amber-300">{n.title}</p>
                       {items.length > 1 && (
-                        <span className="rounded-full bg-destructive/12 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                        <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-200">
                           {idx + 1} / {items.length}
                         </span>
                       )}
@@ -116,7 +116,7 @@ export default function UrgentLeadPopup() {
                       {n.lead_id && (
                         <button
                           onClick={() => openLead(n)}
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-destructive px-4 py-2 text-[13px] font-semibold text-destructive-foreground shadow-[0_8px_20px_-8px_hsl(var(--destructive)/0.65)] transition-transform hover:-translate-y-0.5"
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-[13px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(234,179,8,0.7)] transition-transform hover:-translate-y-0.5 hover:bg-amber-600"
                         >
                           Open lead <ArrowUpRight className="h-3.5 w-3.5" />
                         </button>
