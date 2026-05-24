@@ -13,7 +13,6 @@ import {
   UserCircle,
   Phone,
   MapPin,
-  Wrench,
   UserRound,
   Trash2,
   Pencil,
@@ -112,16 +111,9 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       wrap: true,
     },
     {
-      key: "service",
-      label: "Service",
-      value: lead.service_type,
-      icon: Wrench,
-      wrap: true,
-    },
-    {
       key: "technician",
       label: "Technician",
-      value: [lead.tech_name, lead.tech_number].filter(Boolean).join(" - "),
+      value: [lead.tech_name, lead.tech_number].filter(Boolean).join(" · "),
       icon: UserRound,
       wrap: true,
     },
@@ -498,7 +490,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                     {lead.customer_name}
                   </p>
                   {lead.service_type && (
-                    <span className="crm-lead-card-soft rounded-full border border-sky-200/90 px-2.5 py-1 text-[10px] font-semibold text-foreground/84 shadow-[0_16px_28px_-18px_rgba(59,130,246,0.18)] dark:border-sky-400/18 dark:text-foreground/86">
+                    <span className="crm-lead-card-soft inline-block max-w-[180px] truncate rounded-full border border-sky-200/90 px-2.5 py-1 text-[10px] font-semibold text-foreground/84 shadow-[0_16px_28px_-18px_rgba(59,130,246,0.18)] dark:border-sky-400/18 dark:text-foreground/86">
                       {lead.service_type}
                     </span>
                   )}
@@ -507,15 +499,9 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                 <div className="mt-1 flex items-center gap-2 flex-wrap">
                   <p className="font-mono text-[10px] text-muted-foreground/70">{lead.job_id}</p>
                   {lead.number_name && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/[0.07] px-2 py-0.5 text-[10px] font-semibold text-primary/85">
-                      <Phone className="h-3 w-3" />
-                      {lead.number_name}
-                    </span>
-                  )}
-                  {(lead.tech_name || lead.tech_number) && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/75 px-2 py-0.5 text-[10px] text-muted-foreground/80">
-                      <UserRound className="h-3 w-3" />
-                      {[lead.tech_name, lead.tech_number].filter(Boolean).join(" - ")}
+                    <span className="inline-flex max-w-[160px] items-center gap-1 truncate rounded-full border border-primary/15 bg-primary/[0.07] px-2 py-0.5 text-[10px] font-semibold text-primary/85">
+                      <Phone className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{lead.number_name}</span>
                     </span>
                   )}
                   {lead.created_at && (
@@ -715,7 +701,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                 <ArrowUpRight className="ml-auto h-3.5 w-3.5 opacity-35" />
               </Button>
 
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
+              <div className="flex flex-wrap items-center gap-2 sm:w-auto">
                 {!isCS && (
                   <CopyLeadButton
                     lead={lead}
@@ -727,7 +713,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                   <LeadShareDialog
                     leadId={lead.id}
                     customerName={lead.customer_name}
-                    className="crm-lead-card-inner h-10 w-full rounded-[16px] border-border/60 bg-transparent text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none sm:w-10"
+                    className="crm-lead-card-inner h-10 flex-1 rounded-[16px] border-border/60 bg-transparent text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none sm:w-10 sm:flex-none"
                   />
                 )}
 
@@ -737,7 +723,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                       <Button
                         variant="outline"
                         size="icon"
-                        className="crm-lead-card-inner h-10 w-full rounded-[16px] text-destructive/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/30 hover:bg-destructive/[0.06] hover:text-destructive hover:shadow-[0_18px_26px_-20px_rgba(239,68,68,0.22)] sm:w-10 dark:hover:shadow-none"
+                        className="crm-lead-card-inner h-10 flex-1 rounded-[16px] text-destructive/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/30 hover:bg-destructive/[0.06] hover:text-destructive hover:shadow-[0_18px_26px_-20px_rgba(239,68,68,0.22)] sm:w-10 sm:flex-none dark:hover:shadow-none"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
