@@ -10,16 +10,18 @@ import type { LeadStatus } from "@/types";
  * Resolution order:
  *  - Admins: all role defaults (full access).
  *  - If the user has a row in `user_status_change_permissions`, that explicit
- *    list replaces the role defaults entirely.
+ *    list is used (even if empty — meaning admin revoked all access).
  *  - Otherwise: fall back to role defaults from `STATUS_CHANGE_ACCESS`.
  */
 export function useChangeableStatuses() {
   const { role, user } = useAuth();
 
   const { data } = useQuery({
+    // NOTE: key must include user.id so cache is per-user, AND must match
+    // the key invalidated in Settings.tsx toggleStatusChangeAccess.onSuccess
     queryKey: ["user-status-change-permissions", user?.id],
     enabled: !!user?.id && role !== "admin",
-    staleTime: 30_000,
+    staleTime: 0, // always re-fetch so admin changes take effect immediately
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_status_change_permissions")
@@ -27,13 +29,20 @@ export function useChangeableStatuses() {
         .eq("user_id", user!.id)
         .maybeSingle();
 
-      if (error || !data) return null;
+      if (error) return null;
+      // data is null when no row exists → fall back to role defaults
+      // data.allowed_statuses is [] when admin explicitly cleared all access
+      if (!data) return null;
       return (data.allowed_statuses ?? []) as LeadStatus[];
     },
   });
 
   const statuses: LeadStatus[] =
-    role === "admin" || !user?.id ? roleDefaults(role) : data ?? roleDefaults(role);
+    role === "admin" || !user?.id
+      ? roleDefaults(role)
+      : data !== null && data !== undefined
+        ? data
+        : roleDefaults(role);
 
   const canChange = (status: LeadStatus) => statuses.includes(status);
 
