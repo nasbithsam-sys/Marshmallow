@@ -169,6 +169,19 @@ const Settings = () => {
     },
   });
 
+  const { data: statusChangeAccess = [] } = useQuery<StatusChangeAccessRow[]>({
+    queryKey: ["settings-status-change-access"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_status_change_permissions")
+        .select("id, user_id, allowed_statuses");
+
+      if (error) throw error;
+      return (data ?? []) as StatusChangeAccessRow[];
+    },
+  });
+
   const userById = useMemo(() => new Map(users.map((targetUser) => [targetUser.id, targetUser])), [users]);
   const accessCodeByUserId = useMemo(() => new Map(accessCodes.map((row) => [row.user_id, row.code])), [accessCodes]);
   const navPermissionByUserAndSection = useMemo(
