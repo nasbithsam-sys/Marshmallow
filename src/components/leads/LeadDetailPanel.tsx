@@ -122,6 +122,7 @@ const StatusDropdownFiltered = ({
 
 const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const { user, role } = useAuth();
+  const { changeableStatuses, canChange } = useChangeableStatuses();
   const queryClient = useQueryClient();
 
   const [saved, setSaved] = useState(false);
