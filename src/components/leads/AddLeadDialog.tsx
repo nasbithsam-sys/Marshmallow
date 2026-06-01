@@ -23,7 +23,7 @@ import {
   Phone,
 } from "lucide-react";
 import { LEAD_STATUS_CONFIG, type LeadStatus } from "@/types";
-import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
+import { useChangeableStatuses } from "@/hooks/useChangeableStatuses";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { formatUSPhone } from "@/lib/phone";
 import { logActivity } from "@/lib/activity";
