@@ -127,6 +127,7 @@ const SectionHeader = ({
 
 const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   const { user, role } = useAuth();
+  const { changeableStatuses, canChange } = useChangeableStatuses();
   const [loading, setLoading] = useState(false);
   const [shouldResetOnClose, setShouldResetOnClose] = useState(true);
 
