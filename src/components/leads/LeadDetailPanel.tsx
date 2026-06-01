@@ -33,7 +33,8 @@ import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { motion } from "framer-motion";
 import { logActivity } from "@/lib/activity";
-import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
+import { useChangeableStatuses } from "@/hooks/useChangeableStatuses";
+import type { LeadStatus as LeadStatusType } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 
 interface Props {
