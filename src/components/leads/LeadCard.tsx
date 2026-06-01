@@ -237,7 +237,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
   const handleStatusChange = async (newStatus: string) => {
     if (isPaid) return;
-    if (!canChangeStatus(role, newStatus as LeadStatus)) {
+    if (!canChange(newStatus as LeadStatus)) {
       toast.error("You do not have permission to set that status");
       return;
     }
@@ -687,7 +687,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                   <SelectValue placeholder="Change Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {getChangeableStatuses(role).map((s) => (
+                  {changeableStatuses.map((s) => (
                     <SelectItem key={s} value={s} className="text-[12px]">
                       {STATUS_LABELS[s]}
                     </SelectItem>
