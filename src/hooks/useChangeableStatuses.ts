@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getChangeableStatuses as roleDefaults } from "@/lib/constants";
@@ -15,6 +16,32 @@ import type { LeadStatus } from "@/types";
  */
 export function useChangeableStatuses() {
   const { role, user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Re-fetch whenever the admin changes this user's permissions row in real time
+  useEffect(() => {
+    if (!user?.id || role === "admin") return;
+
+    const channel = supabase
+      .channel(`status-change-perms-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "user_status_change_permissions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["user-status-change-permissions", user.id] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, role, queryClient]);
 
   const { data } = useQuery({
     // NOTE: key must include user.id so cache is per-user, AND must match
