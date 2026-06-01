@@ -215,7 +215,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
       return;
     }
-    if (!canChangeStatus(role, form.status)) {
+    if (!canChange(form.status)) {
       toast.error("You do not have permission to set that status");
       return;
     }
@@ -766,7 +766,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {getChangeableStatuses(role)
+                      {changeableStatuses
                         .filter((key) => key !== "paid")
                         .map((key) => {
                           const cfg = LEAD_STATUS_CONFIG[key];

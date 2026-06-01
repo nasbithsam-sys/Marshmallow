@@ -533,7 +533,7 @@ export default function LeadDetailPage() {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
       return;
     }
-    if (!canChangeStatus(role, form.status)) {
+    if (!canChange(form.status)) {
       toast.error("You do not have permission to set that status");
       return;
     }
@@ -1207,7 +1207,7 @@ export default function LeadDetailPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {getChangeableStatuses(role).map((key) => {
+                    {changeableStatuses.map((key) => {
                       const cfg = LEAD_STATUS_CONFIG[key];
                       return cfg ? (
                         <SelectItem key={key} value={key}>
