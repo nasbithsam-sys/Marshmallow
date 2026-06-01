@@ -640,6 +640,9 @@ export default function LeadDetailPage() {
       if (form.status === "paid" && form.amount) {
         updatePayload.amount = parseFloat(form.amount);
       }
+      if (form.status === "scheduled") {
+        updatePayload.cs_tag = null;
+      }
 
       const { error } = await supabase.from("leads").update(updatePayload as never).eq("id", leadId);
 
