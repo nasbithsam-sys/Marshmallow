@@ -233,7 +233,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   };
 
   const update = <K extends keyof Lead>(key: K, value: Lead[K]) => {
-    if (key === "status" && !canChangeStatus(role, value as LeadStatus)) {
+    if (key === "status" && !canChange(value as LeadStatus)) {
       toast.error("You do not have permission to set that status");
       return;
     }
@@ -330,7 +330,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     mutationFn: async () => {
       if (!user) return;
       if (isDuplicate) throw new Error(`Duplicate phone: ${duplicateLeadName}`);
-      if (!form.status || !canChangeStatus(role, form.status as LeadStatus)) {
+      if (!form.status || !canChange(form.status as LeadStatus)) {
         throw new Error("You do not have permission to set that status");
       }
 
@@ -563,7 +563,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                   </div>
                 )}
               </div>
-              <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v as LeadStatus)} role={role} />
+              <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v as LeadStatus)} changeable={changeableStatuses} />
             </div>
           </div>
         </div>
