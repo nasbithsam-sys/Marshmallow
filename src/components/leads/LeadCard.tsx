@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -259,15 +259,16 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       statusUpdate.cs_tag = null;
     }
 
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from("leads")
       .update(statusUpdate as never)
-      .eq("id", lead.id);
+      .eq("id", lead.id)
+      .select("id", { count: "exact", head: true });
 
     setChangingStatus(false);
 
-    if (error) {
-      toast.error("Failed to update status");
+    if (error || count === 0) {
+      toast.error("Failed to update status — you may not have permission to edit this lead");
       return;
     }
 
