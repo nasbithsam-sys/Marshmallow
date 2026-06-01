@@ -23,7 +23,7 @@ import {
   Phone,
 } from "lucide-react";
 import { LEAD_STATUS_CONFIG, type LeadStatus } from "@/types";
-import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
+import { useChangeableStatuses } from "@/hooks/useChangeableStatuses";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { formatUSPhone } from "@/lib/phone";
 import { logActivity } from "@/lib/activity";
@@ -127,6 +127,7 @@ const SectionHeader = ({
 
 const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   const { user, role } = useAuth();
+  const { changeableStatuses, canChange } = useChangeableStatuses();
   const [loading, setLoading] = useState(false);
   const [shouldResetOnClose, setShouldResetOnClose] = useState(true);
 
@@ -215,7 +216,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
       return;
     }
-    if (!canChangeStatus(role, form.status)) {
+    if (!canChange(form.status)) {
       toast.error("You do not have permission to set that status");
       return;
     }
@@ -766,7 +767,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {getChangeableStatuses(role)
+                      {changeableStatuses
                         .filter((key) => key !== "paid")
                         .map((key) => {
                           const cfg = LEAD_STATUS_CONFIG[key];

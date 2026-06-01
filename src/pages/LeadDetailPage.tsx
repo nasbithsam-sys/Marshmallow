@@ -38,7 +38,7 @@ import CopyLeadButton from "@/components/leads/CopyLeadButton";
 import NoteThread from "@/components/leads/NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
-import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
+import { useChangeableStatuses } from "@/hooks/useChangeableStatuses";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import StatusBadge from "@/components/leads/StatusBadge";
 import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
@@ -108,6 +108,7 @@ export default function LeadDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, role } = useAuth();
+  const { changeableStatuses, canChange } = useChangeableStatuses();
 
   const isNew = id === "new";
   const isCS = role === "customer_service";
@@ -532,7 +533,7 @@ export default function LeadDetailPage() {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
       return;
     }
-    if (!canChangeStatus(role, form.status)) {
+    if (!canChange(form.status)) {
       toast.error("You do not have permission to set that status");
       return;
     }
@@ -1206,7 +1207,7 @@ export default function LeadDetailPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {getChangeableStatuses(role).map((key) => {
+                    {changeableStatuses.map((key) => {
                       const cfg = LEAD_STATUS_CONFIG[key];
                       return cfg ? (
                         <SelectItem key={key} value={key}>
