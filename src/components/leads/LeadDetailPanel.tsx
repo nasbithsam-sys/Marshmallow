@@ -95,14 +95,12 @@ const SectionHeader = ({
 const StatusDropdownFiltered = ({
   value,
   onChange,
-  role,
+  changeable,
 }: {
   value: string | undefined;
   onChange: (v: string) => void;
-  role?: string | null;
+  changeable: LeadStatusType[];
 }) => {
-  const changeable = getChangeableStatuses(role);
-
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="h-11 rounded-xl border-border/60 bg-background text-foreground shadow-sm">
