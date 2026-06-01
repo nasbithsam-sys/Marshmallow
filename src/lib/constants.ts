@@ -116,7 +116,7 @@ export function compareLeadDisplayPriority(
   return getLeadCreatedAtTime(b) - getLeadCreatedAtTime(a);
 }
 
-const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
+export const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
   admin: ALL_LEAD_STATUSES,
   customer_service: [
     "need_tech",
