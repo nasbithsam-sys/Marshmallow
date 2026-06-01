@@ -322,6 +322,67 @@ const Settings = () => {
     },
   });
 
+  const statusChangeAccessByUserId = useMemo(
+    () => new Map(statusChangeAccess.map((row) => [row.user_id, row.allowed_statuses])),
+    [statusChangeAccess],
+  );
+
+  const getStatusChangeAllowed = (userId: string, status: string): boolean => {
+    const override = statusChangeAccessByUserId.get(userId);
+    if (override) return override.includes(status);
+    const targetUser = userById.get(userId);
+    if (!targetUser || targetUser.role === "no_role") return false;
+    return (STATUS_CHANGE_ACCESS[targetUser.role as AppRole] ?? []).includes(status as LeadStatus);
+  };
+
+  const toggleStatusChangeAccess = useMutation({
+    mutationFn: async ({ userId, status, allowed }: { userId: string; status: string; allowed: boolean }) => {
+      const targetUser = getUserById(userId);
+      const existingRow = statusChangeAccess.find((row) => row.user_id === userId);
+      const currentList: string[] = existingRow
+        ? existingRow.allowed_statuses
+        : targetUser && targetUser.role !== "no_role"
+          ? (STATUS_CHANGE_ACCESS[targetUser.role as AppRole] ?? [])
+          : [];
+
+      const next = allowed
+        ? Array.from(new Set([...currentList, status]))
+        : currentList.filter((s) => s !== status);
+
+      if (existingRow) {
+        const { error } = await supabase
+          .from("user_status_change_permissions")
+          .update({ allowed_statuses: next })
+          .eq("id", existingRow.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("user_status_change_permissions")
+          .insert({ user_id: userId, allowed_statuses: next });
+        if (error) throw error;
+      }
+
+      if (user) {
+        await logActivity(user.id, "updated", "user", userId, {
+          target_name: targetUser?.full_name || targetUser?.email || userId,
+          email: targetUser?.email || null,
+          changes: {
+            [`status_change_${status}`]: { before: !allowed, after: allowed },
+          },
+          message: `Admin ${allowed ? "granted" : "revoked"} status-change access to "${STATUS_LABELS[status] || status}" for "${targetUser?.full_name || targetUser?.email || "user"}".`,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings-status-change-access"] });
+      queryClient.invalidateQueries({ queryKey: ["user-status-change-permissions"] });
+      toast.success("Status change access updated");
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Failed to update status change access");
+    },
+  });
+
   const toggleStatusVisibility = useMutation({
     mutationFn: async ({
       userId,
