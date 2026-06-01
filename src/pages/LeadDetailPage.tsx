@@ -108,6 +108,7 @@ export default function LeadDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, role } = useAuth();
+  const { changeableStatuses, canChange } = useChangeableStatuses();
 
   const isNew = id === "new";
   const isCS = role === "customer_service";
