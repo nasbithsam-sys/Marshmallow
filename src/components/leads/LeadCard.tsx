@@ -76,6 +76,7 @@ function formatDate(value?: string | null) {
 function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = false }: LeadCardProps) {
   const navigate = useNavigate();
   const { user, role } = useAuth();
+  const { changeableStatuses, canChange } = useChangeableStatuses();
   const [changingStatus, setChangingStatus] = useState(false);
   const [csOpen, setCsOpen] = useState(false);
   const [processorOpen, setProcessorOpen] = useState(false);
