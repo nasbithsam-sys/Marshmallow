@@ -25,7 +25,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Plus, Shield, Eye, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from "@/lib/constants";
+import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS, STATUS_CHANGE_ACCESS, type LeadStatus } from "@/lib/constants";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
 import { getDefaultNavAccess } from "@/lib/access";
