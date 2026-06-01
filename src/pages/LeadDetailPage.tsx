@@ -38,7 +38,7 @@ import CopyLeadButton from "@/components/leads/CopyLeadButton";
 import NoteThread from "@/components/leads/NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
-import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
+import { useChangeableStatuses } from "@/hooks/useChangeableStatuses";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import StatusBadge from "@/components/leads/StatusBadge";
 import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
