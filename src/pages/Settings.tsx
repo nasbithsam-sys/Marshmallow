@@ -688,6 +688,7 @@ const Settings = () => {
             { key: "users", label: "Users", icon: Shield },
             { key: "nav_permissions", label: "Tab Permissions", icon: Shield },
             { key: "status_permissions", label: "Status Visibility", icon: Eye },
+            { key: "status_change_access", label: "Status Change Access", icon: ShieldCheck },
             { key: "security", label: "Security", icon: ShieldCheck },
           ] as const
         ).map((tab) => (
