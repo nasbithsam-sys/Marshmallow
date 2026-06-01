@@ -373,6 +373,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         updateData.amount = form.amount;
       }
 
+      if (form.status === "scheduled") {
+        (updateData as Record<string, unknown>).cs_tag = null;
+      }
+
       let updateQuery = supabase.from("leads").update(updateData as never).eq("id", leadId);
 
       if (role === "customer_service") {
