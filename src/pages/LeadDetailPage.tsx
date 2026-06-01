@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCallback } from "react";
 import type { ChangeEvent, ElementType } from "react";
@@ -645,9 +645,14 @@ export default function LeadDetailPage() {
         updatePayload.cs_tag = null;
       }
 
-      const { error } = await supabase.from("leads").update(updatePayload as never).eq("id", leadId);
+      const { error, count } = await supabase
+        .from("leads")
+        .update(updatePayload as never)
+        .eq("id", leadId)
+        .select("id", { count: "exact", head: true });
 
       if (error) throw error;
+      if (count === 0) throw new Error("Update was not applied — you may not have permission to edit this lead");
 
       if (newPhotos.length > 0) {
         await uploadNewPhotos(leadId);
