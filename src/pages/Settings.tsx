@@ -95,6 +95,8 @@ interface StatusChangeAccessRow {
   id: string;
   user_id: string;
   allowed_statuses: string[];
+}
+
 
 const MANAGED_ROLES: AppRole[] = ["customer_service", "processor", "opr"];
 
