@@ -267,14 +267,8 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
     setChangingStatus(false);
 
-    if (error) {
-      toast.error(`Failed to update status: ${error.message}`);
-      return;
-    }
-    if (count === 0) {
-      toast.error(
-        "Status update was blocked — the database policy does not allow this user to edit this lead. Ask an admin to apply the latest migration (fix_leads_update_policy).",
-      );
+    if (error || count === 0) {
+      toast.error("Failed to update status — you may not have permission to edit this lead");
       return;
     }
 
