@@ -259,15 +259,15 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       statusUpdate.cs_tag = null;
     }
 
-    const { error, count } = await supabase
+    const { error, data } = await supabase
       .from("leads")
       .update(statusUpdate as never)
       .eq("id", lead.id)
-      .select("id", { count: "exact", head: true });
+      .select("id");
 
     setChangingStatus(false);
 
-    if (error || count === 0) {
+    if (error || !data || data.length === 0) {
       toast.error("Failed to update status — you may not have permission to edit this lead");
       return;
     }
