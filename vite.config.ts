@@ -17,9 +17,9 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    dedupe: ["react", "react-dom", "react/jsx-runtime", "framer-motion", "leaflet", "react-leaflet"],
+    dedupe: ["react", "react-dom", "react/jsx-runtime", "framer-motion", "leaflet"],
   },
   optimizeDeps: {
-    include: ["react", "react-dom", "react-leaflet", "leaflet"],
+    include: ["react", "react-dom", "leaflet"],
   },
 }));

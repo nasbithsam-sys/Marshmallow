@@ -111,31 +111,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const fetchUserData = async (userId: string) => {
-    const [profileRes, roleRes, permRes] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", userId).single(),
-      supabase.from("user_roles").select("role").eq("user_id", userId).single(),
-      supabase.from("navigation_permissions").select("*").eq("user_id", userId),
-    ]);
+    setProfileLoaded(false);
 
-    if (profileRes.data) {
-      setProfile(profileRes.data as Profile);
-    } else {
+    try {
+      const [profileRes, roleRes, permRes] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
+        supabase.from("navigation_permissions").select("*").eq("user_id", userId),
+      ]);
+
+      if (profileRes.error) {
+        console.error("Failed to load profile", profileRes.error);
+      }
+      if (roleRes.error) {
+        console.error("Failed to load role", roleRes.error);
+      }
+      if (permRes.error) {
+        console.error("Failed to load navigation permissions", permRes.error);
+      }
+
+      setProfile(profileRes.data ? (profileRes.data as Profile) : null);
+      setRole(roleRes.data?.role ? (roleRes.data.role as AppRole) : "no_role");
+      setPermissions(permRes.data ? (permRes.data as NavigationPermission[]) : []);
+    } catch (error) {
+      console.error("Failed to load user data", error);
       setProfile(null);
-    }
-
-    if (roleRes.data) {
-      setRole(roleRes.data.role as AppRole);
-    } else {
       setRole("no_role");
-    }
-
-    if (permRes.data) {
-      setPermissions(permRes.data as NavigationPermission[]);
-    } else {
       setPermissions([]);
+    } finally {
+      setProfileLoaded(true);
     }
-
-    setProfileLoaded(true);
   };
 
   const refetchProfile = async () => {
@@ -164,6 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (nextSession?.user) {
+        setProfileLoaded(false);
         setTimeout(() => {
           void fetchUserData(nextSession.user.id);
         }, 0);
@@ -171,7 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         setRole("no_role");
         setPermissions([]);
-        setProfileLoaded(false);
+        setProfileLoaded(true);
       }
 
       syncVerifiedState(nextSession);
