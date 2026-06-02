@@ -645,14 +645,14 @@ export default function LeadDetailPage() {
         updatePayload.cs_tag = null;
       }
 
-      const { error, count } = await supabase
+      const { error, data } = await supabase
         .from("leads")
         .update(updatePayload as never)
         .eq("id", leadId)
-        .select("id", { count: "exact", head: true });
+        .select("id");
 
       if (error) throw error;
-      if (count === 0) throw new Error("Update was not applied — you may not have permission to edit this lead");
+      if (!data || data.length === 0) throw new Error("Update was not applied — you may not have permission to edit this lead");
 
       if (newPhotos.length > 0) {
         await uploadNewPhotos(leadId);
