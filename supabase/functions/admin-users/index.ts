@@ -233,9 +233,11 @@ Deno.serve(async (req) => {
         adminClient.from("profiles").delete().eq("id", user_id),
       ]);
 
-      const { error } = await adminClient.auth.admin.deleteUser(user_id);
+      // Force hard delete (shouldSoftDelete = false) so the auth user is fully removed
+      const { error } = await adminClient.auth.admin.deleteUser(user_id, false);
       if (error) {
-        return jsonResponse({ error: error.message }, 400);
+        console.error("Delete auth user error:", error.message);
+        return jsonResponse({ error: `Auth delete failed: ${error.message}` }, 400);
       }
 
       return jsonResponse({ success: true });
