@@ -13,6 +13,7 @@ import {
   Clock,
   MapPin,
   Phone,
+  Hash,
   BadgeInfo,
   User,
   Calendar,
@@ -589,6 +590,13 @@ export default function SchedulePage() {
                   <span className="w-fit rounded-xl bg-muted/50 px-2.5 py-1 font-mono text-[10px]">
                     {selectedLead.job_id}
                   </span>
+
+                  {selectedLead.number_name && (
+                    <div className="flex items-center gap-2.5 text-muted-foreground">
+                      <Hash className="h-4 w-4" />
+                      <span className="text-foreground">{selectedLead.number_name}</span>
+                    </div>
+                  )}
 
                   {selectedLead.customer_phone && (
                     <div className="flex items-center gap-2.5 text-muted-foreground">

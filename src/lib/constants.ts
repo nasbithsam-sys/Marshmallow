@@ -141,6 +141,7 @@ export const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "ready_to_schedule",
     "tech_making_quote",
     "scheduled",
+    "urgent_job",
     "job_in_progress",
     "paid",
     "payment_pending",
