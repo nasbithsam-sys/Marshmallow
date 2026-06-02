@@ -13,6 +13,7 @@ import {
   Clock,
   MapPin,
   Phone,
+  Hash,
   BadgeInfo,
   User,
   Calendar,
