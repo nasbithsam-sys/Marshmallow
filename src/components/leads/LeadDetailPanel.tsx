@@ -33,8 +33,7 @@ import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { motion } from "framer-motion";
 import { logActivity } from "@/lib/activity";
-import { useChangeableStatuses } from "@/hooks/useChangeableStatuses";
-import type { LeadStatus as LeadStatusType } from "@/lib/constants";
+import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 
 interface Props {
@@ -95,12 +94,14 @@ const SectionHeader = ({
 const StatusDropdownFiltered = ({
   value,
   onChange,
-  changeable,
+  role,
 }: {
   value: string | undefined;
   onChange: (v: string) => void;
-  changeable: LeadStatusType[];
+  role?: string | null;
 }) => {
+  const changeable = getChangeableStatuses(role);
+
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="h-11 rounded-xl border-border/60 bg-background text-foreground shadow-sm">
@@ -122,7 +123,6 @@ const StatusDropdownFiltered = ({
 
 const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const { user, role } = useAuth();
-  const { changeableStatuses, canChange } = useChangeableStatuses();
   const queryClient = useQueryClient();
 
   const [saved, setSaved] = useState(false);
@@ -233,7 +233,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   };
 
   const update = <K extends keyof Lead>(key: K, value: Lead[K]) => {
-    if (key === "status" && !canChange(value as LeadStatus)) {
+    if (key === "status" && !canChangeStatus(role, value as LeadStatus)) {
       toast.error("You do not have permission to set that status");
       return;
     }
@@ -330,7 +330,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     mutationFn: async () => {
       if (!user) return;
       if (isDuplicate) throw new Error(`Duplicate phone: ${duplicateLeadName}`);
-      if (!form.status || !canChange(form.status as LeadStatus)) {
+      if (!form.status || !canChangeStatus(role, form.status as LeadStatus)) {
         throw new Error("You do not have permission to set that status");
       }
 
@@ -563,7 +563,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                   </div>
                 )}
               </div>
-              <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v as LeadStatus)} changeable={changeableStatuses} />
+              <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v as LeadStatus)} role={role} />
             </div>
           </div>
         </div>

@@ -25,7 +25,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Plus, Shield, Eye, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS, STATUS_CHANGE_ACCESS, type LeadStatus } from "@/lib/constants";
+import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from "@/lib/constants";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
 import { getDefaultNavAccess } from "@/lib/access";
@@ -91,13 +91,6 @@ interface StatusVisibilityRow {
   is_visible: boolean;
 }
 
-interface StatusChangeAccessRow {
-  id: string;
-  user_id: string;
-  allowed_statuses: string[];
-}
-
-
 const MANAGED_ROLES: AppRole[] = ["customer_service", "processor", "opr"];
 
 const Settings = () => {
@@ -109,9 +102,7 @@ const Settings = () => {
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState<AppRole>("customer_service");
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<
-    "users" | "nav_permissions" | "status_permissions" | "status_change_access" | "security"
-  >("users");
+  const [activeTab, setActiveTab] = useState<"users" | "nav_permissions" | "status_permissions" | "security">("users");
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordUserId, setPasswordUserId] = useState("");
   const [passwordUserName, setPasswordUserName] = useState("");
@@ -166,19 +157,6 @@ const Settings = () => {
       }
 
       return data ?? [];
-    },
-  });
-
-  const { data: statusChangeAccess = [] } = useQuery<StatusChangeAccessRow[]>({
-    queryKey: ["settings-status-change-access"],
-    enabled: isAdmin,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_status_change_permissions")
-        .select("id, user_id, allowed_statuses");
-
-      if (error) throw error;
-      return (data ?? []) as StatusChangeAccessRow[];
     },
   });
 
@@ -319,67 +297,6 @@ const Settings = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings-nav-permissions"] });
       toast.success("Navigation permission updated");
-    },
-  });
-
-  const statusChangeAccessByUserId = useMemo(
-    () => new Map(statusChangeAccess.map((row) => [row.user_id, row.allowed_statuses])),
-    [statusChangeAccess],
-  );
-
-  const getStatusChangeAllowed = (userId: string, status: string): boolean => {
-    const override = statusChangeAccessByUserId.get(userId);
-    if (override) return override.includes(status);
-    const targetUser = userById.get(userId);
-    if (!targetUser || targetUser.role === "no_role") return false;
-    return (STATUS_CHANGE_ACCESS[targetUser.role as AppRole] ?? []).includes(status as LeadStatus);
-  };
-
-  const toggleStatusChangeAccess = useMutation({
-    mutationFn: async ({ userId, status, allowed }: { userId: string; status: string; allowed: boolean }) => {
-      const targetUser = getUserById(userId);
-      const existingRow = statusChangeAccess.find((row) => row.user_id === userId);
-      const currentList: string[] = existingRow
-        ? existingRow.allowed_statuses
-        : targetUser && targetUser.role !== "no_role"
-          ? (STATUS_CHANGE_ACCESS[targetUser.role as AppRole] ?? [])
-          : [];
-
-      const next = allowed
-        ? Array.from(new Set([...currentList, status]))
-        : currentList.filter((s) => s !== status);
-
-      if (existingRow) {
-        const { error } = await supabase
-          .from("user_status_change_permissions")
-          .update({ allowed_statuses: next })
-          .eq("id", existingRow.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("user_status_change_permissions")
-          .insert({ user_id: userId, allowed_statuses: next });
-        if (error) throw error;
-      }
-
-      if (user) {
-        await logActivity(user.id, "updated", "user", userId, {
-          target_name: targetUser?.full_name || targetUser?.email || userId,
-          email: targetUser?.email || null,
-          changes: {
-            [`status_change_${status}`]: { before: !allowed, after: allowed },
-          },
-          message: `Admin ${allowed ? "granted" : "revoked"} status-change access to "${STATUS_LABELS[status] || status}" for "${targetUser?.full_name || targetUser?.email || "user"}".`,
-        });
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["settings-status-change-access"] });
-      queryClient.invalidateQueries({ queryKey: ["user-status-change-permissions"] });
-      toast.success("Status change access updated");
-    },
-    onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Failed to update status change access");
     },
   });
 
@@ -688,7 +605,6 @@ const Settings = () => {
             { key: "users", label: "Users", icon: Shield },
             { key: "nav_permissions", label: "Tab Permissions", icon: Shield },
             { key: "status_permissions", label: "Status Visibility", icon: Eye },
-            { key: "status_change_access", label: "Status Change Access", icon: ShieldCheck },
             { key: "security", label: "Security", icon: ShieldCheck },
           ] as const
         ).map((tab) => (
@@ -1061,153 +977,6 @@ const Settings = () => {
           </CardContent>
         </Card>
       )}
-
-      {activeTab === "status_change_access" && (
-        <Card className="overflow-hidden border-border/60 bg-card/95">
-          <CardContent className="p-0">
-            <div className="flex flex-col gap-2 border-b border-border/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-primary/8 bg-primary/6">
-                  <ShieldCheck className="h-3.5 w-3.5 text-primary/70" />
-                </div>
-                <div>
-                  <span className="text-sm font-semibold text-foreground">Status Change Access per User</span>
-                  <p className="text-[12px] text-muted-foreground">
-                    Control which statuses each user is allowed to change leads into. Overrides the role default.
-                  </p>
-                </div>
-              </div>
-              <span className="text-[11px] font-medium text-muted-foreground">
-                {ALL_LEAD_STATUSES.length} workflow states
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <div className="border-b border-border/30 bg-muted/10 px-5 py-4">
-                <div className="mb-3">
-                  <span className="text-sm font-semibold text-foreground">Role Defaults</span>
-                  <p className="text-[12px] text-muted-foreground">
-                    Baseline status-change rights per role. Per-user overrides below replace these.
-                  </p>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border/30 bg-muted/20">
-                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider">
-                          Role
-                        </th>
-                        {ALL_LEAD_STATUSES.map((status) => (
-                          <th
-                            key={`scarole-${status}`}
-                            className="px-2 py-3 text-[9px] font-semibold text-muted-foreground/60 text-center min-w-[80px] uppercase tracking-wider"
-                          >
-                            {STATUS_LABELS[status]}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {MANAGED_ROLES.map((managedRole) => {
-                        const defaults = STATUS_CHANGE_ACCESS[managedRole] ?? [];
-                        return (
-                          <tr
-                            key={managedRole}
-                            className="border-b border-border/20 last:border-b-0 hover:bg-muted/10 transition-colors"
-                          >
-                            <td className="px-4 py-3">
-                              <p className="text-[12px] font-medium">{formatRoleLabel(managedRole)}</p>
-                              <p className="text-[10px] text-muted-foreground/50">Read-only baseline</p>
-                            </td>
-                            {ALL_LEAD_STATUSES.map((status) => {
-                              const allowed = defaults.includes(status as LeadStatus);
-                              return (
-                                <td key={`${managedRole}-sca-${status}`} className="px-2 py-3 text-center">
-                                  <span
-                                    className={cn(
-                                      "inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
-                                      allowed
-                                        ? "bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success))]"
-                                        : "bg-muted text-muted-foreground/40",
-                                    )}
-                                  >
-                                    {allowed ? "✓" : "—"}
-                                  </span>
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/30 bg-muted/20">
-                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground/60 sticky left-0 bg-muted/20 z-10 uppercase tracking-wider">
-                      User
-                    </th>
-                    {ALL_LEAD_STATUSES.map((status) => (
-                      <th
-                        key={`sca-${status}`}
-                        className="px-2 py-3 text-[9px] font-semibold text-muted-foreground/60 text-center min-w-[80px] uppercase tracking-wider"
-                      >
-                        {STATUS_LABELS[status]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {nonAdminUsers.map((targetUser) => (
-                    <tr
-                      key={targetUser.id}
-                      className="border-b border-border/20 last:border-b-0 hover:bg-muted/10 transition-colors"
-                    >
-                      <td className="px-4 py-3 sticky left-0 bg-card z-10">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar className="h-7 w-7">
-                            <AvatarFallback className="bg-muted text-muted-foreground text-[9px] font-bold">
-                              {getInitials(targetUser.full_name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-[12px] font-medium">{targetUser.full_name}</p>
-                            <p className="text-[10px] text-muted-foreground/50 capitalize">
-                              {targetUser.role.replace("_", " ")}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {ALL_LEAD_STATUSES.map((status) => (
-                        <td key={`${targetUser.id}-sca-${status}`} className="px-2 py-3 text-center">
-                          <Switch
-                            checked={getStatusChangeAllowed(targetUser.id, status)}
-                            onCheckedChange={(checked) =>
-                              toggleStatusChangeAccess.mutate({
-                                userId: targetUser.id,
-                                status,
-                                allowed: checked,
-                              })
-                            }
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
 
       {activeTab === "security" && (
         <div className="space-y-6">

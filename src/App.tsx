@@ -6,7 +6,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
-import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/pages/Login";
 import LeadsPage from "@/pages/LeadsPage";
 import LeadDetailPage from "@/pages/LeadDetailPage";
@@ -82,33 +81,31 @@ function PageRoute({ navItem, children }: { navItem: string; children: ReactNode
 }
 
 const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<LoginRoute />} />
-              <Route path="/" element={<ProtectedRoutes />}>
-                <Route index element={<Navigate to="/leads" replace />} />
-                <Route path="leads" element={<PageRoute navItem="leads"><LeadsPage /></PageRoute>} />
-                <Route path="leads/:id" element={<PageRoute navItem="leads"><LeadDetailPage /></PageRoute>} />
-                <Route path="schedule" element={<PageRoute navItem="schedule"><SchedulePage /></PageRoute>} />
-                <Route path="analytics" element={<PageRoute navItem="analytics"><Analytics /></PageRoute>} />
-                <Route path="areas" element={<PageRoute navItem="areas"><AreasPage /></PageRoute>} />
-                <Route path="activity-logs" element={<PageRoute navItem="activity_logs"><ActivityLogs /></PageRoute>} />
-                <Route path="calls" element={<PageRoute navItem="calls"><CallsPage /></PageRoute>} />
-                <Route path="settings" element={<PageRoute navItem="settings"><Settings /></PageRoute>} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginRoute />} />
+            <Route path="/" element={<ProtectedRoutes />}>
+              <Route index element={<Navigate to="/leads" replace />} />
+              <Route path="leads" element={<PageRoute navItem="leads"><LeadsPage /></PageRoute>} />
+              <Route path="leads/:id" element={<PageRoute navItem="leads"><LeadDetailPage /></PageRoute>} />
+              <Route path="schedule" element={<PageRoute navItem="schedule"><SchedulePage /></PageRoute>} />
+              <Route path="analytics" element={<PageRoute navItem="analytics"><Analytics /></PageRoute>} />
+              <Route path="areas" element={<PageRoute navItem="areas"><AreasPage /></PageRoute>} />
+              <Route path="activity-logs" element={<PageRoute navItem="activity_logs"><ActivityLogs /></PageRoute>} />
+              <Route path="calls" element={<PageRoute navItem="calls"><CallsPage /></PageRoute>} />
+              <Route path="settings" element={<PageRoute navItem="settings"><Settings /></PageRoute>} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </TooltipProvider>
+  </QueryClientProvider>
 );
 
 export default App;

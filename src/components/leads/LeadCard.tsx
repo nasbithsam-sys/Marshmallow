@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Lead, LeadStatus, STATUS_LABELS } from "@/lib/constants";
-import { useChangeableStatuses } from "@/hooks/useChangeableStatuses";
+import { Lead, LeadStatus, STATUS_LABELS, getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { CS_TAG_LABELS, type CsTag } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -76,7 +75,6 @@ function formatDate(value?: string | null) {
 function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = false }: LeadCardProps) {
   const navigate = useNavigate();
   const { user, role } = useAuth();
-  const { changeableStatuses, canChange } = useChangeableStatuses();
   const [changingStatus, setChangingStatus] = useState(false);
   const [csOpen, setCsOpen] = useState(false);
   const [processorOpen, setProcessorOpen] = useState(false);
@@ -237,7 +235,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
   const handleStatusChange = async (newStatus: string) => {
     if (isPaid) return;
-    if (!canChange(newStatus as LeadStatus)) {
+    if (!canChangeStatus(role, newStatus as LeadStatus)) {
       toast.error("You do not have permission to set that status");
       return;
     }
@@ -259,16 +257,15 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       statusUpdate.cs_tag = null;
     }
 
-    const { error, data } = await supabase
+    const { error } = await supabase
       .from("leads")
       .update(statusUpdate as never)
-      .eq("id", lead.id)
-      .select("id");
+      .eq("id", lead.id);
 
     setChangingStatus(false);
 
-    if (error || !data || data.length === 0) {
-      toast.error("Failed to update status — you may not have permission to edit this lead");
+    if (error) {
+      toast.error("Failed to update status");
       return;
     }
 
@@ -688,7 +685,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                   <SelectValue placeholder="Change Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {changeableStatuses.map((s) => (
+                  {getChangeableStatuses(role).map((s) => (
                     <SelectItem key={s} value={s} className="text-[12px]">
                       {STATUS_LABELS[s]}
                     </SelectItem>

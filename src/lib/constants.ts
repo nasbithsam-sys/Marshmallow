@@ -90,6 +90,7 @@ export const ALL_NAV_ITEMS = ["leads", "calls", "analytics", "settings", "activi
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
+  urgent_job: 0,
   need_tech: 2,
   cancelled: 99,
 };
@@ -103,26 +104,19 @@ export function compareLeadDisplayPriority(
   a: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
   b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
 ) {
-  // CS-tagged leads (not yet Scheduled) pin to the very top — rank -1
-  // so they appear above urgent_job (rank 0) and everything else.
-  const isCsPinnedA = Boolean(a.cs_tag) && a.status !== "scheduled";
-  const isCsPinnedB = Boolean(b.cs_tag) && b.status !== "scheduled";
+  // CS-tagged leads (except already Scheduled) pin to top, just below urgent
+  const aPinned = Boolean(a.cs_tag) && a.status !== "scheduled" ? 1 : 10;
+  const bPinned = Boolean(b.cs_tag) && b.status !== "scheduled" ? 1 : 10;
 
-  const getBaseRank = (lead: typeof a, isCsPinned: boolean): number => {
-    if (isCsPinned) return -1;
-    if (lead.status === "urgent_job") return 0;
-    return LEAD_PRIORITY_RANK[lead.status] ?? 10;
-  };
-
-  const rankA = getBaseRank(a, isCsPinnedA);
-  const rankB = getBaseRank(b, isCsPinnedB);
+  const rankA = LEAD_PRIORITY_RANK[a.status] ?? aPinned;
+  const rankB = LEAD_PRIORITY_RANK[b.status] ?? bPinned;
 
   if (rankA !== rankB) return rankA - rankB;
 
   return getLeadCreatedAtTime(b) - getLeadCreatedAtTime(a);
 }
 
-export const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
+const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
   admin: ALL_LEAD_STATUSES,
   customer_service: [
     "need_tech",
@@ -141,7 +135,6 @@ export const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "ready_to_schedule",
     "tech_making_quote",
     "scheduled",
-    "urgent_job",
     "job_in_progress",
     "paid",
     "payment_pending",

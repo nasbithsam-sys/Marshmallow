@@ -1,3 +1,0 @@
-# Account Boosters CRM
-
-> A role-based CRM for managing leads, scheduling, analytics, and team operations.

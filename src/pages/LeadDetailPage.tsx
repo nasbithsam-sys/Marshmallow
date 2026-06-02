@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCallback } from "react";
 import type { ChangeEvent, ElementType } from "react";
@@ -38,7 +38,7 @@ import CopyLeadButton from "@/components/leads/CopyLeadButton";
 import NoteThread from "@/components/leads/NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
-import { useChangeableStatuses } from "@/hooks/useChangeableStatuses";
+import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import StatusBadge from "@/components/leads/StatusBadge";
 import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
@@ -108,7 +108,6 @@ export default function LeadDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, role } = useAuth();
-  const { changeableStatuses, canChange } = useChangeableStatuses();
 
   const isNew = id === "new";
   const isCS = role === "customer_service";
@@ -533,7 +532,7 @@ export default function LeadDetailPage() {
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
       return;
     }
-    if (!canChange(form.status)) {
+    if (!canChangeStatus(role, form.status)) {
       toast.error("You do not have permission to set that status");
       return;
     }
@@ -645,14 +644,9 @@ export default function LeadDetailPage() {
         updatePayload.cs_tag = null;
       }
 
-      const { error, data } = await supabase
-        .from("leads")
-        .update(updatePayload as never)
-        .eq("id", leadId)
-        .select("id");
+      const { error } = await supabase.from("leads").update(updatePayload as never).eq("id", leadId);
 
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error("Update was not applied — you may not have permission to edit this lead");
 
       if (newPhotos.length > 0) {
         await uploadNewPhotos(leadId);
@@ -1212,7 +1206,7 @@ export default function LeadDetailPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {changeableStatuses.map((key) => {
+                    {getChangeableStatuses(role).map((key) => {
                       const cfg = LEAD_STATUS_CONFIG[key];
                       return cfg ? (
                         <SelectItem key={key} value={key}>
