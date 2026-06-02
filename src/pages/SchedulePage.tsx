@@ -591,6 +591,13 @@ export default function SchedulePage() {
                     {selectedLead.job_id}
                   </span>
 
+                  {selectedLead.number_name && (
+                    <div className="flex items-center gap-2.5 text-muted-foreground">
+                      <Hash className="h-4 w-4" />
+                      <span className="text-foreground">{selectedLead.number_name}</span>
+                    </div>
+                  )}
+
                   {selectedLead.customer_phone && (
                     <div className="flex items-center gap-2.5 text-muted-foreground">
                       <Phone className="h-4 w-4" />
