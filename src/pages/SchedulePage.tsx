@@ -117,7 +117,7 @@ export default function SchedulePage() {
       supabase
         .from("leads")
         .select(
-          "id, job_id, customer_name, customer_phone, address, service_type, status, scheduled_date, scheduled_time_start, scheduled_time_end, assigned_cs, created_by, tech_name, tech_number",
+          "id, job_id, customer_name, customer_phone, address, service_type, status, scheduled_date, scheduled_time_start, scheduled_time_end, assigned_cs, created_by, tech_name, tech_number, number_name",
         )
         .not("scheduled_date", "is", null)
         .gte("scheduled_date", startStr)
@@ -608,6 +608,15 @@ export default function SchedulePage() {
                     <div className="flex items-center gap-2.5 text-muted-foreground">
                       <Wrench className="h-4 w-4" />
                       <span className="font-medium text-foreground">{selectedLead.service_type}</span>
+                    </div>
+                  )}
+
+                  {(selectedLead as { number_name?: string | null }).number_name && (
+                    <div className="flex items-center gap-2.5 text-muted-foreground">
+                      <BadgeInfo className="h-4 w-4" />
+                      <span className="text-foreground">
+                        {(selectedLead as { number_name: string }).number_name}
+                      </span>
                     </div>
                   )}
 
