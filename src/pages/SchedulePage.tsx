@@ -58,6 +58,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [viewMode, setViewMode] = useState<"week" | "day">("day");
+  const [pov, setPov] = useState<"timeline" | "table">("timeline");
   const [selectedDay, setSelectedDay] = useState(() => new Date());
 
   const [fromDate, setFromDate] = useState("");
@@ -354,6 +355,29 @@ export default function SchedulePage() {
               </button>
             </div>
 
+            <div className="flex items-center bg-muted/[0.35] rounded-2xl p-1.5 border border-border/40 shadow-sm">
+              <button
+                onClick={() => setPov("timeline")}
+                className={`px-4 py-2 text-xs rounded-xl font-medium transition-all duration-200 ${
+                  pov === "timeline"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Timeline
+              </button>
+              <button
+                onClick={() => setPov("table")}
+                className={`px-4 py-2 text-xs rounded-xl font-medium transition-all duration-200 ${
+                  pov === "table"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Table
+              </button>
+            </div>
+
             <Button
               variant="outline"
               size="sm"
@@ -470,100 +494,170 @@ export default function SchedulePage() {
               </div>
             </div>
 
-            <Card className="overflow-hidden rounded-[28px] border-border/50 shadow-[0_18px_46px_-34px_rgba(0,0,0,0.38)] transition-all duration-300 hover:shadow-[0_22px_56px_-34px_rgba(0,0,0,0.45)]">
-              <CardContent className="overflow-x-auto p-0">
-                <div className="min-w-[1380px] xl:min-w-[1800px]">
-                  <div className="flex border-b border-border/30 bg-gradient-to-r from-muted/[0.25] via-muted/[0.12] to-transparent">
-                    <div className="w-[120px] shrink-0 border-r border-border/20 p-4">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/60">
-                        GMT {new Date().getTimezoneOffset() / -60 > 0 ? "+" : ""}
-                        {new Date().getTimezoneOffset() / -60}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-1">
-                      {hours.map((h) => (
-                        <div key={h} className="flex-1 border-r border-border/10 px-1 py-4 text-center last:border-r-0">
-                          <span className="text-[10px] font-medium text-muted-foreground/60 tabular-nums">
-                            {h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
+            {pov === "table" ? (
+              <Card className="overflow-hidden rounded-[28px] border-border/50 shadow-[0_18px_46px_-34px_rgba(0,0,0,0.38)]">
+                <CardContent className="overflow-x-auto p-0">
                   {loading ? (
                     <div className="p-12 text-center text-sm text-muted-foreground/55">
                       <div className="mx-auto mb-3 h-7 w-7 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin" />
                       Loading schedule...
                     </div>
-                  ) : rows.length === 0 ? (
+                  ) : dayLeads.length === 0 ? (
                     <div className="p-14 text-center text-sm text-muted-foreground/55">
                       <CalendarDays className="mx-auto mb-3 h-8 w-8 text-muted-foreground/20" />
                       No scheduled jobs for this day
                     </div>
                   ) : (
-                    rows.map((row, rowIndex) => (
-                      <div
-                        key={rowIndex}
-                        className="flex border-b border-border/15 last:border-b-0 transition-colors duration-150 hover:bg-muted/[0.04]"
-                      >
-                        <div className="w-[120px] shrink-0 border-r border-border/15 p-3 flex items-center justify-center">
-                          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/45">
-                            Row {rowIndex + 1}
-                          </span>
-                        </div>
-
-                        <div className="relative h-[74px] flex-1">
-                          <div className="absolute inset-0 flex">
-                            {hours.map((h) => (
-                              <div key={h} className="flex-1 border-r border-border/8 last:border-r-0" />
-                            ))}
-                          </div>
-
-                          {row.map((lead) => {
-                            const pos = getLeadPosition(lead);
-                            if (!pos) return null;
-
+                    <table className="w-full min-w-[1000px] text-sm">
+                      <thead className="bg-gradient-to-r from-muted/[0.25] via-muted/[0.12] to-transparent">
+                        <tr className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60">
+                          <th className="px-4 py-3 text-left font-semibold">Time</th>
+                          <th className="px-4 py-3 text-left font-semibold">Customer</th>
+                          <th className="px-4 py-3 text-left font-semibold">Phone</th>
+                          <th className="px-4 py-3 text-left font-semibold">Service</th>
+                          <th className="px-4 py-3 text-left font-semibold">Number / Name</th>
+                          <th className="px-4 py-3 text-left font-semibold">Tech</th>
+                          <th className="px-4 py-3 text-left font-semibold">Status</th>
+                          <th className="px-4 py-3 text-left font-semibold">Assigned</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...dayLeads]
+                          .sort((a, b) =>
+                            (a.scheduled_time_start || "").localeCompare(b.scheduled_time_start || ""),
+                          )
+                          .map((lead) => {
                             const empId = lead.assigned_cs || lead.created_by;
                             const empName = profiles[empId] || "Unknown";
-                            const empColorIdx = Object.keys(profiles).indexOf(empId);
-                            const colorClass = EMPLOYEE_COLORS[Math.abs(empColorIdx) % EMPLOYEE_COLORS.length];
-                            const leadBlockColor = getBlockColor(lead.status);
-
                             return (
-                              <div
+                              <tr
                                 key={lead.id}
-                                className={`absolute bottom-2 top-2 flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 text-white shadow-[0_14px_30px_-18px_rgba(0,0,0,0.45)] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-18px_rgba(0,0,0,0.48)] ${leadBlockColor}`}
-                                style={{ left: pos.left, width: pos.width }}
+                                className="cursor-pointer border-b border-border/15 last:border-b-0 transition-colors hover:bg-muted/[0.06]"
                                 onClick={() => setSelectedLead(lead)}
                               >
-                                <Wrench className="h-3.5 w-3.5 shrink-0 opacity-85" />
-                                <div className="min-w-0">
-                                  <span className="block truncate text-[11px] font-semibold tracking-[-0.01em]">
-                                    {lead.customer_name}
-                                  </span>
-                                  {(lead.tech_name || lead.tech_number) && (
-                                    <span className="block truncate text-[9px] text-white/85">
-                                      {[lead.tech_name, lead.tech_number].filter(Boolean).join(" - ")}
-                                    </span>
+                                <td className="whitespace-nowrap px-4 py-3 font-medium tabular-nums text-foreground">
+                                  {formatTime(lead.scheduled_time_start)}
+                                  {lead.scheduled_time_end && (
+                                    <span className="text-muted-foreground"> – {formatTime(lead.scheduled_time_end)}</span>
                                   )}
-                                </div>
-                                <Avatar className="ml-auto h-6 w-6 shrink-0 ring-1 ring-white/20">
-                                  <AvatarFallback className={`text-[8px] font-bold ${colorClass}`}>
-                                    {getInitials(empName)}
-                                  </AvatarFallback>
-                                </Avatar>
-                              </div>
+                                </td>
+                                <td className="px-4 py-3 font-medium text-foreground">{lead.customer_name}</td>
+                                <td className="px-4 py-3 text-muted-foreground">{lead.customer_phone || "—"}</td>
+                                <td className="px-4 py-3 text-muted-foreground">{lead.service_type || "—"}</td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {(lead as { number_name?: string | null }).number_name || "—"}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {[lead.tech_name, lead.tech_number].filter(Boolean).join(" - ") || "—"}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <StatusBadge status={lead.status} size="sm" />
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground">{empName}</td>
+                              </tr>
                             );
                           })}
-                        </div>
-                      </div>
-                    ))
+                      </tbody>
+                    </table>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="overflow-hidden rounded-[28px] border-border/50 shadow-[0_18px_46px_-34px_rgba(0,0,0,0.38)] transition-all duration-300 hover:shadow-[0_22px_56px_-34px_rgba(0,0,0,0.45)]">
+                <CardContent className="overflow-x-auto p-0">
+                  <div className="min-w-[1380px] xl:min-w-[1800px]">
+                    <div className="flex border-b border-border/30 bg-gradient-to-r from-muted/[0.25] via-muted/[0.12] to-transparent">
+                      <div className="w-[120px] shrink-0 border-r border-border/20 p-4">
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/60">
+                          GMT {new Date().getTimezoneOffset() / -60 > 0 ? "+" : ""}
+                          {new Date().getTimezoneOffset() / -60}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-1">
+                        {hours.map((h) => (
+                          <div key={h} className="flex-1 border-r border-border/10 px-1 py-4 text-center last:border-r-0">
+                            <span className="text-[10px] font-medium text-muted-foreground/60 tabular-nums">
+                              {h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {loading ? (
+                      <div className="p-12 text-center text-sm text-muted-foreground/55">
+                        <div className="mx-auto mb-3 h-7 w-7 rounded-full border-2 border-muted-foreground/20 border-t-primary animate-spin" />
+                        Loading schedule...
+                      </div>
+                    ) : rows.length === 0 ? (
+                      <div className="p-14 text-center text-sm text-muted-foreground/55">
+                        <CalendarDays className="mx-auto mb-3 h-8 w-8 text-muted-foreground/20" />
+                        No scheduled jobs for this day
+                      </div>
+                    ) : (
+                      rows.map((row, rowIndex) => (
+                        <div
+                          key={rowIndex}
+                          className="flex border-b border-border/15 last:border-b-0 transition-colors duration-150 hover:bg-muted/[0.04]"
+                        >
+                          <div className="w-[120px] shrink-0 border-r border-border/15 p-3 flex items-center justify-center">
+                            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/45">
+                              Row {rowIndex + 1}
+                            </span>
+                          </div>
+
+                          <div className="relative h-[74px] flex-1">
+                            <div className="absolute inset-0 flex">
+                              {hours.map((h) => (
+                                <div key={h} className="flex-1 border-r border-border/8 last:border-r-0" />
+                              ))}
+                            </div>
+
+                            {row.map((lead) => {
+                              const pos = getLeadPosition(lead);
+                              if (!pos) return null;
+
+                              const empId = lead.assigned_cs || lead.created_by;
+                              const empName = profiles[empId] || "Unknown";
+                              const empColorIdx = Object.keys(profiles).indexOf(empId);
+                              const colorClass = EMPLOYEE_COLORS[Math.abs(empColorIdx) % EMPLOYEE_COLORS.length];
+                              const leadBlockColor = getBlockColor(lead.status);
+
+                              return (
+                                <div
+                                  key={lead.id}
+                                  className={`absolute bottom-2 top-2 flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2 text-white shadow-[0_14px_30px_-18px_rgba(0,0,0,0.45)] transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-18px_rgba(0,0,0,0.48)] ${leadBlockColor}`}
+                                  style={{ left: pos.left, width: pos.width }}
+                                  onClick={() => setSelectedLead(lead)}
+                                >
+                                  <Wrench className="h-3.5 w-3.5 shrink-0 opacity-85" />
+                                  <div className="min-w-0">
+                                    <span className="block truncate text-[11px] font-semibold tracking-[-0.01em]">
+                                      {lead.customer_name}
+                                    </span>
+                                    {(lead.tech_name || lead.tech_number) && (
+                                      <span className="block truncate text-[9px] text-white/85">
+                                        {[lead.tech_name, lead.tech_number].filter(Boolean).join(" - ")}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <Avatar className="ml-auto h-6 w-6 shrink-0 ring-1 ring-white/20">
+                                    <AvatarFallback className={`text-[8px] font-bold ${colorClass}`}>
+                                      {getInitials(empName)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </motion.div>
         );
       })}
