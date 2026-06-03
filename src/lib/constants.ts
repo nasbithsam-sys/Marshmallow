@@ -90,7 +90,7 @@ export const ALL_NAV_ITEMS = ["leads", "calls", "analytics", "settings", "activi
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
-  urgent_job: 0,
+  urgent_job: 1,
   need_tech: 2,
   cancelled: 99,
 };
@@ -104,12 +104,12 @@ export function compareLeadDisplayPriority(
   a: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
   b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
 ) {
-  // CS-tagged leads (except already Scheduled) pin to top, just below urgent
-  const aPinned = Boolean(a.cs_tag) && a.status !== "scheduled" ? 1 : 10;
-  const bPinned = Boolean(b.cs_tag) && b.status !== "scheduled" ? 1 : 10;
+  // Tagged leads (except already Scheduled) pin above urgent
+  const aTagged = Boolean(a.cs_tag) && a.status !== "scheduled";
+  const bTagged = Boolean(b.cs_tag) && b.status !== "scheduled";
 
-  const rankA = LEAD_PRIORITY_RANK[a.status] ?? aPinned;
-  const rankB = LEAD_PRIORITY_RANK[b.status] ?? bPinned;
+  const rankA = aTagged ? 0 : (LEAD_PRIORITY_RANK[a.status] ?? 10);
+  const rankB = bTagged ? 0 : (LEAD_PRIORITY_RANK[b.status] ?? 10);
 
   if (rankA !== rankB) return rankA - rankB;
 
@@ -135,6 +135,7 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "ready_to_schedule",
     "tech_making_quote",
     "scheduled",
+    "urgent_job",
     "job_in_progress",
     "paid",
     "payment_pending",
