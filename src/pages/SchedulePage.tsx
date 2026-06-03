@@ -355,6 +355,29 @@ export default function SchedulePage() {
               </button>
             </div>
 
+            <div className="flex items-center bg-muted/[0.35] rounded-2xl p-1.5 border border-border/40 shadow-sm">
+              <button
+                onClick={() => setPov("timeline")}
+                className={`px-4 py-2 text-xs rounded-xl font-medium transition-all duration-200 ${
+                  pov === "timeline"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Timeline
+              </button>
+              <button
+                onClick={() => setPov("table")}
+                className={`px-4 py-2 text-xs rounded-xl font-medium transition-all duration-200 ${
+                  pov === "table"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Table
+              </button>
+            </div>
+
             <Button
               variant="outline"
               size="sm"
