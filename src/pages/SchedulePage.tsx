@@ -58,6 +58,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [viewMode, setViewMode] = useState<"week" | "day">("day");
+  const [pov, setPov] = useState<"timeline" | "table">("timeline");
   const [selectedDay, setSelectedDay] = useState(() => new Date());
 
   const [fromDate, setFromDate] = useState("");
