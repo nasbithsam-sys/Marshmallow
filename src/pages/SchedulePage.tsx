@@ -611,6 +611,15 @@ export default function SchedulePage() {
                     </div>
                   )}
 
+                  {(selectedLead as { number_name?: string | null }).number_name && (
+                    <div className="flex items-center gap-2.5 text-muted-foreground">
+                      <BadgeInfo className="h-4 w-4" />
+                      <span className="text-foreground">
+                        {(selectedLead as { number_name: string }).number_name}
+                      </span>
+                    </div>
+                  )}
+
                   {(selectedLead.tech_name || selectedLead.tech_number) && (
                     <div className="flex items-center gap-2.5 text-muted-foreground">
                       <BadgeInfo className="h-4 w-4" />
