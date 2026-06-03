@@ -117,7 +117,7 @@ export default function SchedulePage() {
       supabase
         .from("leads")
         .select(
-          "id, job_id, customer_name, customer_phone, address, service_type, status, scheduled_date, scheduled_time_start, scheduled_time_end, assigned_cs, created_by, tech_name, tech_number",
+          "id, job_id, customer_name, customer_phone, address, service_type, status, scheduled_date, scheduled_time_start, scheduled_time_end, assigned_cs, created_by, tech_name, tech_number, number_name",
         )
         .not("scheduled_date", "is", null)
         .gte("scheduled_date", startStr)
