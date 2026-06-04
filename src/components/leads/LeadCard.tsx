@@ -253,9 +253,8 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       updated_at: new Date().toISOString(),
       last_edited_at: new Date().toISOString(),
     };
-    if (newStatus === "scheduled") {
-      statusUpdate.cs_tag = null;
-    }
+    // Clear tag on any status change and unpin the lead
+    statusUpdate.cs_tag = null;
 
     const { error } = await supabase
       .from("leads")
