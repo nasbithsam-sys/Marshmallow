@@ -105,8 +105,8 @@ export function compareLeadDisplayPriority(
   b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
 ) {
   // Tagged leads (except already Scheduled) pin above urgent
-  const aTagged = Boolean(a.cs_tag) && a.status !== "scheduled";
-  const bTagged = Boolean(b.cs_tag) && b.status !== "scheduled";
+  const aTagged = Boolean(a.cs_tag);
+  const bTagged = Boolean(b.cs_tag);
 
   const rankA = aTagged ? 0 : (LEAD_PRIORITY_RANK[a.status] ?? 10);
   const rankB = bTagged ? 0 : (LEAD_PRIORITY_RANK[b.status] ?? 10);
