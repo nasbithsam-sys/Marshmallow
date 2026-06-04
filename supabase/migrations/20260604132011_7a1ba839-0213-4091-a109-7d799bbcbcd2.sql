@@ -1,0 +1,1 @@
+UPDATE public.leads SET cs_tag = NULL WHERE cs_tag IS NOT NULL AND status NOT IN ('waiting_complete_details','urgent_job','quote_sent_waiting','post_visit_quote_sent_waiting','activate_customer','ready_to_schedule','quote_sent_need_follow_up','needs_quote','tech_making_quote','waiting_customer_response','need_tech','needs_reschedule');
