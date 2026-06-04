@@ -100,13 +100,30 @@ function getLeadCreatedAtTime(lead: Pick<Lead, "created_at">) {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
+const TAG_ELIGIBLE_STATUSES: Partial<Record<LeadStatus, true>> = {
+  waiting_complete_details: true,
+  urgent_job: true,
+  quote_sent_waiting: true,
+  post_visit_quote_sent_waiting: true,
+  activate_customer: true,
+  ready_to_schedule: true,
+  quote_sent_need_follow_up: true,
+  needs_quote: true,
+  tech_making_quote: true,
+  waiting_customer_response: true,
+  need_tech: true,
+  needs_reschedule: true,
+};
+
 export function compareLeadDisplayPriority(
   a: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
   b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
 ) {
-  // Tagged leads (except already Scheduled) pin above urgent
-  const aTagged = Boolean(a.cs_tag);
-  const bTagged = Boolean(b.cs_tag);
+  // Tagged leads pin above urgent — but only while still in an active/pre-scheduled status.
+  // Once status moves to scheduled / job_in_progress / job_done / paid / cancelled etc.,
+  // any leftover cs_tag is ignored so urgent leads stay on top.
+  const aTagged = Boolean(a.cs_tag) && TAG_ELIGIBLE_STATUSES[a.status] === true;
+  const bTagged = Boolean(b.cs_tag) && TAG_ELIGIBLE_STATUSES[b.status] === true;
 
   const rankA = aTagged ? 0 : (LEAD_PRIORITY_RANK[a.status] ?? 10);
   const rankB = bTagged ? 0 : (LEAD_PRIORITY_RANK[b.status] ?? 10);
