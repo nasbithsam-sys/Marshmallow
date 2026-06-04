@@ -373,7 +373,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         updateData.amount = form.amount;
       }
 
-      if (form.status === "scheduled") {
+      if (form.status !== lead?.status) {
         (updateData as Record<string, unknown>).cs_tag = null;
       }
 
