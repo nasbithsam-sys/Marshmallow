@@ -640,7 +640,7 @@ export default function LeadDetailPage() {
       if (form.status === "paid" && form.amount) {
         updatePayload.amount = parseFloat(form.amount);
       }
-      if (form.status === "scheduled") {
+      if (previousStatus !== form.status) {
         updatePayload.cs_tag = null;
       }
 
