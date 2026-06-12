@@ -87,32 +87,73 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [resolvedPaymentUrl, setResolvedPaymentUrl] = useState<string | null>(null);
   const [resolvedPaymentOriginal, setResolvedPaymentOriginal] = useState<string | null>(null);
-  const [noteCounts, setNoteCounts] = useState<{ general: number; cs: number; processor: number }>({
-    general: 0,
-    cs: 0,
-    processor: 0,
+  const [hasNewNotes, setHasNewNotes] = useState<{ general: boolean; cs: boolean; processor: boolean }>({
+    general: false,
+    cs: false,
+    processor: false,
   });
   const reduceMotion = useReducedMotion();
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadCounts = async () => {
-      const { data } = await supabase
-        .from("lead_notes")
-        .select("note_type")
-        .eq("lead_id", lead.id);
-      if (cancelled || !data) return;
-      const counts = { general: 0, cs: 0, processor: 0 };
-      for (const row of data as { note_type: string }[]) {
-        if (row.note_type in counts) counts[row.note_type as keyof typeof counts] += 1;
+  // Establish a global baseline so existing notes never show the "new" dot —
+  // only notes created after the feature was first seen by this browser.
+  const getBaseline = (): string => {
+    try {
+      const existing = localStorage.getItem("lead_notes_baseline");
+      if (existing) return existing;
+      const now = new Date().toISOString();
+      localStorage.setItem("lead_notes_baseline", now);
+      return now;
+    } catch {
+      return new Date().toISOString();
+    }
+  };
+
+  const getSeenKey = (type: "general" | "cs" | "processor") =>
+    `lead_notes_seen_${lead.id}_${type}`;
+
+  const getEffectiveSeen = (type: "general" | "cs" | "processor"): string => {
+    const baseline = getBaseline();
+    try {
+      const local = localStorage.getItem(getSeenKey(type));
+      if (local && local > baseline) return local;
+    } catch {
+      /* ignore */
+    }
+    return baseline;
+  };
+
+  const refreshNewNotes = async () => {
+    const { data } = await supabase
+      .from("lead_notes")
+      .select("note_type, created_at")
+      .eq("lead_id", lead.id);
+    if (!data) return;
+    const latest: Record<string, string> = {};
+    for (const row of data as { note_type: string; created_at: string }[]) {
+      if (!latest[row.note_type] || row.created_at > latest[row.note_type]) {
+        latest[row.note_type] = row.created_at;
       }
-      setNoteCounts(counts);
-    };
-    void loadCounts();
-    return () => {
-      cancelled = true;
-    };
+    }
+    setHasNewNotes({
+      general: !!latest.general && latest.general > getEffectiveSeen("general"),
+      cs: !!latest.cs && latest.cs > getEffectiveSeen("cs"),
+      processor: !!latest.processor && latest.processor > getEffectiveSeen("processor"),
+    });
+  };
+
+  useEffect(() => {
+    void refreshNewNotes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.id]);
+
+  const markSeen = (type: "general" | "cs" | "processor") => {
+    try {
+      localStorage.setItem(getSeenKey(type), new Date().toISOString());
+    } catch {
+      /* ignore */
+    }
+    setHasNewNotes((prev) => ({ ...prev, [type]: false }));
+  };
 
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
