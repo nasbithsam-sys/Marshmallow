@@ -22,9 +22,10 @@ interface Props {
   noteType: "cs" | "processor" | "general";
   label: string;
   profiles?: Record<string, string>;
+  onNotesChanged?: () => void;
 }
 
-export default function NoteThread({ leadId, noteType, label, profiles = {} }: Props) {
+export default function NoteThread({ leadId, noteType, label, profiles = {}, onNotesChanged }: Props) {
   const { user, role } = useAuth();
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [resolvedProfiles, setResolvedProfiles] = useState<Record<string, string>>({});
@@ -119,6 +120,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
     } else {
       setNewNote("");
       await fetchNotes();
+      onNotesChanged?.();
     }
     setSending(false);
   };
@@ -140,6 +142,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {} }: P
       setEditingId(null);
       setEditContent("");
       await fetchNotes();
+      onNotesChanged?.();
     }
   };
 

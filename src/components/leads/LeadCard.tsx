@@ -54,6 +54,8 @@ interface LeadCardProps {
   disablePhotoPreview?: boolean;
 }
 
+const NOTE_INDICATOR_START_AT = new Date("2026-06-12T12:01:26.000Z").getTime();
+
 function formatDateTime(value?: string | null) {
   if (!value) return null;
   try {
@@ -82,77 +84,71 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [photoCount, setPhotoCount] = useState(0);
   const [photoOriginals, setPhotoOriginals] = useState<string[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [resolvedPaymentUrl, setResolvedPaymentUrl] = useState<string | null>(null);
   const [resolvedPaymentOriginal, setResolvedPaymentOriginal] = useState<string | null>(null);
-  const [hasNewNotes, setHasNewNotes] = useState<{ general: boolean; cs: boolean; processor: boolean }>({
+  const [hasNotes, setHasNotes] = useState<{ general: boolean; cs: boolean; processor: boolean }>({
     general: false,
     cs: false,
     processor: false,
   });
   const reduceMotion = useReducedMotion();
 
-  // Establish a global baseline so existing notes never show the "new" dot —
-  // only notes created after the feature was first seen by this browser.
-  const getBaseline = (): string => {
-    try {
-      const existing = localStorage.getItem("lead_notes_baseline");
-      if (existing) return existing;
-      const now = new Date().toISOString();
-      localStorage.setItem("lead_notes_baseline", now);
-      return now;
-    } catch {
-      return new Date().toISOString();
-    }
+  const shouldShowPersistentNoteDots = () => {
+    const createdAt = new Date(lead.created_at).getTime();
+    return !Number.isNaN(createdAt) && createdAt >= NOTE_INDICATOR_START_AT;
   };
 
-  const getSeenKey = (type: "general" | "cs" | "processor") =>
-    `lead_notes_seen_${lead.id}_${type}`;
-
-  const getEffectiveSeen = (type: "general" | "cs" | "processor"): string => {
-    const baseline = getBaseline();
-    try {
-      const local = localStorage.getItem(getSeenKey(type));
-      if (local && local > baseline) return local;
-    } catch {
-      /* ignore */
+  const refreshNotePresence = async () => {
+    if (!shouldShowPersistentNoteDots()) {
+      setHasNotes({ general: false, cs: false, processor: false });
+      return;
     }
-    return baseline;
-  };
 
-  const refreshNewNotes = async () => {
     const { data } = await supabase
       .from("lead_notes")
-      .select("note_type, created_at")
+      .select("note_type")
       .eq("lead_id", lead.id);
     if (!data) return;
-    const latest: Record<string, string> = {};
-    for (const row of data as { note_type: string; created_at: string }[]) {
-      if (!latest[row.note_type] || row.created_at > latest[row.note_type]) {
-        latest[row.note_type] = row.created_at;
-      }
-    }
-    setHasNewNotes({
-      general: !!latest.general && latest.general > getEffectiveSeen("general"),
-      cs: !!latest.cs && latest.cs > getEffectiveSeen("cs"),
-      processor: !!latest.processor && latest.processor > getEffectiveSeen("processor"),
+
+    const present = new Set((data as { note_type: string }[]).map((row) => row.note_type));
+    setHasNotes({
+      general: present.has("general"),
+      cs: present.has("cs"),
+      processor: present.has("processor"),
     });
   };
 
   useEffect(() => {
-    void refreshNewNotes();
+    void refreshNotePresence();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.id]);
+  }, [lead.id, lead.created_at]);
 
-  const markSeen = (type: "general" | "cs" | "processor") => {
-    try {
-      localStorage.setItem(getSeenKey(type), new Date().toISOString());
-    } catch {
-      /* ignore */
+  const loadPhotoCount = async () => {
+    if (photoUrls) {
+      setPhotoCount(photoUrls.length);
+      return;
     }
-    setHasNewNotes((prev) => ({ ...prev, [type]: false }));
+
+    const { count } = await supabase
+      .from("lead_photos")
+      .select("id", { count: "exact", head: true })
+      .eq("lead_id", lead.id);
+
+    setPhotoCount(count ?? 0);
+  };
+
+  useEffect(() => {
+    void loadPhotoCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id, photoUrls]);
+
+  const refreshCardMeta = () => {
+    void refreshNotePresence();
+    void loadPhotoCount();
   };
 
   const isAdmin = role === "admin";
@@ -160,6 +156,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const isProcessor = role === "processor";
   const isPaid = lead.status === "paid";
   const isUrgent = lead.status === "urgent_job";
+  const pictureLabel = photoCount === 1 ? "Picture attached" : "Pictures attached";
 
   const detailRows = [
     {
@@ -211,6 +208,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
     if (photoUrls) {
       setPhotos(photoUrls);
+      setPhotoCount(photoUrls.length);
       return;
     }
 
@@ -224,6 +222,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       if (!data || cancelled) return;
 
       const paths = data.map((photo: { photo_url: string }) => photo.photo_url);
+      setPhotoCount(paths.length);
       const { getSignedUrls } = await import("@/lib/storage");
       // Tiny thumbnails for card preview — originals only loaded on lightbox open.
       const urls = await getSignedUrls(paths, { width: 200, height: 200, resize: "cover", quality: 50 });
@@ -521,7 +520,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               <span className="font-medium">{label}</span>
               {hasNotes && (
                 <span className={`text-[10px] font-semibold ${tone === "cs" ? "text-amber-600 dark:text-amber-300" : tone === "processor" ? "text-sky-600 dark:text-sky-300" : "text-primary"}`}>
-                  • new
+                  has notes
                 </span>
               )}
             </span>
@@ -540,7 +539,13 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               transition={{ duration: 0.12 }}
               className="pt-2"
             >
-              <NoteThread leadId={lead.id} noteType={noteType} label={label} profiles={profiles} />
+              <NoteThread
+                leadId={lead.id}
+                noteType={noteType}
+                label={label}
+                profiles={profiles}
+                onNotesChanged={refreshCardMeta}
+              />
             </motion.div>
           </CollapsibleContent>
         )}
@@ -710,41 +715,42 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
         <div className="space-y-2 px-4 pt-3">
           {renderCollapsible({
             open: generalOpen,
-            setOpen: (v) => {
-              setGeneralOpen(v);
-              if (v) markSeen("general");
-            },
+            setOpen: setGeneralOpen,
             label: "Notes",
             noteType: "general",
             tone: "default",
-            hasNotes: hasNewNotes.general,
+            hasNotes: hasNotes.general,
           })}
 
           {(isCS || isProcessor || isAdmin) &&
             renderCollapsible({
               open: csOpen,
-              setOpen: (v) => {
-                setCsOpen(v);
-                if (v) markSeen("cs");
-              },
+              setOpen: setCsOpen,
               label: "CS Notes",
               noteType: "cs",
               tone: "cs",
-              hasNotes: hasNewNotes.cs,
+              hasNotes: hasNotes.cs,
             })}
 
           {(isProcessor || isAdmin) &&
             renderCollapsible({
               open: processorOpen,
-              setOpen: (v) => {
-                setProcessorOpen(v);
-                if (v) markSeen("processor");
-              },
+              setOpen: setProcessorOpen,
               label: "Processor Notes",
               noteType: "processor",
               tone: "processor",
-              hasNotes: hasNewNotes.processor,
+              hasNotes: hasNotes.processor,
             })}
+
+          {photoCount > 0 && (
+            <div className="crm-lead-card-soft flex items-center justify-between rounded-xl border border-primary/12 px-3 py-2 text-[11px] font-semibold text-primary/85">
+              <span className="inline-flex items-center gap-1.5">
+                <ImageIcon className="h-3.5 w-3.5" />
+                {pictureLabel}
+              </span>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">{photoCount}</span>
+            </div>
+          )}
         </div>
 
         <div className="mt-3 px-4">
@@ -767,13 +773,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               Created by <span className="font-semibold text-foreground">{profiles[lead.created_by] || "Unknown"}</span>{" "}
               · {formatDate(lead.created_at)}
             </p>
-            {photos.length > 0 && (
-              <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-primary/85">
-                <ImageIcon className="h-3 w-3" />
-                Picture attached
-                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">{photos.length}</span>
-              </p>
-            )}
           </div>
         </div>
 
