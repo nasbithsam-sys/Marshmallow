@@ -673,6 +673,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
             label: "Notes",
             noteType: "general",
             tone: "default",
+            hasNotes: noteCounts.general > 0,
           })}
 
           {(isCS || isProcessor || isAdmin) &&
@@ -682,6 +683,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               label: "CS Notes",
               noteType: "cs",
               tone: "cs",
+              hasNotes: noteCounts.cs > 0,
             })}
 
           {(isProcessor || isAdmin) &&
@@ -691,6 +693,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               label: "Processor Notes",
               noteType: "processor",
               tone: "processor",
+              hasNotes: noteCounts.processor > 0,
             })}
         </div>
 
