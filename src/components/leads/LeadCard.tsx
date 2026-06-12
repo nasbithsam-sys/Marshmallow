@@ -710,31 +710,40 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
         <div className="space-y-2 px-4 pt-3">
           {renderCollapsible({
             open: generalOpen,
-            setOpen: setGeneralOpen,
+            setOpen: (v) => {
+              setGeneralOpen(v);
+              if (v) markSeen("general");
+            },
             label: "Notes",
             noteType: "general",
             tone: "default",
-            hasNotes: noteCounts.general > 0,
+            hasNotes: hasNewNotes.general,
           })}
 
           {(isCS || isProcessor || isAdmin) &&
             renderCollapsible({
               open: csOpen,
-              setOpen: setCsOpen,
+              setOpen: (v) => {
+                setCsOpen(v);
+                if (v) markSeen("cs");
+              },
               label: "CS Notes",
               noteType: "cs",
               tone: "cs",
-              hasNotes: noteCounts.cs > 0,
+              hasNotes: hasNewNotes.cs,
             })}
 
           {(isProcessor || isAdmin) &&
             renderCollapsible({
               open: processorOpen,
-              setOpen: setProcessorOpen,
+              setOpen: (v) => {
+                setProcessorOpen(v);
+                if (v) markSeen("processor");
+              },
               label: "Processor Notes",
               noteType: "processor",
               tone: "processor",
-              hasNotes: noteCounts.processor > 0,
+              hasNotes: hasNewNotes.processor,
             })}
         </div>
 
