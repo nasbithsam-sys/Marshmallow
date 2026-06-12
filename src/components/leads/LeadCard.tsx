@@ -767,6 +767,13 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               Created by <span className="font-semibold text-foreground">{profiles[lead.created_by] || "Unknown"}</span>{" "}
               · {formatDate(lead.created_at)}
             </p>
+            {photos.length > 0 && (
+              <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-primary/85">
+                <ImageIcon className="h-3 w-3" />
+                Picture attached
+                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">{photos.length}</span>
+              </p>
+            )}
           </div>
         </div>
 
