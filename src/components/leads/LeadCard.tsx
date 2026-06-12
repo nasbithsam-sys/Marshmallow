@@ -87,7 +87,32 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [resolvedPaymentUrl, setResolvedPaymentUrl] = useState<string | null>(null);
   const [resolvedPaymentOriginal, setResolvedPaymentOriginal] = useState<string | null>(null);
+  const [noteCounts, setNoteCounts] = useState<{ general: number; cs: number; processor: number }>({
+    general: 0,
+    cs: 0,
+    processor: 0,
+  });
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCounts = async () => {
+      const { data } = await supabase
+        .from("lead_notes")
+        .select("note_type")
+        .eq("lead_id", lead.id);
+      if (cancelled || !data) return;
+      const counts = { general: 0, cs: 0, processor: 0 };
+      for (const row of data as { note_type: string }[]) {
+        if (row.note_type in counts) counts[row.note_type as keyof typeof counts] += 1;
+      }
+      setNoteCounts(counts);
+    };
+    void loadCounts();
+    return () => {
+      cancelled = true;
+    };
+  }, [lead.id]);
 
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
