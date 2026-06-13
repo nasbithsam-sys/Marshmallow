@@ -300,7 +300,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     void loadOriginals();
   };
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = async (newStatus: string, cancellationReason?: string) => {
     if (isPaid) return;
     if (!canChangeStatus(role, newStatus as LeadStatus)) {
       toast.error("You do not have permission to set that status");
@@ -309,6 +309,12 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
     if (newStatus === "paid") {
       setPaymentOpen(true);
+      return;
+    }
+
+    if (newStatus === "cancelled" && !cancellationReason) {
+      setCancelReason("");
+      setCancelOpen(true);
       return;
     }
 
@@ -322,6 +328,10 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     };
     // Clear tag on any status change and unpin the lead
     statusUpdate.cs_tag = null;
+
+    if (newStatus === "cancelled" && cancellationReason) {
+      statusUpdate.cancellation_reason = cancellationReason;
+    }
 
     const { error } = await supabase
       .from("leads")
