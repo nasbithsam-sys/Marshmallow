@@ -954,6 +954,37 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           onConfirm={handlePaymentConfirm}
           loading={paymentLoading}
         />
+
+        <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Cancel lead</DialogTitle>
+              <DialogDescription>
+                Please provide a reason for cancelling this lead. The status cannot be changed to
+                Cancelled without a reason.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="cancel-reason">Cancellation reason</Label>
+              <Textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="e.g. Customer no longer needs the service"
+                rows={4}
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCancelOpen(false)}>
+                Back
+              </Button>
+              <Button onClick={handleCancelConfirm} disabled={!cancelReason.trim()}>
+                Confirm cancellation
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </motion.div>
     </div>
   );
