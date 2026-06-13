@@ -128,6 +128,8 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const [saved, setSaved] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ["lead", leadId, role, user?.id],
