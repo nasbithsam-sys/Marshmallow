@@ -83,6 +83,8 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [generalOpen, setGeneralOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoCount, setPhotoCount] = useState(0);
   const [photoOriginals, setPhotoOriginals] = useState<string[]>([]);
@@ -298,7 +300,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     void loadOriginals();
   };
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = async (newStatus: string, cancellationReason?: string) => {
     if (isPaid) return;
     if (!canChangeStatus(role, newStatus as LeadStatus)) {
       toast.error("You do not have permission to set that status");
@@ -307,6 +309,12 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
     if (newStatus === "paid") {
       setPaymentOpen(true);
+      return;
+    }
+
+    if (newStatus === "cancelled" && !cancellationReason) {
+      setCancelReason("");
+      setCancelOpen(true);
       return;
     }
 
@@ -320,6 +328,10 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     };
     // Clear tag on any status change and unpin the lead
     statusUpdate.cs_tag = null;
+
+    if (newStatus === "cancelled" && cancellationReason) {
+      statusUpdate.cancellation_reason = cancellationReason;
+    }
 
     const { error } = await supabase
       .from("leads")
@@ -864,6 +876,41 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           onConfirm={handlePaymentConfirm}
           loading={paymentLoading}
         />
+
+        <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel this lead?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Please provide a reason. The status cannot be changed to Cancelled without one.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g. Customer no longer needs the service"
+              rows={4}
+              autoFocus
+              className="w-full rounded-xl border border-input/90 bg-[hsl(var(--card)/0.88)] px-4 py-3 text-[14px] text-foreground shadow-premium-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 focus-visible:border-primary/45"
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel>Back</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!cancelReason.trim()}
+                onClick={(e) => {
+                  const reason = cancelReason.trim();
+                  if (!reason) {
+                    e.preventDefault();
+                    return;
+                  }
+                  void handleStatusChange("cancelled", reason);
+                }}
+              >
+                Confirm cancellation
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <ImageLightbox
           images={lightboxImages.length ? lightboxImages : allImages}
