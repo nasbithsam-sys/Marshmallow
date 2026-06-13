@@ -339,6 +339,7 @@ export type Database = {
           address: string | null
           amount: number | null
           assigned_cs: string | null
+          cancellation_reason: string | null
           city: string | null
           created_at: string | null
           created_by: string
@@ -382,6 +383,7 @@ export type Database = {
           address?: string | null
           amount?: number | null
           assigned_cs?: string | null
+          cancellation_reason?: string | null
           city?: string | null
           created_at?: string | null
           created_by: string
@@ -425,6 +427,7 @@ export type Database = {
           address?: string | null
           amount?: number | null
           assigned_cs?: string | null
+          cancellation_reason?: string | null
           city?: string | null
           created_at?: string | null
           created_by?: string
