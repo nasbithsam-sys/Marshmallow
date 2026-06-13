@@ -394,6 +394,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         updateData.amount = form.amount;
       }
 
+      if (form.status === "cancelled") {
+        updateData.cancellation_reason = form.cancellation_reason ?? null;
+      }
+
       if (form.status !== lead?.status) {
         (updateData as Record<string, unknown>).cs_tag = null;
       }
