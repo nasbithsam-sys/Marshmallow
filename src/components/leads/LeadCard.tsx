@@ -877,6 +877,41 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           loading={paymentLoading}
         />
 
+        <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel this lead?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Please provide a reason. The status cannot be changed to Cancelled without one.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g. Customer no longer needs the service"
+              rows={4}
+              autoFocus
+              className="w-full rounded-xl border border-input/90 bg-[hsl(var(--card)/0.88)] px-4 py-3 text-[14px] text-foreground shadow-premium-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 focus-visible:border-primary/45"
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel>Back</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!cancelReason.trim()}
+                onClick={(e) => {
+                  const reason = cancelReason.trim();
+                  if (!reason) {
+                    e.preventDefault();
+                    return;
+                  }
+                  void handleStatusChange("cancelled", reason);
+                }}
+              >
+                Confirm cancellation
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <ImageLightbox
           images={lightboxImages.length ? lightboxImages : allImages}
           initialIndex={lightboxIndex}
