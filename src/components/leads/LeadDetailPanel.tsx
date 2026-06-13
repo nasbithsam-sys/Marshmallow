@@ -9,6 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   X,
   User,
   MapPin,
@@ -128,6 +136,8 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const [saved, setSaved] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ["lead", leadId, role, user?.id],
@@ -241,7 +251,26 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       setPaymentOpen(true);
       return;
     }
+    if (key === "status" && value === "cancelled") {
+      setCancelReason(form.cancellation_reason ?? "");
+      setCancelOpen(true);
+      return;
+    }
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleCancelConfirm = () => {
+    const reason = cancelReason.trim();
+    if (!reason) {
+      toast.error("Please enter a cancellation reason");
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      status: "cancelled" as LeadStatus,
+      cancellation_reason: reason,
+    }));
+    setCancelOpen(false);
   };
 
   const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
@@ -371,6 +400,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
       if (form.status === "paid") {
         updateData.amount = form.amount;
+      }
+
+      if (form.status === "cancelled") {
+        updateData.cancellation_reason = form.cancellation_reason ?? null;
       }
 
       if (form.status !== lead?.status) {
@@ -929,6 +962,37 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           onConfirm={handlePaymentConfirm}
           loading={paymentLoading}
         />
+
+        <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Cancel lead</DialogTitle>
+              <DialogDescription>
+                Please provide a reason for cancelling this lead. The status cannot be changed to
+                Cancelled without a reason.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="cancel-reason">Cancellation reason</Label>
+              <Textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="e.g. Customer no longer needs the service"
+                rows={4}
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCancelOpen(false)}>
+                Back
+              </Button>
+              <Button onClick={handleCancelConfirm} disabled={!cancelReason.trim()}>
+                Confirm cancellation
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </motion.div>
     </div>
   );
