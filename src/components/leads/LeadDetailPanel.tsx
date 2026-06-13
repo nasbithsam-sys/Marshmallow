@@ -243,7 +243,26 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       setPaymentOpen(true);
       return;
     }
+    if (key === "status" && value === "cancelled") {
+      setCancelReason(form.cancellation_reason ?? "");
+      setCancelOpen(true);
+      return;
+    }
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleCancelConfirm = () => {
+    const reason = cancelReason.trim();
+    if (!reason) {
+      toast.error("Please enter a cancellation reason");
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      status: "cancelled" as LeadStatus,
+      cancellation_reason: reason,
+    }));
+    setCancelOpen(false);
   };
 
   const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
