@@ -339,10 +339,7 @@ export type Database = {
           address: string | null
           amount: number | null
           assigned_cs: string | null
-          cancellation_proof: string | null
           cancellation_reason: string | null
-          cancellation_requested_by: string | null
-          cancellation_requested_role: string | null
           city: string | null
           created_at: string | null
           created_by: string
@@ -386,10 +383,7 @@ export type Database = {
           address?: string | null
           amount?: number | null
           assigned_cs?: string | null
-          cancellation_proof?: string | null
           cancellation_reason?: string | null
-          cancellation_requested_by?: string | null
-          cancellation_requested_role?: string | null
           city?: string | null
           created_at?: string | null
           created_by: string
@@ -433,10 +427,7 @@ export type Database = {
           address?: string | null
           amount?: number | null
           assigned_cs?: string | null
-          cancellation_proof?: string | null
           cancellation_reason?: string | null
-          cancellation_requested_by?: string | null
-          cancellation_requested_role?: string | null
           city?: string | null
           created_at?: string | null
           created_by?: string
