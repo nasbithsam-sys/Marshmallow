@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCallback } from "react";
 import type { ChangeEvent, ElementType } from "react";
@@ -37,19 +37,11 @@ import ImageLightbox from "@/components/leads/ImageLightbox";
 import CopyLeadButton from "@/components/leads/CopyLeadButton";
 import NoteThread from "@/components/leads/NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
+import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
 import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import StatusBadge from "@/components/leads/StatusBadge";
-import CancellationRequestDialog from "@/components/leads/CancellationRequestDialog";
-import CancellationRequestPanel from "@/components/leads/CancellationRequestPanel";
 import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
-import {
-  canCreateCancellationRequest,
-  createCancellationRequest,
-  fetchPendingCancellationRequest,
-  reviewCancellationRequest,
-} from "@/lib/cancellation-requests";
 
 const PHOTO_PREVIEW_LIMIT = 1;
 
@@ -136,10 +128,6 @@ export default function LeadDetailPage() {
 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
-  const [cancelRequestLoading, setCancelRequestLoading] = useState(false);
-  const [cancelReviewLoading, setCancelReviewLoading] = useState(false);
-  const [pendingCancellationRequest, setPendingCancellationRequest] = useState<LeadCancellationRequest | null>(null);
 
   const [photos, setPhotos] = useState<ExistingPhoto[]>([]);
   const [newPhotos, setNewPhotos] = useState<File[]>([]);
@@ -364,21 +352,6 @@ export default function LeadDetailPage() {
     }
   }, [leadId]);
 
-  const refreshPendingCancellationRequest = useCallback(async () => {
-    if (!leadId) {
-      setPendingCancellationRequest(null);
-      return;
-    }
-    const request = await fetchPendingCancellationRequest(leadId);
-    setPendingCancellationRequest(request);
-  }, [leadId]);
-
-  useEffect(() => {
-    void refreshPendingCancellationRequest();
-  }, [refreshPendingCancellationRequest, form.status]);
-
-
-
   useEffect(() => {
     setShowAllPhotos(false);
   }, [leadId]);
@@ -391,17 +364,6 @@ export default function LeadDetailPage() {
 
     if (key === "status" && value === "paid") {
       setPaymentOpen(true);
-      return;
-    }
-
-    if (key === "status" && value === "cancelled") {
-      if (isAdmin) {
-        setForm((prev) => ({ ...prev, status: "cancelled" as LeadStatus }));
-      } else if (canCreateCancellationRequest(role)) {
-        setCancelRequestOpen(true);
-      } else {
-        toast.error("You do not have permission to request cancellation");
-      }
       return;
     }
 
@@ -575,11 +537,6 @@ export default function LeadDetailPage() {
       return;
     }
 
-    if (form.status === "cancelled" && !isAdmin) {
-      toast.error("Please send a cancellation request instead of cancelling directly");
-      return;
-    }
-
     setSaving(true);
 
     let scheduled_time_start: string | null = null;
@@ -642,10 +599,6 @@ export default function LeadDetailPage() {
       updated_at: new Date().toISOString(),
       last_edited_at: new Date().toISOString(),
     };
-
-    if (form.status === "cancelled") {
-      (payload as Record<string, unknown>).cancellation_reason = null;
-    }
 
     try {
       if (isNew) {
@@ -720,52 +673,6 @@ export default function LeadDetailPage() {
       toast.error(message);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleCancellationRequestSubmit = async (comment: string, proof: string) => {
-    if (!user || !originalLead) return;
-
-    setCancelRequestLoading(true);
-    try {
-      await createCancellationRequest({
-        lead: originalLead,
-        userId: user.id,
-        requesterRole: role,
-        comment,
-        proof,
-      });
-      toast.success("Cancellation request sent for approval");
-      setCancelRequestOpen(false);
-      setForm((prev) => ({ ...prev, status: "cancellation_requested" as LeadStatus }));
-      await refreshPendingCancellationRequest();
-      await fetchLead();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to request cancellation");
-    } finally {
-      setCancelRequestLoading(false);
-    }
-  };
-
-  const handleCancellationReview = async (action: "approved" | "rejected") => {
-    if (!user || !originalLead || !pendingCancellationRequest) return;
-
-    setCancelReviewLoading(true);
-    try {
-      await reviewCancellationRequest({
-        request: pendingCancellationRequest,
-        lead: originalLead,
-        reviewerId: user.id,
-        reviewerRole: role,
-        action,
-      });
-      toast.success(action === "approved" ? "Lead cancelled" : "Cancellation request rejected");
-      await refreshPendingCancellationRequest();
-      await fetchLead();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to review cancellation request");
-    } finally {
-      setCancelReviewLoading(false);
     }
   };
 
@@ -988,16 +895,6 @@ export default function LeadDetailPage() {
           </div>
         </div>
       </motion.section>
-
-      {!isNew && (
-        <CancellationRequestPanel
-          request={pendingCancellationRequest}
-          role={role}
-          loading={cancelReviewLoading}
-          onApprove={() => handleCancellationReview("approved")}
-          onReject={() => handleCancellationReview("rejected")}
-        />
-      )}
 
       <Card className="border-border/60 bg-card/95 shadow-[0_18px_42px_-30px_rgba(37,99,235,0.16)] dark:shadow-[0_22px_48px_-30px_rgba(0,0,0,0.48)]">
         <CardContent className="space-y-5 p-4 sm:p-6">
@@ -1474,14 +1371,6 @@ export default function LeadDetailPage() {
         onOpenChange={setPaymentOpen}
         onConfirm={handlePaymentConfirm}
         loading={paymentLoading}
-      />
-
-      <CancellationRequestDialog
-        open={cancelRequestOpen}
-        onOpenChange={setCancelRequestOpen}
-        onSubmit={handleCancellationRequestSubmit}
-        loading={cancelRequestLoading}
-        requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
       />
 
       <ImageLightbox

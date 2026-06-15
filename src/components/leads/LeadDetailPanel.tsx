@@ -9,6 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   X,
   User,
   MapPin,
@@ -28,21 +36,13 @@ import LeadUpdatesSection from "./LeadUpdatesSection";
 import PaymentDialog from "./PaymentDialog";
 import CopyLeadButton from "./CopyLeadButton";
 import NoteThread from "./NoteThread";
-import CancellationRequestDialog from "./CancellationRequestDialog";
-import CancellationRequestPanel from "./CancellationRequestPanel";
-import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
+import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus } from "@/types";
 import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { motion } from "framer-motion";
 import { logActivity } from "@/lib/activity";
 import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
-import {
-  canCreateCancellationRequest,
-  createCancellationRequest,
-  fetchPendingCancellationRequest,
-  reviewCancellationRequest,
-} from "@/lib/cancellation-requests";
 
 interface Props {
   leadId: string;
@@ -136,9 +136,8 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const [saved, setSaved] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
-  const [cancelRequestLoading, setCancelRequestLoading] = useState(false);
-  const [cancelReviewLoading, setCancelReviewLoading] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ["lead", leadId, role, user?.id],
@@ -173,12 +172,6 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       if (error) return null;
       return data?.full_name || null;
     },
-  });
-
-  const { data: pendingCancellationRequest = null, refetch: refetchPendingCancellationRequest } = useQuery({
-    queryKey: ["lead-cancellation-request", leadId],
-    enabled: !!leadId,
-    queryFn: () => fetchPendingCancellationRequest(leadId),
   });
 
   const [form, setForm] = useState<LeadFormState>({});
@@ -259,64 +252,25 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       return;
     }
     if (key === "status" && value === "cancelled") {
-      if (role === "admin") {
-        setForm((prev) => ({ ...prev, status: "cancelled" as LeadStatus, cancellation_reason: null }));
-      } else if (canCreateCancellationRequest(role)) {
-        setCancelRequestOpen(true);
-      } else {
-        toast.error("You do not have permission to request cancellation");
-      }
+      setCancelReason(form.cancellation_reason ?? "");
+      setCancelOpen(true);
       return;
     }
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleCancellationRequestSubmit = async (comment: string, proof: string) => {
-    if (!user || !lead) return;
-
-    setCancelRequestLoading(true);
-    try {
-      await createCancellationRequest({
-        lead,
-        userId: user.id,
-        requesterRole: role,
-        comment,
-        proof,
-      });
-      toast.success("Cancellation request sent for approval");
-      setCancelRequestOpen(false);
-      setForm((prev) => ({ ...prev, status: "cancellation_requested" as LeadStatus }));
-      await refetchPendingCancellationRequest();
-      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
-      onUpdate();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to request cancellation");
-    } finally {
-      setCancelRequestLoading(false);
+  const handleCancelConfirm = () => {
+    const reason = cancelReason.trim();
+    if (!reason) {
+      toast.error("Please enter a cancellation reason");
+      return;
     }
-  };
-
-  const handleCancellationReview = async (action: "approved" | "rejected") => {
-    if (!user || !lead || !pendingCancellationRequest) return;
-
-    setCancelReviewLoading(true);
-    try {
-      await reviewCancellationRequest({
-        request: pendingCancellationRequest as LeadCancellationRequest,
-        lead,
-        reviewerId: user.id,
-        reviewerRole: role,
-        action,
-      });
-      toast.success(action === "approved" ? "Lead cancelled" : "Cancellation request rejected");
-      await refetchPendingCancellationRequest();
-      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
-      onUpdate();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to review cancellation request");
-    } finally {
-      setCancelReviewLoading(false);
-    }
+    setForm((prev) => ({
+      ...prev,
+      status: "cancelled" as LeadStatus,
+      cancellation_reason: reason,
+    }));
+    setCancelOpen(false);
   };
 
   const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
@@ -408,9 +362,6 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       if (!form.status || !canChangeStatus(role, form.status as LeadStatus)) {
         throw new Error("You do not have permission to set that status");
       }
-      if (form.status === "cancelled" && role !== "admin") {
-        throw new Error("Please send a cancellation request instead of cancelling directly");
-      }
 
       const previousStatus = lead?.status;
       const newStatus = form.status;
@@ -452,7 +403,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       }
 
       if (form.status === "cancelled") {
-        updateData.cancellation_reason = null;
+        updateData.cancellation_reason = form.cancellation_reason ?? null;
       }
 
       if (form.status !== lead?.status) {
@@ -524,7 +475,6 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
-  const isAdmin = role === "admin";
 
   const labelClass = "text-[12px] font-semibold tracking-[-0.01em] text-foreground/82";
   const fieldClass =
@@ -649,16 +599,6 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v as LeadStatus)} role={role} />
             </div>
           </div>
-        </div>
-
-        <div className="px-6 pt-5">
-          <CancellationRequestPanel
-            request={pendingCancellationRequest as LeadCancellationRequest | null}
-            role={role}
-            loading={cancelReviewLoading}
-            onApprove={() => handleCancellationReview("approved")}
-            onReject={() => handleCancellationReview("rejected")}
-          />
         </div>
 
         <div className="space-y-6 p-6">
@@ -1023,13 +963,36 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           loading={paymentLoading}
         />
 
-        <CancellationRequestDialog
-          open={cancelRequestOpen}
-          onOpenChange={setCancelRequestOpen}
-          onSubmit={handleCancellationRequestSubmit}
-          loading={cancelRequestLoading}
-          requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
-        />
+        <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Cancel lead</DialogTitle>
+              <DialogDescription>
+                Please provide a reason for cancelling this lead. The status cannot be changed to
+                Cancelled without a reason.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="cancel-reason">Cancellation reason</Label>
+              <Textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="e.g. Customer no longer needs the service"
+                rows={4}
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCancelOpen(false)}>
+                Back
+              </Button>
+              <Button onClick={handleCancelConfirm} disabled={!cancelReason.trim()}>
+                Confirm cancellation
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </motion.div>
     </div>
   );

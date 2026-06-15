@@ -19,7 +19,6 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   needs_reschedule: "Needs Reschedule",
   job_done: "Job Done",
   payment_pending: "Payment Pending",
-  cancellation_requested: "Cancellation Request",
   cancelled: "Cancelled",
   paid: "Paid",
 };
@@ -41,7 +40,6 @@ export const STATUS_COLORS: Record<LeadStatus, string> = {
   needs_reschedule: "bg-rose-100 text-rose-800 border-rose-200",
   job_done: "bg-emerald-100 text-emerald-800 border-emerald-200",
   payment_pending: "bg-lime-100 text-lime-800 border-lime-200",
-  cancellation_requested: "bg-red-100 text-red-800 border-red-200",
   cancelled: "bg-gray-100 text-gray-800 border-gray-200",
   paid: "bg-green-100 text-green-800 border-green-200",
 };
@@ -63,7 +61,6 @@ export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
   needs_reschedule: "bg-rose-400",
   job_done: "bg-emerald-400",
   payment_pending: "bg-lime-400",
-  cancellation_requested: "bg-red-500",
   cancelled: "bg-gray-400",
   paid: "bg-green-500",
 };
@@ -85,7 +82,6 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "needs_reschedule",
   "job_done",
   "payment_pending",
-  "cancellation_requested",
   "cancelled",
   "paid",
 ];
@@ -96,7 +92,6 @@ export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
   urgent_job: 1,
   need_tech: 2,
-  cancellation_requested: 0,
   cancelled: 99,
 };
 
@@ -150,8 +145,6 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "quote_sent_need_follow_up",
     "needs_quote",
     "needs_reschedule",
-    "cancellation_requested",
-    "cancelled",
   ],
   processor: [
     "post_visit_quote_sent_waiting",
@@ -165,8 +158,6 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "payment_pending",
     "job_done",
     "needs_reschedule",
-    "cancellation_requested",
-    "cancelled",
   ],
   no_role: [],
   opr: [],
