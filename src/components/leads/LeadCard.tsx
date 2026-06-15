@@ -40,7 +40,7 @@ import PaymentDialog from "./PaymentDialog";
 import LeadShareDialog from "./LeadShareDialog";
 import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
-import LeadCardCopyActions from "./LeadCardCopyActions";
+import CopyLeadButton from "./CopyLeadButton";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
 import { optimizeImageForUpload } from "@/lib/image-upload";
@@ -85,7 +85,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [cancelProof, setCancelProof] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoCount, setPhotoCount] = useState(0);
   const [photoOriginals, setPhotoOriginals] = useState<string[]>([]);
@@ -159,10 +158,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const isProcessor = role === "processor";
   const isPaid = lead.status === "paid";
   const isUrgent = lead.status === "urgent_job";
-  const isCancellationRequest = lead.status === "cancellation_request";
-  const canApproveCancellationRequest =
-    isCancellationRequest &&
-    (isAdmin || (isProcessor && lead.cancellation_requested_role === "customer_service"));
   const pictureLabel = photoCount === 1 ? "Picture attached" : "Pictures attached";
 
   const detailRows = [
@@ -305,7 +300,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     void loadOriginals();
   };
 
-  const handleStatusChange = async (newStatus: string, cancellationReason?: string, cancellationProof?: string) => {
+  const handleStatusChange = async (newStatus: string, cancellationReason?: string) => {
     if (isPaid) return;
     if (!canChangeStatus(role, newStatus as LeadStatus)) {
       toast.error("You do not have permission to set that status");
@@ -317,48 +312,22 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       return;
     }
 
-    if (newStatus === "cancelled" && !isAdmin && !canApproveCancellationRequest && !cancellationReason) {
+    if (newStatus === "cancelled" && !cancellationReason) {
       setCancelReason("");
-      setCancelProof("");
       setCancelOpen(true);
       return;
     }
 
     setChangingStatus(true);
-    const finalStatus =
-      newStatus === "cancelled" && !isAdmin && !canApproveCancellationRequest
-        ? "cancellation_request"
-        : newStatus;
 
     const statusUpdate: Record<string, unknown> = {
-      status: finalStatus as LeadStatus,
+      status: newStatus as LeadStatus,
       last_edited_by: user?.id,
       updated_at: new Date().toISOString(),
       last_edited_at: new Date().toISOString(),
     };
     // Clear tag on any status change and unpin the lead
     statusUpdate.cs_tag = null;
-
-    if (finalStatus === "cancellation_request") {
-      statusUpdate.cancellation_reason = cancellationReason ?? null;
-      statusUpdate.cancellation_proof = cancellationProof ?? null;
-      statusUpdate.cancellation_requested_by = user?.id ?? null;
-      statusUpdate.cancellation_requested_role = role ?? null;
-    }
-
-    if (finalStatus === "cancelled") {
-      statusUpdate.cancellation_reason = cancellationReason ?? lead.cancellation_reason ?? null;
-      statusUpdate.cancellation_proof = cancellationProof ?? lead.cancellation_proof ?? null;
-      statusUpdate.cancellation_requested_by = null;
-      statusUpdate.cancellation_requested_role = null;
-    }
-
-    if (finalStatus !== "cancellation_request" && finalStatus !== "cancelled") {
-      statusUpdate.cancellation_reason = null;
-      statusUpdate.cancellation_proof = null;
-      statusUpdate.cancellation_requested_by = null;
-      statusUpdate.cancellation_requested_role = null;
-    }
 
     if (newStatus === "cancelled" && cancellationReason) {
       statusUpdate.cancellation_reason = cancellationReason;
@@ -376,42 +345,34 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       return;
     }
 
-    toast.success(finalStatus === "cancellation_request" ? "Cancellation request submitted" : `Status -> ${STATUS_LABELS[finalStatus as LeadStatus]}`);
+    toast.success(`Status -> ${STATUS_LABELS[newStatus as LeadStatus]}`);
 
     await logActivity(user!.id, "status_changed", "lead", lead.id, {
       target_name: lead.job_id,
       customer_name: lead.customer_name,
       job_id: lead.job_id,
       status_from: lead.status,
-      status_to: finalStatus,
+      status_to: newStatus,
       changes: {
         status: {
           before: lead.status,
-          after: finalStatus,
+          after: newStatus,
         },
       },
     });
 
-    if (finalStatus === "urgent_job" || finalStatus === "need_tech" || finalStatus === "cancellation_request") {
+    if (newStatus === "urgent_job" || newStatus === "need_tech") {
       const { data: roles } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("role", finalStatus === "cancellation_request" ? ["admin", "processor"] : ["admin", "processor", "customer_service", "opr"]);
+        .in("role", ["admin", "processor", "customer_service", "opr"]);
 
       if (roles) {
-        const statusLabel =
-          finalStatus === "cancellation_request"
-            ? "Cancellation Request"
-            : finalStatus === "urgent_job"
-              ? "Urgent Job"
-              : "Need Tech";
+        const statusLabel = newStatus === "urgent_job" ? "Urgent Job" : "Need Tech";
         const notifs = roles.map((r: { user_id: string }) => ({
           user_id: r.user_id,
           title: `[Alert] ${statusLabel}`,
-          message:
-            finalStatus === "cancellation_request"
-              ? `Lead "${lead.customer_name}" needs cancellation approval`
-              : `Lead "${lead.customer_name}" changed to ${statusLabel}`,
+          message: `Lead "${lead.customer_name}" changed to ${statusLabel}`,
           lead_id: lead.id,
           read: false,
         }));
@@ -683,40 +644,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           </div>
         </div>
 
-        {isCancellationRequest && (
-          <div className="px-4 pt-3">
-            <div className="rounded-[18px] border border-amber-300/60 bg-amber-50/80 p-3 text-[12px] text-amber-950 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-100">
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <p className="font-semibold">Cancellation request</p>
-                {canApproveCancellationRequest && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-7 rounded-full px-3 text-[11px]"
-                    disabled={changingStatus}
-                    onClick={() => handleStatusChange("cancelled", lead.cancellation_reason ?? undefined, lead.cancellation_proof ?? undefined)}
-                  >
-                    Approve cancel
-                  </Button>
-                )}
-              </div>
-              <p className="leading-5">
-                <span className="font-medium">Comment:</span> {lead.cancellation_reason || "No comment provided"}
-              </p>
-              {lead.cancellation_proof && (
-                <p className="mt-1 leading-5">
-                  <span className="font-medium">Proof:</span> {lead.cancellation_proof}
-                </p>
-              )}
-              {!canApproveCancellationRequest && isProcessor && (
-                <p className="mt-2 text-[11px] text-amber-800/80 dark:text-amber-100/75">
-                  Processor cancellation requests must be approved by an admin.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
         {allImages.length > 0 && (
           <div className="relative px-4 pb-1">
             <div className="crm-lead-card-soft rounded-[24px] p-3.5 shadow-[0_22px_34px_-26px_rgba(59,130,246,0.16)] dark:shadow-none">
@@ -861,8 +788,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           </div>
         </div>
 
-        <LeadCardCopyActions lead={lead} role={role} />
-
         <div className="mt-auto border-t border-white/30 px-4 pb-4 pt-4 dark:border-white/5">
           <div className="crm-lead-card-footer rounded-[24px] p-3 shadow-[0_24px_40px_-28px_rgba(59,130,246,0.18)] dark:shadow-none">
             <div className="mb-3">
@@ -897,6 +822,13 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               </Button>
 
               <div className="flex flex-wrap items-center gap-2 sm:w-auto">
+                {!isCS && (
+                  <CopyLeadButton
+                    lead={lead}
+                    className="crm-lead-card-inner h-10 rounded-[16px] border-border/60 bg-transparent text-[12px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
+                  />
+                )}
+
                 {isAdmin && (
                   <LeadShareDialog
                     leadId={lead.id}
@@ -948,24 +880,17 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
         <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Request cancellation</AlertDialogTitle>
+              <AlertDialogTitle>Cancel this lead?</AlertDialogTitle>
               <AlertDialogDescription>
-                Add the cancellation comment and proof. This will go to approval before the lead is cancelled.
+                Please provide a reason. The status cannot be changed to Cancelled without one.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <textarea
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="Cancellation comment, e.g. customer no longer needs the service"
+              placeholder="e.g. Customer no longer needs the service"
               rows={4}
               autoFocus
-              className="w-full rounded-xl border border-input/90 bg-[hsl(var(--card)/0.88)] px-4 py-3 text-[14px] text-foreground shadow-premium-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 focus-visible:border-primary/45"
-            />
-            <textarea
-              value={cancelProof}
-              onChange={(e) => setCancelProof(e.target.value)}
-              placeholder="Proof/details, e.g. customer message, call note, screenshot reference"
-              rows={3}
               className="w-full rounded-xl border border-input/90 bg-[hsl(var(--card)/0.88)] px-4 py-3 text-[14px] text-foreground shadow-premium-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 focus-visible:border-primary/45"
             />
             <AlertDialogFooter>
@@ -978,10 +903,10 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                     e.preventDefault();
                     return;
                   }
-                  void handleStatusChange("cancelled", reason, cancelProof.trim());
+                  void handleStatusChange("cancelled", reason);
                 }}
               >
-                Submit request
+                Confirm cancellation
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
