@@ -22,6 +22,7 @@ import {
   Image as ImageIcon,
   CalendarDays,
   ShieldCheck,
+  Clipboard,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -82,6 +83,14 @@ function formatDate(value?: string | null) {
   } catch {
     return value;
   }
+}
+
+function formatScheduleForCopy(lead: Lead) {
+  const date = lead.scheduled_date || "TBD";
+  const start = lead.scheduled_time_start || "";
+  const end = lead.scheduled_time_end || "";
+  const time = start && end ? `${start} - ${end}` : start || end;
+  return time ? `${date}, ${time}` : date;
 }
 
 function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = false }: LeadCardProps) {
@@ -181,21 +190,43 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const isProcessor = role === "processor";
   const isPaid = lead.status === "paid";
   const isUrgent = lead.status === "urgent_job";
+  const canCompleteCopy = isAdmin || isProcessor;
   const pictureLabel = photoCount === 1 ? "Picture attached" : "Pictures attached";
 
   const detailRows = [
     {
       key: "phone",
-      label: "Contact",
+      label: "Number",
       value: lead.customer_phone,
       icon: Phone,
       wrap: false,
     },
     {
       key: "address",
-      label: "Location",
+      label: "Address",
       value: lead.address,
       icon: MapPin,
+      wrap: true,
+    },
+    {
+      key: "service",
+      label: "Service Details",
+      value: lead.service_details || lead.service_type,
+      icon: MessageSquare,
+      wrap: true,
+    },
+    {
+      key: "schedule",
+      label: "Schedule Requirement",
+      value: lead.customer_schedule_requirements || formatScheduleForCopy(lead),
+      icon: CalendarDays,
+      wrap: true,
+    },
+    {
+      key: "quote",
+      label: "Quote",
+      value: lead.quote,
+      icon: Clipboard,
       wrap: true,
     },
     {
@@ -700,7 +731,16 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
             </div>
           </div>
 
-          <div className="mt-4 grid gap-2">
+          {canCompleteCopy && (
+            <div className="mt-4">
+              <CompleteLeadCopyButton
+                lead={lead}
+                className="crm-lead-card-inner h-9 w-full rounded-[14px] border-border/60 bg-transparent text-[11px] hover:border-primary/28 hover:bg-primary/[0.05]"
+              />
+            </div>
+          )}
+
+          <div className="mt-2 grid gap-2">
             {detailRows.map(({ key, label, value, icon: Icon, wrap }) => (
               <div
                 key={key}
@@ -710,10 +750,12 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                   <Icon className="h-3.5 w-3.5 text-primary/70" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/72">{label}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/72">{label}</p>
+                    <CopyValueButton value={value} label={label} className="h-6 w-6 rounded-full" />
+                  </div>
                   <p className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>{value}</p>
                 </div>
-                <CopyValueButton value={value} label={label} />
               </div>
             ))}
           </div>
