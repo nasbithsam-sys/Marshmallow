@@ -22,6 +22,8 @@ import {
   Image as ImageIcon,
   CalendarDays,
   ShieldCheck,
+  Copy,
+  Check,
   Clipboard,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -42,11 +44,11 @@ import LeadShareDialog from "./LeadShareDialog";
 import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
 import CopyValueButton from "./CopyValueButton";
-import CompleteLeadCopyButton from "./CompleteLeadCopyButton";
 import CancellationRequestDialog from "./CancellationRequestDialog";
 import CancellationRequestPanel from "./CancellationRequestPanel";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
+import { buildCompleteLeadCopyText, copyTextToClipboard } from "@/lib/lead-copy";
 import {
   canCreateCancellationRequest,
   createCancellationRequest,
@@ -106,6 +108,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [cancelRequestLoading, setCancelRequestLoading] = useState(false);
   const [cancelReviewLoading, setCancelReviewLoading] = useState(false);
   const [pendingCancellationRequest, setPendingCancellationRequest] = useState<LeadCancellationRequest | null>(null);
+  const [completeCopied, setCompleteCopied] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoCount, setPhotoCount] = useState(0);
   const [photoOriginals, setPhotoOriginals] = useState<string[]>([]);
@@ -192,6 +195,19 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const isUrgent = lead.status === "urgent_job";
   const canCompleteCopy = isAdmin || isProcessor;
   const pictureLabel = photoCount === 1 ? "Picture attached" : "Pictures attached";
+
+  const handleCompleteCopy = async () => {
+    const text = buildCompleteLeadCopyText(lead);
+    if (!text) {
+      toast.error("No service details, address, schedule requirement, or quote available to copy");
+      return;
+    }
+
+    await copyTextToClipboard(text);
+    setCompleteCopied(true);
+    toast.success("Complete lead details copied");
+    window.setTimeout(() => setCompleteCopied(false), 1400);
+  };
 
   const detailRows = [
     {
@@ -733,10 +749,16 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
           {canCompleteCopy && (
             <div className="mt-4">
-              <CompleteLeadCopyButton
-                lead={lead}
-                className="crm-lead-card-inner h-9 w-full rounded-[14px] border-border/60 bg-transparent text-[11px] hover:border-primary/28 hover:bg-primary/[0.05]"
-              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="crm-lead-card-inner h-9 w-full gap-1.5 rounded-[14px] border-border/60 bg-transparent text-[11px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
+                onClick={handleCompleteCopy}
+              >
+                {completeCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {completeCopied ? "Copied" : "Complete Copy"}
+              </Button>
             </div>
           )}
 
@@ -948,13 +970,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               </Button>
 
               <div className="flex flex-wrap items-center gap-2 sm:w-auto">
-                {(isProcessor || isAdmin) && (
-                  <CompleteLeadCopyButton
-                    lead={lead}
-                    className="crm-lead-card-inner h-10 flex-1 rounded-[16px] border-border/60 bg-transparent transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] sm:flex-none dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
-                  />
-                )}
-
                 {isAdmin && (
                   <LeadShareDialog
                     leadId={lead.id}
