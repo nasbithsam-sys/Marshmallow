@@ -92,6 +92,62 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_cancellation_requests: {
+        Row: {
+          comment: string
+          created_at: string
+          id: string
+          lead_id: string
+          previous_status: string
+          proof: string | null
+          requested_by: string
+          requested_by_role: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          comment: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          previous_status: string
+          proof?: string | null
+          requested_by: string
+          requested_by_role: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          comment?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          previous_status?: string
+          proof?: string | null
+          requested_by?: string
+          requested_by_role?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_cancellation_requests_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_drafts: {
         Row: {
           draft_data: Json

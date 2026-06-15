@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,9 +40,19 @@ import PaymentDialog from "./PaymentDialog";
 import LeadShareDialog from "./LeadShareDialog";
 import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
-import CopyLeadButton from "./CopyLeadButton";
+import CopyValueButton from "./CopyValueButton";
+import CompleteLeadCopyButton from "./CompleteLeadCopyButton";
+import CancellationRequestDialog from "./CancellationRequestDialog";
+import CancellationRequestPanel from "./CancellationRequestPanel";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
+import {
+  canCreateCancellationRequest,
+  createCancellationRequest,
+  fetchPendingCancellationRequest,
+  reviewCancellationRequest,
+} from "@/lib/cancellation-requests";
+import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
@@ -83,8 +93,10 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [generalOpen, setGeneralOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
+  const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
+  const [cancelRequestLoading, setCancelRequestLoading] = useState(false);
+  const [cancelReviewLoading, setCancelReviewLoading] = useState(false);
+  const [pendingCancellationRequest, setPendingCancellationRequest] = useState<LeadCancellationRequest | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoCount, setPhotoCount] = useState(0);
   const [photoOriginals, setPhotoOriginals] = useState<string[]>([]);
@@ -148,9 +160,20 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.id, photoUrls]);
 
+  const refreshPendingCancellationRequest = async () => {
+    const request = await fetchPendingCancellationRequest(lead.id);
+    setPendingCancellationRequest(request);
+  };
+
+  useEffect(() => {
+    void refreshPendingCancellationRequest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id, lead.status]);
+
   const refreshCardMeta = () => {
     void refreshNotePresence();
     void loadPhotoCount();
+    void refreshPendingCancellationRequest();
   };
 
   const isAdmin = role === "admin";
@@ -312,10 +335,16 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       return;
     }
 
-    if (newStatus === "cancelled" && !cancellationReason) {
-      setCancelReason("");
-      setCancelOpen(true);
-      return;
+    if (newStatus === "cancelled") {
+      if (isAdmin) {
+        // Admin can cancel directly from card without any reason popup.
+      } else if (canCreateCancellationRequest(role)) {
+        setCancelRequestOpen(true);
+        return;
+      } else {
+        toast.error("You do not have permission to request cancellation");
+        return;
+      }
     }
 
     setChangingStatus(true);
@@ -329,8 +358,8 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     // Clear tag on any status change and unpin the lead
     statusUpdate.cs_tag = null;
 
-    if (newStatus === "cancelled" && cancellationReason) {
-      statusUpdate.cancellation_reason = cancellationReason;
+    if (newStatus === "cancelled") {
+      statusUpdate.cancellation_reason = null;
     }
 
     const { error } = await supabase
@@ -381,6 +410,51 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     }
 
     onRefresh();
+  };
+
+  const handleCancellationRequestSubmit = async (comment: string, proof: string) => {
+    if (!user) return;
+
+    setCancelRequestLoading(true);
+    try {
+      await createCancellationRequest({
+        lead,
+        userId: user.id,
+        requesterRole: role,
+        comment,
+        proof,
+      });
+      toast.success("Cancellation request sent for approval");
+      setCancelRequestOpen(false);
+      await refreshPendingCancellationRequest();
+      onRefresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to request cancellation");
+    } finally {
+      setCancelRequestLoading(false);
+    }
+  };
+
+  const handleCancellationReview = async (action: "approved" | "rejected") => {
+    if (!user || !pendingCancellationRequest) return;
+
+    setCancelReviewLoading(true);
+    try {
+      await reviewCancellationRequest({
+        request: pendingCancellationRequest,
+        lead,
+        reviewerId: user.id,
+        reviewerRole: role,
+        action,
+      });
+      toast.success(action === "approved" ? "Lead cancelled" : "Cancellation request rejected");
+      setPendingCancellationRequest(null);
+      onRefresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to review cancellation request");
+    } finally {
+      setCancelReviewLoading(false);
+    }
   };
 
   const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
@@ -639,6 +713,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/72">{label}</p>
                   <p className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>{value}</p>
                 </div>
+                <CopyValueButton value={value} label={label} />
               </div>
             ))}
           </div>
@@ -723,6 +798,15 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
             </p>
           </div>
         )}
+
+
+        <CancellationRequestPanel
+          request={pendingCancellationRequest}
+          role={role}
+          loading={cancelReviewLoading}
+          onApprove={() => handleCancellationReview("approved")}
+          onReject={() => handleCancellationReview("rejected")}
+        />
 
         <div className="space-y-2 px-4 pt-3">
           {renderCollapsible({
@@ -822,10 +906,10 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               </Button>
 
               <div className="flex flex-wrap items-center gap-2 sm:w-auto">
-                {!isCS && (
-                  <CopyLeadButton
+                {(isProcessor || isAdmin) && (
+                  <CompleteLeadCopyButton
                     lead={lead}
-                    className="crm-lead-card-inner h-10 rounded-[16px] border-border/60 bg-transparent text-[12px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
+                    className="crm-lead-card-inner h-10 flex-1 rounded-[16px] border-border/60 bg-transparent transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] sm:flex-none dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
                   />
                 )}
 
@@ -877,40 +961,13 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           loading={paymentLoading}
         />
 
-        <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Cancel this lead?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Please provide a reason. The status cannot be changed to Cancelled without one.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <textarea
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="e.g. Customer no longer needs the service"
-              rows={4}
-              autoFocus
-              className="w-full rounded-xl border border-input/90 bg-[hsl(var(--card)/0.88)] px-4 py-3 text-[14px] text-foreground shadow-premium-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 focus-visible:border-primary/45"
-            />
-            <AlertDialogFooter>
-              <AlertDialogCancel>Back</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={!cancelReason.trim()}
-                onClick={(e) => {
-                  const reason = cancelReason.trim();
-                  if (!reason) {
-                    e.preventDefault();
-                    return;
-                  }
-                  void handleStatusChange("cancelled", reason);
-                }}
-              >
-                Confirm cancellation
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <CancellationRequestDialog
+          open={cancelRequestOpen}
+          onOpenChange={setCancelRequestOpen}
+          onSubmit={handleCancellationRequestSubmit}
+          loading={cancelRequestLoading}
+          requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
+        />
 
         <ImageLightbox
           images={lightboxImages.length ? lightboxImages : allImages}
