@@ -176,6 +176,10 @@ export default function LeadDetailPage() {
 
     amount: "",
     payment_screenshot_url: "",
+    cancellation_reason: "",
+    cancellation_proof: "",
+    cancellation_requested_by: null as string | null,
+    cancellation_requested_role: null as string | null,
   });
 
   const duplicateCheckId = isNew ? undefined : leadId || undefined;
@@ -265,6 +269,10 @@ export default function LeadDetailPage() {
 
       amount: lead.amount != null ? String(lead.amount) : "",
       payment_screenshot_url: lead.payment_screenshot_url || "",
+      cancellation_reason: lead.cancellation_reason || "",
+      cancellation_proof: lead.cancellation_proof || "",
+      cancellation_requested_by: lead.cancellation_requested_by || null,
+      cancellation_requested_role: lead.cancellation_requested_role || null,
     });
   };
 
@@ -364,6 +372,40 @@ export default function LeadDetailPage() {
 
     if (key === "status" && value === "paid") {
       setPaymentOpen(true);
+      return;
+    }
+
+    if (key === "status" && value === "cancelled") {
+      const canApproveRequest =
+        originalLead?.status === "cancellation_request" &&
+        (isAdmin || (isProcessor && originalLead.cancellation_requested_role === "customer_service"));
+
+      if (isAdmin || canApproveRequest) {
+        setForm((prev) => ({
+          ...prev,
+          status: "cancelled",
+          cancellation_reason: prev.cancellation_reason || originalLead?.cancellation_reason || "",
+          cancellation_proof: prev.cancellation_proof || originalLead?.cancellation_proof || "",
+          cancellation_requested_by: null,
+          cancellation_requested_role: null,
+        }));
+        return;
+      }
+
+      const reason = window.prompt("Cancellation comment");
+      if (!reason?.trim()) {
+        toast.error("Cancellation comment is required");
+        return;
+      }
+      const proof = window.prompt("Proof/details for cancellation") || "";
+      setForm((prev) => ({
+        ...prev,
+        status: "cancellation_request",
+        cancellation_reason: reason.trim(),
+        cancellation_proof: proof.trim(),
+        cancellation_requested_by: user?.id ?? null,
+        cancellation_requested_role: role ?? null,
+      }));
       return;
     }
 
@@ -598,6 +640,12 @@ export default function LeadDetailPage() {
       last_edited_by: user.id,
       updated_at: new Date().toISOString(),
       last_edited_at: new Date().toISOString(),
+      cancellation_reason:
+        form.status === "cancelled" || form.status === "cancellation_request" ? form.cancellation_reason || null : null,
+      cancellation_proof:
+        form.status === "cancelled" || form.status === "cancellation_request" ? form.cancellation_proof || null : null,
+      cancellation_requested_by: form.status === "cancellation_request" ? form.cancellation_requested_by || user.id : null,
+      cancellation_requested_role: form.status === "cancellation_request" ? form.cancellation_requested_role || role : null,
     };
 
     try {
