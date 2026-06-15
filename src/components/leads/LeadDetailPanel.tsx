@@ -138,6 +138,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelProof, setCancelProof] = useState("");
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ["lead", leadId, role, user?.id],
@@ -252,7 +253,25 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       return;
     }
     if (key === "status" && value === "cancelled") {
-      setCancelReason(form.cancellation_reason ?? "");
+      const isAdmin = role === "admin";
+      const canApproveRequest =
+        lead?.status === "cancellation_request" &&
+        (isAdmin || (role === "processor" && lead.cancellation_requested_role === "customer_service"));
+
+      if (isAdmin || canApproveRequest) {
+        setForm((prev) => ({
+          ...prev,
+          status: "cancelled" as LeadStatus,
+          cancellation_reason: prev.cancellation_reason ?? lead?.cancellation_reason ?? null,
+          cancellation_proof: prev.cancellation_proof ?? lead?.cancellation_proof ?? null,
+          cancellation_requested_by: null,
+          cancellation_requested_role: null,
+        }));
+        return;
+      }
+
+      setCancelReason("");
+      setCancelProof("");
       setCancelOpen(true);
       return;
     }
@@ -267,8 +286,11 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     }
     setForm((prev) => ({
       ...prev,
-      status: "cancelled" as LeadStatus,
+      status: "cancellation_request" as LeadStatus,
       cancellation_reason: reason,
+      cancellation_proof: cancelProof.trim() || null,
+      cancellation_requested_by: user?.id ?? null,
+      cancellation_requested_role: role ?? null,
     }));
     setCancelOpen(false);
   };
@@ -404,6 +426,19 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
       if (form.status === "cancelled") {
         updateData.cancellation_reason = form.cancellation_reason ?? null;
+        updateData.cancellation_proof = form.cancellation_proof ?? null;
+        updateData.cancellation_requested_by = null;
+        updateData.cancellation_requested_role = null;
+      } else if (form.status === "cancellation_request") {
+        updateData.cancellation_reason = form.cancellation_reason ?? null;
+        updateData.cancellation_proof = form.cancellation_proof ?? null;
+        updateData.cancellation_requested_by = form.cancellation_requested_by ?? user.id;
+        updateData.cancellation_requested_role = form.cancellation_requested_role ?? role;
+      } else {
+        updateData.cancellation_reason = null;
+        updateData.cancellation_proof = null;
+        updateData.cancellation_requested_by = null;
+        updateData.cancellation_requested_role = null;
       }
 
       if (form.status !== lead?.status) {
@@ -419,18 +454,26 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       const { error } = await updateQuery;
       if (error) throw error;
 
-      if (lead?.status !== form.status && (form.status === "urgent_job" || form.status === "need_tech")) {
+      if (lead?.status !== form.status && (form.status === "urgent_job" || form.status === "need_tech" || form.status === "cancellation_request")) {
         const { data: roles } = await supabase
           .from("user_roles")
           .select("user_id, role")
-          .in("role", ["admin", "processor", "customer_service", "opr"]);
+          .in("role", form.status === "cancellation_request" ? ["admin", "processor"] : ["admin", "processor", "customer_service", "opr"]);
 
         if (roles) {
-          const statusLabel = form.status === "urgent_job" ? "Urgent Job" : "Need Tech";
+          const statusLabel =
+            form.status === "cancellation_request"
+              ? "Cancellation Request"
+              : form.status === "urgent_job"
+                ? "Urgent Job"
+                : "Need Tech";
           const notifs = roles.map((r: { user_id: string }) => ({
             user_id: r.user_id,
             title: `[Alert] ${statusLabel}`,
-            message: `Lead "${form.customer_name}" changed to ${statusLabel}`,
+            message:
+              form.status === "cancellation_request"
+                ? `Lead "${form.customer_name}" needs cancellation approval`
+                : `Lead "${form.customer_name}" changed to ${statusLabel}`,
             lead_id: leadId,
             read: false,
           }));
@@ -475,6 +518,11 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
+  const isAdmin = role === "admin";
+  const isCancellationRequest = lead?.status === "cancellation_request";
+  const canApproveCancellationRequest =
+    isCancellationRequest &&
+    (isAdmin || (isProcessor && lead?.cancellation_requested_role === "customer_service"));
 
   const labelClass = "text-[12px] font-semibold tracking-[-0.01em] text-foreground/82";
   const fieldClass =
@@ -597,6 +645,36 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 )}
               </div>
               <StatusDropdownFiltered value={form.status} onChange={(v) => update("status", v as LeadStatus)} role={role} />
+              {isCancellationRequest && (
+                <div className="mt-3 rounded-xl border border-amber-300/60 bg-amber-50/80 p-3 text-[12px] text-amber-950 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-100">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <p className="font-semibold">Cancellation request</p>
+                    {canApproveCancellationRequest && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 rounded-full px-3 text-[11px]"
+                        onClick={() => update("status", "cancelled" as LeadStatus)}
+                      >
+                        Approve cancel
+                      </Button>
+                    )}
+                  </div>
+                  <p className="leading-5">
+                    <span className="font-medium">Comment:</span> {lead.cancellation_reason || "No comment provided"}
+                  </p>
+                  {lead.cancellation_proof && (
+                    <p className="mt-1 leading-5">
+                      <span className="font-medium">Proof:</span> {lead.cancellation_proof}
+                    </p>
+                  )}
+                  {!canApproveCancellationRequest && isProcessor && (
+                    <p className="mt-2 text-[11px] text-amber-800/80 dark:text-amber-100/75">
+                      Processor cancellation requests must be approved by an admin.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -966,14 +1044,13 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Cancel lead</DialogTitle>
+              <DialogTitle>Request cancellation</DialogTitle>
               <DialogDescription>
-                Please provide a reason for cancelling this lead. The status cannot be changed to
-                Cancelled without a reason.
+                Add the cancellation comment and proof. This will go to approval before the lead is cancelled.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
-              <Label htmlFor="cancel-reason">Cancellation reason</Label>
+              <Label htmlFor="cancel-reason">Cancellation comment</Label>
               <Textarea
                 id="cancel-reason"
                 value={cancelReason}
@@ -982,13 +1059,21 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 rows={4}
                 autoFocus
               />
+              <Label htmlFor="cancel-proof">Proof / details</Label>
+              <Textarea
+                id="cancel-proof"
+                value={cancelProof}
+                onChange={(e) => setCancelProof(e.target.value)}
+                placeholder="e.g. customer message, call note, screenshot reference"
+                rows={3}
+              />
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setCancelOpen(false)}>
                 Back
               </Button>
               <Button onClick={handleCancelConfirm} disabled={!cancelReason.trim()}>
-                Confirm cancellation
+                Submit request
               </Button>
             </DialogFooter>
           </DialogContent>

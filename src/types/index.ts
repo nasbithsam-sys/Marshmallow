@@ -24,6 +24,7 @@ export type LeadStatus =
   | 'needs_reschedule'
   | 'job_done'
   | 'payment_pending'
+  | 'cancellation_request'
   | 'cancelled'
   | 'paid';
 
@@ -44,6 +45,7 @@ export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: stri
   needs_reschedule: { label: 'Needs Reschedule', color: 'status-amber' },
   job_done: { label: 'Job Done', color: 'status-green' },
   payment_pending: { label: 'Payment Pending', color: 'status-amber' },
+  cancellation_request: { label: 'Cancellation Request', color: 'status-amber' },
   cancelled: { label: 'Cancelled', color: 'status-muted' },
   paid: { label: 'Paid', color: 'status-green' },
 };
@@ -107,6 +109,9 @@ export interface Lead {
   for_you_amount: number | null;
   for_us_amount: number | null;
   cancellation_reason?: string | null;
+  cancellation_proof?: string | null;
+  cancellation_requested_by?: string | null;
+  cancellation_requested_role?: AppRole | null;
   // Joined fields
   creator_name?: string;
   editor_name?: string;
