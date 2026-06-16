@@ -229,27 +229,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       wrap: true,
     },
     {
-      key: "service",
-      label: "Service Details",
-      value: lead.service_details || lead.service_type,
-      icon: MessageSquare,
-      wrap: true,
-    },
-    {
-      key: "schedule",
-      label: "Schedule Requirement",
-      value: lead.customer_schedule_requirements || formatScheduleForCopy(lead),
-      icon: CalendarDays,
-      wrap: true,
-    },
-    {
-      key: "quote",
-      label: "Quote",
-      value: lead.quote,
-      icon: Clipboard,
-      wrap: true,
-    },
-    {
       key: "technician",
       label: "Technician",
       value: [lead.tech_name, lead.tech_number].filter(Boolean).join(" · "),
