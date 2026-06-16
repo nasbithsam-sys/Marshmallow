@@ -360,7 +360,8 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       return;
     }
 
-    if (newStatus === "cancelled") {
+    if (newStatus === "cancelled" && cancellationReason === undefined) {
+      // Only open the dialog when not already coming from the dialog submit
       setCancelRequestOpen(true);
       return;
     }
@@ -1001,5 +1002,3 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 }
 
 export default memo(LeadCard);
-
-
