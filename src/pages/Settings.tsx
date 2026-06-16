@@ -1,11 +1,12 @@
 ﻿import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Plus, Shield, Eye, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock } from "lucide-react";
+import { Plus, Shield, Eye, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from "@/lib/constants";
 import { adminApi } from "@/lib/admin-api";
@@ -33,6 +34,7 @@ import type { AppRole } from "@/types";
 import MFAEnroll from "@/components/auth/MFAEnroll";
 import { motion } from "framer-motion";
 import { heroTitle } from "@/lib/motion";
+import { DEFAULT_MESSAGE_TEMPLATES, MESSAGE_TEMPLATE_LABELS, type MessageTemplateKey } from "@/lib/message-templates";
 
 const generateCode = () => {
   const arr = new Uint32Array(1);
@@ -42,11 +44,13 @@ const generateCode = () => {
 
 const NAV_SECTION_LABELS: Record<string, string> = {
   leads: "All Leads",
+  calls: "Calls Log",
   analytics: "Analytics",
   settings: "Settings",
   activity_logs: "Activity Logs",
   schedule: "Schedule",
   areas: "Area Insights",
+  cancellation_requests: "Lead Cancellation Requests",
 };
 
 const roleColors: Record<string, string> = {
@@ -91,6 +95,37 @@ interface StatusVisibilityRow {
   is_visible: boolean;
 }
 
+function TemplateEditor({
+  initialValue,
+  saving,
+  onSave,
+}: {
+  templateKey: MessageTemplateKey;
+  initialValue: string;
+  saving: boolean;
+  onSave: (value: string) => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  return (
+    <div className="space-y-3">
+      <Textarea value={value} onChange={(event) => setValue(event.target.value)} rows={12} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[11px] text-muted-foreground">
+          Available placeholders include {"{tech_name}"}, {"{schedule_time}"}, {"{customer_name}"}, {"{customer_phone}"}, {"{customer_address}"}, {"{service_details}"}, and {"{quote}"}.
+        </p>
+        <Button onClick={() => onSave(value)} disabled={saving || !value.trim()}>
+          {saving ? "Saving..." : "Save template"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 const MANAGED_ROLES: AppRole[] = ["customer_service", "processor", "opr"];
 
 const Settings = () => {
@@ -102,7 +137,7 @@ const Settings = () => {
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState<AppRole>("customer_service");
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<"users" | "nav_permissions" | "status_permissions" | "security">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "nav_permissions" | "status_permissions" | "templates" | "security">("users");
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordUserId, setPasswordUserId] = useState("");
   const [passwordUserName, setPasswordUserName] = useState("");
@@ -158,6 +193,39 @@ const Settings = () => {
 
       return data ?? [];
     },
+  });
+
+  const { data: messageTemplates = [] } = useQuery<Array<{ key: MessageTemplateKey; template: string }>>({
+    queryKey: ["settings-message-templates"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("message_templates").select("key, template");
+      if (error) throw error;
+
+      const rows = (data ?? []) as Array<{ key: MessageTemplateKey; template: string }>;
+      const byKey = new Map(rows.map((row) => [row.key, row.template]));
+      return (Object.keys(DEFAULT_MESSAGE_TEMPLATES) as MessageTemplateKey[]).map((key) => ({
+        key,
+        template: byKey.get(key) ?? DEFAULT_MESSAGE_TEMPLATES[key],
+      }));
+    },
+  });
+
+  const updateTemplate = useMutation({
+    mutationFn: async ({ key, template }: { key: MessageTemplateKey; template: string }) => {
+      const { error } = await (supabase as any).from("message_templates").upsert({
+        key,
+        template,
+        updated_by: user?.id ?? null,
+      } as never);
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["settings-message-templates"] });
+      queryClient.invalidateQueries({ queryKey: ["message-template", variables.key] });
+      toast.success("Template saved");
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Failed to save template"),
   });
 
   const userById = useMemo(() => new Map(users.map((targetUser) => [targetUser.id, targetUser])), [users]);
@@ -605,6 +673,7 @@ const Settings = () => {
             { key: "users", label: "Users", icon: Shield },
             { key: "nav_permissions", label: "Tab Permissions", icon: Shield },
             { key: "status_permissions", label: "Status Visibility", icon: Eye },
+            { key: "templates", label: "Templates", icon: FileText },
             { key: "security", label: "Security", icon: ShieldCheck },
           ] as const
         ).map((tab) => (
@@ -976,6 +1045,30 @@ const Settings = () => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {activeTab === "templates" && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {messageTemplates.map((templateRow) => (
+            <Card key={templateRow.key} className="border-border/60 bg-card/95">
+              <CardContent className="space-y-4 p-5">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{MESSAGE_TEMPLATE_LABELS[templateRow.key]}</p>
+                  <p className="mt-1 text-[12px] leading-5 text-muted-foreground">
+                    Admin changes here sync to every role. Popup edits made while copying stay private to that popup.
+                  </p>
+                </div>
+
+                <TemplateEditor
+                  templateKey={templateRow.key}
+                  initialValue={templateRow.template}
+                  saving={updateTemplate.isPending}
+                  onSave={(value) => updateTemplate.mutate({ key: templateRow.key, template: value })}
+                />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       {activeTab === "security" && (

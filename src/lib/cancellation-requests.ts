@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Lead, LeadCancellationRequest, LeadStatus } from "@/types";
 import { logActivity } from "@/lib/activity";
+import { optimizeImageForUpload } from "@/lib/image-upload";
 
 export const CANCELLATION_REQUEST_STATUS: LeadStatus = "cancellation_requested";
 
@@ -10,6 +11,7 @@ type CreateCancellationRequestArgs = {
   requesterRole: AppRole;
   comment: string;
   proof?: string | null;
+  proofImage?: File | null;
 };
 
 type ReviewCancellationRequestArgs = {
@@ -69,9 +71,11 @@ export async function createCancellationRequest({
   requesterRole,
   comment,
   proof,
+  proofImage,
 }: CreateCancellationRequestArgs): Promise<LeadCancellationRequest> {
   const cleanComment = comment.trim();
   const cleanProof = proof?.trim() || null;
+  let proofImagePath: string | null = null;
 
   if (!cleanComment) throw new Error("Cancellation comment is required");
   if (!canCreateCancellationRequest(requesterRole)) {
@@ -88,6 +92,14 @@ export async function createCancellationRequest({
     throw new Error("This lead already has a pending cancellation request");
   }
 
+  if (proofImage) {
+    const optimized = await optimizeImageForUpload(proofImage);
+    const ext = optimized.name.split(".").pop() || "jpg";
+    proofImagePath = `cancellation-requests/${lead.id}_${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("lead-photos").upload(proofImagePath, optimized);
+    if (uploadError) throw uploadError;
+  }
+
   const { data, error } = await cancellationRequestsTable()
     .insert({
       lead_id: lead.id,
@@ -96,6 +108,7 @@ export async function createCancellationRequest({
       requested_by_role: requesterRole,
       comment: cleanComment,
       proof: cleanProof,
+      proof_image_path: proofImagePath,
       status: "pending",
     } as never)
     .select("*")
@@ -141,6 +154,7 @@ export async function createCancellationRequest({
     requested_by_role: requesterRole,
     comment: cleanComment,
     proof: cleanProof,
+    proof_image_path: proofImagePath,
     status_from: lead.status,
     status_to: CANCELLATION_REQUEST_STATUS,
   });
@@ -176,6 +190,7 @@ export async function reviewCancellationRequest({
     const reason = [
       request.comment ? `Comment: ${request.comment}` : "",
       request.proof ? `Proof: ${request.proof}` : "",
+      request.proof_image_path ? `Proof image: ${request.proof_image_path}` : "",
     ]
       .filter(Boolean)
       .join("\n");

@@ -39,7 +39,7 @@ export default function CompleteLeadCopyButton({ lead, className }: CompleteLead
       onClick={handleCopy}
     >
       {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-      {copied ? "Copied" : "Complete Copy"}
+      {copied ? "Copied" : "Copy Complete Details"}
     </Button>
   );
 }

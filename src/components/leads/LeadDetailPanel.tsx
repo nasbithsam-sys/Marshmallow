@@ -138,6 +138,8 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
   const [cancelRequestLoading, setCancelRequestLoading] = useState(false);
+  const [adminCancelOpen, setAdminCancelOpen] = useState(false);
+  const [adminCancelLoading, setAdminCancelLoading] = useState(false);
   const [cancelReviewLoading, setCancelReviewLoading] = useState(false);
 
   const { data: lead, isLoading } = useQuery({
@@ -260,7 +262,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     }
     if (key === "status" && value === "cancelled") {
       if (role === "admin") {
-        setForm((prev) => ({ ...prev, status: "cancelled" as LeadStatus, cancellation_reason: null }));
+        setAdminCancelOpen(true);
       } else if (canCreateCancellationRequest(role)) {
         setCancelRequestOpen(true);
       } else {
@@ -271,7 +273,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleCancellationRequestSubmit = async (comment: string, proof: string) => {
+  const handleCancellationRequestSubmit = async (comment: string, proof: string, proofImage: File | null) => {
     if (!user || !lead) return;
 
     setCancelRequestLoading(true);
@@ -282,6 +284,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         requesterRole: role,
         comment,
         proof,
+        proofImage,
       });
       toast.success("Cancellation request sent for approval");
       setCancelRequestOpen(false);
@@ -293,6 +296,62 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       toast.error(err instanceof Error ? err.message : "Failed to request cancellation");
     } finally {
       setCancelRequestLoading(false);
+    }
+  };
+
+  const handleAdminCancelSubmit = async (comment: string, proof: string, proofImage: File | null) => {
+    if (!user || !lead) return;
+
+    setAdminCancelLoading(true);
+    try {
+      let proofImagePath: string | null = null;
+      if (proofImage) {
+        const optimized = await optimizeImageForUpload(proofImage);
+        const ext = optimized.name.split(".").pop() || "jpg";
+        proofImagePath = `cancellation-requests/${leadId}_${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("lead-photos").upload(proofImagePath, optimized);
+        if (uploadError) throw uploadError;
+      }
+
+      const reason = [
+        comment.trim() ? `Comment: ${comment.trim()}` : "",
+        proof.trim() ? `Proof: ${proof.trim()}` : "",
+        proofImagePath ? `Proof image: ${proofImagePath}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const { error } = await supabase
+        .from("leads")
+        .update({
+          status: "cancelled",
+          cancellation_reason: reason,
+          cs_tag: null,
+          last_edited_by: user.id,
+          updated_at: new Date().toISOString(),
+          last_edited_at: new Date().toISOString(),
+        } as never)
+        .eq("id", leadId);
+
+      if (error) throw error;
+
+      await logActivity(user.id, "status_changed", "lead", leadId, {
+        target_name: lead.job_id,
+        customer_name: lead.customer_name,
+        job_id: lead.job_id,
+        status_from: lead.status,
+        status_to: "cancelled",
+        cancellation_reason: reason,
+      });
+
+      toast.success("Lead cancelled");
+      setAdminCancelOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+      onUpdate();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel lead");
+    } finally {
+      setAdminCancelLoading(false);
     }
   };
 
@@ -602,7 +661,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                {!isCS && <CopyLeadButton lead={lead} />}
+                <CopyLeadButton lead={lead} />
 
                 <Button
                   onClick={() => saveMutation.mutate()}
@@ -1029,6 +1088,14 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           onSubmit={handleCancellationRequestSubmit}
           loading={cancelRequestLoading}
           requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
+        />
+
+        <CancellationRequestDialog
+          open={adminCancelOpen}
+          onOpenChange={setAdminCancelOpen}
+          onSubmit={handleAdminCancelSubmit}
+          loading={adminCancelLoading}
+          mode="direct"
         />
       </motion.div>
     </div>
