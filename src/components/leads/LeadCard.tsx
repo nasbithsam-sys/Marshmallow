@@ -45,7 +45,6 @@ import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
 import CopyValueButton from "./CopyValueButton";
 import CancellationRequestDialog from "./CancellationRequestDialog";
-import CancellationRequestPanel from "./CancellationRequestPanel";
 import CopyLeadButton from "./CopyLeadButton";
 import ReminderButton from "./ReminderButton";
 import { adminApi } from "@/lib/admin-api";
@@ -863,15 +862,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
             </p>
           </div>
         )}
-
-
-        <CancellationRequestPanel
-          request={pendingCancellationRequest}
-          role={role}
-          loading={cancelReviewLoading}
-          onApprove={() => handleCancellationReview("approved")}
-          onReject={() => handleCancellationReview("rejected")}
-        />
 
         <div className="space-y-2 px-4 pt-3">
           {renderCollapsible({
