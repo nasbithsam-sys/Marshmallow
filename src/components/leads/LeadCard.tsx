@@ -54,7 +54,6 @@ import {
   canCreateCancellationRequest,
   createCancellationRequest,
   fetchPendingCancellationRequest,
-  reviewCancellationRequest,
 } from "@/lib/cancellation-requests";
 import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
@@ -107,9 +106,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
   const [cancelRequestLoading, setCancelRequestLoading] = useState(false);
-  const [adminCancelOpen, setAdminCancelOpen] = useState(false);
-  const [adminCancelLoading, setAdminCancelLoading] = useState(false);
-  const [cancelReviewLoading, setCancelReviewLoading] = useState(false);
   const [pendingCancellationRequest, setPendingCancellationRequest] = useState<LeadCancellationRequest | null>(null);
   const [completeCopied, setCompleteCopied] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
@@ -365,16 +361,8 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     }
 
     if (newStatus === "cancelled") {
-      if (isAdmin && !cancellationReason) {
-        setAdminCancelOpen(true);
-        return;
-      } else if (canCreateCancellationRequest(role)) {
-        setCancelRequestOpen(true);
-        return;
-      } else {
-        toast.error("You do not have permission to request cancellation");
-        return;
-      }
+      setCancelRequestOpen(true);
+      return;
     }
 
     setChangingStatus(true);
@@ -442,83 +430,49 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     onRefresh();
   };
 
-  const handleCancellationRequestSubmit = async (comment: string, proof: string, proofImage: File | null) => {
+ const handleCancellationRequestSubmit = async (comment: string, proof: string, proofImage: File | null) => {
     if (!user) return;
 
     setCancelRequestLoading(true);
     try {
-      await createCancellationRequest({
-        lead,
-        userId: user.id,
-        requesterRole: role,
-        comment,
-        proof,
-        proofImage,
-      });
-      toast.success("Cancellation request sent for approval");
+      if (isAdmin) {
+        // Admin cancels directly — no request tab needed
+        let proofImagePath: string | null = null;
+        if (proofImage) {
+          const { optimizeImageForUpload } = await import("@/lib/image-upload");
+          const optimized = await optimizeImageForUpload(proofImage);
+          const ext = optimized.name.split(".").pop() || "jpg";
+          proofImagePath = `cancellation-requests/${lead.id}_${Date.now()}.${ext}`;
+          const { error: uploadError } = await supabase.storage.from("lead-photos").upload(proofImagePath, optimized);
+          if (uploadError) throw uploadError;
+        }
+        const reason = [
+          comment.trim() ? `Comment: ${comment.trim()}` : "",
+          proof.trim() ? `Proof: ${proof.trim()}` : "",
+          proofImagePath ? `Proof image: ${proofImagePath}` : "",
+        ].filter(Boolean).join("\n");
+        await handleStatusChange("cancelled", reason);
+      } else {
+        // CS / Processor — send to cancellation requests tab
+        await createCancellationRequest({
+          lead,
+          userId: user.id,
+          requesterRole: role,
+          comment,
+          proof,
+          proofImage,
+        });
+        toast.success("Cancellation request sent for approval");
+        await refreshPendingCancellationRequest();
+        onRefresh();
+      }
       setCancelRequestOpen(false);
-      await refreshPendingCancellationRequest();
-      onRefresh();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to request cancellation");
+      toast.error(err instanceof Error ? err.message : "Failed to cancel lead");
     } finally {
       setCancelRequestLoading(false);
     }
   };
-
-  const handleAdminCancelSubmit = async (comment: string, proof: string, proofImage: File | null) => {
-    if (!user) return;
-
-    setAdminCancelLoading(true);
-    try {
-      let proofImagePath: string | null = null;
-      if (proofImage) {
-        const optimized = await optimizeImageForUpload(proofImage);
-        const ext = optimized.name.split(".").pop() || "jpg";
-        proofImagePath = `cancellation-requests/${lead.id}_${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from("lead-photos").upload(proofImagePath, optimized);
-        if (uploadError) throw uploadError;
-      }
-
-      const reason = [
-        comment.trim() ? `Comment: ${comment.trim()}` : "",
-        proof.trim() ? `Proof: ${proof.trim()}` : "",
-        proofImagePath ? `Proof image: ${proofImagePath}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      await handleStatusChange("cancelled", reason);
-      setAdminCancelOpen(false);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to cancel lead");
-    } finally {
-      setAdminCancelLoading(false);
-    }
-  };
-
-  const handleCancellationReview = async (action: "approved" | "rejected") => {
-    if (!user || !pendingCancellationRequest) return;
-
-    setCancelReviewLoading(true);
-    try {
-      await reviewCancellationRequest({
-        request: pendingCancellationRequest,
-        lead,
-        reviewerId: user.id,
-        reviewerRole: role,
-        action,
-      });
-      toast.success(action === "approved" ? "Lead cancelled" : "Cancellation request rejected");
-      setPendingCancellationRequest(null);
-      onRefresh();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to review cancellation request");
-    } finally {
-      setCancelReviewLoading(false);
-    }
-  };
-
   const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
     setPaymentLoading(true);
     let screenshotUrl: string | null = null;
@@ -1031,17 +985,10 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           onOpenChange={setCancelRequestOpen}
           onSubmit={handleCancellationRequestSubmit}
           loading={cancelRequestLoading}
+          mode={isAdmin ? "direct" : "request"}
           requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
         />
-
-        <CancellationRequestDialog
-          open={adminCancelOpen}
-          onOpenChange={setAdminCancelOpen}
-          onSubmit={handleAdminCancelSubmit}
-          loading={adminCancelLoading}
-          mode="direct"
-        />
-
+        
         <ImageLightbox
           images={lightboxImages.length ? lightboxImages : allImages}
           initialIndex={lightboxIndex}
