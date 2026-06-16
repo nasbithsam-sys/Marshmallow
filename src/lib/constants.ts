@@ -85,7 +85,6 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "needs_reschedule",
   "job_done",
   "payment_pending",
-  "cancellation_requested",
   "cancelled",
   "paid",
 ];
@@ -96,7 +95,6 @@ export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
   urgent_job: 1,
   need_tech: 2,
-  cancellation_requested: 0,
   cancelled: 99,
 };
 
@@ -124,9 +122,6 @@ export function compareLeadDisplayPriority(
   a: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
   b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
 ) {
-  // Tagged leads pin above urgent — but only while still in an active/pre-scheduled status.
-  // Once status moves to scheduled / job_in_progress / job_done / paid / cancelled etc.,
-  // any leftover cs_tag is ignored so urgent leads stay on top.
   const aTagged = Boolean(a.cs_tag) && TAG_ELIGIBLE_STATUSES[a.status] === true;
   const bTagged = Boolean(b.cs_tag) && TAG_ELIGIBLE_STATUSES[b.status] === true;
 
@@ -139,7 +134,26 @@ export function compareLeadDisplayPriority(
 }
 
 const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
-  admin: ALL_LEAD_STATUSES,
+  admin: [
+    "waiting_complete_details",
+    "urgent_job",
+    "quote_sent_waiting",
+    "post_visit_quote_sent_waiting",
+    "activate_customer",
+    "ready_to_schedule",
+    "quote_sent_need_follow_up",
+    "needs_quote",
+    "tech_making_quote",
+    "waiting_customer_response",
+    "need_tech",
+    "scheduled",
+    "job_in_progress",
+    "needs_reschedule",
+    "job_done",
+    "payment_pending",
+    "cancelled",
+    "paid",
+  ],
   customer_service: [
     "need_tech",
     "urgent_job",
@@ -150,7 +164,6 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "quote_sent_need_follow_up",
     "needs_quote",
     "needs_reschedule",
-    "cancellation_requested",
     "cancelled",
   ],
   processor: [
@@ -165,7 +178,6 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "payment_pending",
     "job_done",
     "needs_reschedule",
-    "cancellation_requested",
     "cancelled",
   ],
   no_role: [],
