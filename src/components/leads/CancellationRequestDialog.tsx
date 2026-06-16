@@ -15,9 +15,10 @@ import {
 interface CancellationRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (comment: string, proof: string) => void | Promise<void>;
+  onSubmit: (comment: string, proof: string, proofImage: File | null) => void | Promise<void>;
   loading?: boolean;
   requesterLabel?: string;
+  mode?: "request" | "direct";
 }
 
 export default function CancellationRequestDialog({
@@ -26,34 +27,40 @@ export default function CancellationRequestDialog({
   onSubmit,
   loading = false,
   requesterLabel = "your manager",
+  mode = "request",
 }: CancellationRequestDialogProps) {
   const [comment, setComment] = useState("");
   const [proof, setProof] = useState("");
+  const [proofImage, setProofImage] = useState<File | null>(null);
 
   useEffect(() => {
     if (!open) {
       setComment("");
       setProof("");
+      setProofImage(null);
     }
   }, [open]);
 
   const handleSubmit = async () => {
-    await onSubmit(comment, proof);
+    await onSubmit(comment, proof, proofImage);
   };
+  const isDirect = mode === "direct";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Request cancellation</DialogTitle>
+          <DialogTitle>{isDirect ? "Cancel lead" : "Request cancellation"}</DialogTitle>
           <DialogDescription>
-            This lead will move to Cancellation Request first. {requesterLabel} can approve or reject it after checking your comment and proof.
+            {isDirect
+              ? "Add the cancellation reason before this lead is marked cancelled."
+              : `This lead will move to Cancellation Request first. ${requesterLabel} can approve or reject it after checking your comment and proof.`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="cancel-comment">Cancellation comment *</Label>
+            <Label htmlFor="cancel-comment">Cancellation reason *</Label>
             <Textarea
               id="cancel-comment"
               value={comment}
@@ -64,7 +71,8 @@ export default function CancellationRequestDialog({
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
             <Label htmlFor="cancel-proof">Proof / reference / link</Label>
             <Input
               id="cancel-proof"
@@ -72,6 +80,16 @@ export default function CancellationRequestDialog({
               onChange={(event) => setProof(event.target.value)}
               placeholder="Paste proof, note, screenshot link, or reference..."
             />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cancel-proof-image">Upload image</Label>
+              <Input
+                id="cancel-proof-image"
+                type="file"
+                accept="image/*"
+                onChange={(event) => setProofImage(event.target.files?.[0] ?? null)}
+              />
+            </div>
           </div>
         </div>
 
@@ -80,7 +98,7 @@ export default function CancellationRequestDialog({
             Back
           </Button>
           <Button onClick={handleSubmit} disabled={loading || !comment.trim()}>
-            {loading ? "Requesting..." : "Send request"}
+            {loading ? "Saving..." : isDirect ? "Cancel lead" : "Send request"}
           </Button>
         </DialogFooter>
       </DialogContent>

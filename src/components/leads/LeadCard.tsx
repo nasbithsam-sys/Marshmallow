@@ -46,6 +46,8 @@ import ImageLightbox from "./ImageLightbox";
 import CopyValueButton from "./CopyValueButton";
 import CancellationRequestDialog from "./CancellationRequestDialog";
 import CancellationRequestPanel from "./CancellationRequestPanel";
+import CopyLeadButton from "./CopyLeadButton";
+import ReminderButton from "./ReminderButton";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
 import { buildCompleteLeadCopyText, copyTextToClipboard } from "@/lib/lead-copy";
@@ -106,6 +108,8 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
   const [cancelRequestLoading, setCancelRequestLoading] = useState(false);
+  const [adminCancelOpen, setAdminCancelOpen] = useState(false);
+  const [adminCancelLoading, setAdminCancelLoading] = useState(false);
   const [cancelReviewLoading, setCancelReviewLoading] = useState(false);
   const [pendingCancellationRequest, setPendingCancellationRequest] = useState<LeadCancellationRequest | null>(null);
   const [completeCopied, setCompleteCopied] = useState(false);
@@ -212,7 +216,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const detailRows = [
     {
       key: "phone",
-      label: "Number",
+      label: "Contact",
       value: lead.customer_phone,
       icon: Phone,
       wrap: false,
@@ -383,8 +387,9 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     }
 
     if (newStatus === "cancelled") {
-      if (isAdmin) {
-        // Admin can cancel directly from card without any reason popup.
+      if (isAdmin && !cancellationReason) {
+        setAdminCancelOpen(true);
+        return;
       } else if (canCreateCancellationRequest(role)) {
         setCancelRequestOpen(true);
         return;
@@ -406,7 +411,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     statusUpdate.cs_tag = null;
 
     if (newStatus === "cancelled") {
-      statusUpdate.cancellation_reason = null;
+      statusUpdate.cancellation_reason = cancellationReason || null;
     }
 
     const { error } = await supabase
@@ -459,7 +464,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     onRefresh();
   };
 
-  const handleCancellationRequestSubmit = async (comment: string, proof: string) => {
+  const handleCancellationRequestSubmit = async (comment: string, proof: string, proofImage: File | null) => {
     if (!user) return;
 
     setCancelRequestLoading(true);
@@ -470,6 +475,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
         requesterRole: role,
         comment,
         proof,
+        proofImage,
       });
       toast.success("Cancellation request sent for approval");
       setCancelRequestOpen(false);
@@ -479,6 +485,37 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
       toast.error(err instanceof Error ? err.message : "Failed to request cancellation");
     } finally {
       setCancelRequestLoading(false);
+    }
+  };
+
+  const handleAdminCancelSubmit = async (comment: string, proof: string, proofImage: File | null) => {
+    if (!user) return;
+
+    setAdminCancelLoading(true);
+    try {
+      let proofImagePath: string | null = null;
+      if (proofImage) {
+        const optimized = await optimizeImageForUpload(proofImage);
+        const ext = optimized.name.split(".").pop() || "jpg";
+        proofImagePath = `cancellation-requests/${lead.id}_${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("lead-photos").upload(proofImagePath, optimized);
+        if (uploadError) throw uploadError;
+      }
+
+      const reason = [
+        comment.trim() ? `Comment: ${comment.trim()}` : "",
+        proof.trim() ? `Proof: ${proof.trim()}` : "",
+        proofImagePath ? `Proof image: ${proofImagePath}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      await handleStatusChange("cancelled", reason);
+      setAdminCancelOpen(false);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel lead");
+    } finally {
+      setAdminCancelLoading(false);
     }
   };
 
@@ -747,21 +784,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
             </div>
           </div>
 
-          {canCompleteCopy && (
-            <div className="mt-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="crm-lead-card-inner h-9 w-full gap-1.5 rounded-[14px] border-border/60 bg-transparent text-[11px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
-                onClick={handleCompleteCopy}
-              >
-                {completeCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {completeCopied ? "Copied" : "Complete Copy"}
-              </Button>
-            </div>
-          )}
-
           <div className="mt-2 grid gap-2">
             {detailRows.map(({ key, label, value, icon: Icon, wrap }) => (
               <div
@@ -957,6 +979,23 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               </Select>
             </div>
 
+            <div className="mb-2 grid grid-cols-1 gap-2">
+              <ReminderButton lead={lead} className="crm-lead-card-inner h-10 rounded-[16px] border-border/60 bg-transparent" />
+              <CopyLeadButton lead={lead} className="crm-lead-card-inner h-10 rounded-[16px] border-border/60 bg-transparent" />
+              {canCompleteCopy && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="crm-lead-card-inner h-10 w-full gap-1.5 rounded-[16px] border-border/60 bg-transparent text-[12px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
+                  onClick={handleCompleteCopy}
+                >
+                  {completeCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {completeCopied ? "Copied" : "Copy Complete Details"}
+                </Button>
+              )}
+            </div>
+
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Button
                 variant="outline"
@@ -1024,6 +1063,14 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           onSubmit={handleCancellationRequestSubmit}
           loading={cancelRequestLoading}
           requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
+        />
+
+        <CancellationRequestDialog
+          open={adminCancelOpen}
+          onOpenChange={setAdminCancelOpen}
+          onSubmit={handleAdminCancelSubmit}
+          loading={adminCancelLoading}
+          mode="direct"
         />
 
         <ImageLightbox

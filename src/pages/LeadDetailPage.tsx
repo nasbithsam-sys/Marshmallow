@@ -138,6 +138,8 @@ export default function LeadDetailPage() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
   const [cancelRequestLoading, setCancelRequestLoading] = useState(false);
+  const [adminCancelOpen, setAdminCancelOpen] = useState(false);
+  const [adminCancelLoading, setAdminCancelLoading] = useState(false);
   const [cancelReviewLoading, setCancelReviewLoading] = useState(false);
   const [pendingCancellationRequest, setPendingCancellationRequest] = useState<LeadCancellationRequest | null>(null);
 
@@ -396,7 +398,7 @@ export default function LeadDetailPage() {
 
     if (key === "status" && value === "cancelled") {
       if (isAdmin) {
-        setForm((prev) => ({ ...prev, status: "cancelled" as LeadStatus }));
+        setAdminCancelOpen(true);
       } else if (canCreateCancellationRequest(role)) {
         setCancelRequestOpen(true);
       } else {
@@ -723,7 +725,7 @@ export default function LeadDetailPage() {
     }
   };
 
-  const handleCancellationRequestSubmit = async (comment: string, proof: string) => {
+  const handleCancellationRequestSubmit = async (comment: string, proof: string, proofImage: File | null) => {
     if (!user || !originalLead) return;
 
     setCancelRequestLoading(true);
@@ -734,6 +736,7 @@ export default function LeadDetailPage() {
         requesterRole: role,
         comment,
         proof,
+        proofImage,
       });
       toast.success("Cancellation request sent for approval");
       setCancelRequestOpen(false);
@@ -744,6 +747,61 @@ export default function LeadDetailPage() {
       toast.error(err instanceof Error ? err.message : "Failed to request cancellation");
     } finally {
       setCancelRequestLoading(false);
+    }
+  };
+
+  const handleAdminCancelSubmit = async (comment: string, proof: string, proofImage: File | null) => {
+    if (!user || !leadId) return;
+
+    setAdminCancelLoading(true);
+    try {
+      let proofImagePath: string | null = null;
+      if (proofImage) {
+        const optimized = await optimizeImageForUpload(proofImage);
+        const ext = optimized.name.split(".").pop() || "jpg";
+        proofImagePath = `cancellation-requests/${leadId}_${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("lead-photos").upload(proofImagePath, optimized);
+        if (uploadError) throw uploadError;
+      }
+
+      const reason = [
+        comment.trim() ? `Comment: ${comment.trim()}` : "",
+        proof.trim() ? `Proof: ${proof.trim()}` : "",
+        proofImagePath ? `Proof image: ${proofImagePath}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const { error } = await supabase
+        .from("leads")
+        .update({
+          status: "cancelled",
+          cancellation_reason: reason,
+          cs_tag: null,
+          last_edited_by: user.id,
+          updated_at: new Date().toISOString(),
+          last_edited_at: new Date().toISOString(),
+        } as never)
+        .eq("id", leadId);
+
+      if (error) throw error;
+
+      await logActivity(user.id, "status_changed", "lead", leadId, {
+        target_name: jobId,
+        customer_name: form.customer_name,
+        job_id: jobId,
+        status_from: originalLead?.status,
+        status_to: "cancelled",
+        cancellation_reason: reason,
+      });
+
+      toast.success("Lead cancelled");
+      setAdminCancelOpen(false);
+      await fetchLead();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel lead");
+    } finally {
+      setAdminCancelLoading(false);
     }
   };
 
@@ -929,7 +987,7 @@ export default function LeadDetailPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {!isCS && currentCopyLead && <CopyLeadButton lead={currentCopyLead} />}
+              {currentCopyLead && <CopyLeadButton lead={currentCopyLead} />}
               <Button onClick={handleSave} disabled={saving || isDuplicate} className="gap-2">
                 {saved ? (
                   <>
@@ -1482,6 +1540,14 @@ export default function LeadDetailPage() {
         onSubmit={handleCancellationRequestSubmit}
         loading={cancelRequestLoading}
         requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
+      />
+
+      <CancellationRequestDialog
+        open={adminCancelOpen}
+        onOpenChange={setAdminCancelOpen}
+        onSubmit={handleAdminCancelSubmit}
+        loading={adminCancelLoading}
+        mode="direct"
       />
 
       <ImageLightbox

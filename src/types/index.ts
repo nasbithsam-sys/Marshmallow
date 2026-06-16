@@ -125,6 +125,7 @@ export interface LeadCancellationRequest {
   requested_by_role: AppRole;
   comment: string;
   proof: string | null;
+  proof_image_path?: string | null;
   status: CancellationRequestStatus;
   reviewed_by: string | null;
   reviewed_at: string | null;

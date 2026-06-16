@@ -11,6 +11,7 @@ export default function AppLayout() {
   const location = useLocation();
   const pageMeta: Record<string, { title: string; subtitle: string }> = {
     "/leads": { title: "Leads", subtitle: "Track intake, ownership, and next actions." },
+    "/lead-cancellation-requests": { title: "Cancellation Requests", subtitle: "Review cancellation reasons and approve or decline requests." },
     "/schedule": { title: "Schedule", subtitle: "Review jobs by day, week, and date range." },
     "/analytics": { title: "Analytics", subtitle: "Watch volume, pace, and operational trends." },
     "/areas": { title: "Areas", subtitle: "Compare neighborhoods and service performance." },
