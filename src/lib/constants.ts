@@ -22,6 +22,7 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   cancellation_requested: "Cancellation Request",
   cancelled: "Cancelled",
   paid: "Paid",
+  partial_paid: "Partial Paid",
 };
 
 export const STATUS_COLORS: Record<LeadStatus, string> = {
@@ -44,6 +45,7 @@ export const STATUS_COLORS: Record<LeadStatus, string> = {
   cancellation_requested: "bg-red-100 text-red-800 border-red-200",
   cancelled: "bg-gray-100 text-gray-800 border-gray-200",
   paid: "bg-green-100 text-green-800 border-green-200",
+  partial_paid: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
 export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
@@ -66,6 +68,7 @@ export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
   cancellation_requested: "bg-red-500",
   cancelled: "bg-gray-400",
   paid: "bg-green-500",
+  partial_paid: "bg-emerald-500",
 };
 
 export const ALL_LEAD_STATUSES: LeadStatus[] = [
@@ -87,6 +90,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "payment_pending",
   "cancelled",
   "paid",
+  "partial_paid",
 ];
 
 export const ALL_NAV_ITEMS = ["leads", "calls", "cancellation_requests", "analytics", "settings", "activity_logs", "schedule", "areas"] as const;
@@ -153,6 +157,7 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "payment_pending",
     "cancelled",
     "paid",
+    "partial_paid",
   ],
   customer_service: [
     "need_tech",
@@ -165,6 +170,7 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "needs_quote",
     "needs_reschedule",
     "cancelled",
+    "partial_paid",
   ],
   processor: [
     "post_visit_quote_sent_waiting",
@@ -179,9 +185,12 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "job_done",
     "needs_reschedule",
     "cancelled",
+    "partial_paid",
   ],
   no_role: [],
-  opr: [],
+  opr: [
+    "partial_paid",
+  ],
 };
 
 export function getChangeableStatuses(role?: string | null): LeadStatus[] {
