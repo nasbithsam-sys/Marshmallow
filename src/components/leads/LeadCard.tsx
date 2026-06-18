@@ -245,6 +245,54 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     window.setTimeout(() => setCompleteCopied(false), 1400);
   };
 
+  const handleCopySingleImage = async (thumbnailUrl: string, index: number) => {
+    toast.info("Copying image...");
+    try {
+      let originalUrl = photoOriginals[index];
+      const isPaymentImage = isPaid && lead.payment_screenshot_url && index === 0;
+
+      if (isPaymentImage) {
+        if (resolvedPaymentOriginal) {
+          originalUrl = resolvedPaymentOriginal;
+        } else {
+          const { getSignedUrl } = await import("@/lib/storage");
+          const original = await getSignedUrl(lead.payment_screenshot_url!);
+          if (original) {
+            originalUrl = original;
+            setResolvedPaymentOriginal(original);
+          }
+        }
+      } else {
+        const photoIndex = isPaid && lead.payment_screenshot_url ? index - 1 : index;
+        if (!originalUrl) {
+          const { data } = await supabase
+            .from("lead_photos")
+            .select("photo_url")
+            .eq("lead_id", lead.id)
+            .order("created_at", { ascending: true });
+          if (data && data[photoIndex]) {
+            const path = data[photoIndex].photo_url;
+            const { getSignedUrl } = await import("@/lib/storage");
+            const original = await getSignedUrl(path);
+            if (original) {
+              originalUrl = original;
+              const updatedOriginals = [...photoOriginals];
+              updatedOriginals[index] = original;
+              setPhotoOriginals(updatedOriginals);
+            }
+          }
+        }
+      }
+
+      const copyUrl = originalUrl || thumbnailUrl;
+      const { copyImageToClipboard } = await import("@/lib/lead-copy");
+      await copyImageToClipboard(copyUrl);
+    } catch (err) {
+      console.error("Failed to copy image:", err);
+      toast.error("Failed to copy image");
+    }
+  };
+
   const detailRows = [
     {
       key: "phone",
@@ -792,16 +840,15 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
               <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
                 {allImages.map((url, i) => (
-                  <button
+                  <div
                     key={i}
-                    type="button"
-                    onClick={() => openLightbox(i)}
-                    className="group/image crm-lead-card-inner relative aspect-square h-auto min-h-[56px] w-full overflow-hidden rounded-[14px] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.22)] sm:h-14 sm:w-14 dark:hover:shadow-none"
+                    className="group/image crm-lead-card-inner relative aspect-square h-auto min-h-[56px] w-full overflow-hidden rounded-[14px] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.22)] sm:h-14 sm:w-14 dark:hover:shadow-none cursor-pointer"
                   >
                     <img
                       src={url}
                       alt=""
                       loading="lazy"
+                      onClick={() => openLightbox(i)}
                       onError={() => {
                         // Image transforms aren't supported on this bucket
                         // (likely Free-tier Supabase). Disable transforms session-wide
@@ -811,7 +858,21 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                       className="h-full w-full object-cover blur-[3px] scale-110 transition-all duration-300 group-hover/image:blur-0 group-hover/image:scale-105"
                     />
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent transition-opacity duration-200 group-hover/image:opacity-0" />
-                  </button>
+                    
+                    {/* Copy Button Overlay */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        void handleCopySingleImage(url, i);
+                      }}
+                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition-opacity duration-200 hover:bg-black/80 group-hover/image:opacity-100 shadow-md"
+                      title="Copy image to clipboard"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
