@@ -1,9 +1,20 @@
 import type { Lead } from "@/types";
 
-export const copyTextToClipboard = async (text: string) => {
-  if (navigator?.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
+export const copyTextToClipboard = async (text: string, htmlText?: string) => {
+  if (navigator?.clipboard?.write) {
+    const data: Record<string, Blob> = {
+      "text/plain": new Blob([text], { type: "text/plain" }),
+    };
+    if (htmlText) {
+      data["text/html"] = new Blob([htmlText], { type: "text/html" });
+    }
+    try {
+      const item = new ClipboardItem(data);
+      await navigator.clipboard.write([item]);
+      return;
+    } catch (err) {
+      console.error("Clipboard write failed, trying fallback:", err);
+    }
   }
 
   const textArea = document.createElement("textarea");
@@ -58,4 +69,27 @@ export const buildCompleteLeadCopyText = (lead: Lead, attachedPictures?: string[
   }
 
   return baseText;
+};
+
+export const buildCompleteLeadCopyHtml = (lead: Lead, attachedPictures?: string[]) => {
+  const lines = [
+    ["Service Details", lead.service_details || lead.service_type || ""],
+    ["Address", lead.address || [lead.city, lead.state, lead.zip_code].filter(Boolean).join(", ")],
+    ["Schedule Requirement", lead.customer_schedule_requirements || formatLeadSchedule(lead)],
+    ["Quote", lead.quote || ""],
+  ];
+
+  let htmlText = lines
+    .filter(([, value]) => String(value || "").trim())
+    .map(([label, value]) => `<strong>${label}</strong>: ${value}`)
+    .join("<br/>");
+
+  if (attachedPictures && attachedPictures.length > 0) {
+    htmlText += "<br/><br/><strong>Pictures</strong>:<br/>";
+    attachedPictures.forEach((url) => {
+      htmlText += `<img src="${url}" alt="Attached Picture" style="max-width: 100%; max-height: 400px; margin-top: 8px; border-radius: 8px; display: block;" /><br/>`;
+    });
+  }
+
+  return htmlText;
 };
