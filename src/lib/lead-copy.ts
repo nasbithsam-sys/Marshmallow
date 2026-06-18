@@ -40,7 +40,7 @@ export const formatLeadSchedule = (lead: Pick<Lead, "scheduled_date" | "schedule
   return dateText;
 };
 
-export const buildCompleteLeadCopyText = (lead: Lead) => {
+export const buildCompleteLeadCopyText = (lead: Lead, attachedPictures?: string[]) => {
   const lines = [
     ["Service Details", lead.service_details || lead.service_type || ""],
     ["Address", lead.address || [lead.city, lead.state, lead.zip_code].filter(Boolean).join(", ")],
@@ -48,8 +48,14 @@ export const buildCompleteLeadCopyText = (lead: Lead) => {
     ["Quote", lead.quote || ""],
   ];
 
-  return lines
+  let baseText = lines
     .filter(([, value]) => String(value || "").trim())
     .map(([label, value]) => `${label}: ${value}`)
     .join("\n");
+
+  if (attachedPictures && attachedPictures.length > 0) {
+    baseText += "\nPictures:\n" + attachedPictures.map((url) => `- ${url}`).join("\n");
+  }
+
+  return baseText;
 };
