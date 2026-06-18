@@ -196,7 +196,43 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const pictureLabel = photoCount === 1 ? "Picture attached" : "Pictures attached";
 
   const handleCompleteCopy = async () => {
-    const text = buildCompleteLeadCopyText(lead);
+    let urlsToCopy: string[] = [];
+
+    // Fetch payment screenshot URL if it exists
+    if (isPaid && lead.payment_screenshot_url) {
+      if (resolvedPaymentOriginal) {
+        urlsToCopy.push(resolvedPaymentOriginal);
+      } else {
+        const { getSignedUrl } = await import("@/lib/storage");
+        const originalUrl = await getSignedUrl(lead.payment_screenshot_url);
+        if (originalUrl) {
+          urlsToCopy.push(originalUrl);
+          setResolvedPaymentOriginal(originalUrl);
+        }
+      }
+    }
+
+    // Fetch lead photos URLs
+    if (photoCount > 0) {
+      if (photoOriginals.length > 0) {
+        urlsToCopy.push(...photoOriginals);
+      } else {
+        const { data } = await supabase
+          .from("lead_photos")
+          .select("photo_url")
+          .eq("lead_id", lead.id)
+          .order("created_at", { ascending: true });
+        if (data && data.length > 0) {
+          const paths = data.map((p: { photo_url: string }) => p.photo_url);
+          const { getSignedUrls } = await import("@/lib/storage");
+          const originalUrls = await getSignedUrls(paths);
+          urlsToCopy.push(...originalUrls);
+          setPhotoOriginals(originalUrls);
+        }
+      }
+    }
+
+    const text = buildCompleteLeadCopyText(lead, urlsToCopy);
     if (!text) {
       toast.error("No service details, address, schedule requirement, or quote available to copy");
       return;
