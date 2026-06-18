@@ -1,4 +1,5 @@
 import type { Lead } from "@/types";
+import { toast } from "sonner";
 
 export const copyTextToClipboard = async (text: string, htmlText?: string) => {
   if (navigator?.clipboard?.write) {
@@ -93,3 +94,54 @@ export const buildCompleteLeadCopyHtml = (lead: Lead, attachedPictures?: string[
 
   return htmlText;
 };
+
+const convertToPngBlob = (url: string): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas context is null"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Canvas conversion to Blob failed"));
+      }, "image/png");
+    };
+    img.onerror = (e) => reject(e);
+    img.src = url;
+  });
+};
+
+export const copyImageToClipboard = async (url: string) => {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    
+    let pngBlob = blob;
+    if (blob.type !== "image/png") {
+      pngBlob = await convertToPngBlob(url);
+    }
+
+    if (navigator?.clipboard?.write) {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "image/png": pngBlob,
+        }),
+      ]);
+      toast.success("Image copied to clipboard");
+    } else {
+      toast.error("Clipboard API not supported in this browser");
+    }
+  } catch (err) {
+    console.error("Failed to copy image:", err);
+    toast.error("Failed to copy image due to browser or network restrictions");
+  }
+};
+
