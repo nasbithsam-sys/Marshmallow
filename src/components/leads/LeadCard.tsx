@@ -49,7 +49,7 @@ import CopyLeadButton from "./CopyLeadButton";
 import ReminderButton from "./ReminderButton";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
-import { buildCompleteLeadCopyText, copyTextToClipboard } from "@/lib/lead-copy";
+import { buildCompleteLeadCopyText, buildCompleteLeadCopyHtml, copyTextToClipboard } from "@/lib/lead-copy";
 import {
   canCreateCancellationRequest,
   createCancellationRequest,
@@ -233,12 +233,13 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
     }
 
     const text = buildCompleteLeadCopyText(lead, urlsToCopy);
+    const htmlText = buildCompleteLeadCopyHtml(lead, urlsToCopy);
     if (!text) {
       toast.error("No service details, address, schedule requirement, or quote available to copy");
       return;
     }
 
-    await copyTextToClipboard(text);
+    await copyTextToClipboard(text, htmlText);
     setCompleteCopied(true);
     toast.success("Complete lead details copied");
     window.setTimeout(() => setCompleteCopied(false), 1400);
