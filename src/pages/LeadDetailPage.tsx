@@ -50,6 +50,7 @@ import {
   fetchPendingCancellationRequest,
   reviewCancellationRequest,
 } from "@/lib/cancellation-requests";
+import NumberNameCombobox from "@/components/leads/NumberNameCombobox";
 
 const PHOTO_PREVIEW_LIMIT = 1;
 
@@ -1082,11 +1083,11 @@ export default function LeadDetailPage() {
 
               <div className="space-y-1.5">
                 <Label className={labelClass}>Number Name *</Label>
-                <Input
+                <NumberNameCombobox
                   value={form.number_name}
-                  onChange={(e) => update("number_name", e.target.value)}
+                  onChange={(value) => update("number_name", value)}
+                  disabled={isProcessor}
                   className={fieldClass}
-                  readOnly={isProcessor}
                 />
               </div>
             </div>
@@ -1559,5 +1560,3 @@ export default function LeadDetailPage() {
     </div>
   );
 }
-
-
