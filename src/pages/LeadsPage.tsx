@@ -614,7 +614,6 @@ export default function LeadsPage() {
                   lead={lead}
                   profiles={profiles}
                   onRefresh={handleRefresh}
-                  disablePhotoPreview
                 />
               )}
             </motion.div>
