@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,10 @@ import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 
-const NOTIFICATION_POLL_INTERVAL_MS = 5 * 60 * 1000;
+const NOTIFICATION_POLL_INTERVAL_MS = 15 * 1000;
+
+const isCancellationRequestNotification = (notification: Notification) =>
+  notification.title.toLowerCase().includes('cancellation request');
 
 interface Notification {
   id: string;
@@ -25,6 +28,7 @@ export default function NotificationBell() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
+  const shownCancellationPopups = useRef(new Set<string>());
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
@@ -36,6 +40,10 @@ export default function NotificationBell() {
       .limit(20);
     if (data) setNotifications(data as Notification[]);
   }, [user]);
+
+  useEffect(() => {
+    shownCancellationPopups.current.clear();
+  }, [user?.id]);
 
   useEffect(() => {
     const refreshIfVisible = () => {
@@ -62,6 +70,29 @@ export default function NotificationBell() {
   }, [fetchNotifications, open]);
 
   useEffect(() => {
+    if (role !== 'admin') return;
+
+    notifications
+      .filter(
+        (notification) =>
+          !notification.read &&
+          isCancellationRequestNotification(notification) &&
+          !shownCancellationPopups.current.has(notification.id),
+      )
+      .forEach((notification) => {
+        shownCancellationPopups.current.add(notification.id);
+        toast('New lead cancellation request', {
+          id: `cancellation-request-${notification.id}`,
+          description: notification.message,
+          duration: 5000,
+          closeButton: true,
+          dismissible: true,
+          position: 'bottom-right',
+        });
+      });
+  }, [notifications, role]);
+
+  useEffect(() => {
     if (!user) return;
 
     const channel = supabase
@@ -74,19 +105,8 @@ export default function NotificationBell() {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
+        () => {
           void fetchNotifications();
-
-          const notification = payload.new as Notification;
-          if (role === 'admin' && notification.title === 'Lead cancellation request') {
-            toast(notification.title, {
-              description: notification.message,
-              duration: 5000,
-              closeButton: true,
-              dismissible: true,
-              position: 'bottom-right',
-            });
-          }
         },
       )
       .subscribe();
@@ -94,7 +114,7 @@ export default function NotificationBell() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [fetchNotifications, role, user]);
+  }, [fetchNotifications, user]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
