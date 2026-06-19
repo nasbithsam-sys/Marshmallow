@@ -10,6 +10,23 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 
 const NOTIFICATION_POLL_INTERVAL_MS = 15 * 1000;
+const MAX_REMEMBERED_CANCELLATION_POPUPS = 200;
+
+const cancellationPopupStorageKey = (userId: string) => `shown-cancellation-popups:${userId}`;
+
+const loadShownCancellationPopupIds = (userId: string) => {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(cancellationPopupStorageKey(userId)) || '[]');
+    return new Set<string>(Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : []);
+  } catch {
+    return new Set<string>();
+  }
+};
+
+const saveShownCancellationPopupIds = (userId: string, ids: Set<string>) => {
+  const recentIds = Array.from(ids).slice(-MAX_REMEMBERED_CANCELLATION_POPUPS);
+  window.localStorage.setItem(cancellationPopupStorageKey(userId), JSON.stringify(recentIds));
+};
 
 const isCancellationRequestNotification = (notification: Notification) =>
   notification.title.toLowerCase().includes('cancellation request');
@@ -42,8 +59,8 @@ export default function NotificationBell() {
   }, [user]);
 
   useEffect(() => {
-    shownCancellationPopups.current.clear();
-  }, [user?.id]);
+    shownCancellationPopups.current = user ? loadShownCancellationPopupIds(user.id) : new Set<string>();
+  }, [user]);
 
   useEffect(() => {
     const refreshIfVisible = () => {
@@ -70,7 +87,9 @@ export default function NotificationBell() {
   }, [fetchNotifications, open]);
 
   useEffect(() => {
-    if (role !== 'admin') return;
+    if (role !== 'admin' || !user) return;
+
+    let displayedNewPopup = false;
 
     notifications
       .filter(
@@ -81,6 +100,7 @@ export default function NotificationBell() {
       )
       .forEach((notification) => {
         shownCancellationPopups.current.add(notification.id);
+        displayedNewPopup = true;
         toast('New lead cancellation request', {
           id: `cancellation-request-${notification.id}`,
           description: notification.message,
@@ -90,7 +110,11 @@ export default function NotificationBell() {
           position: 'bottom-right',
         });
       });
-  }, [notifications, role]);
+
+    if (displayedNewPopup) {
+      saveShownCancellationPopupIds(user.id, shownCancellationPopups.current);
+    }
+  }, [notifications, role, user]);
 
   useEffect(() => {
     if (!user) return;
