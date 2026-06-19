@@ -136,15 +136,19 @@ export async function createCancellationRequest({
     .in("role", approverRoles);
 
   if (roles?.length) {
-    await supabase.from("notifications").insert(
+    const { error: notificationError } = await supabase.from("notifications").insert(
       roles.map((row: { user_id: string; role: string }) => ({
         user_id: row.user_id,
-        title: "Cancellation request",
+        title: "Lead cancellation request",
         message: `${lead.customer_name} needs cancellation approval`,
         lead_id: lead.id,
         read: false,
       })),
     );
+
+    if (notificationError) {
+      console.error("Failed to notify cancellation approvers", notificationError);
+    }
   }
 
   await logActivity(userId, "cancellation_requested", "lead", lead.id, {

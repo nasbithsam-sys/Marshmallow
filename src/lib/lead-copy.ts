@@ -52,7 +52,7 @@ export const formatLeadSchedule = (lead: Pick<Lead, "scheduled_date" | "schedule
   return dateText;
 };
 
-export const buildCompleteLeadCopyText = (lead: Lead, attachedPictures?: string[]) => {
+export const buildCompleteLeadCopyText = (lead: Lead) => {
   const lines = [
     ["Service Details", lead.service_details || lead.service_type || ""],
     ["Address", lead.address || [lead.city, lead.state, lead.zip_code].filter(Boolean).join(", ")],
@@ -60,39 +60,10 @@ export const buildCompleteLeadCopyText = (lead: Lead, attachedPictures?: string[
     ["Quote", lead.quote || ""],
   ];
 
-  let baseText = lines
+  return lines
     .filter(([, value]) => String(value || "").trim())
     .map(([label, value]) => `${label}: ${value}`)
     .join("\n");
-
-  if (attachedPictures && attachedPictures.length > 0) {
-    baseText += "\nPictures:\n" + attachedPictures.map((url) => `- ${url}`).join("\n");
-  }
-
-  return baseText;
-};
-
-export const buildCompleteLeadCopyHtml = (lead: Lead, attachedPictures?: string[]) => {
-  const lines = [
-    ["Service Details", lead.service_details || lead.service_type || ""],
-    ["Address", lead.address || [lead.city, lead.state, lead.zip_code].filter(Boolean).join(", ")],
-    ["Schedule Requirement", lead.customer_schedule_requirements || formatLeadSchedule(lead)],
-    ["Quote", lead.quote || ""],
-  ];
-
-  let htmlText = lines
-    .filter(([, value]) => String(value || "").trim())
-    .map(([label, value]) => `<strong>${label}</strong>: ${value}`)
-    .join("<br/>");
-
-  if (attachedPictures && attachedPictures.length > 0) {
-    htmlText += "<br/><br/><strong>Pictures</strong>:<br/>";
-    attachedPictures.forEach((url) => {
-      htmlText += `<img src="${url}" alt="Attached Picture" style="max-width: 100%; max-height: 400px; margin-top: 8px; border-radius: 8px; display: block;" /><br/>`;
-    });
-  }
-
-  return htmlText;
 };
 
 const convertToPngBlob = (url: string): Promise<Blob> => {

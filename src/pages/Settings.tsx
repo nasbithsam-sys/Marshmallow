@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from "@/lib/constants";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
-import { getDefaultNavAccess } from "@/lib/access";
+import { canAccessCancellationRequests, getDefaultNavAccess } from "@/lib/access";
 import type { AppRole } from "@/types";
 import MFAEnroll from "@/components/auth/MFAEnroll";
 import { motion } from "framer-motion";
@@ -542,6 +542,10 @@ const Settings = () => {
     const targetUser = getUserById(userId);
     const override = navPermissionByUserAndSection.get(`${userId}:${section}`);
 
+    if (targetUser && section === "cancellation_requests" && canAccessCancellationRequests(targetUser.role)) {
+      return true;
+    }
+
     if (typeof override === "boolean") {
       return override;
     }
@@ -891,6 +895,7 @@ const Settings = () => {
                         <td key={section} className="px-3 py-3 text-center">
                           <Switch
                             checked={getNavPermission(u.id, section)}
+                            disabled={section === "cancellation_requests" && canAccessCancellationRequests(u.role)}
                             onCheckedChange={(checked) =>
                               toggleNavPermission.mutate({ userId: u.id, section, allowed: checked })
                             }

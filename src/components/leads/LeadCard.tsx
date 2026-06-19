@@ -49,7 +49,7 @@ import CopyLeadButton from "./CopyLeadButton";
 import ReminderButton from "./ReminderButton";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
-import { buildCompleteLeadCopyText, buildCompleteLeadCopyHtml, copyTextToClipboard } from "@/lib/lead-copy";
+import { buildCompleteLeadCopyText, copyTextToClipboard } from "@/lib/lead-copy";
 import {
   canCreateCancellationRequest,
   createCancellationRequest,
@@ -196,50 +196,13 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const pictureLabel = photoCount === 1 ? "Picture attached" : "Pictures attached";
 
   const handleCompleteCopy = async () => {
-    let urlsToCopy: string[] = [];
-
-    // Fetch payment screenshot URL if it exists
-    if (isPaid && lead.payment_screenshot_url) {
-      if (resolvedPaymentOriginal) {
-        urlsToCopy.push(resolvedPaymentOriginal);
-      } else {
-        const { getSignedUrl } = await import("@/lib/storage");
-        const originalUrl = await getSignedUrl(lead.payment_screenshot_url);
-        if (originalUrl) {
-          urlsToCopy.push(originalUrl);
-          setResolvedPaymentOriginal(originalUrl);
-        }
-      }
-    }
-
-    // Fetch lead photos URLs
-    if (photoCount > 0) {
-      if (photoOriginals.length > 0) {
-        urlsToCopy.push(...photoOriginals);
-      } else {
-        const { data } = await supabase
-          .from("lead_photos")
-          .select("photo_url")
-          .eq("lead_id", lead.id)
-          .order("created_at", { ascending: true });
-        if (data && data.length > 0) {
-          const paths = data.map((p: { photo_url: string }) => p.photo_url);
-          const { getSignedUrls } = await import("@/lib/storage");
-          const originalUrls = await getSignedUrls(paths);
-          urlsToCopy.push(...originalUrls);
-          setPhotoOriginals(originalUrls);
-        }
-      }
-    }
-
-    const text = buildCompleteLeadCopyText(lead, urlsToCopy);
-    const htmlText = buildCompleteLeadCopyHtml(lead, urlsToCopy);
+    const text = buildCompleteLeadCopyText(lead);
     if (!text) {
       toast.error("No service details, address, schedule requirement, or quote available to copy");
       return;
     }
 
-    await copyTextToClipboard(text, htmlText);
+    await copyTextToClipboard(text);
     setCompleteCopied(true);
     toast.success("Complete lead details copied");
     window.setTimeout(() => setCompleteCopied(false), 1400);
@@ -248,8 +211,9 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const handleCopySingleImage = async (thumbnailUrl: string, index: number) => {
     toast.info("Copying image...");
     try {
-      let originalUrl = photoOriginals[index];
       const isPaymentImage = isPaid && lead.payment_screenshot_url && index === 0;
+      const photoIndex = isPaid && lead.payment_screenshot_url ? index - 1 : index;
+      let originalUrl = isPaymentImage ? resolvedPaymentOriginal : photoOriginals[photoIndex];
 
       if (isPaymentImage) {
         if (resolvedPaymentOriginal) {
@@ -263,7 +227,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           }
         }
       } else {
-        const photoIndex = isPaid && lead.payment_screenshot_url ? index - 1 : index;
         if (!originalUrl) {
           const { data } = await supabase
             .from("lead_photos")
@@ -277,7 +240,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
             if (original) {
               originalUrl = original;
               const updatedOriginals = [...photoOriginals];
-              updatedOriginals[index] = original;
+              updatedOriginals[photoIndex] = original;
               setPhotoOriginals(updatedOriginals);
             }
           }
@@ -867,10 +830,11 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                         e.preventDefault();
                         void handleCopySingleImage(url, i);
                       }}
-                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition-opacity duration-200 hover:bg-black/80 group-hover/image:opacity-100 shadow-md"
+                      className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-lg border border-white/20 bg-black/65 text-white shadow-md transition-all duration-200 hover:scale-105 hover:bg-black/85 sm:h-6 sm:w-6 sm:opacity-0 sm:group-hover/image:opacity-100 sm:focus-visible:opacity-100"
                       title="Copy image to clipboard"
+                      aria-label={`Copy picture ${i + 1}`}
                     >
-                      <Copy className="h-3 w-3" />
+                      <Copy className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ))}

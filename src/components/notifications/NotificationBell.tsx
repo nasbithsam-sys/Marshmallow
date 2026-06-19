@@ -60,6 +60,28 @@ export default function NotificationBell() {
     }
   }, [fetchNotifications, open]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => void fetchNotifications(),
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchNotifications, user]);
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const markAllRead = async () => {
