@@ -30,6 +30,7 @@ import CopyLeadButton from "./CopyLeadButton";
 import NoteThread from "./NoteThread";
 import CancellationRequestDialog from "./CancellationRequestDialog";
 import CancellationRequestPanel from "./CancellationRequestPanel";
+import NumberNameCombobox from "./NumberNameCombobox";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
 import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
@@ -746,10 +747,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
               <div className="space-y-1.5">
                 <Label className={labelClass}>Number Name</Label>
-                <Input
-                  value={form.number_name ?? ""}
-                  onChange={(e) => update("number_name", e.target.value)}
-                  readOnly={isProcessor}
+                <NumberNameCombobox
+                  value={form.number_name}
+                  onChange={(value) => update("number_name", value)}
+                  disabled={isProcessor}
                   className={fieldClass}
                 />
               </div>

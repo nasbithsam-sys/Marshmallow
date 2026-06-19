@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChangeEvent, ElementType, FormEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +29,7 @@ import { formatUSPhone } from "@/lib/phone";
 import { logActivity } from "@/lib/activity";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { motion, AnimatePresence } from "framer-motion";
+import NumberNameCombobox from "./NumberNameCombobox";
 
 interface Props {
   open: boolean;
@@ -472,10 +473,9 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
               <div className="space-y-1.5">
                 <Label className={labelClass}>Number Name *</Label>
-                <Input
+                <NumberNameCombobox
                   value={form.number_name}
-                  onChange={(e) => update("number_name", e.target.value)}
-                  placeholder="Name on phone account"
+                  onChange={(value) => update("number_name", value)}
                   className={fieldClass}
                 />
               </div>
