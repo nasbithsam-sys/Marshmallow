@@ -830,8 +830,8 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                         e.preventDefault();
                         void handleCopySingleImage(url, i);
                       }}
-                      className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-lg border border-white/20 bg-black/65 text-white shadow-md transition-all duration-200 hover:scale-105 hover:bg-black/85 sm:h-6 sm:w-6 sm:opacity-0 sm:group-hover/image:opacity-100 sm:focus-visible:opacity-100"
-                      title="Copy image to clipboard"
+                      className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-lg border border-white/20 bg-black/65 text-white shadow-md transition-all duration-200 hover:scale-105 hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:h-6 sm:w-6"
+                      title="Copy picture"
                       aria-label={`Copy picture ${i + 1}`}
                     >
                       <Copy className="h-3.5 w-3.5" />

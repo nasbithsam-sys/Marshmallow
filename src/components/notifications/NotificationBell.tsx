@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Bell, CheckCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
 const NOTIFICATION_POLL_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -20,7 +21,7 @@ interface Notification {
 }
 
 export default function NotificationBell() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
@@ -68,19 +69,32 @@ export default function NotificationBell() {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        () => void fetchNotifications(),
+        (payload) => {
+          void fetchNotifications();
+
+          const notification = payload.new as Notification;
+          if (role === 'admin' && notification.title === 'Lead cancellation request') {
+            toast(notification.title, {
+              description: notification.message,
+              duration: 5000,
+              closeButton: true,
+              dismissible: true,
+              position: 'bottom-right',
+            });
+          }
+        },
       )
       .subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [fetchNotifications, user]);
+  }, [fetchNotifications, role, user]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
