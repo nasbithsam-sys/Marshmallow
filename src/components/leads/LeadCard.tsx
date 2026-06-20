@@ -18,7 +18,6 @@ import {
   Pencil,
   MessageSquare,
   ChevronDown,
-  ArrowUpRight,
   Image as ImageIcon,
   CalendarDays,
   ShieldCheck,
@@ -963,16 +962,15 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Button
                 variant="outline"
                 size="sm"
-                className="crm-lead-card-inner h-10 w-full flex-1 rounded-[16px] text-[12px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
+                className="crm-lead-card-inner h-10 min-w-0 flex-1 rounded-[16px] px-2.5 text-[11px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
                 onClick={() => navigate(`/leads/${lead.id}`)}
               >
                 <Pencil className="mr-1.5 h-3.5 w-3.5" />
                 Edit Lead
-                <ArrowUpRight className="ml-auto h-3.5 w-3.5 opacity-35" />
               </Button>
 
               {canCompleteCopy && (
@@ -980,54 +978,50 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="crm-lead-card-inner h-10 shrink-0 gap-1.5 rounded-[16px] border-border/60 bg-transparent px-3 text-[11px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
+                  className="crm-lead-card-inner h-10 shrink-0 gap-1.5 rounded-[16px] border-border/60 bg-transparent px-2.5 text-[11px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
                   onClick={handleCompleteCopy}
                 >
                   {completeCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {completeCopied ? "Copied" : "Copy Complete Details"}
+                  {completeCopied ? "Copied" : "Complete Details"}
                 </Button>
               )}
-            </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <div className="flex flex-wrap items-center gap-2 sm:w-auto">
-                {isAdmin && (
-                  <LeadShareDialog
-                    leadId={lead.id}
-                    customerName={lead.customer_name}
-                    className="crm-lead-card-inner h-10 flex-1 rounded-[16px] border-border/60 bg-transparent text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none sm:w-10 sm:flex-none"
-                  />
-                )}
+              {isAdmin && (
+                <LeadShareDialog
+                  leadId={lead.id}
+                  customerName={lead.customer_name}
+                  className="crm-lead-card-inner h-10 w-10 shrink-0 rounded-[16px] border-border/60 bg-transparent text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
+                />
+              )}
 
-                {isAdmin && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="crm-lead-card-inner h-10 flex-1 rounded-[16px] text-destructive/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/30 hover:bg-destructive/[0.06] hover:text-destructive hover:shadow-[0_18px_26px_-20px_rgba(239,68,68,0.22)] sm:w-10 sm:flex-none dark:hover:shadow-none"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </AlertDialogTrigger>
+              {isAdmin && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="crm-lead-card-inner h-10 w-10 shrink-0 rounded-[16px] text-destructive/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/30 hover:bg-destructive/[0.06] hover:text-destructive hover:shadow-[0_18px_26px_-20px_rgba(239,68,68,0.22)] dark:hover:shadow-none"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </AlertDialogTrigger>
 
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete lead?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete "{lead.customer_name}". This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete lead?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete "{lead.customer_name}". This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
           </div>
         </div>
