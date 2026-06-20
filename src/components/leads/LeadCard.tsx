@@ -54,6 +54,7 @@ import {
 } from "@/lib/cancellation-requests";
 import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
+import { getAssignableLeadTags } from "@/lib/lead-tags";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 interface LeadCardProps {
@@ -191,6 +192,8 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const isUrgent = lead.status === "urgent_job";
   const canCompleteCopy = isAdmin || isProcessor;
   const pictureLabel = photoCount === 1 ? "Picture attached" : "Pictures attached";
+  const currentTag = lead.cs_tag ?? null;
+  const assignableTags = getAssignableLeadTags(role);
 
   const handleCompleteCopy = async () => {
     const text = buildCompleteLeadCopyText(lead);
@@ -603,6 +606,11 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
 
   const handleCsTagChange = async (value: string) => {
     const newTag = value === "__clear__" ? null : (value as CsTag);
+    if (newTag && !assignableTags.includes(newTag)) {
+      toast.error("You do not have permission to assign this tag");
+      return;
+    }
+
     const { error } = await supabase
       .from("leads")
       .update({
@@ -840,40 +848,44 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
           </div>
         )}
 
-        {(isCS || isAdmin) && lead.status !== "scheduled" && (
+        {(isCS || isProcessor || isAdmin) && lead.status !== "scheduled" && (
           <div className="px-4 pt-2">
             <Select
-              value={(lead as { cs_tag?: string | null }).cs_tag ?? "__clear__"}
+              value={currentTag ?? "__clear__"}
               onValueChange={handleCsTagChange}
             >
               <SelectTrigger className="crm-lead-card-inner h-9 w-full rounded-[14px] text-[12px] font-medium">
-                <SelectValue placeholder="CS Tag (optional)" />
+                <SelectValue placeholder="Lead tag (optional)" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__clear__" className="text-[12px] text-muted-foreground">
                   No tag
                 </SelectItem>
-                <SelectItem value="confirmation_sent" className="text-[12px]">
-                  {CS_TAG_LABELS.confirmation_sent}
-                </SelectItem>
-                <SelectItem value="waiting_schedule_confirmation" className="text-[12px]">
-                  {CS_TAG_LABELS.waiting_schedule_confirmation}
-                </SelectItem>
+                {currentTag && !assignableTags.includes(currentTag) && (
+                  <SelectItem value={currentTag} disabled className="text-[12px]">
+                    {CS_TAG_LABELS[currentTag]} (view only)
+                  </SelectItem>
+                )}
+                {assignableTags.map((tag) => (
+                  <SelectItem key={tag} value={tag} className="text-[12px]">
+                    {CS_TAG_LABELS[tag]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            {(lead as { cs_tag?: string | null }).cs_tag && (
-              <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-400/20 dark:text-amber-200">
-                📌 {CS_TAG_LABELS[(lead as { cs_tag: CsTag }).cs_tag]}
+            {currentTag && (
+              <p
+                className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  currentTag === "booked"
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-200"
+                    : currentTag === "ready_to_schedule"
+                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-400/20 dark:text-indigo-200"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
+                }`}
+              >
+                📌 {CS_TAG_LABELS[currentTag]}
               </p>
             )}
-          </div>
-        )}
-
-        {isProcessor && lead.status !== "scheduled" && (lead as { cs_tag?: string | null }).cs_tag && (
-          <div className="px-4 pt-2">
-            <p className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-400/20 dark:text-amber-200">
-              📌 {CS_TAG_LABELS[(lead as { cs_tag: CsTag }).cs_tag]}
-            </p>
           </div>
         )}
 
