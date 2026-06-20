@@ -965,23 +965,6 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               </Select>
             </div>
 
-            <div className="mb-2 grid grid-cols-1 gap-2">
-              <ReminderButton lead={lead} className="crm-lead-card-inner h-10 rounded-[16px] border-border/60 bg-transparent" />
-              <CopyLeadButton lead={lead} className="crm-lead-card-inner h-10 rounded-[16px] border-border/60 bg-transparent" />
-              {canCompleteCopy && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="crm-lead-card-inner h-10 w-full gap-1.5 rounded-[16px] border-border/60 bg-transparent text-[12px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
-                  onClick={handleCompleteCopy}
-                >
-                  {completeCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {completeCopied ? "Copied" : "Copy Complete Details"}
-                </Button>
-              )}
-            </div>
-
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Button
                 variant="outline"
@@ -993,6 +976,19 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                 Edit Lead
                 <ArrowUpRight className="ml-auto h-3.5 w-3.5 opacity-35" />
               </Button>
+
+              {canCompleteCopy && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="crm-lead-card-inner h-10 w-full flex-1 gap-1.5 rounded-[16px] border-border/60 bg-transparent text-[12px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
+                  onClick={handleCompleteCopy}
+                >
+                  {completeCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {completeCopied ? "Copied" : "Copy Complete Details"}
+                </Button>
+              )}
 
               <div className="flex flex-wrap items-center gap-2 sm:w-auto">
                 {isAdmin && (
