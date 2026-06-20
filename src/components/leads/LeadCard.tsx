@@ -942,8 +942,8 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
         </div>
 
         <div className="mt-auto border-t border-white/30 px-4 pb-4 pt-4 dark:border-white/5">
-          <div className="crm-lead-card-footer rounded-[24px] p-3 shadow-[0_24px_40px_-28px_rgba(59,130,246,0.18)] dark:shadow-none">
-            <div className="mb-3">
+          <div className="crm-lead-card-footer rounded-[24px] p-2.5 shadow-[0_24px_40px_-28px_rgba(59,130,246,0.18)] dark:shadow-none">
+            <div className="mb-2.5">
               <Select value={lead.status} onValueChange={handleStatusChange} disabled={changingStatus || isPaid}>
                 <SelectTrigger
                   className={`crm-lead-card-inner h-10 w-full rounded-[16px] text-[12px] font-medium shadow-[0_18px_28px_-24px_rgba(59,130,246,0.16)] ${
@@ -962,15 +962,23 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
               </Select>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div
+              className={`grid items-center gap-1.5 ${
+                isAdmin
+                  ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_36px_36px]"
+                  : canCompleteCopy
+                    ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]"
+                    : "grid-cols-1"
+              }`}
+            >
               <Button
                 variant="outline"
                 size="sm"
-                className="crm-lead-card-inner h-10 min-w-0 flex-1 rounded-[16px] px-2.5 text-[11px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
+                className="crm-lead-card-inner h-9 min-w-0 w-full overflow-hidden rounded-[14px] px-1.5 text-[10px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
                 onClick={() => navigate(`/leads/${lead.id}`)}
               >
-                <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                Edit Lead
+                <Pencil className="h-3 w-3 shrink-0" />
+                <span className="truncate">Edit Lead</span>
               </Button>
 
               {canCompleteCopy && (
@@ -978,11 +986,11 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="crm-lead-card-inner h-10 shrink-0 gap-1.5 rounded-[16px] border-border/60 bg-transparent px-2.5 text-[11px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
+                  className="crm-lead-card-inner h-9 min-w-0 w-full gap-1 rounded-[14px] border-border/60 bg-transparent px-1.5 text-[10px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
                   onClick={handleCompleteCopy}
                 >
-                  {completeCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {completeCopied ? "Copied" : "Complete Details"}
+                  {completeCopied ? <Check className="h-3 w-3 shrink-0" /> : <Copy className="h-3 w-3 shrink-0" />}
+                  <span className="whitespace-nowrap">{completeCopied ? "Copied" : "Complete Details"}</span>
                 </Button>
               )}
 
@@ -990,7 +998,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                 <LeadShareDialog
                   leadId={lead.id}
                   customerName={lead.customer_name}
-                  className="crm-lead-card-inner h-10 w-10 shrink-0 rounded-[16px] border-border/60 bg-transparent text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
+                  className="crm-lead-card-inner h-9 w-full rounded-[14px] border-border/60 bg-transparent text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
                 />
               )}
 
@@ -1000,7 +1008,7 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                     <Button
                       variant="outline"
                       size="icon"
-                      className="crm-lead-card-inner h-10 w-10 shrink-0 rounded-[16px] text-destructive/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/30 hover:bg-destructive/[0.06] hover:text-destructive hover:shadow-[0_18px_26px_-20px_rgba(239,68,68,0.22)] dark:hover:shadow-none"
+                      className="crm-lead-card-inner h-9 w-full rounded-[14px] text-destructive/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/30 hover:bg-destructive/[0.06] hover:text-destructive hover:shadow-[0_18px_26px_-20px_rgba(239,68,68,0.22)] dark:hover:shadow-none"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
