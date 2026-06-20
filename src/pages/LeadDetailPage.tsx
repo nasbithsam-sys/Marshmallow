@@ -35,6 +35,7 @@ import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import PaymentDialog from "@/components/leads/PaymentDialog";
 import ImageLightbox from "@/components/leads/ImageLightbox";
 import CopyLeadButton from "@/components/leads/CopyLeadButton";
+import ReminderButton from "@/components/leads/ReminderButton";
 import NoteThread from "@/components/leads/NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
@@ -987,7 +988,6 @@ export default function LeadDetailPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {currentCopyLead && <CopyLeadButton lead={currentCopyLead} />}
               <Button onClick={handleSave} disabled={saving || isDuplicate} className="gap-2">
                 {saved ? (
                   <>
@@ -1236,25 +1236,40 @@ export default function LeadDetailPage() {
               </CollapsibleTrigger>
 
               <CollapsibleContent className="mt-3 space-y-4 px-1">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>Tech Name</Label>
-                    <Input
-                      value={form.tech_name}
-                      onChange={(e) => update("tech_name", e.target.value)}
-                      className={fieldClass}
-                    />
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+                  <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>Tech Name</Label>
+                      <Input
+                        value={form.tech_name}
+                        onChange={(e) => update("tech_name", e.target.value)}
+                        className={fieldClass}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>Tech Number</Label>
+                      <Input
+                        value={form.tech_number}
+                        onChange={(e) => update("tech_number", e.target.value)}
+                        maxLength={14}
+                        className={fieldClass}
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>Tech Number</Label>
-                    <Input
-                      value={form.tech_number}
-                      onChange={(e) => update("tech_number", e.target.value)}
-                      maxLength={14}
-                      className={fieldClass}
-                    />
-                  </div>
+                  {currentCopyLead && (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <ReminderButton
+                        lead={currentCopyLead}
+                        className="h-9 rounded-xl px-2.5 text-[10px]"
+                      />
+                      <CopyLeadButton
+                        lead={currentCopyLead}
+                        className="h-9 rounded-xl px-2.5 text-[10px]"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
