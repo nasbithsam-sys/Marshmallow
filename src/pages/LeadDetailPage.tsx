@@ -35,6 +35,7 @@ import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import PaymentDialog from "@/components/leads/PaymentDialog";
 import ImageLightbox from "@/components/leads/ImageLightbox";
 import CopyLeadButton from "@/components/leads/CopyLeadButton";
+import ReminderButton from "@/components/leads/ReminderButton";
 import NoteThread from "@/components/leads/NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
@@ -1257,6 +1258,13 @@ export default function LeadDetailPage() {
                     />
                   </div>
                 </div>
+
+                {!isNew && leadId && currentCopyLead && (
+                  <div className="flex flex-row items-center gap-2">
+                    <ReminderButton lead={currentCopyLead} className="h-9 flex-1 rounded-xl border-border/60 bg-transparent text-[12px]" />
+                    <CopyLeadButton lead={currentCopyLead} className="h-9 flex-1 rounded-xl border-border/60 bg-transparent text-[12px]" />
+                  </div>
+                )}
 
                 <div className="space-y-1.5">
                   <Label className={labelClass}>Terms</Label>
