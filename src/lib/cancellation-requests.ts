@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Lead, LeadCancellationRequest, LeadStatus } from "@/types";
 import { logActivity } from "@/lib/activity";
 import { optimizeImageForUpload } from "@/lib/image-upload";
+import { updateLeadById } from "@/lib/lead-updates";
 
 export const CANCELLATION_REQUEST_STATUS: LeadStatus = "cancellation_requested";
 
@@ -116,18 +117,13 @@ export async function createCancellationRequest({
 
   if (error) throw error;
 
-  const { error: leadError } = await supabase
-    .from("leads")
-    .update({
+  await updateLeadById(lead.id, {
       status: CANCELLATION_REQUEST_STATUS,
       cs_tag: null,
       last_edited_by: userId,
       updated_at: new Date().toISOString(),
       last_edited_at: new Date().toISOString(),
-    } as never)
-    .eq("id", lead.id);
-
-  if (leadError) throw leadError;
+    });
 
   const approverRoles = getCancellationApproverRoles(requesterRole);
   const { data: roles } = await supabase
@@ -199,22 +195,17 @@ export async function reviewCancellationRequest({
       .filter(Boolean)
       .join("\n");
 
-    const { error: leadError } = await supabase
-      .from("leads")
-      .update({
+    await updateLeadById(lead.id, {
         status: "cancelled" as LeadStatus,
         cancellation_reason: reason || null,
         cs_tag: null,
         last_edited_by: reviewerId,
         updated_at: now,
         last_edited_at: now,
-      } as never)
-      .eq("id", lead.id);
-
-    if (leadError) throw leadError;
+      });
   } else {
     const fallbackStatus = request.previous_status === "cancelled" ? "waiting_complete_details" : request.previous_status;
-    const { error: leadError } = await supabase
+    const { data, error: leadError } = await supabase
       .from("leads")
       .update({
         status: fallbackStatus as LeadStatus,
@@ -223,9 +214,12 @@ export async function reviewCancellationRequest({
         last_edited_at: now,
       } as never)
       .eq("id", lead.id)
-      .eq("status", CANCELLATION_REQUEST_STATUS);
+      .eq("status", CANCELLATION_REQUEST_STATUS)
+      .select("id")
+      .single();
 
     if (leadError) throw leadError;
+    if (!data) throw new Error("Lead update was not applied. Refresh the page and try again.");
   }
 
   await logActivity(reviewerId, action === "approved" ? "cancellation_approved" : "cancellation_rejected", "lead", lead.id, {

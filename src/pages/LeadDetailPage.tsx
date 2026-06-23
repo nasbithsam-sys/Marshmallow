@@ -41,6 +41,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
 import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
+import { updateLeadById } from "@/lib/lead-updates";
 import StatusBadge from "@/components/leads/StatusBadge";
 import CancellationRequestDialog from "@/components/leads/CancellationRequestDialog";
 import CancellationRequestPanel from "@/components/leads/CancellationRequestPanel";
@@ -450,22 +451,21 @@ export default function LeadDetailPage() {
     }
 
     setPaymentLoading(true);
-    let screenshotUrl: string | null = null;
+    try {
+      let screenshotUrl: string | null = null;
 
-    if (screenshotFile) {
-      const optimizedScreenshot = await optimizeImageForUpload(screenshotFile);
-      const ext = optimizedScreenshot.name.split(".").pop();
-      const path = `payments/${leadId}_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, optimizedScreenshot);
+      if (screenshotFile) {
+        const optimizedScreenshot = await optimizeImageForUpload(screenshotFile);
+        const ext = optimizedScreenshot.name.split(".").pop();
+        const path = `payments/${leadId}_${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, optimizedScreenshot);
 
-      if (!uploadError) {
-        screenshotUrl = path;
+        if (!uploadError) {
+          screenshotUrl = path;
+        }
       }
-    }
 
-    const { error } = await supabase
-      .from("leads")
-      .update({
+      await updateLeadById(leadId, {
         status: "paid",
         amount,
         payment_amount: amount,
@@ -473,26 +473,23 @@ export default function LeadDetailPage() {
         last_edited_by: user.id,
         updated_at: new Date().toISOString(),
         last_edited_at: new Date().toISOString(),
-      })
-      .eq("id", leadId);
+      });
 
-    setPaymentLoading(false);
-    setPaymentOpen(false);
+      setPaymentOpen(false);
+      setForm((prev) => ({
+        ...prev,
+        status: "paid",
+        amount: String(amount),
+        payment_screenshot_url: screenshotUrl || prev.payment_screenshot_url,
+      }));
 
-    if (error) {
-      toast.error(error.message);
-      return;
+      await fetchLead();
+      toast.success("Payment recorded & status updated to Paid");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to record payment");
+    } finally {
+      setPaymentLoading(false);
     }
-
-    setForm((prev) => ({
-      ...prev,
-      status: "paid",
-      amount: String(amount),
-      payment_screenshot_url: screenshotUrl || prev.payment_screenshot_url,
-    }));
-
-    await fetchLead();
-    toast.success("Payment recorded & status updated to Paid");
   };
 
   const uploadNewPhotos = async (currentLeadId: string) => {
@@ -614,6 +611,9 @@ export default function LeadDetailPage() {
       service_details: form.service_details || null,
       customer_schedule_requirements: form.customer_schedule_requirements || null,
       reference_name: form.reference_name || null,
+      cs_notes: !isProcessor ? form.cs_notes || null : (originalLead?.cs_notes ?? null),
+      processor_notes: !isCS ? form.processor_notes || null : (originalLead?.processor_notes ?? null),
+      general_notes: form.general_notes || null,
 
       tech_name: role !== "customer_service" ? form.tech_name || null : (originalLead?.tech_name ?? null),
       tech_number: role !== "customer_service" ? form.tech_number || null : (originalLead?.tech_number ?? null),
@@ -696,9 +696,7 @@ export default function LeadDetailPage() {
         updatePayload.cs_tag = null;
       }
 
-      const { error } = await supabase.from("leads").update(updatePayload as never).eq("id", leadId);
-
-      if (error) throw error;
+      await updateLeadById(leadId, updatePayload);
 
       if (newPhotos.length > 0) {
         await uploadNewPhotos(leadId);
@@ -775,19 +773,14 @@ export default function LeadDetailPage() {
         .filter(Boolean)
         .join("\n");
 
-      const { error } = await supabase
-        .from("leads")
-        .update({
+      await updateLeadById(leadId, {
           status: "cancelled",
           cancellation_reason: reason,
           cs_tag: null,
           last_edited_by: user.id,
           updated_at: new Date().toISOString(),
           last_edited_at: new Date().toISOString(),
-        } as never)
-        .eq("id", leadId);
-
-      if (error) throw error;
+        });
 
       await logActivity(user.id, "status_changed", "lead", leadId, {
         target_name: jobId,
