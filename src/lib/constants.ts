@@ -169,6 +169,7 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "post_visit_quote_sent_waiting",
     "activate_customer",
     "tech_making_quote",
+    "waiting_customer_response",
     "scheduled",
     "urgent_job",
     "job_in_progress",
