@@ -168,7 +168,14 @@ Deno.serve(async (req) => {
       const query = new URLSearchParams();
       query.set("phoneNumberId", selectedPhoneNumber.id);
       query.append("participants", participant);
-      query.set("maxResults", "100");
+      query.set("maxResults", "200");
+      query.set("sortOrder", "asc");
+
+      // When a conversation already exists, scope the query to it so that
+      // the full history (including older messages) is returned correctly.
+      if (matchingConversation?.id) {
+        query.set("conversationId", matchingConversation.id);
+      }
 
       const messagesResponse = await quoFetch<{ data: QuoMessage[] }>(`/messages?${query.toString()}`, quoApiKey);
 
