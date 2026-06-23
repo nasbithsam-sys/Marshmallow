@@ -31,6 +31,7 @@ import NoteThread from "./NoteThread";
 import CancellationRequestDialog from "./CancellationRequestDialog";
 import CancellationRequestPanel from "./CancellationRequestPanel";
 import NumberNameCombobox from "./NumberNameCombobox";
+import QuoPhoneTrigger from "./QuoPhoneTrigger";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
 import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
@@ -763,6 +764,15 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                   readOnly={isProcessor}
                   className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive/40" : ""}`}
                 />
+                {form.customer_phone && (
+                  <QuoPhoneTrigger
+                    contactName={form.customer_name ?? "Lead"}
+                    phone={String(form.customer_phone)}
+                    className="text-xs font-medium"
+                  >
+                    {String(form.customer_phone)}
+                  </QuoPhoneTrigger>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -893,6 +903,15 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                     onChange={(e) => update("tech_number", e.target.value)}
                     className={fieldClass}
                   />
+                  {form.tech_number && (
+                    <QuoPhoneTrigger
+                      contactName={form.tech_name ?? "Technician"}
+                      phone={String(form.tech_number)}
+                      className="text-xs font-medium"
+                    >
+                      {String(form.tech_number)}
+                    </QuoPhoneTrigger>
+                  )}
                 </div>
 
                 <div className="col-span-2 space-y-1.5">

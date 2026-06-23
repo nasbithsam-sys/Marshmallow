@@ -27,6 +27,7 @@ import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, isAfter, i
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import StatusBadge from "@/components/leads/StatusBadge";
+import QuoPhoneTrigger from "@/components/leads/QuoPhoneTrigger";
 
 const EMPLOYEE_COLORS = [
   "bg-gradient-to-br from-blue-500 to-blue-600 text-white",
@@ -542,7 +543,15 @@ export default function SchedulePage() {
                                   )}
                                 </td>
                                 <td className="px-4 py-3 font-medium text-foreground">{lead.customer_name}</td>
-                                <td className="px-4 py-3 text-muted-foreground">{lead.customer_phone || "—"}</td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {lead.customer_phone ? (
+                                    <QuoPhoneTrigger contactName={lead.customer_name} phone={lead.customer_phone} className="text-sm">
+                                      {lead.customer_phone}
+                                    </QuoPhoneTrigger>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
                                 <td className="px-4 py-3 text-muted-foreground">{lead.service_type || "—"}</td>
                                 <td className="px-4 py-3 text-muted-foreground">
                                   {(lead as { number_name?: string | null }).number_name || "—"}
@@ -687,7 +696,9 @@ export default function SchedulePage() {
                   {selectedLead.customer_phone && (
                     <div className="flex items-center gap-2.5 text-muted-foreground">
                       <Phone className="h-4 w-4" />
-                      <span className="text-foreground">{selectedLead.customer_phone}</span>
+                      <QuoPhoneTrigger contactName={selectedLead.customer_name} phone={selectedLead.customer_phone} className="text-sm">
+                        {selectedLead.customer_phone}
+                      </QuoPhoneTrigger>
                     </div>
                   )}
 

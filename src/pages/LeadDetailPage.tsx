@@ -44,6 +44,7 @@ import { optimizeImageForUpload } from "@/lib/image-upload";
 import StatusBadge from "@/components/leads/StatusBadge";
 import CancellationRequestDialog from "@/components/leads/CancellationRequestDialog";
 import CancellationRequestPanel from "@/components/leads/CancellationRequestPanel";
+import QuoPhoneTrigger from "@/components/leads/QuoPhoneTrigger";
 import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
 import {
   canCreateCancellationRequest,
@@ -1009,7 +1010,13 @@ export default function LeadDetailPage() {
                 <Phone className="h-3.5 w-3.5" />
                 Contact
               </div>
-              <p className="mt-2 text-sm font-semibold text-foreground">{form.customer_phone || "Phone pending"}</p>
+              {form.customer_phone ? (
+                <QuoPhoneTrigger contactName={form.customer_name || "Lead"} phone={form.customer_phone} className="mt-2 text-sm font-semibold">
+                  {form.customer_phone}
+                </QuoPhoneTrigger>
+              ) : (
+                <p className="mt-2 text-sm font-semibold text-foreground">Phone pending</p>
+              )}
               <p className="mt-1 text-[12px] text-muted-foreground">{form.customer_email || "No email added yet"}</p>
             </div>
             <div className="crm-lead-card-inner rounded-2xl px-4 py-3">
@@ -1102,6 +1109,15 @@ export default function LeadDetailPage() {
                   className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive" : ""}`}
                   readOnly={isProcessor}
                 />
+                {form.customer_phone && (
+                  <QuoPhoneTrigger
+                    contactName={form.customer_name || "Lead"}
+                    phone={form.customer_phone}
+                    className="mt-2 text-xs font-medium"
+                  >
+                    {form.customer_phone}
+                  </QuoPhoneTrigger>
+                )}
                 {isDuplicate && (
                   <div className="flex items-center gap-1.5 text-destructive text-[11px] mt-1">
                     <AlertCircle className="h-3 w-3" />
@@ -1250,13 +1266,22 @@ export default function LeadDetailPage() {
 
                     <div className="space-y-1.5">
                       <Label className={labelClass}>Tech Number</Label>
-                      <Input
-                        value={form.tech_number}
-                        onChange={(e) => update("tech_number", e.target.value)}
-                        maxLength={14}
-                        className={fieldClass}
-                      />
-                    </div>
+                    <Input
+                      value={form.tech_number}
+                      onChange={(e) => update("tech_number", e.target.value)}
+                      maxLength={14}
+                      className={fieldClass}
+                    />
+                    {form.tech_number && (
+                      <QuoPhoneTrigger
+                        contactName={form.tech_name || "Technician"}
+                        phone={form.tech_number}
+                        className="mt-2 text-xs font-medium"
+                      >
+                        {form.tech_number}
+                      </QuoPhoneTrigger>
+                    )}
+                  </div>
                   </div>
 
                   {currentCopyLead && (

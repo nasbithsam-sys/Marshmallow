@@ -44,6 +44,7 @@ import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
 import CopyValueButton from "./CopyValueButton";
 import CancellationRequestDialog from "./CancellationRequestDialog";
+import QuoPhoneTrigger from "./QuoPhoneTrigger";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
 import { buildCompleteLeadCopyText, copyTextToClipboard } from "@/lib/lead-copy";
@@ -784,7 +785,28 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/72">{label}</p>
                     <CopyValueButton value={value} label={label} className="h-6 w-6 rounded-full" />
                   </div>
-                  <p className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>{value}</p>
+                  {key === "phone" ? (
+                    <QuoPhoneTrigger
+                      contactName={lead.customer_name}
+                      phone={value}
+                      className={`mt-1 text-[13px] leading-5 ${wrap ? "break-words" : "truncate"}`}
+                    >
+                      {value}
+                    </QuoPhoneTrigger>
+                  ) : key === "technician" && lead.tech_number ? (
+                    <div className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>
+                      {lead.tech_name ? <span>{lead.tech_name} {" · "}</span> : null}
+                      <QuoPhoneTrigger
+                        contactName={lead.tech_name || "Technician"}
+                        phone={lead.tech_number}
+                        className="inline-flex"
+                      >
+                        {lead.tech_number}
+                      </QuoPhoneTrigger>
+                    </div>
+                  ) : (
+                    <p className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>{value}</p>
+                  )}
                 </div>
               </div>
             ))}
