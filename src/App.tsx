@@ -17,6 +17,7 @@ import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 import CallsPage from "@/pages/CallsPage";
 import LeadCancellationRequests from "@/pages/LeadCancellationRequests";
+import QuoMonitorPage from "@/pages/quo-monitor/QuoMonitorPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -98,6 +99,7 @@ const App = () => (
               <Route path="areas" element={<PageRoute navItem="areas"><AreasPage /></PageRoute>} />
               <Route path="activity-logs" element={<PageRoute navItem="activity_logs"><ActivityLogs /></PageRoute>} />
               <Route path="calls" element={<PageRoute navItem="calls"><CallsPage /></PageRoute>} />
+              <Route path="quo-monitor" element={<PageRoute navItem="quo_monitor"><QuoMonitorPage /></PageRoute>} />
               <Route path="lead-cancellation-requests" element={<PageRoute navItem="cancellation_requests"><LeadCancellationRequests /></PageRoute>} />
               <Route path="settings" element={<PageRoute navItem="settings"><Settings /></PageRoute>} />
             </Route>

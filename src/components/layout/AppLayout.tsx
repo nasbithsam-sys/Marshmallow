@@ -16,6 +16,7 @@ export default function AppLayout() {
     "/analytics": { title: "Analytics", subtitle: "Watch volume, pace, and operational trends." },
     "/areas": { title: "Areas", subtitle: "Compare neighborhoods and service performance." },
     "/activity-logs": { title: "Activity", subtitle: "Audit recent actions across the workspace." },
+    "/quo-monitor": { title: "Quo Monitor", subtitle: "Read-only inbox mirror." },
     "/settings": { title: "Settings", subtitle: "Manage users, permissions, and security controls." },
   };
 
