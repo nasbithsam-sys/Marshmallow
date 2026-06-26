@@ -21,7 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { CheckCircle2, AlertTriangle, Monitor, RefreshCw, Smartphone, Users } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Monitor, RefreshCw, Smartphone, Users, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface LeadReportDialogProps {
@@ -129,6 +129,68 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
       void fetchReportData();
     }
   }, [open, range]);
+
+  // Export to CSV helper
+  const exportToCSV = () => {
+    try {
+      if (rawLeads.length === 0) {
+        toast.error("No data to export.");
+        return;
+      }
+
+      const headers = [
+        "Date",
+        "Job ID",
+        "Customer Name",
+        "Phone",
+        "Created By",
+        "Status",
+        "Reference"
+      ];
+
+      const csvRows = rawLeads.map((lead) => {
+        const creatorName = profiles[lead.created_by] || `User (${lead.created_by?.slice(0, 8)})`;
+        const dateStr = lead.created_at
+          ? format(new Date(lead.created_at), "yyyy-MM-dd HH:mm:ss")
+          : "";
+        return [
+          dateStr,
+          lead.job_id || "",
+          lead.customer_name || "",
+          lead.customer_phone || "",
+          creatorName,
+          lead.status || "",
+          lead.reference_name || "Direct CRM"
+        ];
+      });
+
+      // Escape values and join with commas
+      const csvContent = [
+        headers.join(","),
+        ...csvRows.map((row) =>
+          row
+            .map((val) => `"${String(val).replaceAll('"', '""')}"`)
+            .join(",")
+        )
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `crm_leads_report_${range}_${format(new Date(), "yyyyMMdd_HHmmss")}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success("CSV report downloaded successfully.");
+    } catch (err: any) {
+      toast.error("Failed to export report: " + err.message);
+    }
+  };
 
   // Compute stats per user
   const userStatsList = useMemo(() => {
@@ -251,8 +313,20 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
               className="h-9 w-9 rounded-xl border-border/60"
               onClick={() => void fetchReportData()}
               disabled={loading}
+              title="Refresh report data"
             >
               <RefreshCw className={`h-4 w-4 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
+            </Button>
+
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 rounded-xl border-border/60"
+              onClick={exportToCSV}
+              disabled={loading || rawLeads.length === 0}
+              title="Export all leads to CSV"
+            >
+              <Download className="h-4 w-4 text-muted-foreground" />
             </Button>
           </div>
         </DialogHeader>
