@@ -89,7 +89,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "partial_paid",
 ];
 
-export const ALL_NAV_ITEMS = ["leads", "calls", "cancellation_requests", "analytics", "settings", "activity_logs", "schedule", "areas"] as const;
+export const ALL_NAV_ITEMS = ["leads", "calls", "quo_monitor", "cancellation_requests", "analytics", "settings", "activity_logs", "schedule", "areas"] as const;
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
