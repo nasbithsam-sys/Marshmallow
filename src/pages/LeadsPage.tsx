@@ -753,7 +753,6 @@ export default function LeadsPage() {
                   lead={lead}
                   profiles={profiles}
                   onRefresh={handleRefresh}
-                  disablePhotoPreview
                   initialHasNotes={pagedMetadata[lead.id]?.hasNotes}
                   initialPhotoCount={pagedMetadata[lead.id]?.photoCount}
                   initialPendingCancellationRequest={pagedMetadata[lead.id]?.pendingCancellationRequest}
