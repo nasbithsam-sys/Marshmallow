@@ -9,7 +9,6 @@ import {
   MapPin,
   Sparkles,
   ChevronRight,
-  PhoneCall,
   ClipboardX,
   MessageSquare,
 } from "lucide-react";
@@ -39,7 +38,6 @@ import { motion } from "framer-motion";
 
 const navItems = [
   { title: "All Leads", url: "/leads", icon: Users, navKey: "leads" },
-  { title: "Calls Log", url: "/calls", icon: PhoneCall, navKey: "calls" },
   { title: "Quo Monitor", url: "/quo-monitor", icon: MessageSquare, navKey: "quo_monitor" },
   { title: "Lead Cancellation Requests", url: "/lead-cancellation-requests", icon: ClipboardX, navKey: "cancellation_requests" },
   { title: "Schedule", url: "/schedule", icon: Calendar, navKey: "schedule" },

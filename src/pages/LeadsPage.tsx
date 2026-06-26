@@ -19,6 +19,7 @@ import { Plus, Search, Download, Share2, X, SlidersHorizontal, BarChart3, Puzzle
 import { useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
 import OprLeadCard from "@/components/leads/OprLeadCard";
+import type { LeadCancellationRequest } from "@/types";
 import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import LeadReportDialog from "@/components/leads/LeadReportDialog";
 import InstallExtensionDialog from "@/components/leads/InstallExtensionDialog";
@@ -61,6 +62,12 @@ export default function LeadsPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showInstallDialog, setShowInstallDialog] = useState(false);
+  const [pagedMetadata, setPagedMetadata] = useState<Record<string, {
+    hasNotes: { general: boolean; cs: boolean; processor: boolean };
+    photoCount: number;
+    pendingCancellationRequest: LeadCancellationRequest | null;
+  }>>({});
+  const [metadataLoading, setMetadataLoading] = useState(false);
   const deferredSearch = useDeferredValue(search);
 
   const rawStatusFilter = searchParams.get("status") || "all";
@@ -215,6 +222,102 @@ export default function LeadsPage() {
       setPage(totalPages - 1);
     }
   }, [filtered.length, page, totalPages]);
+
+  const pagedIdsStr = paged.map((l) => l.id).join(",");
+
+  useEffect(() => {
+    let active = true;
+    const loadPagedMetadata = async () => {
+      const pagedIds = paged.map((l) => l.id);
+      if (pagedIds.length === 0) {
+        setPagedMetadata({});
+        return;
+      }
+
+      setMetadataLoading(true);
+
+      try {
+        const [notesRes, photosRes, cancelRes] = await Promise.all([
+          supabase
+            .from("lead_notes")
+            .select("lead_id, note_type")
+            .in("lead_id", pagedIds),
+          supabase
+            .from("lead_photos")
+            .select("lead_id, id")
+            .in("lead_id", pagedIds),
+          supabase
+            .from("lead_cancellation_requests")
+            .select("*")
+            .in("lead_id", pagedIds)
+            .eq("status", "pending")
+        ]);
+
+        if (!active) return;
+
+        const metadataMap: Record<string, {
+          hasNotes: { general: boolean; cs: boolean; processor: boolean };
+          photoCount: number;
+          pendingCancellationRequest: LeadCancellationRequest | null;
+        }> = {};
+
+        pagedIds.forEach((id) => {
+          metadataMap[id] = {
+            hasNotes: { general: false, cs: false, processor: false },
+            photoCount: 0,
+            pendingCancellationRequest: null,
+          };
+        });
+
+        if (notesRes.data) {
+          notesRes.data.forEach((note) => {
+            const mapItem = metadataMap[note.lead_id];
+            if (mapItem) {
+              if (note.note_type === "general") mapItem.hasNotes.general = true;
+              else if (note.note_type === "cs") mapItem.hasNotes.cs = true;
+              else if (note.note_type === "processor") mapItem.hasNotes.processor = true;
+            }
+          });
+        }
+
+        if (photosRes.data) {
+          photosRes.data.forEach((photo) => {
+            const mapItem = metadataMap[photo.lead_id];
+            if (mapItem) {
+              mapItem.photoCount += 1;
+            }
+          });
+        }
+
+        if (cancelRes.data) {
+          cancelRes.data.forEach((req) => {
+            const mapItem = metadataMap[req.lead_id];
+            if (mapItem) {
+              const requestCopy = { ...req } as any;
+              if (requestCopy.requested_by) {
+                requestCopy.requester_name = profiles[requestCopy.requested_by] || null;
+              }
+              mapItem.pendingCancellationRequest = requestCopy;
+            }
+          });
+        }
+
+        setPagedMetadata(metadataMap);
+      } catch (err) {
+        console.error("Failed to load paged metadata", err);
+      } finally {
+        if (active) {
+          setMetadataLoading(false);
+        }
+      }
+    };
+
+    void loadPagedMetadata();
+
+    return () => {
+      active = false;
+    };
+  }, [pagedIdsStr, profiles]);
 
   const countSource = activeTab === "shared" ? visibleSharedLeads : visibleMyLeads;
 
@@ -650,6 +753,10 @@ export default function LeadsPage() {
                   lead={lead}
                   profiles={profiles}
                   onRefresh={handleRefresh}
+                  disablePhotoPreview
+                  initialHasNotes={pagedMetadata[lead.id]?.hasNotes}
+                  initialPhotoCount={pagedMetadata[lead.id]?.photoCount}
+                  initialPendingCancellationRequest={pagedMetadata[lead.id]?.pendingCancellationRequest}
                 />
               )}
             </motion.div>

@@ -64,6 +64,9 @@ interface LeadCardProps {
   onRefresh: () => void;
   photoUrls?: string[];
   disablePhotoPreview?: boolean;
+  initialHasNotes?: { general: boolean; cs: boolean; processor: boolean };
+  initialPhotoCount?: number;
+  initialPendingCancellationRequest?: LeadCancellationRequest | null;
 }
 
 const NOTE_INDICATOR_START_AT = new Date("2026-06-12T12:01:26.000Z").getTime();
@@ -94,7 +97,16 @@ function formatScheduleForCopy(lead: Lead) {
   return time ? `${date}, ${time}` : date;
 }
 
-function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = false }: LeadCardProps) {
+function LeadCard({
+  lead,
+  profiles,
+  onRefresh,
+  photoUrls,
+  disablePhotoPreview = false,
+  initialHasNotes,
+  initialPhotoCount,
+  initialPendingCancellationRequest,
+}: LeadCardProps) {
   const navigate = useNavigate();
   const { user, role } = useAuth();
   const [changingStatus, setChangingStatus] = useState(false);
@@ -105,21 +117,46 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
   const [cancelRequestLoading, setCancelRequestLoading] = useState(false);
-  const [pendingCancellationRequest, setPendingCancellationRequest] = useState<LeadCancellationRequest | null>(null);
+  const [cancelReviewLoading, setCancelReviewLoading] = useState(false);
+  const [pendingCancellationRequest, setPendingCancellationRequest] = useState<LeadCancellationRequest | null>(
+    initialPendingCancellationRequest !== undefined ? initialPendingCancellationRequest : null
+  );
   const [completeCopied, setCompleteCopied] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
-  const [photoCount, setPhotoCount] = useState(0);
+  const [photoCount, setPhotoCount] = useState(
+    initialPhotoCount !== undefined ? initialPhotoCount : 0
+  );
   const [photoOriginals, setPhotoOriginals] = useState<string[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [resolvedPaymentUrl, setResolvedPaymentUrl] = useState<string | null>(null);
   const [resolvedPaymentOriginal, setResolvedPaymentOriginal] = useState<string | null>(null);
-  const [hasNotes, setHasNotes] = useState<{ general: boolean; cs: boolean; processor: boolean }>({
-    general: false,
-    cs: false,
-    processor: false,
-  });
+  const [hasNotes, setHasNotes] = useState<{ general: boolean; cs: boolean; processor: boolean }>(
+    initialHasNotes !== undefined ? initialHasNotes : {
+      general: false,
+      cs: false,
+      processor: false,
+    }
+  );
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (initialHasNotes !== undefined) {
+      setHasNotes(initialHasNotes);
+    }
+  }, [initialHasNotes]);
+
+  useEffect(() => {
+    if (initialPhotoCount !== undefined) {
+      setPhotoCount(initialPhotoCount);
+    }
+  }, [initialPhotoCount]);
+
+  useEffect(() => {
+    if (initialPendingCancellationRequest !== undefined) {
+      setPendingCancellationRequest(initialPendingCancellationRequest);
+    }
+  }, [initialPendingCancellationRequest]);
 
   const shouldShowPersistentNoteDots = () => {
     const createdAt = new Date(lead.created_at).getTime();
@@ -147,9 +184,11 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   };
 
   useEffect(() => {
-    void refreshNotePresence();
+    if (initialHasNotes === undefined) {
+      void refreshNotePresence();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.id, lead.created_at]);
+  }, [lead.id, lead.created_at, initialHasNotes]);
 
   const loadPhotoCount = async () => {
     if (photoUrls) {
@@ -166,9 +205,11 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   };
 
   useEffect(() => {
-    void loadPhotoCount();
+    if (initialPhotoCount === undefined) {
+      void loadPhotoCount();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.id, photoUrls]);
+  }, [lead.id, photoUrls, initialPhotoCount]);
 
   const refreshPendingCancellationRequest = async () => {
     const request = await fetchPendingCancellationRequest(lead.id);
@@ -176,9 +217,11 @@ function LeadCard({ lead, profiles, onRefresh, photoUrls, disablePhotoPreview = 
   };
 
   useEffect(() => {
-    void refreshPendingCancellationRequest();
+    if (initialPendingCancellationRequest === undefined) {
+      void refreshPendingCancellationRequest();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.id, lead.status]);
+  }, [lead.id, lead.status, initialPendingCancellationRequest]);
 
   const refreshCardMeta = () => {
     void refreshNotePresence();
