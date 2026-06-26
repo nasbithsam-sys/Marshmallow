@@ -3,7 +3,7 @@ import type { AppRole, CsTag } from "@/types";
 const TAGS_BY_ROLE: Record<AppRole, CsTag[]> = {
   admin: ["confirmation_sent", "waiting_schedule_confirmation", "booked", "ready_to_schedule"],
   customer_service: ["confirmation_sent", "waiting_schedule_confirmation", "booked"],
-  processor: ["ready_to_schedule"],
+  processor: ["ready_to_schedule", "waiting_schedule_confirmation"],
   opr: [],
   no_role: [],
 };
