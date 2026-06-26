@@ -4,7 +4,7 @@ import { ALL_LEAD_STATUSES, ALL_NAV_ITEMS, type NavItem } from "@/lib/constants"
 const DEFAULT_NAV_ACCESS: Record<AppRole, Set<NavItem>> = {
   admin: new Set(ALL_NAV_ITEMS),
   processor: new Set(["leads", "schedule", "analytics", "areas", "activity_logs"]),
-  customer_service: new Set(["leads", "schedule", "calls"]),
+  customer_service: new Set(["leads", "schedule"]),
   opr: new Set(["leads"]),
   no_role: new Set(),
 };

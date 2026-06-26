@@ -9,7 +9,6 @@ import {
   MapPin,
   Sparkles,
   ChevronRight,
-  PhoneCall,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -37,7 +36,6 @@ import { motion } from "framer-motion";
 
 const navItems = [
   { title: "All Leads", url: "/leads", icon: Users, navKey: "leads" },
-  { title: "Calls Log", url: "/calls", icon: PhoneCall, navKey: "calls" },
   { title: "Schedule", url: "/schedule", icon: Calendar, navKey: "schedule" },
   { title: "Analytics", url: "/analytics", icon: BarChart3, navKey: "analytics" },
   { title: "Area Insights", url: "/areas", icon: MapPin, navKey: "areas" },
