@@ -51,6 +51,12 @@ export default function CancellationRequestPanel({
                 <p className="mt-1 break-words leading-5 text-foreground/88">{request.proof}</p>
               </>
             )}
+            {request.proof_image_path && (
+              <>
+                <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Image</p>
+                <p className="mt-1 break-words leading-5 text-foreground/88">{request.proof_image_path}</p>
+              </>
+            )}
           </div>
 
           {canReview ? (

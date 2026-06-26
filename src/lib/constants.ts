@@ -8,7 +8,6 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   quote_sent_waiting: "Quote Sent - Waiting",
   post_visit_quote_sent_waiting: "Post Visit-Quote Sent-Waiting",
   activate_customer: "Activate Customer",
-  ready_to_schedule: "Ready To Schedule",
   quote_sent_need_follow_up: "Quote Sent - Need Follow Up",
   needs_quote: "Needs Quote",
   tech_making_quote: "Tech Making Quote",
@@ -22,6 +21,7 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   cancellation_requested: "Cancellation Request",
   cancelled: "Cancelled",
   paid: "Paid",
+  partial_paid: "Partial Paid",
 };
 
 export const STATUS_COLORS: Record<LeadStatus, string> = {
@@ -30,7 +30,6 @@ export const STATUS_COLORS: Record<LeadStatus, string> = {
   quote_sent_waiting: "bg-blue-100 text-blue-800 border-blue-200",
   post_visit_quote_sent_waiting: "bg-slate-100 text-slate-800 border-slate-200",
   activate_customer: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  ready_to_schedule: "bg-indigo-100 text-indigo-800 border-indigo-200",
   quote_sent_need_follow_up: "bg-orange-100 text-orange-800 border-orange-200",
   needs_quote: "bg-purple-100 text-purple-800 border-purple-200",
   tech_making_quote: "bg-violet-100 text-violet-800 border-violet-200",
@@ -44,6 +43,7 @@ export const STATUS_COLORS: Record<LeadStatus, string> = {
   cancellation_requested: "bg-red-100 text-red-800 border-red-200",
   cancelled: "bg-gray-100 text-gray-800 border-gray-200",
   paid: "bg-green-100 text-green-800 border-green-200",
+  partial_paid: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
 export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
@@ -52,7 +52,6 @@ export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
   quote_sent_waiting: "bg-blue-400",
   post_visit_quote_sent_waiting: "bg-slate-400",
   activate_customer: "bg-emerald-500",
-  ready_to_schedule: "bg-indigo-500",
   quote_sent_need_follow_up: "bg-orange-400",
   needs_quote: "bg-purple-400",
   tech_making_quote: "bg-violet-400",
@@ -66,6 +65,7 @@ export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
   cancellation_requested: "bg-red-500",
   cancelled: "bg-gray-400",
   paid: "bg-green-500",
+  partial_paid: "bg-emerald-500",
 };
 
 export const ALL_LEAD_STATUSES: LeadStatus[] = [
@@ -74,7 +74,6 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "quote_sent_waiting",
   "post_visit_quote_sent_waiting",
   "activate_customer",
-  "ready_to_schedule",
   "quote_sent_need_follow_up",
   "needs_quote",
   "tech_making_quote",
@@ -85,18 +84,17 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "needs_reschedule",
   "job_done",
   "payment_pending",
-  "cancellation_requested",
   "cancelled",
   "paid",
+  "partial_paid",
 ];
 
-export const ALL_NAV_ITEMS = ["leads", "analytics", "settings", "activity_logs", "schedule", "areas"] as const;
+export const ALL_NAV_ITEMS = ["leads", "quo_monitor", "cancellation_requests", "analytics", "settings", "activity_logs", "schedule", "areas"] as const;
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
   urgent_job: 1,
   need_tech: 2,
-  cancellation_requested: 0,
   cancelled: 99,
 };
 
@@ -111,7 +109,6 @@ const TAG_ELIGIBLE_STATUSES: Partial<Record<LeadStatus, true>> = {
   quote_sent_waiting: true,
   post_visit_quote_sent_waiting: true,
   activate_customer: true,
-  ready_to_schedule: true,
   quote_sent_need_follow_up: true,
   needs_quote: true,
   tech_making_quote: true,
@@ -124,9 +121,6 @@ export function compareLeadDisplayPriority(
   a: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
   b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
 ) {
-  // Tagged leads pin above urgent — but only while still in an active/pre-scheduled status.
-  // Once status moves to scheduled / job_in_progress / job_done / paid / cancelled etc.,
-  // any leftover cs_tag is ignored so urgent leads stay on top.
   const aTagged = Boolean(a.cs_tag) && TAG_ELIGIBLE_STATUSES[a.status] === true;
   const bTagged = Boolean(b.cs_tag) && TAG_ELIGIBLE_STATUSES[b.status] === true;
 
@@ -139,25 +133,43 @@ export function compareLeadDisplayPriority(
 }
 
 const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
-  admin: ALL_LEAD_STATUSES,
+  admin: [
+    "waiting_complete_details",
+    "urgent_job",
+    "quote_sent_waiting",
+    "post_visit_quote_sent_waiting",
+    "activate_customer",
+    "quote_sent_need_follow_up",
+    "needs_quote",
+    "tech_making_quote",
+    "waiting_customer_response",
+    "need_tech",
+    "scheduled",
+    "job_in_progress",
+    "needs_reschedule",
+    "job_done",
+    "payment_pending",
+    "cancelled",
+    "paid",
+    "partial_paid",
+  ],
   customer_service: [
     "need_tech",
     "urgent_job",
     "waiting_customer_response",
     "waiting_complete_details",
     "quote_sent_waiting",
-    "ready_to_schedule",
     "quote_sent_need_follow_up",
     "needs_quote",
     "needs_reschedule",
-    "cancellation_requested",
     "cancelled",
+    "partial_paid",
   ],
   processor: [
     "post_visit_quote_sent_waiting",
     "activate_customer",
-    "ready_to_schedule",
     "tech_making_quote",
+    "waiting_customer_response",
     "scheduled",
     "urgent_job",
     "job_in_progress",
@@ -165,11 +177,13 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "payment_pending",
     "job_done",
     "needs_reschedule",
-    "cancellation_requested",
     "cancelled",
+    "partial_paid",
   ],
   no_role: [],
-  opr: [],
+  opr: [
+    "partial_paid",
+  ],
 };
 
 export function getChangeableStatuses(role?: string | null): LeadStatus[] {

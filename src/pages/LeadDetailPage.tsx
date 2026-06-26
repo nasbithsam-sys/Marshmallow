@@ -35,14 +35,17 @@ import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import PaymentDialog from "@/components/leads/PaymentDialog";
 import ImageLightbox from "@/components/leads/ImageLightbox";
 import CopyLeadButton from "@/components/leads/CopyLeadButton";
+import ReminderButton from "@/components/leads/ReminderButton";
 import NoteThread from "@/components/leads/NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
 import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
+import { updateLeadById } from "@/lib/lead-updates";
 import StatusBadge from "@/components/leads/StatusBadge";
 import CancellationRequestDialog from "@/components/leads/CancellationRequestDialog";
 import CancellationRequestPanel from "@/components/leads/CancellationRequestPanel";
+import QuoPhoneTrigger from "@/components/leads/QuoPhoneTrigger";
 import { heroTitle, premiumEase, silkySpring } from "@/lib/motion";
 import {
   canCreateCancellationRequest,
@@ -50,6 +53,7 @@ import {
   fetchPendingCancellationRequest,
   reviewCancellationRequest,
 } from "@/lib/cancellation-requests";
+import NumberNameCombobox from "@/components/leads/NumberNameCombobox";
 
 const PHOTO_PREVIEW_LIMIT = 1;
 
@@ -138,6 +142,8 @@ export default function LeadDetailPage() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
   const [cancelRequestLoading, setCancelRequestLoading] = useState(false);
+  const [adminCancelOpen, setAdminCancelOpen] = useState(false);
+  const [adminCancelLoading, setAdminCancelLoading] = useState(false);
   const [cancelReviewLoading, setCancelReviewLoading] = useState(false);
   const [pendingCancellationRequest, setPendingCancellationRequest] = useState<LeadCancellationRequest | null>(null);
 
@@ -396,7 +402,7 @@ export default function LeadDetailPage() {
 
     if (key === "status" && value === "cancelled") {
       if (isAdmin) {
-        setForm((prev) => ({ ...prev, status: "cancelled" as LeadStatus }));
+        setAdminCancelOpen(true);
       } else if (canCreateCancellationRequest(role)) {
         setCancelRequestOpen(true);
       } else {
@@ -445,22 +451,21 @@ export default function LeadDetailPage() {
     }
 
     setPaymentLoading(true);
-    let screenshotUrl: string | null = null;
+    try {
+      let screenshotUrl: string | null = null;
 
-    if (screenshotFile) {
-      const optimizedScreenshot = await optimizeImageForUpload(screenshotFile);
-      const ext = optimizedScreenshot.name.split(".").pop();
-      const path = `payments/${leadId}_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, optimizedScreenshot);
+      if (screenshotFile) {
+        const optimizedScreenshot = await optimizeImageForUpload(screenshotFile);
+        const ext = optimizedScreenshot.name.split(".").pop();
+        const path = `payments/${leadId}_${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, optimizedScreenshot);
 
-      if (!uploadError) {
-        screenshotUrl = path;
+        if (!uploadError) {
+          screenshotUrl = path;
+        }
       }
-    }
 
-    const { error } = await supabase
-      .from("leads")
-      .update({
+      await updateLeadById(leadId, {
         status: "paid",
         amount,
         payment_amount: amount,
@@ -468,26 +473,23 @@ export default function LeadDetailPage() {
         last_edited_by: user.id,
         updated_at: new Date().toISOString(),
         last_edited_at: new Date().toISOString(),
-      })
-      .eq("id", leadId);
+      });
 
-    setPaymentLoading(false);
-    setPaymentOpen(false);
+      setPaymentOpen(false);
+      setForm((prev) => ({
+        ...prev,
+        status: "paid",
+        amount: String(amount),
+        payment_screenshot_url: screenshotUrl || prev.payment_screenshot_url,
+      }));
 
-    if (error) {
-      toast.error(error.message);
-      return;
+      await fetchLead();
+      toast.success("Payment recorded & status updated to Paid");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to record payment");
+    } finally {
+      setPaymentLoading(false);
     }
-
-    setForm((prev) => ({
-      ...prev,
-      status: "paid",
-      amount: String(amount),
-      payment_screenshot_url: screenshotUrl || prev.payment_screenshot_url,
-    }));
-
-    await fetchLead();
-    toast.success("Payment recorded & status updated to Paid");
   };
 
   const uploadNewPhotos = async (currentLeadId: string) => {
@@ -609,6 +611,9 @@ export default function LeadDetailPage() {
       service_details: form.service_details || null,
       customer_schedule_requirements: form.customer_schedule_requirements || null,
       reference_name: form.reference_name || null,
+      cs_notes: !isProcessor ? form.cs_notes || null : (originalLead?.cs_notes ?? null),
+      processor_notes: !isCS ? form.processor_notes || null : (originalLead?.processor_notes ?? null),
+      general_notes: form.general_notes || null,
 
       tech_name: role !== "customer_service" ? form.tech_name || null : (originalLead?.tech_name ?? null),
       tech_number: role !== "customer_service" ? form.tech_number || null : (originalLead?.tech_number ?? null),
@@ -691,9 +696,7 @@ export default function LeadDetailPage() {
         updatePayload.cs_tag = null;
       }
 
-      const { error } = await supabase.from("leads").update(updatePayload as never).eq("id", leadId);
-
-      if (error) throw error;
+      await updateLeadById(leadId, updatePayload);
 
       if (newPhotos.length > 0) {
         await uploadNewPhotos(leadId);
@@ -723,7 +726,7 @@ export default function LeadDetailPage() {
     }
   };
 
-  const handleCancellationRequestSubmit = async (comment: string, proof: string) => {
+  const handleCancellationRequestSubmit = async (comment: string, proof: string, proofImage: File | null) => {
     if (!user || !originalLead) return;
 
     setCancelRequestLoading(true);
@@ -734,6 +737,7 @@ export default function LeadDetailPage() {
         requesterRole: role,
         comment,
         proof,
+        proofImage,
       });
       toast.success("Cancellation request sent for approval");
       setCancelRequestOpen(false);
@@ -744,6 +748,56 @@ export default function LeadDetailPage() {
       toast.error(err instanceof Error ? err.message : "Failed to request cancellation");
     } finally {
       setCancelRequestLoading(false);
+    }
+  };
+
+  const handleAdminCancelSubmit = async (comment: string, proof: string, proofImage: File | null) => {
+    if (!user || !leadId) return;
+
+    setAdminCancelLoading(true);
+    try {
+      let proofImagePath: string | null = null;
+      if (proofImage) {
+        const optimized = await optimizeImageForUpload(proofImage);
+        const ext = optimized.name.split(".").pop() || "jpg";
+        proofImagePath = `cancellation-requests/${leadId}_${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("lead-photos").upload(proofImagePath, optimized);
+        if (uploadError) throw uploadError;
+      }
+
+      const reason = [
+        comment.trim() ? `Comment: ${comment.trim()}` : "",
+        proof.trim() ? `Proof: ${proof.trim()}` : "",
+        proofImagePath ? `Proof image: ${proofImagePath}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      await updateLeadById(leadId, {
+          status: "cancelled",
+          cancellation_reason: reason,
+          cs_tag: null,
+          last_edited_by: user.id,
+          updated_at: new Date().toISOString(),
+          last_edited_at: new Date().toISOString(),
+        });
+
+      await logActivity(user.id, "status_changed", "lead", leadId, {
+        target_name: jobId,
+        customer_name: form.customer_name,
+        job_id: jobId,
+        status_from: originalLead?.status,
+        status_to: "cancelled",
+        cancellation_reason: reason,
+      });
+
+      toast.success("Lead cancelled");
+      setAdminCancelOpen(false);
+      await fetchLead();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel lead");
+    } finally {
+      setAdminCancelLoading(false);
     }
   };
 
@@ -929,7 +983,6 @@ export default function LeadDetailPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {!isCS && currentCopyLead && <CopyLeadButton lead={currentCopyLead} />}
               <Button onClick={handleSave} disabled={saving || isDuplicate} className="gap-2">
                 {saved ? (
                   <>
@@ -950,7 +1003,13 @@ export default function LeadDetailPage() {
                 <Phone className="h-3.5 w-3.5" />
                 Contact
               </div>
-              <p className="mt-2 text-sm font-semibold text-foreground">{form.customer_phone || "Phone pending"}</p>
+              {form.customer_phone ? (
+                <QuoPhoneTrigger contactName={form.customer_name || "Lead"} phone={form.customer_phone} className="mt-2 text-sm font-semibold">
+                  {form.customer_phone}
+                </QuoPhoneTrigger>
+              ) : (
+                <p className="mt-2 text-sm font-semibold text-foreground">Phone pending</p>
+              )}
               <p className="mt-1 text-[12px] text-muted-foreground">{form.customer_email || "No email added yet"}</p>
             </div>
             <div className="crm-lead-card-inner rounded-2xl px-4 py-3">
@@ -1024,11 +1083,11 @@ export default function LeadDetailPage() {
 
               <div className="space-y-1.5">
                 <Label className={labelClass}>Number Name *</Label>
-                <Input
+                <NumberNameCombobox
                   value={form.number_name}
-                  onChange={(e) => update("number_name", e.target.value)}
+                  onChange={(value) => update("number_name", value)}
+                  disabled={isProcessor}
                   className={fieldClass}
-                  readOnly={isProcessor}
                 />
               </div>
             </div>
@@ -1043,6 +1102,15 @@ export default function LeadDetailPage() {
                   className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive" : ""}`}
                   readOnly={isProcessor}
                 />
+                {form.customer_phone && (
+                  <QuoPhoneTrigger
+                    contactName={form.customer_name || "Lead"}
+                    phone={form.customer_phone}
+                    className="mt-2 text-xs font-medium"
+                  >
+                    {form.customer_phone}
+                  </QuoPhoneTrigger>
+                )}
                 {isDuplicate && (
                   <div className="flex items-center gap-1.5 text-destructive text-[11px] mt-1">
                     <AlertCircle className="h-3 w-3" />
@@ -1178,25 +1246,49 @@ export default function LeadDetailPage() {
               </CollapsibleTrigger>
 
               <CollapsibleContent className="mt-3 space-y-4 px-1">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>Tech Name</Label>
-                    <Input
-                      value={form.tech_name}
-                      onChange={(e) => update("tech_name", e.target.value)}
-                      className={fieldClass}
-                    />
-                  </div>
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+                  <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>Tech Name</Label>
+                      <Input
+                        value={form.tech_name}
+                        onChange={(e) => update("tech_name", e.target.value)}
+                        className={fieldClass}
+                      />
+                    </div>
 
-                  <div className="space-y-1.5">
-                    <Label className={labelClass}>Tech Number</Label>
+                    <div className="space-y-1.5">
+                      <Label className={labelClass}>Tech Number</Label>
                     <Input
                       value={form.tech_number}
                       onChange={(e) => update("tech_number", e.target.value)}
                       maxLength={14}
                       className={fieldClass}
                     />
+                    {form.tech_number && (
+                      <QuoPhoneTrigger
+                        contactName={form.tech_name || "Technician"}
+                        phone={form.tech_number}
+                        className="mt-2 text-xs font-medium"
+                      >
+                        {form.tech_number}
+                      </QuoPhoneTrigger>
+                    )}
                   </div>
+                  </div>
+
+                  {currentCopyLead && (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <ReminderButton
+                        lead={currentCopyLead}
+                        className="h-9 rounded-xl px-2.5 text-[10px]"
+                      />
+                      <CopyLeadButton
+                        lead={currentCopyLead}
+                        className="h-9 rounded-xl px-2.5 text-[10px]"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -1484,6 +1576,14 @@ export default function LeadDetailPage() {
         requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
       />
 
+      <CancellationRequestDialog
+        open={adminCancelOpen}
+        onOpenChange={setAdminCancelOpen}
+        onSubmit={handleAdminCancelSubmit}
+        loading={adminCancelLoading}
+        mode="direct"
+      />
+
       <ImageLightbox
         images={allImageUrls}
         initialIndex={lightboxIndex}
@@ -1493,5 +1593,3 @@ export default function LeadDetailPage() {
     </div>
   );
 }
-
-

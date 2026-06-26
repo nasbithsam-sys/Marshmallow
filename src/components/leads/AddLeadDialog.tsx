@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChangeEvent, ElementType, FormEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,11 +29,17 @@ import { formatUSPhone } from "@/lib/phone";
 import { logActivity } from "@/lib/activity";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { motion, AnimatePresence } from "framer-motion";
+import NumberNameCombobox from "./NumberNameCombobox";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  initialData?: {
+    customer_name?: string;
+    customer_phone?: string;
+    direction?: "incoming" | "outgoing" | "";
+  };
 }
 
 const initialFormState = {
@@ -125,12 +131,17 @@ const SectionHeader = ({
   </div>
 );
 
-const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
+const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) => {
   const { user, role } = useAuth();
   const [loading, setLoading] = useState(false);
   const [shouldResetOnClose, setShouldResetOnClose] = useState(true);
 
-  const [form, setForm] = useState(initialFormState);
+  const [form, setForm] = useState({
+    ...initialFormState,
+    customer_name: initialData?.customer_name || "",
+    customer_phone: initialData?.customer_phone || "",
+    direction: initialData?.direction || ""
+  });
 
   const [photos, setPhotos] = useState<File[]>([]);
   const [csOpen, setCsOpen] = useState(true);
@@ -175,13 +186,25 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
   };
 
   const resetForm = () => {
-    setForm(initialFormState);
+    setForm({
+      ...initialFormState,
+      customer_name: initialData?.customer_name || "",
+      customer_phone: initialData?.customer_phone || "",
+      direction: initialData?.direction || ""
+    });
     setPhotos([]);
     setCsOpen(true);
     setProcessorOpen(role !== "customer_service");
     setScheduleOpen(false);
     setShouldResetOnClose(true);
   };
+
+  // Also reset when opened to capture fresh initialData
+  useEffect(() => {
+    if (open) {
+      resetForm();
+    }
+  }, [open, initialData]);
 
   const closeDialog = (resetDraft: boolean) => {
     setShouldResetOnClose(resetDraft);
@@ -472,10 +495,9 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess }: Props) => {
 
               <div className="space-y-1.5">
                 <Label className={labelClass}>Number Name *</Label>
-                <Input
+                <NumberNameCombobox
                   value={form.number_name}
-                  onChange={(e) => update("number_name", e.target.value)}
-                  placeholder="Name on phone account"
+                  onChange={(value) => update("number_name", value)}
                   className={fieldClass}
                 />
               </div>

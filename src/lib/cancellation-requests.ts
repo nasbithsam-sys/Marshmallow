@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Lead, LeadCancellationRequest, LeadStatus } from "@/types";
 import { logActivity } from "@/lib/activity";
+import { optimizeImageForUpload } from "@/lib/image-upload";
+import { updateLeadById } from "@/lib/lead-updates";
 
 export const CANCELLATION_REQUEST_STATUS: LeadStatus = "cancellation_requested";
 
@@ -10,6 +12,7 @@ type CreateCancellationRequestArgs = {
   requesterRole: AppRole;
   comment: string;
   proof?: string | null;
+  proofImage?: File | null;
 };
 
 type ReviewCancellationRequestArgs = {
@@ -69,9 +72,11 @@ export async function createCancellationRequest({
   requesterRole,
   comment,
   proof,
+  proofImage,
 }: CreateCancellationRequestArgs): Promise<LeadCancellationRequest> {
   const cleanComment = comment.trim();
   const cleanProof = proof?.trim() || null;
+  let proofImagePath: string | null = null;
 
   if (!cleanComment) throw new Error("Cancellation comment is required");
   if (!canCreateCancellationRequest(requesterRole)) {
@@ -88,6 +93,14 @@ export async function createCancellationRequest({
     throw new Error("This lead already has a pending cancellation request");
   }
 
+  if (proofImage) {
+    const optimized = await optimizeImageForUpload(proofImage);
+    const ext = optimized.name.split(".").pop() || "jpg";
+    proofImagePath = `cancellation-requests/${lead.id}_${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("lead-photos").upload(proofImagePath, optimized);
+    if (uploadError) throw uploadError;
+  }
+
   const { data, error } = await cancellationRequestsTable()
     .insert({
       lead_id: lead.id,
@@ -96,6 +109,7 @@ export async function createCancellationRequest({
       requested_by_role: requesterRole,
       comment: cleanComment,
       proof: cleanProof,
+      proof_image_path: proofImagePath,
       status: "pending",
     } as never)
     .select("*")
@@ -103,18 +117,13 @@ export async function createCancellationRequest({
 
   if (error) throw error;
 
-  const { error: leadError } = await supabase
-    .from("leads")
-    .update({
+  await updateLeadById(lead.id, {
       status: CANCELLATION_REQUEST_STATUS,
       cs_tag: null,
       last_edited_by: userId,
       updated_at: new Date().toISOString(),
       last_edited_at: new Date().toISOString(),
-    } as never)
-    .eq("id", lead.id);
-
-  if (leadError) throw leadError;
+    });
 
   const approverRoles = getCancellationApproverRoles(requesterRole);
   const { data: roles } = await supabase
@@ -123,15 +132,19 @@ export async function createCancellationRequest({
     .in("role", approverRoles);
 
   if (roles?.length) {
-    await supabase.from("notifications").insert(
+    const { error: notificationError } = await supabase.from("notifications").insert(
       roles.map((row: { user_id: string; role: string }) => ({
         user_id: row.user_id,
-        title: "Cancellation request",
+        title: "Lead cancellation request",
         message: `${lead.customer_name} needs cancellation approval`,
         lead_id: lead.id,
         read: false,
       })),
     );
+
+    if (notificationError) {
+      console.error("Failed to notify cancellation approvers", notificationError);
+    }
   }
 
   await logActivity(userId, "cancellation_requested", "lead", lead.id, {
@@ -141,6 +154,7 @@ export async function createCancellationRequest({
     requested_by_role: requesterRole,
     comment: cleanComment,
     proof: cleanProof,
+    proof_image_path: proofImagePath,
     status_from: lead.status,
     status_to: CANCELLATION_REQUEST_STATUS,
   });
@@ -176,26 +190,22 @@ export async function reviewCancellationRequest({
     const reason = [
       request.comment ? `Comment: ${request.comment}` : "",
       request.proof ? `Proof: ${request.proof}` : "",
+      request.proof_image_path ? `Proof image: ${request.proof_image_path}` : "",
     ]
       .filter(Boolean)
       .join("\n");
 
-    const { error: leadError } = await supabase
-      .from("leads")
-      .update({
+    await updateLeadById(lead.id, {
         status: "cancelled" as LeadStatus,
         cancellation_reason: reason || null,
         cs_tag: null,
         last_edited_by: reviewerId,
         updated_at: now,
         last_edited_at: now,
-      } as never)
-      .eq("id", lead.id);
-
-    if (leadError) throw leadError;
+      });
   } else {
     const fallbackStatus = request.previous_status === "cancelled" ? "waiting_complete_details" : request.previous_status;
-    const { error: leadError } = await supabase
+    const { data, error: leadError } = await supabase
       .from("leads")
       .update({
         status: fallbackStatus as LeadStatus,
@@ -204,9 +214,12 @@ export async function reviewCancellationRequest({
         last_edited_at: now,
       } as never)
       .eq("id", lead.id)
-      .eq("status", CANCELLATION_REQUEST_STATUS);
+      .eq("status", CANCELLATION_REQUEST_STATUS)
+      .select("id")
+      .single();
 
     if (leadError) throw leadError;
+    if (!data) throw new Error("Lead update was not applied. Refresh the page and try again.");
   }
 
   await logActivity(reviewerId, action === "approved" ? "cancellation_approved" : "cancellation_rejected", "lead", lead.id, {

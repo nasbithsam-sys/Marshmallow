@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,29 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Bell, CheckCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
-const NOTIFICATION_POLL_INTERVAL_MS = 5 * 60 * 1000;
+const NOTIFICATION_POLL_INTERVAL_MS = 15 * 1000;
+const MAX_REMEMBERED_CANCELLATION_POPUPS = 200;
+
+const cancellationPopupStorageKey = (userId: string) => `shown-cancellation-popups:${userId}`;
+
+const loadShownCancellationPopupIds = (userId: string) => {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(cancellationPopupStorageKey(userId)) || '[]');
+    return new Set<string>(Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : []);
+  } catch {
+    return new Set<string>();
+  }
+};
+
+const saveShownCancellationPopupIds = (userId: string, ids: Set<string>) => {
+  const recentIds = Array.from(ids).slice(-MAX_REMEMBERED_CANCELLATION_POPUPS);
+  window.localStorage.setItem(cancellationPopupStorageKey(userId), JSON.stringify(recentIds));
+};
+
+const isCancellationRequestNotification = (notification: Notification) =>
+  notification.title.toLowerCase().includes('cancellation request');
 
 interface Notification {
   id: string;
@@ -20,10 +41,11 @@ interface Notification {
 }
 
 export default function NotificationBell() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
+  const shownCancellationPopups = useRef(new Set<string>());
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
@@ -34,6 +56,10 @@ export default function NotificationBell() {
       .order('created_at', { ascending: false })
       .limit(20);
     if (data) setNotifications(data as Notification[]);
+  }, [user]);
+
+  useEffect(() => {
+    shownCancellationPopups.current = user ? loadShownCancellationPopupIds(user.id) : new Set<string>();
   }, [user]);
 
   useEffect(() => {
@@ -59,6 +85,60 @@ export default function NotificationBell() {
       void fetchNotifications();
     }
   }, [fetchNotifications, open]);
+
+  useEffect(() => {
+    if (role !== 'admin' || !user) return;
+
+    let displayedNewPopup = false;
+
+    notifications
+      .filter(
+        (notification) =>
+          !notification.read &&
+          isCancellationRequestNotification(notification) &&
+          !shownCancellationPopups.current.has(notification.id),
+      )
+      .forEach((notification) => {
+        shownCancellationPopups.current.add(notification.id);
+        displayedNewPopup = true;
+        toast('New lead cancellation request', {
+          id: `cancellation-request-${notification.id}`,
+          description: notification.message,
+          duration: 5000,
+          closeButton: true,
+          dismissible: true,
+          position: 'bottom-right',
+        });
+      });
+
+    if (displayedNewPopup) {
+      saveShownCancellationPopupIds(user.id, shownCancellationPopups.current);
+    }
+  }, [notifications, role, user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          void fetchNotifications();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchNotifications, user]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 

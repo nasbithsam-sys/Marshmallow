@@ -11,10 +11,12 @@ export default function AppLayout() {
   const location = useLocation();
   const pageMeta: Record<string, { title: string; subtitle: string }> = {
     "/leads": { title: "Leads", subtitle: "Track intake, ownership, and next actions." },
+    "/lead-cancellation-requests": { title: "Cancellation Requests", subtitle: "Review cancellation reasons and approve or decline requests." },
     "/schedule": { title: "Schedule", subtitle: "Review jobs by day, week, and date range." },
     "/analytics": { title: "Analytics", subtitle: "Watch volume, pace, and operational trends." },
     "/areas": { title: "Areas", subtitle: "Compare neighborhoods and service performance." },
     "/activity-logs": { title: "Activity", subtitle: "Audit recent actions across the workspace." },
+    "/quo-monitor": { title: "Quo Monitor", subtitle: "Read-only inbox mirror." },
     "/settings": { title: "Settings", subtitle: "Manage users, permissions, and security controls." },
   };
 

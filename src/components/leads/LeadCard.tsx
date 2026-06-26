@@ -18,7 +18,6 @@ import {
   Pencil,
   MessageSquare,
   ChevronDown,
-  ArrowUpRight,
   Image as ImageIcon,
   CalendarDays,
   ShieldCheck,
@@ -45,7 +44,7 @@ import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
 import CopyValueButton from "./CopyValueButton";
 import CancellationRequestDialog from "./CancellationRequestDialog";
-import CancellationRequestPanel from "./CancellationRequestPanel";
+import QuoPhoneTrigger from "./QuoPhoneTrigger";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
 import { buildCompleteLeadCopyText, copyTextToClipboard } from "@/lib/lead-copy";
@@ -53,10 +52,10 @@ import {
   canCreateCancellationRequest,
   createCancellationRequest,
   fetchPendingCancellationRequest,
-  reviewCancellationRequest,
 } from "@/lib/cancellation-requests";
 import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
+import { getAssignableLeadTags } from "@/lib/lead-tags";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 interface LeadCardProps {
@@ -237,6 +236,8 @@ function LeadCard({
   const isUrgent = lead.status === "urgent_job";
   const canCompleteCopy = isAdmin || isProcessor;
   const pictureLabel = photoCount === 1 ? "Picture attached" : "Pictures attached";
+  const currentTag = lead.cs_tag ?? null;
+  const assignableTags = getAssignableLeadTags(role);
 
   const handleCompleteCopy = async () => {
     const text = buildCompleteLeadCopyText(lead);
@@ -251,10 +252,58 @@ function LeadCard({
     window.setTimeout(() => setCompleteCopied(false), 1400);
   };
 
+  const handleCopySingleImage = async (thumbnailUrl: string, index: number) => {
+    toast.info("Copying image...");
+    try {
+      const isPaymentImage = isPaid && lead.payment_screenshot_url && index === 0;
+      const photoIndex = isPaid && lead.payment_screenshot_url ? index - 1 : index;
+      let originalUrl = isPaymentImage ? resolvedPaymentOriginal : photoOriginals[photoIndex];
+
+      if (isPaymentImage) {
+        if (resolvedPaymentOriginal) {
+          originalUrl = resolvedPaymentOriginal;
+        } else {
+          const { getSignedUrl } = await import("@/lib/storage");
+          const original = await getSignedUrl(lead.payment_screenshot_url!);
+          if (original) {
+            originalUrl = original;
+            setResolvedPaymentOriginal(original);
+          }
+        }
+      } else {
+        if (!originalUrl) {
+          const { data } = await supabase
+            .from("lead_photos")
+            .select("photo_url")
+            .eq("lead_id", lead.id)
+            .order("created_at", { ascending: true });
+          if (data && data[photoIndex]) {
+            const path = data[photoIndex].photo_url;
+            const { getSignedUrl } = await import("@/lib/storage");
+            const original = await getSignedUrl(path);
+            if (original) {
+              originalUrl = original;
+              const updatedOriginals = [...photoOriginals];
+              updatedOriginals[photoIndex] = original;
+              setPhotoOriginals(updatedOriginals);
+            }
+          }
+        }
+      }
+
+      const copyUrl = originalUrl || thumbnailUrl;
+      const { copyImageToClipboard } = await import("@/lib/lead-copy");
+      await copyImageToClipboard(copyUrl);
+    } catch (err) {
+      console.error("Failed to copy image:", err);
+      toast.error("Failed to copy image");
+    }
+  };
+
   const detailRows = [
     {
       key: "phone",
-      label: "Number",
+      label: "Contact",
       value: lead.customer_phone,
       icon: Phone,
       wrap: false,
@@ -264,27 +313,6 @@ function LeadCard({
       label: "Address",
       value: lead.address,
       icon: MapPin,
-      wrap: true,
-    },
-    {
-      key: "service",
-      label: "Service Details",
-      value: lead.service_details || lead.service_type,
-      icon: MessageSquare,
-      wrap: true,
-    },
-    {
-      key: "schedule",
-      label: "Schedule Requirement",
-      value: lead.customer_schedule_requirements || formatScheduleForCopy(lead),
-      icon: CalendarDays,
-      wrap: true,
-    },
-    {
-      key: "quote",
-      label: "Quote",
-      value: lead.quote,
-      icon: Clipboard,
       wrap: true,
     },
     {
@@ -424,16 +452,10 @@ function LeadCard({
       return;
     }
 
-    if (newStatus === "cancelled") {
-      if (isAdmin) {
-        // Admin can cancel directly from card without any reason popup.
-      } else if (canCreateCancellationRequest(role)) {
-        setCancelRequestOpen(true);
-        return;
-      } else {
-        toast.error("You do not have permission to request cancellation");
-        return;
-      }
+    if (newStatus === "cancelled" && cancellationReason === undefined) {
+      // Only open the dialog when not already coming from the dialog submit
+      setCancelRequestOpen(true);
+      return;
     }
 
     setChangingStatus(true);
@@ -448,7 +470,7 @@ function LeadCard({
     statusUpdate.cs_tag = null;
 
     if (newStatus === "cancelled") {
-      statusUpdate.cancellation_reason = null;
+      statusUpdate.cancellation_reason = cancellationReason || null;
     }
 
     const { error } = await supabase
@@ -501,51 +523,49 @@ function LeadCard({
     onRefresh();
   };
 
-  const handleCancellationRequestSubmit = async (comment: string, proof: string) => {
+ const handleCancellationRequestSubmit = async (comment: string, proof: string, proofImage: File | null) => {
     if (!user) return;
 
     setCancelRequestLoading(true);
     try {
-      await createCancellationRequest({
-        lead,
-        userId: user.id,
-        requesterRole: role,
-        comment,
-        proof,
-      });
-      toast.success("Cancellation request sent for approval");
+      if (isAdmin) {
+        // Admin cancels directly — no request tab needed
+        let proofImagePath: string | null = null;
+        if (proofImage) {
+          const { optimizeImageForUpload } = await import("@/lib/image-upload");
+          const optimized = await optimizeImageForUpload(proofImage);
+          const ext = optimized.name.split(".").pop() || "jpg";
+          proofImagePath = `cancellation-requests/${lead.id}_${Date.now()}.${ext}`;
+          const { error: uploadError } = await supabase.storage.from("lead-photos").upload(proofImagePath, optimized);
+          if (uploadError) throw uploadError;
+        }
+        const reason = [
+          comment.trim() ? `Comment: ${comment.trim()}` : "",
+          proof.trim() ? `Proof: ${proof.trim()}` : "",
+          proofImagePath ? `Proof image: ${proofImagePath}` : "",
+        ].filter(Boolean).join("\n");
+        await handleStatusChange("cancelled", reason);
+      } else {
+        // CS / Processor — send to cancellation requests tab
+        await createCancellationRequest({
+          lead,
+          userId: user.id,
+          requesterRole: role,
+          comment,
+          proof,
+          proofImage,
+        });
+        toast.success("Cancellation request sent for approval");
+        await refreshPendingCancellationRequest();
+        onRefresh();
+      }
       setCancelRequestOpen(false);
-      await refreshPendingCancellationRequest();
-      onRefresh();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to request cancellation");
+      toast.error(err instanceof Error ? err.message : "Failed to cancel lead");
     } finally {
       setCancelRequestLoading(false);
     }
   };
-
-  const handleCancellationReview = async (action: "approved" | "rejected") => {
-    if (!user || !pendingCancellationRequest) return;
-
-    setCancelReviewLoading(true);
-    try {
-      await reviewCancellationRequest({
-        request: pendingCancellationRequest,
-        lead,
-        reviewerId: user.id,
-        reviewerRole: role,
-        action,
-      });
-      toast.success(action === "approved" ? "Lead cancelled" : "Cancellation request rejected");
-      setPendingCancellationRequest(null);
-      onRefresh();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to review cancellation request");
-    } finally {
-      setCancelReviewLoading(false);
-    }
-  };
-
   const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
     setPaymentLoading(true);
     let screenshotUrl: string | null = null;
@@ -630,6 +650,11 @@ function LeadCard({
 
   const handleCsTagChange = async (value: string) => {
     const newTag = value === "__clear__" ? null : (value as CsTag);
+    if (newTag && !assignableTags.includes(newTag)) {
+      toast.error("You do not have permission to assign this tag");
+      return;
+    }
+
     const { error } = await supabase
       .from("leads")
       .update({
@@ -789,21 +814,6 @@ function LeadCard({
             </div>
           </div>
 
-          {canCompleteCopy && (
-            <div className="mt-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="crm-lead-card-inner h-9 w-full gap-1.5 rounded-[14px] border-border/60 bg-transparent text-[11px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
-                onClick={handleCompleteCopy}
-              >
-                {completeCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {completeCopied ? "Copied" : "Complete Copy"}
-              </Button>
-            </div>
-          )}
-
           <div className="mt-2 grid gap-2">
             {detailRows.map(({ key, label, value, icon: Icon, wrap }) => (
               <div
@@ -818,7 +828,28 @@ function LeadCard({
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/72">{label}</p>
                     <CopyValueButton value={value} label={label} className="h-6 w-6 rounded-full" />
                   </div>
-                  <p className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>{value}</p>
+                  {key === "phone" ? (
+                    <QuoPhoneTrigger
+                      contactName={lead.customer_name}
+                      phone={value}
+                      className={`mt-1 text-[13px] leading-5 ${wrap ? "break-words" : "truncate"}`}
+                    >
+                      {value}
+                    </QuoPhoneTrigger>
+                  ) : key === "technician" && lead.tech_number ? (
+                    <div className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>
+                      {lead.tech_name ? <span>{lead.tech_name} {" · "}</span> : null}
+                      <QuoPhoneTrigger
+                        contactName={lead.tech_name || "Technician"}
+                        phone={lead.tech_number}
+                        className="inline-flex"
+                      >
+                        {lead.tech_number}
+                      </QuoPhoneTrigger>
+                    </div>
+                  ) : (
+                    <p className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>{value}</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -842,16 +873,15 @@ function LeadCard({
 
               <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
                 {allImages.map((url, i) => (
-                  <button
+                  <div
                     key={i}
-                    type="button"
-                    onClick={() => openLightbox(i)}
-                    className="group/image crm-lead-card-inner relative aspect-square h-auto min-h-[56px] w-full overflow-hidden rounded-[14px] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.22)] sm:h-14 sm:w-14 dark:hover:shadow-none"
+                    className="group/image crm-lead-card-inner relative aspect-square h-auto min-h-[56px] w-full overflow-hidden rounded-[14px] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.22)] sm:h-14 sm:w-14 dark:hover:shadow-none cursor-pointer"
                   >
                     <img
                       src={url}
                       alt=""
                       loading="lazy"
+                      onClick={() => openLightbox(i)}
                       onError={() => {
                         // Image transforms aren't supported on this bucket
                         // (likely Free-tier Supabase). Disable transforms session-wide
@@ -861,58 +891,68 @@ function LeadCard({
                       className="h-full w-full object-cover blur-[3px] scale-110 transition-all duration-300 group-hover/image:blur-0 group-hover/image:scale-105"
                     />
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent transition-opacity duration-200 group-hover/image:opacity-0" />
-                  </button>
+                    
+                    {/* Copy Button Overlay */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        void handleCopySingleImage(url, i);
+                      }}
+                      className="absolute right-1 top-1 z-10 flex h-7 w-7 items-center justify-center rounded-lg border border-white/30 bg-primary/90 text-primary-foreground shadow-md transition-all duration-200 hover:scale-105 hover:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:h-6 sm:w-6"
+                      title="Copy picture"
+                      aria-label={`Copy picture ${i + 1}`}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
           </div>
         )}
 
-        {(isCS || isAdmin) && lead.status !== "scheduled" && (
+        {(isCS || isProcessor || isAdmin) && lead.status !== "scheduled" && (
           <div className="px-4 pt-2">
             <Select
-              value={(lead as { cs_tag?: string | null }).cs_tag ?? "__clear__"}
+              value={currentTag ?? "__clear__"}
               onValueChange={handleCsTagChange}
             >
               <SelectTrigger className="crm-lead-card-inner h-9 w-full rounded-[14px] text-[12px] font-medium">
-                <SelectValue placeholder="CS Tag (optional)" />
+                <SelectValue placeholder="Lead tag (optional)" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__clear__" className="text-[12px] text-muted-foreground">
                   No tag
                 </SelectItem>
-                <SelectItem value="confirmation_sent" className="text-[12px]">
-                  {CS_TAG_LABELS.confirmation_sent}
-                </SelectItem>
-                <SelectItem value="waiting_schedule_confirmation" className="text-[12px]">
-                  {CS_TAG_LABELS.waiting_schedule_confirmation}
-                </SelectItem>
+                {currentTag && !assignableTags.includes(currentTag) && (
+                  <SelectItem value={currentTag} disabled className="text-[12px]">
+                    {CS_TAG_LABELS[currentTag]} (view only)
+                  </SelectItem>
+                )}
+                {assignableTags.map((tag) => (
+                  <SelectItem key={tag} value={tag} className="text-[12px]">
+                    {CS_TAG_LABELS[tag]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            {(lead as { cs_tag?: string | null }).cs_tag && (
-              <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-400/20 dark:text-amber-200">
-                📌 {CS_TAG_LABELS[(lead as { cs_tag: CsTag }).cs_tag]}
+            {currentTag && (
+              <p
+                className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  currentTag === "booked"
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-200"
+                    : currentTag === "ready_to_schedule"
+                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-400/20 dark:text-indigo-200"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
+                }`}
+              >
+                📌 {CS_TAG_LABELS[currentTag]}
               </p>
             )}
           </div>
         )}
-
-        {isProcessor && lead.status !== "scheduled" && (lead as { cs_tag?: string | null }).cs_tag && (
-          <div className="px-4 pt-2">
-            <p className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-400/20 dark:text-amber-200">
-              📌 {CS_TAG_LABELS[(lead as { cs_tag: CsTag }).cs_tag]}
-            </p>
-          </div>
-        )}
-
-
-        <CancellationRequestPanel
-          request={pendingCancellationRequest}
-          role={role}
-          loading={cancelReviewLoading}
-          onApprove={() => handleCancellationReview("approved")}
-          onReject={() => handleCancellationReview("rejected")}
-        />
 
         <div className="space-y-2 px-4 pt-3">
           {renderCollapsible({
@@ -979,8 +1019,8 @@ function LeadCard({
         </div>
 
         <div className="mt-auto border-t border-white/30 px-4 pb-4 pt-4 dark:border-white/5">
-          <div className="crm-lead-card-footer rounded-[24px] p-3 shadow-[0_24px_40px_-28px_rgba(59,130,246,0.18)] dark:shadow-none">
-            <div className="mb-3">
+          <div className="crm-lead-card-footer rounded-[24px] p-2.5 shadow-[0_24px_40px_-28px_rgba(59,130,246,0.18)] dark:shadow-none">
+            <div className="mb-2.5">
               <Select value={lead.status} onValueChange={handleStatusChange} disabled={changingStatus || isPaid}>
                 <SelectTrigger
                   className={`crm-lead-card-inner h-10 w-full rounded-[16px] text-[12px] font-medium shadow-[0_18px_28px_-24px_rgba(59,130,246,0.16)] ${
@@ -999,56 +1039,74 @@ function LeadCard({
               </Select>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div
+              className={`grid items-center gap-1.5 ${
+                isAdmin
+                  ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_36px_36px]"
+                  : canCompleteCopy
+                    ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]"
+                    : "grid-cols-1"
+              }`}
+            >
               <Button
                 variant="outline"
                 size="sm"
-                className="crm-lead-card-inner h-10 w-full flex-1 rounded-[16px] text-[12px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
+                className="crm-lead-card-inner h-9 min-w-0 w-full overflow-hidden rounded-[14px] px-1.5 text-[10px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
                 onClick={() => navigate(`/leads/${lead.id}`)}
               >
-                <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                Edit Lead
-                <ArrowUpRight className="ml-auto h-3.5 w-3.5 opacity-35" />
+                <Pencil className="h-3 w-3 shrink-0" />
+                <span className="truncate">Edit Lead</span>
               </Button>
 
-              <div className="flex flex-wrap items-center gap-2 sm:w-auto">
-                {isAdmin && (
-                  <LeadShareDialog
-                    leadId={lead.id}
-                    customerName={lead.customer_name}
-                    className="crm-lead-card-inner h-10 flex-1 rounded-[16px] border-border/60 bg-transparent text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none sm:w-10 sm:flex-none"
-                  />
-                )}
+              {canCompleteCopy && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="crm-lead-card-inner h-9 min-w-0 w-full gap-1 rounded-[14px] border-border/60 bg-transparent px-1.5 text-[10px] font-semibold hover:border-primary/28 hover:bg-primary/[0.05]"
+                  onClick={handleCompleteCopy}
+                >
+                  {completeCopied ? <Check className="h-3 w-3 shrink-0" /> : <Copy className="h-3 w-3 shrink-0" />}
+                  <span className="whitespace-nowrap">{completeCopied ? "Copied" : "Complete Details"}</span>
+                </Button>
+              )}
 
-                {isAdmin && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="crm-lead-card-inner h-10 flex-1 rounded-[16px] text-destructive/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/30 hover:bg-destructive/[0.06] hover:text-destructive hover:shadow-[0_18px_26px_-20px_rgba(239,68,68,0.22)] sm:w-10 sm:flex-none dark:hover:shadow-none"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </AlertDialogTrigger>
+              {isAdmin && (
+                <LeadShareDialog
+                  leadId={lead.id}
+                  customerName={lead.customer_name}
+                  className="crm-lead-card-inner h-9 w-full rounded-[14px] border-border/60 bg-transparent text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
+                />
+              )}
 
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete lead?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete "{lead.customer_name}". This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
+              {isAdmin && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="crm-lead-card-inner h-9 w-full rounded-[14px] text-destructive/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/30 hover:bg-destructive/[0.06] hover:text-destructive hover:shadow-[0_18px_26px_-20px_rgba(239,68,68,0.22)] dark:hover:shadow-none"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </AlertDialogTrigger>
+
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete lead?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete "{lead.customer_name}". This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
           </div>
         </div>
@@ -1065,9 +1123,10 @@ function LeadCard({
           onOpenChange={setCancelRequestOpen}
           onSubmit={handleCancellationRequestSubmit}
           loading={cancelRequestLoading}
+          mode={isAdmin ? "direct" : "request"}
           requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
         />
-
+        
         <ImageLightbox
           images={lightboxImages.length ? lightboxImages : allImages}
           initialIndex={lightboxIndex}
@@ -1080,5 +1139,3 @@ function LeadCard({
 }
 
 export default memo(LeadCard);
-
-

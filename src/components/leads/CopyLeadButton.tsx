@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -9,99 +10,36 @@ import { Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Lead } from '@/types';
 import { cn } from '@/lib/utils';
+import { DEFAULT_MESSAGE_TEMPLATES, renderLeadTemplate, useMessageTemplate } from '@/lib/message-templates';
 
 interface Props {
   lead: Lead;
   className?: string;
 }
 
-const formatScheduleDate = (lead: Lead) => {
-  if (!lead.scheduled_date) return 'TBD';
-  const date = new Date(lead.scheduled_date + 'T12:00:00');
-  const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  
-  const today = new Date();
-  const isToday = date.toDateString() === today.toDateString();
-  const dayName = days[date.getDay()];
-  const day = date.getDate();
-  const month = months[date.getMonth()];
-  
-  const suffix = day === 1 || day === 21 || day === 31 ? 'st' : day === 2 || day === 22 ? 'nd' : day === 3 || day === 23 ? 'rd' : 'th';
-
-  const formatTime = (time: string | null) => {
-    if (!time) return '';
-    const [h, m] = time.split(':').map(Number);
-    const ampm = h >= 12 ? 'pm' : 'am';
-    const hour = h % 12 || 12;
-    return m === 0 ? `${hour}:00${ampm}` : `${hour}:${m.toString().padStart(2, '0')}${ampm}`;
-  };
-
-  const startTime = formatTime(lead.scheduled_time_start);
-  const endTime = formatTime(lead.scheduled_time_end);
-  const timeRange = startTime && endTime ? ` between ${startTime}-${endTime}` : '';
-
-  return `${isToday ? 'Today ' : ''}${dayName} ${day}${suffix} ${month}${timeRange}`;
-};
-
 export default function CopyLeadButton({ lead, className }: Props) {
   const [open, setOpen] = useState(false);
   const [customerNumber, setCustomerNumber] = useState('');
   const [referenceName, setReferenceName] = useState(lead.reference_name || '');
+  const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
+  const { data: template = DEFAULT_MESSAGE_TEMPLATES.technician_message } = useMessageTemplate('technician_message');
 
-  const isQuoted = lead.terms === 'quoted';
-  const isFreeEstimate = lead.terms === 'free_estimate';
+  const generateText = () =>
+    renderLeadTemplate(template, lead, {
+      customer_number: customerNumber,
+      reference_name: referenceName,
+    });
 
-  const generateText = () => {
-    const schedule = formatScheduleDate(lead);
-    const refLine = referenceName ? `\n-\n(Give the reference of "${referenceName}" if customer ask)` : '';
-
-    if (isFreeEstimate) {
-      return `*Customer #${customerNumber ? ' ' + customerNumber : ''}*
-
-Customer Name: ${lead.customer_name}
-Customer Number: ${lead.customer_phone || ''}
-Customer Address: ${lead.address || ''}
-Service Details: ${lead.service_details || lead.service_type || ''}
-
-FREE ESTIMATE VISIT
-
-FREE ESTIMATE VISIT Scheduled for: ${schedule}
-${refLine}`;
-    }
-
-    if (isQuoted) {
-      return `*Customer #${customerNumber ? ' ' + customerNumber : ''}*
-
-Customer Name: ${lead.customer_name}
-Customer Number: ${lead.customer_phone || ''}
-Customer Address: ${lead.address || ''}
-Service: ${lead.service_details || lead.service_type || ''}
-
-Customer is agreed to pay ($${lead.labor_amount ?? 0}) total labor
-($${lead.material_amount ?? 0}) FOR MATERIALS
-
-For you: $${lead.for_you_amount ?? 0} labor including material
-For us: $${lead.for_us_amount ?? 0} from total labor
-
-Job Scheduled for: ${schedule}
-${refLine}`;
-    }
-
-    // Default: basic copy
-    return `Customer Name: ${lead.customer_name}
-Customer Number: ${lead.customer_phone || ''}
-Customer Address: ${lead.address || ''}
-Service: ${lead.service_details || lead.service_type || ''}
-Scheduled: ${schedule}`;
-  };
+  useEffect(() => {
+    if (open) setMessage(generateText());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerNumber, referenceName, open, template, lead.id]);
 
   const handleCopy = () => {
-    const text = generateText();
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(message || generateText());
     setCopied(true);
-    toast.success('Lead details copied to clipboard');
+    toast.success('Technician message copied to clipboard');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -111,16 +49,19 @@ Scheduled: ${schedule}`;
         variant="outline"
         size="sm"
         className={cn("gap-1.5 text-[11px]", className)}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+          setMessage(generateText());
+        }}
       >
         <Copy className="h-3 w-3" />
-        Copy Details
+        Copy Technician Message
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base">Copy Lead Details</DialogTitle>
+            <DialogTitle className="text-base">Copy Technician Message</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -140,19 +81,10 @@ Scheduled: ${schedule}`;
               />
             </div>
 
-            {/* Preview */}
-            <div className="rounded-lg border border-border/40 bg-muted/20 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-2">Preview</p>
-              <pre className="text-[12px] text-foreground whitespace-pre-wrap font-sans leading-relaxed">
-                {generateText()}
-              </pre>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-medium text-muted-foreground/60">Preview message</Label>
+              <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={10} />
             </div>
-
-            {!isFreeEstimate && !isQuoted && (
-              <p className="text-[11px] text-muted-foreground/60 text-center">
-                Set "Terms" in Processor Details to get the full formatted copy (Free Estimate or Quoted).
-              </p>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>

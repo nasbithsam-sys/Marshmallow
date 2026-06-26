@@ -2,7 +2,7 @@
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**URL**: https://lead-flow-crm-by-accboost.lovable.app/app/raw-leads
 
 ## How can I edit this code?
 

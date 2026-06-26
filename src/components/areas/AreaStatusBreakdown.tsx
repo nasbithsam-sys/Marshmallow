@@ -22,6 +22,7 @@ const STATUS_BAR_COLORS: Record<string, string> = {
   job_in_progress: "hsl(199, 89%, 48%)",
   needs_quote: "hsl(263, 70%, 58%)",
   payment_pending: "hsl(85, 78%, 42%)",
+  partial_paid: "hsl(142, 71%, 41%)",
   waiting_complete_details: "hsl(38, 92%, 50%)",
   quote_sent_waiting: "hsl(221, 83%, 53%)",
   quote_sent_need_follow_up: "hsl(25, 95%, 53%)",

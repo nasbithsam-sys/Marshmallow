@@ -1,10 +1,12 @@
 export type AppRole = 'admin' | 'processor' | 'customer_service' | 'opr' | 'no_role';
 
-export type CsTag = 'confirmation_sent' | 'waiting_schedule_confirmation';
+export type CsTag = 'confirmation_sent' | 'waiting_schedule_confirmation' | 'booked' | 'ready_to_schedule';
 
 export const CS_TAG_LABELS: Record<CsTag, string> = {
   confirmation_sent: 'Confirmation sent to CX',
   waiting_schedule_confirmation: 'Waiting for CX for schedule confirmation',
+  booked: 'Booked',
+  ready_to_schedule: 'Ready to schedule',
 };
 
 export type LeadStatus =
@@ -13,7 +15,6 @@ export type LeadStatus =
   | 'quote_sent_waiting'
   | 'post_visit_quote_sent_waiting'
   | 'activate_customer'
-  | 'ready_to_schedule'
   | 'quote_sent_need_follow_up'
   | 'needs_quote'
   | 'tech_making_quote'
@@ -26,7 +27,8 @@ export type LeadStatus =
   | 'payment_pending'
   | 'cancellation_requested'
   | 'cancelled'
-  | 'paid';
+  | 'paid'
+  | 'partial_paid';
 
 export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: string }> = {
   waiting_complete_details: { label: 'Waiting Complete Details', color: 'status-amber' },
@@ -34,7 +36,6 @@ export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: stri
   quote_sent_waiting: { label: 'Quote Sent - Waiting', color: 'status-blue' },
   post_visit_quote_sent_waiting: { label: 'Post Visit-Quote Sent-Waiting', color: 'status-blue' },
   activate_customer: { label: 'Activate Customer', color: 'status-green' },
-  ready_to_schedule: { label: 'Ready To Schedule', color: 'status-indigo' },
   quote_sent_need_follow_up: { label: 'Quote Sent - Need Follow Up', color: 'status-amber' },
   needs_quote: { label: 'Needs Quote', color: 'status-amber' },
   tech_making_quote: { label: 'Tech Making Quote', color: 'status-indigo' },
@@ -48,6 +49,7 @@ export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: stri
   cancellation_requested: { label: 'Cancellation Request', color: 'status-red' },
   cancelled: { label: 'Cancelled', color: 'status-muted' },
   paid: { label: 'Paid', color: 'status-green' },
+  partial_paid: { label: 'Partial Paid', color: 'status-green' },
 };
 
 export interface Profile {
@@ -125,6 +127,7 @@ export interface LeadCancellationRequest {
   requested_by_role: AppRole;
   comment: string;
   proof: string | null;
+  proof_image_path?: string | null;
   status: CancellationRequestStatus;
   reviewed_by: string | null;
   reviewed_at: string | null;
