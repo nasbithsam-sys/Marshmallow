@@ -15,12 +15,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Download, Share2, X, SlidersHorizontal, BarChart3 } from "lucide-react";
+import { Plus, Search, Download, Share2, X, SlidersHorizontal, BarChart3, Puzzle } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
 import OprLeadCard from "@/components/leads/OprLeadCard";
 import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import LeadReportDialog from "@/components/leads/LeadReportDialog";
+import InstallExtensionDialog from "@/components/leads/InstallExtensionDialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
@@ -59,6 +60,7 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<"my" | "shared">("my");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showInstallDialog, setShowInstallDialog] = useState(false);
   const deferredSearch = useDeferredValue(search);
 
   const rawStatusFilter = searchParams.get("status") || "all";
@@ -363,6 +365,16 @@ export default function LeadsPage() {
             </DropdownMenu>
           )}
 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowInstallDialog(true)}
+            className="gap-1.5 text-[12px] h-9 border-border/60 hover:bg-muted/30"
+          >
+            <Puzzle className="h-3.5 w-3.5" />
+            Extension
+          </Button>
+
           {(isAdmin || isCS) && (
             <>
               <Button
@@ -396,6 +408,11 @@ export default function LeadsPage() {
           <LeadReportDialog
             open={showReportDialog}
             onOpenChange={setShowReportDialog}
+          />
+
+          <InstallExtensionDialog
+            open={showInstallDialog}
+            onOpenChange={setShowInstallDialog}
           />
         </motion.div>
         </div>
