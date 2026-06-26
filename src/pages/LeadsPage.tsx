@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDeferredValue } from "react";
 import { useCallback } from "react";
@@ -15,11 +15,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Download, Share2, X, SlidersHorizontal } from "lucide-react";
+import { Plus, Search, Download, Share2, X, SlidersHorizontal, BarChart3 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import LeadCard from "@/components/leads/LeadCard";
 import OprLeadCard from "@/components/leads/OprLeadCard";
 import AddLeadDialog from "@/components/leads/AddLeadDialog";
+import LeadReportDialog from "@/components/leads/LeadReportDialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
@@ -57,6 +58,7 @@ export default function LeadsPage() {
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<"my" | "shared">("my");
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
   const deferredSearch = useDeferredValue(search);
 
   const rawStatusFilter = searchParams.get("status") || "all";
@@ -362,10 +364,22 @@ export default function LeadsPage() {
           )}
 
           {(isAdmin || isCS) && (
-            <Button onClick={() => setShowAddDialog(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Lead
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowReportDialog(true)}
+                className="gap-1.5 text-[12px] h-9 border-border/60 hover:bg-muted/30"
+              >
+                <BarChart3 className="h-3.5 w-3.5" />
+                Report
+              </Button>
+
+              <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                New Lead
+              </Button>
+            </>
           )}
 
           <AddLeadDialog
@@ -377,6 +391,11 @@ export default function LeadsPage() {
                 fetchSharedLeads();
               }
             }}
+          />
+
+          <LeadReportDialog
+            open={showReportDialog}
+            onOpenChange={setShowReportDialog}
           />
         </motion.div>
         </div>
