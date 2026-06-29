@@ -41,7 +41,6 @@ import NoteThread from "./NoteThread";
 import PaymentDialog from "./PaymentDialog";
 import LeadShareDialog from "./LeadShareDialog";
 import StatusBadge from "./StatusBadge";
-import ImageLightbox from "./ImageLightbox";
 import CopyValueButton from "./CopyValueButton";
 import CancellationRequestDialog from "./CancellationRequestDialog";
 import QuoPhoneTrigger from "./QuoPhoneTrigger";
@@ -122,15 +121,10 @@ function LeadCard({
     initialPendingCancellationRequest !== undefined ? initialPendingCancellationRequest : null
   );
   const [completeCopied, setCompleteCopied] = useState(false);
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photoPaths, setPhotoPaths] = useState<string[]>([]);
   const [photoCount, setPhotoCount] = useState(
     initialPhotoCount !== undefined ? initialPhotoCount : 0
   );
-  const [photoOriginals, setPhotoOriginals] = useState<string[]>([]);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [resolvedPaymentUrl, setResolvedPaymentUrl] = useState<string | null>(null);
-  const [resolvedPaymentOriginal, setResolvedPaymentOriginal] = useState<string | null>(null);
   const [hasNotes, setHasNotes] = useState<{ general: boolean; cs: boolean; processor: boolean }>(
     initialHasNotes !== undefined ? initialHasNotes : {
       general: false,
@@ -324,33 +318,14 @@ function LeadCard({
     },
   ].filter((row): row is { key: string; label: string; value: string; icon: typeof Phone; wrap: boolean } => Boolean(row.value));
 
-  // Reload triggers when transforms get marked broken mid-session.
-  const [reloadKey, setReloadKey] = useState(0);
-  const transformCleanupRef = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    let alive = true;
-    void import("@/lib/storage").then(({ onTransformsBroken }) => {
-      if (!alive) return;
-      transformCleanupRef.current = onTransformsBroken(() => setReloadKey((k) => k + 1));
-    });
-    return () => {
-      alive = false;
-      transformCleanupRef.current?.();
-      transformCleanupRef.current = null;
-    };
-  }, []);
+  // Reload key can be kept in case we need it to force updates
+  const [reloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
     if (disablePhotoPreview) {
-      setPhotos([]);
-      return;
-    }
-
-    if (photoUrls) {
-      setPhotos(photoUrls);
-      setPhotoCount(photoUrls.length);
+      setPhotoPaths([]);
       return;
     }
 
@@ -365,13 +340,9 @@ function LeadCard({
 
       const paths = data.map((photo: { photo_url: string }) => photo.photo_url);
       setPhotoCount(paths.length);
-      const { getSignedUrls } = await import("@/lib/storage");
-      // Tiny thumbnails for card preview — originals only loaded on lightbox open.
-      const urls = await getSignedUrls(paths, { width: 200, height: 200, resize: "cover", quality: 50 });
 
       if (!cancelled) {
-        setPhotos(urls);
-        setPhotoOriginals([]); // reset; lazy-load on lightbox open
+        setPhotoPaths(paths);
       }
     };
 
@@ -380,64 +351,37 @@ function LeadCard({
     return () => {
       cancelled = true;
     };
-  }, [disablePhotoPreview, lead.id, photoUrls, reloadKey]);
+  }, [disablePhotoPreview, lead.id, reloadKey]);
 
-  useEffect(() => {
-    if (isPaid && lead.payment_screenshot_url) {
-      import("@/lib/storage").then(({ getSignedUrl }) =>
-        getSignedUrl(lead.payment_screenshot_url!, { width: 200, height: 200, resize: "cover", quality: 50 }).then(
-          setResolvedPaymentUrl,
-        ),
-      );
-    } else {
-      setResolvedPaymentUrl(null);
-    }
-    setResolvedPaymentOriginal(null);
-  }, [lead.payment_screenshot_url, isPaid, reloadKey]);
-
-  const allImages = disablePhotoPreview ? [] : [...(isPaid && resolvedPaymentUrl ? [resolvedPaymentUrl] : []), ...photos];
-
-  // Lazy-load full-size originals only when the lightbox opens.
-  const loadOriginals = async () => {
-    const { getSignedUrl, getSignedUrls } = await import("@/lib/storage");
-    const tasks: Promise<void>[] = [];
-    if (isPaid && lead.payment_screenshot_url && !resolvedPaymentOriginal) {
-      tasks.push(getSignedUrl(lead.payment_screenshot_url).then(setResolvedPaymentOriginal));
-    }
-    if (photos.length && photoOriginals.length === 0) {
-      const { data } = await supabase
-        .from("lead_photos")
-        .select("photo_url")
-        .eq("lead_id", lead.id)
-        .order("created_at", { ascending: true });
-      if (data) {
-        const paths = data.map((p: { photo_url: string }) => p.photo_url);
-        const urls = await getSignedUrls(paths);
-        setPhotoOriginals(urls);
+  const handleCopyPaymentScreenshot = async () => {
+    if (!lead.payment_screenshot_url) return;
+    toast.info("Generating payment screenshot link...");
+    try {
+      const { getSignedUrl } = await import("@/lib/storage");
+      const original = await getSignedUrl(lead.payment_screenshot_url);
+      if (original) {
+        await copyTextToClipboard(original);
+        toast.success("Payment screenshot link copied to clipboard!");
       }
+    } catch (err) {
+      console.error("Failed to copy link:", err);
+      toast.error("Failed to copy payment screenshot link");
     }
-    await Promise.all(tasks);
   };
 
-  // Build lightbox slides as { src, fallback } so a broken original
-  // (e.g. when Supabase image transforms aren't enabled on the bucket)
-  // gracefully falls back to the small cached preview thumbnail.
-  const lightboxImages: Array<{ src: string; fallback?: string }> = disablePhotoPreview
-    ? []
-    : [
-        ...(isPaid && (resolvedPaymentOriginal || resolvedPaymentUrl)
-          ? [{ src: resolvedPaymentOriginal || resolvedPaymentUrl!, fallback: resolvedPaymentUrl ?? undefined }]
-          : []),
-        ...photos.map((preview, i) => ({
-          src: photoOriginals[i] ?? preview,
-          fallback: preview,
-        })),
-      ];
-
-  const openLightbox = (index: number) => {
-    setLightboxIndex(index);
-    setLightboxOpen(true);
-    void loadOriginals();
+  const handleCopyPhotoLink = async (path: string, index: number) => {
+    toast.info(`Generating link for Photo ${index + 1}...`);
+    try {
+      const { getSignedUrl } = await import("@/lib/storage");
+      const original = await getSignedUrl(path);
+      if (original) {
+        await copyTextToClipboard(original);
+        toast.success(`Photo ${index + 1} link copied to clipboard!`);
+      }
+    } catch (err) {
+      console.error("Failed to copy link:", err);
+      toast.error(`Failed to copy Photo ${index + 1} link`);
+    }
   };
 
   const handleStatusChange = async (newStatus: string, cancellationReason?: string) => {
@@ -856,57 +800,52 @@ function LeadCard({
           </div>
         </div>
 
-        {allImages.length > 0 && (
+        {(lead.payment_screenshot_url || photoPaths.length > 0) && (
           <div className="relative px-4 pb-1">
             <div className="crm-lead-card-soft rounded-[24px] p-3.5 shadow-[0_22px_34px_-26px_rgba(59,130,246,0.16)] dark:shadow-none">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <ImageIcon className="h-3.5 w-3.5 text-muted-foreground/40" />
                   <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
-                    {isPaid && lead.payment_screenshot_url ? "Payment & Photos" : "Photos"}
+                    {lead.payment_screenshot_url && photoPaths.length > 0 ? "Payment & Photos Links" : photoPaths.length > 0 ? "Photo Links" : "Payment Link"}
                   </span>
                 </div>
-                <span className="crm-lead-card-inner rounded-full px-2 py-0.5 text-[10px] font-semibold text-foreground/72">
-                  {allImages.length}
-                </span>
               </div>
 
-              <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
-                {allImages.map((url, i) => (
-                  <div
-                    key={i}
-                    className="group/image crm-lead-card-inner relative aspect-square h-auto min-h-[56px] w-full overflow-hidden rounded-[14px] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.22)] sm:h-14 sm:w-14 dark:hover:shadow-none cursor-pointer"
+              <div className="flex flex-wrap gap-2">
+                {lead.payment_screenshot_url && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 rounded-xl border border-dashed border-primary/20 bg-primary/[0.02] text-xs font-medium text-primary hover:bg-primary/5 active:scale-95"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      void handleCopyPaymentScreenshot();
+                    }}
                   >
-                    <img
-                      src={url}
-                      alt=""
-                      loading="lazy"
-                      onClick={() => openLightbox(i)}
-                      onError={() => {
-                        // Image transforms aren't supported on this bucket
-                        // (likely Free-tier Supabase). Disable transforms session-wide
-                        // and reload thumbnails using plain signed URLs.
-                        void import("@/lib/storage").then(({ markTransformsBroken }) => markTransformsBroken());
-                      }}
-                      className="h-full w-full object-cover blur-[3px] scale-110 transition-all duration-300 group-hover/image:blur-0 group-hover/image:scale-105"
-                    />
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent transition-opacity duration-200 group-hover/image:opacity-0" />
-                    
-                    {/* Copy Button Overlay */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        void handleCopySingleImage(url, i);
-                      }}
-                      className="absolute right-1 top-1 z-10 flex h-7 w-7 items-center justify-center rounded-lg border border-white/30 bg-primary/90 text-primary-foreground shadow-md transition-all duration-200 hover:scale-105 hover:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:h-6 sm:w-6"
-                      title="Copy picture"
-                      aria-label={`Copy picture ${i + 1}`}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                    <Copy className="h-3 w-3" />
+                    Copy Payment Link
+                  </Button>
+                )}
+
+                {photoPaths.map((path, i) => (
+                  <Button
+                    key={i}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 rounded-xl border border-dashed border-muted-foreground/20 bg-muted-foreground/[0.02] text-xs font-medium text-muted-foreground hover:bg-muted-foreground/5 active:scale-95"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      void handleCopyPhotoLink(path, i);
+                    }}
+                  >
+                    <Copy className="h-3 w-3" />
+                    Copy Photo {i + 1}
+                  </Button>
                 ))}
               </div>
             </div>
@@ -1127,12 +1066,7 @@ function LeadCard({
           requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
         />
         
-        <ImageLightbox
-          images={lightboxImages.length ? lightboxImages : allImages}
-          initialIndex={lightboxIndex}
-          open={lightboxOpen}
-          onOpenChange={setLightboxOpen}
-        />
+
       </Card>
     </motion.div>
   );
