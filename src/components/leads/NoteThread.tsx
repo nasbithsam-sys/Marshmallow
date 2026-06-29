@@ -72,6 +72,8 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
     void fetchNotes();
   }, [fetchNotes]);
 
+  const profilesKey = JSON.stringify(profiles);
+
   useEffect(() => {
     const missingUserIds = Array.from(new Set(notes.map((note) => note.user_id))).filter((userId) => !profiles[userId]);
 
@@ -98,7 +100,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
     return () => {
       cancelled = true;
     };
-  }, [notes, profiles]);
+  }, [notes, profilesKey]);
 
   useEffect(() => {
     if (scrollRef.current) {

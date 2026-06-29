@@ -63,21 +63,7 @@ export default function NotificationBell() {
   }, [user]);
 
   useEffect(() => {
-    const refreshIfVisible = () => {
-      if (document.visibilityState === 'visible') {
-        void fetchNotifications();
-      }
-    };
-
-    refreshIfVisible();
-
-    const interval = setInterval(refreshIfVisible, NOTIFICATION_POLL_INTERVAL_MS);
-    document.addEventListener('visibilitychange', refreshIfVisible);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', refreshIfVisible);
-    };
+    void fetchNotifications();
   }, [fetchNotifications]);
 
   useEffect(() => {
