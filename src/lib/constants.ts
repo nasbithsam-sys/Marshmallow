@@ -117,6 +117,13 @@ const TAG_ELIGIBLE_STATUSES: Partial<Record<LeadStatus, true>> = {
   needs_reschedule: true,
 };
 
+const TAG_PRIORITY_RANK: Record<string, number> = {
+  ready_to_schedule: -4,
+  confirmation_sent: -3,
+  waiting_schedule_confirmation: -2,
+  booked: -1,
+};
+
 export function compareLeadDisplayPriority(
   a: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
   b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
@@ -124,8 +131,8 @@ export function compareLeadDisplayPriority(
   const aTagged = Boolean(a.cs_tag) && TAG_ELIGIBLE_STATUSES[a.status] === true;
   const bTagged = Boolean(b.cs_tag) && TAG_ELIGIBLE_STATUSES[b.status] === true;
 
-  const rankA = aTagged ? 0 : (LEAD_PRIORITY_RANK[a.status] ?? 10);
-  const rankB = bTagged ? 0 : (LEAD_PRIORITY_RANK[b.status] ?? 10);
+  const rankA = aTagged ? (TAG_PRIORITY_RANK[a.cs_tag as string] ?? 0) : (LEAD_PRIORITY_RANK[a.status] ?? 10);
+  const rankB = bTagged ? (TAG_PRIORITY_RANK[b.cs_tag as string] ?? 0) : (LEAD_PRIORITY_RANK[b.status] ?? 10);
 
   if (rankA !== rankB) return rankA - rankB;
 
