@@ -845,21 +845,21 @@ function LeadCard({
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {lead.payment_screenshot_url && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1.5 rounded-xl border border-dashed border-primary/20 bg-primary/[0.02] text-xs font-medium text-primary hover:bg-primary/5 active:scale-95"
+                    className="h-6 px-2 gap-1 rounded-lg border border-dashed border-primary/20 bg-primary/[0.02] text-[11px] font-medium text-primary hover:bg-primary/5 active:scale-95"
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
                       void handleCopyPaymentScreenshot();
                     }}
                   >
-                    <Copy className="h-3 w-3" />
-                    Copy Payment Screenshot
+                    <Copy className="h-2.5 w-2.5" />
+                    Payment
                   </Button>
                 )}
 
@@ -869,15 +869,15 @@ function LeadCard({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1.5 rounded-xl border border-dashed border-muted-foreground/20 bg-muted-foreground/[0.02] text-xs font-medium text-muted-foreground hover:bg-muted-foreground/5 active:scale-95"
+                    className="h-6 px-2 gap-1 rounded-lg border border-dashed border-muted-foreground/20 bg-muted-foreground/[0.02] text-[11px] font-medium text-muted-foreground hover:bg-muted-foreground/5 active:scale-95"
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
                       void handleCopyPhotoLink(path, i);
                     }}
                   >
-                    <Copy className="h-3 w-3" />
-                    Copy Photo {i + 1}
+                    <Copy className="h-2.5 w-2.5" />
+                    Photo {i + 1}
                   </Button>
                 ))}
               </div>
