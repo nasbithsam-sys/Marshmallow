@@ -34,7 +34,22 @@ export function useDuplicatePhoneCheck(phone: string, excludeLeadId?: string) {
           const match = data.find((lead: { id: string; customer_name: string; customer_phone: string | null }) => {
             if (excludeLeadId && lead.id === excludeLeadId) return false;
             const leadDigits = (lead.customer_phone || '').replace(/\D/g, '');
-            return leadDigits.length >= 7 && leadDigits === digits;
+            
+            const getSig = (d: string) => {
+              if (d.startsWith('1') && d.length >= 11) {
+                return d.slice(1);
+              }
+              return d;
+            };
+
+            const s1 = getSig(leadDigits);
+            const s2 = getSig(digits);
+
+            if (s1 === s2) return true;
+            if (s1.length >= 10 && s2.length >= 10) {
+              return s1.slice(0, 10) === s2.slice(0, 10);
+            }
+            return false;
           });
 
           if (match) {
