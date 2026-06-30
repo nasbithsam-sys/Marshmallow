@@ -111,6 +111,7 @@ export interface Lead {
   for_you_amount: number | null;
   for_us_amount: number | null;
   cancellation_reason?: string | null;
+  source_url?: string | null;
   // Joined fields
   creator_name?: string;
   editor_name?: string;
