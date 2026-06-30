@@ -273,9 +273,10 @@ Deno.serve(async (req) => {
       // Now remove the actual auth account. This is the step that revokes
       // login access. If this fails (e.g. another table still references
       // this user via foreign key), it must be surfaced, not swallowed.
+      // If the user is already gone from auth, we ignore the "User not found" error.
       const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(user_id);
 
-      if (authDeleteError) {
+      if (authDeleteError && !authDeleteError.message.includes("User not found")) {
         console.error("auth.admin.deleteUser failed:", authDeleteError.message);
         return jsonResponse(
           {
