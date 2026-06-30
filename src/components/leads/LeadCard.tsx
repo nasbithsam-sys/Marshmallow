@@ -355,32 +355,34 @@ function LeadCard({
 
   const handleCopyPaymentScreenshot = async () => {
     if (!lead.payment_screenshot_url) return;
-    toast.info("Generating payment screenshot link...");
+    toast.info("Copying payment screenshot...");
     try {
       const { getSignedUrl } = await import("@/lib/storage");
       const original = await getSignedUrl(lead.payment_screenshot_url);
       if (original) {
-        await copyTextToClipboard(original);
-        toast.success("Payment screenshot link copied to clipboard!");
+        const { copyImageToClipboard } = await import("@/lib/lead-copy");
+        await copyImageToClipboard(original);
+        toast.success("Payment screenshot copied to clipboard!");
       }
     } catch (err) {
-      console.error("Failed to copy link:", err);
-      toast.error("Failed to copy payment screenshot link");
+      console.error("Failed to copy image:", err);
+      toast.error("Failed to copy payment screenshot");
     }
   };
 
   const handleCopyPhotoLink = async (path: string, index: number) => {
-    toast.info(`Generating link for Photo ${index + 1}...`);
+    toast.info(`Copying Photo ${index + 1}...`);
     try {
       const { getSignedUrl } = await import("@/lib/storage");
       const original = await getSignedUrl(path);
       if (original) {
-        await copyTextToClipboard(original);
-        toast.success(`Photo ${index + 1} link copied to clipboard!`);
+        const { copyImageToClipboard } = await import("@/lib/lead-copy");
+        await copyImageToClipboard(original);
+        toast.success(`Photo ${index + 1} copied to clipboard!`);
       }
     } catch (err) {
-      console.error("Failed to copy link:", err);
-      toast.error(`Failed to copy Photo ${index + 1} link`);
+      console.error("Failed to copy image:", err);
+      toast.error(`Failed to copy Photo ${index + 1}`);
     }
   };
 
@@ -807,7 +809,7 @@ function LeadCard({
                 <div className="flex items-center gap-1.5">
                   <ImageIcon className="h-3.5 w-3.5 text-muted-foreground/40" />
                   <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
-                    {lead.payment_screenshot_url && photoPaths.length > 0 ? "Payment & Photos Links" : photoPaths.length > 0 ? "Photo Links" : "Payment Link"}
+                    {lead.payment_screenshot_url && photoPaths.length > 0 ? "Payment & Photos" : photoPaths.length > 0 ? "Photos" : "Payment"}
                   </span>
                 </div>
               </div>
@@ -826,7 +828,7 @@ function LeadCard({
                     }}
                   >
                     <Copy className="h-3 w-3" />
-                    Copy Payment Link
+                    Copy Payment Screenshot
                   </Button>
                 )}
 
