@@ -24,6 +24,7 @@ import {
   Copy,
   Check,
   Clipboard,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -322,7 +323,14 @@ function LeadCard({
       icon: UserRound,
       wrap: true,
     },
-  ].filter((row): row is { key: string; label: string; value: string; icon: typeof Phone; wrap: boolean } => Boolean(row.value));
+    {
+      key: "source_url",
+      label: "Source URL",
+      value: lead.source_url,
+      icon: ExternalLink,
+      wrap: true,
+    },
+  ].filter((row): row is { key: string; label: string; value: string; icon: any; wrap: boolean } => Boolean(row.value));
 
   // Reload triggers when transforms get marked broken mid-session.
   const [reloadKey, setReloadKey] = useState(0);
@@ -784,6 +792,18 @@ function LeadCard({
                   <p className="truncate text-[14px] font-semibold tracking-[-0.015em] text-foreground">
                     {lead.customer_name}
                   </p>
+                  {lead.source_url && (
+                    <a
+                      href={lead.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open source chat on Quo.com"
+                      className="inline-flex items-center justify-center rounded-[8px] bg-[#EEFF41] hover:bg-[#F4FF40] text-[#1A237E] font-extrabold text-[9px] px-1.5 py-0.5 tracking-wider transition-all duration-300 border border-[#D4E157] shadow-sm select-none"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      QUO
+                    </a>
+                  )}
                   {lead.service_type && (
                     <span className="crm-lead-card-soft inline-block max-w-[180px] truncate rounded-full border border-sky-200/90 px-2.5 py-1 text-[10px] font-semibold text-foreground/84 shadow-[0_16px_28px_-18px_rgba(59,130,246,0.18)] dark:border-sky-400/18 dark:text-foreground/86">
                       {lead.service_type}
@@ -847,6 +867,17 @@ function LeadCard({
                         {lead.tech_number}
                       </QuoPhoneTrigger>
                     </div>
+                  ) : key === "source_url" ? (
+                    <a
+                      href={value}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 text-[13px] leading-5 text-primary hover:underline inline-flex items-center gap-1 font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span>Open Chat Thread</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
                   ) : (
                     <p className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>{value}</p>
                   )}

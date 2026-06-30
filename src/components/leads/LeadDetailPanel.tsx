@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   CalendarDays,
   Save,
+  ExternalLink,
 } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import LeadUpdatesSection from "./LeadUpdatesSection";
@@ -72,6 +73,7 @@ type TrackedLeadField =
   | "service_details"
   | "customer_schedule_requirements"
   | "reference_name"
+  | "source_url"
   | "tech_name"
   | "tech_number"
   | "terms"
@@ -228,6 +230,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       "service_details",
       "customer_schedule_requirements",
       "reference_name",
+      "source_url",
       "tech_name",
       "tech_number",
       "terms",
@@ -642,6 +645,17 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                     {lead.customer_name}
                   </h2>
                   <StatusBadge status={lead.status as LeadStatus} />
+                  {lead.source_url && (
+                    <a
+                      href={lead.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open source chat on Quo.com"
+                      className="inline-flex items-center justify-center rounded-[8px] bg-[#EEFF41] hover:bg-[#F4FF40] text-[#1A237E] font-extrabold text-[10px] px-2 py-1 tracking-wider transition-all duration-300 border border-[#D4E157] shadow-sm select-none"
+                    >
+                      QUO
+                    </a>
+                  )}
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px] text-muted-foreground">
@@ -835,6 +849,28 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                   className={fieldClass}
                 />
               </div>
+
+              {form.source_url && (
+                <div className="col-span-2 space-y-1.5">
+                  <Label className={labelClass}>Source URL (Intake Chat Link)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={form.source_url ?? ""}
+                      readOnly
+                      className={`${fieldClass} flex-1`}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => window.open(form.source_url!, "_blank")}
+                      className="shrink-0 flex items-center gap-1.5 h-10 px-4 rounded-[14px]"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      <span>Open Chat</span>
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
 

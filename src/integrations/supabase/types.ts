@@ -434,6 +434,7 @@ export type Database = {
           terms: string | null
           updated_at: string | null
           zip_code: string | null
+          source_url: string | null
         }
         Insert: {
           address?: string | null
@@ -478,6 +479,7 @@ export type Database = {
           terms?: string | null
           updated_at?: string | null
           zip_code?: string | null
+          source_url?: string | null
         }
         Update: {
           address?: string | null
@@ -522,6 +524,7 @@ export type Database = {
           terms?: string | null
           updated_at?: string | null
           zip_code?: string | null
+          source_url?: string | null
         }
         Relationships: []
       }
