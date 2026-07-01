@@ -1,0 +1,30 @@
+{
+  "id": "evt_sample_quo_message_001",
+  "type": "message.received",
+  "data": {
+    "message": {
+      "id": "msg_sample_001",
+      "conversationId": "conv_sample_001",
+      "phoneNumberId": "pn_sample_001",
+      "direction": "incoming",
+      "from": "+15551234567",
+      "to": ["+15557654321"],
+      "text": "Hi, how much would it cost to fix my AC tomorrow morning?",
+      "status": "received",
+      "createdAt": "2026-07-01T14:30:00.000Z"
+    },
+    "conversation": {
+      "id": "conv_sample_001",
+      "phoneNumberId": "pn_sample_001",
+      "phoneNumberName": "Houston HVAC",
+      "contact": {
+        "name": "Jane Customer",
+        "phoneNumbers": [
+          {
+            "value": "+15551234567"
+          }
+        ]
+      }
+    }
+  }
+}

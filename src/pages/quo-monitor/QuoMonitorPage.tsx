@@ -1,11 +1,28 @@
-import React, { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  ExternalLink,
+  Filter,
+  Link2,
+  MessageSquare,
+  Phone,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -13,542 +30,786 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  ArrowDownLeft, 
-  ArrowUpRight, 
-  MessageSquare, 
-  Search,
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  Skull,
-  ExternalLink,
-  UserPlus
-} from "lucide-react";
-import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  QUO_AI_SECTION_LABELS,
+  QUO_AI_SECTIONS,
+  type QuoAiSection,
+} from "@/lib/quo-ai";
+import type { LucideIcon } from "lucide-react";
+
+type ConversationRow = {
+  id: string;
+  quo_conversation_id: string;
+  customer_name: string | null;
+  customer_number: string | null;
+  last_message_preview: string | null;
+  last_message_time: string | null;
+  last_message_at: string | null;
+  last_customer_message_at: string | null;
+  last_agent_message_at: string | null;
+  current_ai_section: QuoAiSection | null;
+  current_priority: "low" | "medium" | "high" | "urgent" | null;
+  linked_lead_id: string | null;
+  ai_tags: string[] | null;
+  rolling_ai_summary: string | null;
+  last_ai_analyzed_at: string | null;
+  quo_phone_numbers?: {
+    id: string;
+    name: string | null;
+    label: string | null;
+    number: string | null;
+    display_number: string | null;
+  } | null;
+  ai_conversation_states?: AiState[] | AiState | null;
+  ai_reminders?: AiReminder[];
+  ai_lead_links?: AiLeadLink[];
+};
+
+type AiState = {
+  section: QuoAiSection;
+  priority: "low" | "medium" | "high" | "urgent";
+  customer_state: string;
+  lead_state: string | null;
+  needs_reply: boolean;
+  should_create_lead: boolean;
+  should_link_lead: boolean;
+  should_create_reminder: boolean;
+  is_possible_dead: boolean;
+  is_lost: boolean;
+  lost_reason: string | null;
+  confidence: number;
+  risk_level: "safe" | "moderate" | "risky";
+  evidence: Array<{ message_id?: string; quote?: string; why_it_matters?: string }>;
+  human_review_status: string;
+  latest_decision_id: string | null;
+};
+
+type AiReminder = {
+  id: string;
+  reminder_type: string;
+  due_at: string;
+  status: "pending" | "done" | "cancelled";
+  reason: string | null;
+};
+
+type AiLeadLink = {
+  id: string;
+  lead_id: string;
+  match_type: string;
+  confidence: number;
+  leads?: {
+    id: string;
+    job_id: string;
+    customer_name: string;
+    status: string;
+  } | null;
+};
+
+type MessageRow = {
+  id: string;
+  sender: "customer" | "agent";
+  text: string | null;
+  message_time: string | null;
+};
+
+type DecisionRow = {
+  id: string;
+  output_json: Record<string, unknown>;
+  model_used: string | null;
+  confidence: number;
+  risk_level: string;
+  applied_actions: unknown[];
+  skipped_actions: unknown[];
+  needs_human_review: boolean;
+  reason: string | null;
+  estimated_cost_usd: number | null;
+  created_at: string;
+};
+
+type DbError = { message: string } | null;
+type DbResult<T> = PromiseLike<{ data: T | null; error: DbError }>;
+type DbCountResult<T> = PromiseLike<{ data: T | null; error: DbError; count?: number | null }>;
+type LooseQuery<T = unknown> = {
+  select: <Next = T>(columns?: string, options?: unknown) => LooseQuery<Next>;
+  insert: <Next = T>(values: unknown) => LooseQuery<Next>;
+  update: <Next = T>(values: unknown) => LooseQuery<Next>;
+  upsert: <Next = T>(values: unknown, options?: unknown) => LooseQuery<Next>;
+  eq: (column: string, value: unknown) => LooseQuery<T>;
+  order: (column: string, options?: unknown) => LooseQuery<T>;
+  limit: (count: number) => LooseQuery<T>;
+  single: () => DbResult<T>;
+  maybeSingle: () => DbResult<T>;
+  then: DbCountResult<T>["then"];
+};
+type LooseSupabase = {
+  from: <T = unknown>(table: string) => LooseQuery<T>;
+};
+
+const sectionFilters = ["all", ...QUO_AI_SECTIONS] as const;
+const priorityClasses: Record<string, string> = {
+  low: "border-slate-200 bg-slate-50 text-slate-700",
+  medium: "border-amber-200 bg-amber-50 text-amber-800",
+  high: "border-orange-200 bg-orange-50 text-orange-800",
+  urgent: "border-red-200 bg-red-50 text-red-800",
+};
+
+function getState(conversation: ConversationRow) {
+  const state = conversation.ai_conversation_states;
+  return Array.isArray(state) ? state[0] ?? null : state ?? null;
+}
+
+function getSection(conversation: ConversationRow) {
+  return getState(conversation)?.section ?? conversation.current_ai_section ?? "needs_human_review";
+}
+
+function getPriority(conversation: ConversationRow) {
+  return getState(conversation)?.priority ?? conversation.current_priority ?? "medium";
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Invalid date" : date.toLocaleString();
+}
+
+function formatShortDate(value?: string | null) {
+  if (!value) return "No activity";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Invalid"
+    : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function isSameDay(value: string, offsetDays = 0) {
+  const date = new Date(value);
+  const target = new Date();
+  target.setDate(target.getDate() + offsetDays);
+  return date.toDateString() === target.toDateString();
+}
 
 export default function QuoMonitorPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [directionFilter, setDirectionFilter] = useState("all");
+  const [sectionFilter, setSectionFilter] = useState<(typeof sectionFilters)[number]>("all");
+  const [numberFilter, setNumberFilter] = useState("all");
+  const [confidenceFilter, setConfidenceFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [linkedFilter, setLinkedFilter] = useState("all");
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
+  const [overrideSection, setOverrideSection] = useState<QuoAiSection>("needs_human_review");
   const [showAddLead, setShowAddLead] = useState(false);
 
-  // Fetch Conversations with Flags and Number Info
-  const { data: rawConversations, isLoading: isConversationsLoading } = useQuery({
-    queryKey: ['quo_conversations'],
+  const db = supabase as unknown as LooseSupabase;
+
+  const conversationsQuery = useQuery({
+    queryKey: ["quo-ai-conversations"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('quo_conversations')
+      const { data, error } = await db
+        .from("quo_conversations")
         .select(`
           *,
-          quo_phone_numbers (name),
-          quo_conversation_flags (*)
+          quo_phone_numbers (*),
+          ai_conversation_states (*),
+          ai_reminders (*),
+          ai_lead_links (*, leads (id, job_id, customer_name, status))
         `)
-        .order('last_message_time', { ascending: false });
-      
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .limit(300);
+
       if (error) throw error;
-      return data as any[];
-    }
+      return (data ?? []) as ConversationRow[];
+    },
   });
 
-  // Fetch Messages for selected conversation
-  const { data: messages, isLoading: isMessagesLoading } = useQuery({
-    queryKey: ['quo_messages', selectedConvId],
+  const selectedConversation = useMemo(
+    () => conversationsQuery.data?.find((conversation) => conversation.id === selectedConvId) ?? null,
+    [conversationsQuery.data, selectedConvId],
+  );
+
+  const messagesQuery = useQuery({
+    queryKey: ["quo-ai-messages", selectedConvId],
     queryFn: async () => {
       if (!selectedConvId) return [];
-      const { data, error } = await supabase
-        .from('quo_messages')
-        .select('*')
-        .eq('conversation_id', selectedConvId)
-        .order('message_time', { ascending: true });
-      
+      const { data, error } = await db
+        .from("quo_messages")
+        .select("id, sender, text, message_time")
+        .eq("conversation_id", selectedConvId)
+        .order("message_time", { ascending: true })
+        .limit(100);
       if (error) throw error;
-      return data;
+      return (data ?? []) as MessageRow[];
     },
-    enabled: !!selectedConvId
+    enabled: Boolean(selectedConvId),
   });
 
-  // Map to UI friendly objects
-  const conversations = useMemo(() => {
-    if (!rawConversations) return [];
-    return rawConversations.map(c => {
-      const flags = c.quo_conversation_flags?.[0] || {};
-      let computedStatus = "Active";
-      let priority = "Low";
+  const decisionsQuery = useQuery({
+    queryKey: ["quo-ai-decisions", selectedConvId],
+    queryFn: async () => {
+      if (!selectedConvId) return [];
+      const { data, error } = await db
+        .from("ai_decisions")
+        .select("*")
+        .eq("conversation_id", selectedConvId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return (data ?? []) as DecisionRow[];
+    },
+    enabled: Boolean(selectedConvId),
+  });
 
-      if (flags.is_dead) {
-        computedStatus = "Dead Lead";
-        priority = "Low";
-      } else if (flags.is_delayed) {
-        computedStatus = "Delayed Reply";
-        priority = "High";
-      } else if (flags.needs_follow_up) {
-        computedStatus = "Needs Follow-Up";
-        priority = "Medium";
-      } else if (flags.is_important) {
-        computedStatus = "Important";
-        priority = "High";
-      }
-
-      return {
-        id: c.id,
-        quo_conversation_id: c.quo_conversation_id,
-        customerName: c.customer_name || "Unknown",
-        customerNumber: c.customer_number || "",
-        numberName: c.quo_phone_numbers?.name || "Unknown Number",
-        lastMessagePreview: c.last_message_preview || "",
-        lastMessageTime: new Date(c.last_message_time).toLocaleString(),
-        direction: c.direction,
-        status: computedStatus,
-        priority,
-        rawStatus: c.status,
-        flags
-      };
+  const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
+  const numberOptions = useMemo(() => {
+    const values = new Map<string, string>();
+    conversations.forEach((conversation) => {
+      const number = conversation.quo_phone_numbers;
+      const id = number?.id;
+      if (id) values.set(id, number.label || number.name || number.display_number || number.number || "Unknown Number");
     });
-  }, [rawConversations]);
-
-  const stats = useMemo(() => {
-    const today = new Date().toDateString();
-    return conversations.reduce((acc, c) => {
-      const isToday = new Date(c.lastMessageTime).toDateString() === today;
-      
-      if (isToday && c.direction === 'incoming') acc.incomingToday++;
-      if (isToday && c.direction === 'outgoing') acc.outgoingToday++;
-      if (c.flags?.needs_follow_up) acc.needsFollowUp++;
-      if (c.flags?.is_important) acc.importantLeads++;
-      if (c.flags?.is_delayed) acc.delayedReplies++;
-      if (c.flags?.is_dead) acc.deadConversations++;
-      
-      return acc;
-    }, {
-      incomingToday: 0,
-      outgoingToday: 0,
-      needsFollowUp: 0,
-      importantLeads: 0,
-      delayedReplies: 0,
-      deadConversations: 0,
-    });
-  }, [conversations]);
-
-  const numberStats = useMemo(() => {
-    const map = new Map<string, any>();
-    const today = new Date().toDateString();
-
-    conversations.forEach(c => {
-      if (!map.has(c.numberName)) {
-        map.set(c.numberName, { 
-          id: c.numberName, 
-          numberName: c.numberName,
-          incomingToday: 0, outgoingToday: 0, 
-          needsFollowUp: 0, importantLeads: 0, 
-          delayedReplies: 0, deadConversations: 0 
-        });
-      }
-      const st = map.get(c.numberName);
-      const isToday = new Date(c.lastMessageTime).toDateString() === today;
-      
-      if (isToday && c.direction === 'incoming') st.incomingToday++;
-      if (isToday && c.direction === 'outgoing') st.outgoingToday++;
-      if (c.flags?.needs_follow_up) st.needsFollowUp++;
-      if (c.flags?.is_important) st.importantLeads++;
-      if (c.flags?.is_delayed) st.delayedReplies++;
-      if (c.flags?.is_dead) st.deadConversations++;
-    });
-
-    return Array.from(map.values());
+    return Array.from(values.entries());
   }, [conversations]);
 
   const filteredConversations = useMemo(() => {
-    return conversations.filter(c => {
-      if (statusFilter !== "all" && c.status !== statusFilter) return false;
-      if (directionFilter !== "all" && c.direction !== directionFilter) return false;
-      if (search) {
-        const query = search.toLowerCase();
-        if (!c.customerName.toLowerCase().includes(query) && !c.customerNumber.includes(query)) {
-          return false;
-        }
+    const query = search.trim().toLowerCase();
+    return conversations.filter((conversation) => {
+      const state = getState(conversation);
+      const section = getSection(conversation);
+      const confidence = state?.confidence ?? 0;
+      const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
+      const numberId = conversation.quo_phone_numbers?.id;
+      const lastActivity = conversation.last_message_at ?? conversation.last_message_time;
+
+      if (sectionFilter !== "all" && section !== sectionFilter) return false;
+      if (numberFilter !== "all" && numberId !== numberFilter) return false;
+      if (confidenceFilter === "high" && confidence < 0.9) return false;
+      if (confidenceFilter === "review" && confidence >= 0.75) return false;
+      if (linkedFilter === "linked" && !linked) return false;
+      if (linkedFilter === "unlinked" && linked) return false;
+      if (dateFilter === "today" && (!lastActivity || !isSameDay(lastActivity))) return false;
+      if (dateFilter === "7d" && (!lastActivity || Date.now() - new Date(lastActivity).getTime() > 7 * 86400000)) return false;
+      if (query) {
+        const haystack = [
+          conversation.customer_name,
+          conversation.customer_number,
+          conversation.last_message_preview,
+          conversation.rolling_ai_summary,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(query)) return false;
       }
+
       return true;
     });
-  }, [conversations, search, statusFilter, directionFilter]);
+  }, [conversations, confidenceFilter, dateFilter, linkedFilter, numberFilter, search, sectionFilter]);
 
-  const selectedConversation = useMemo(() => {
-    return conversations.find(c => c.id === selectedConvId) || null;
-  }, [selectedConvId, conversations]);
+  const stats = useMemo(() => {
+    return conversations.reduce(
+      (acc, conversation) => {
+        const section = getSection(conversation);
+        const reminders = conversation.ai_reminders ?? [];
+        if (section === "needs_reply") acc.needsReply += 1;
+        if (section === "new_interested_lead" || section === "hot_lead") acc.newLeads += 1;
+        if (section === "urgent_complaint") acc.urgent += 1;
+        if (section === "needs_human_review") acc.needsReview += 1;
+        if (section === "possible_dead") acc.possibleDead += 1;
+        if (reminders.some((reminder) => reminder.status === "pending" && isSameDay(reminder.due_at))) {
+          acc.followUpsToday += 1;
+        }
+        return acc;
+      },
+      { needsReply: 0, newLeads: 0, followUpsToday: 0, urgent: 0, needsReview: 0, possibleDead: 0 },
+    );
+  }, [conversations]);
 
-  // Mutations
-  const updateFlagMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string, updates: any }) => {
-      const { error } = await supabase
-        .from('quo_conversation_flags')
-        .update(updates)
-        .eq('conversation_id', id);
-      if (error) throw error;
+  const audit = async (action: string, details: Record<string, unknown>) => {
+    if (!user || !selectedConvId) return;
+    await db.from("ai_audit_logs").insert({
+      conversation_id: selectedConvId,
+      user_id: user.id,
+      action,
+      details,
+    });
+  };
+
+  const overrideMutation = useMutation({
+    mutationFn: async ({ section, reviewed = false }: { section: QuoAiSection; reviewed?: boolean }) => {
+      if (!selectedConvId) throw new Error("No conversation selected.");
+      const priority = section === "urgent_complaint" ? "urgent" : section === "possible_dead" ? "low" : "medium";
+
+      const { error: stateError } = await db.from("ai_conversation_states").upsert(
+        {
+          conversation_id: selectedConvId,
+          section,
+          priority,
+          customer_state: section === "not_a_lead_spam_wrong_number" ? "not_lead" : "unclear",
+          confidence: 1,
+          risk_level: "safe",
+          needs_reply: section === "needs_reply",
+          is_possible_dead: section === "possible_dead",
+          is_lost: section === "lost_found_other_tech",
+          human_review_status: reviewed ? "reviewed" : "not_needed",
+          evidence: [],
+        },
+        { onConflict: "conversation_id" },
+      );
+      if (stateError) throw stateError;
+
+      const { error: conversationError } = await db
+        .from("quo_conversations")
+        .update({
+          current_ai_section: section,
+          current_priority: priority,
+          last_ai_analyzed_at: new Date().toISOString(),
+        })
+        .eq("id", selectedConvId);
+      if (conversationError) throw conversationError;
+
+      await audit("manual_override", { section, reviewed });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quo_conversations'] });
+      toast.success("Conversation updated");
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-decisions", selectedConvId] });
     },
-    onError: (err) => {
-      toast.error(`Failed to update flags: ${err.message}`);
-    }
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update conversation"),
   });
 
-  const handleMarkImportant = () => {
-    if (!selectedConvId) return;
-    updateFlagMutation.mutate({ 
-      id: selectedConvId, 
-      updates: { is_important: true } 
-    });
-    toast.success("Marked as Important");
-  };
+  const reminderMutation = useMutation({
+    mutationFn: async (reminderId: string) => {
+      const { error } = await db
+        .from("ai_reminders")
+        .update({ status: "done", completed_at: new Date().toISOString() })
+        .eq("id", reminderId);
+      if (error) throw error;
+      await audit("complete_reminder", { reminder_id: reminderId });
+    },
+    onSuccess: () => {
+      toast.success("Reminder completed");
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to complete reminder"),
+  });
 
-  const handleMarkFollowedUp = () => {
-    if (!selectedConvId) return;
-    updateFlagMutation.mutate({ 
-      id: selectedConvId, 
-      updates: { needs_follow_up: false, followed_up_at: new Date().toISOString() } 
-    });
-    toast.success("Marked as Followed Up");
-  };
+  const analyzeMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedConvId) throw new Error("No conversation selected.");
+      const { error } = await supabase.functions.invoke("ai-analyze-conversation", {
+        body: { conversation_id: selectedConvId },
+      });
+      if (error) throw error;
+      await audit("run_ai_analysis", {});
+    },
+    onSuccess: () => {
+      toast.success("AI analysis queued");
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-decisions", selectedConvId] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to run analysis"),
+  });
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case "Important": return "default";
-      case "Needs Follow-Up": return "secondary";
-      case "Delayed Reply": return "destructive";
-      case "Dead Lead": return "outline";
-      default: return "secondary";
-    }
-  };
-
-  const getPriorityBadgeColor = (priority: string) => {
-    switch (priority) {
-      case "High": return "bg-red-100 text-red-800 border-red-200 dark:bg-red-500/20 dark:text-red-300";
-      case "Medium": return "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300";
-      case "Low": return "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-500/20 dark:text-gray-300";
-      default: return "";
-    }
-  };
+  const selectedState = selectedConversation ? getState(selectedConversation) : null;
+  const selectedLead = selectedConversation?.ai_lead_links?.[0]?.leads ?? null;
+  const latestDecision = decisionsQuery.data?.[0] ?? null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Quo Monitor</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Quo AI Assistant</h1>
           <p className="text-sm text-muted-foreground">
-            Read-only inbox mirror. Monitor conversations, rule-based analysis, and messaging health.
+            Conservative conversation triage, lead linking, reminders, and human review.
           </p>
         </div>
+        <Button
+          variant="outline"
+          onClick={() => queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] })}
+        >
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Refresh
+        </Button>
       </div>
 
-      {/* Top Dashboard Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard title="Incoming (Today)" value={stats.incomingToday} icon={<ArrowDownLeft className="h-4 w-4 text-emerald-500" />} />
-        <StatCard title="Outgoing (Today)" value={stats.outgoingToday} icon={<ArrowUpRight className="h-4 w-4 text-orange-500" />} />
-        <StatCard title="Needs Follow-Up" value={stats.needsFollowUp} icon={<Clock className="h-4 w-4 text-yellow-500" />} />
-        <StatCard title="Important Leads" value={stats.importantLeads} icon={<AlertCircle className="h-4 w-4 text-red-500" />} />
-        <StatCard title="Delayed Replies" value={stats.delayedReplies} icon={<MessageSquare className="h-4 w-4 text-purple-500" />} />
-        <StatCard title="Dead Convos" value={stats.deadConversations} icon={<Skull className="h-4 w-4 text-gray-500" />} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <StatCard title="Needs Reply" value={stats.needsReply} icon={MessageSquare} />
+        <StatCard title="New Leads" value={stats.newLeads} icon={UserPlus} />
+        <StatCard title="Follow-Ups Today" value={stats.followUpsToday} icon={CalendarClock} />
+        <StatCard title="Urgent" value={stats.urgent} icon={AlertTriangle} />
+        <StatCard title="Needs Review" value={stats.needsReview} icon={ShieldAlert} />
+        <StatCard title="Possible Dead" value={stats.possibleDead} icon={Filter} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel: Conversation List */}
-        <Card className="lg:col-span-1 h-[600px] flex flex-col">
-          <CardHeader className="pb-3 border-b space-y-3 shrink-0">
+      <Card>
+        <CardContent className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-7">
+          <div className="relative md:col-span-2">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search phone, name, summary, or message"
+              className="pl-9"
+            />
+          </div>
+          <Select value={sectionFilter} onValueChange={(value) => setSectionFilter(value as typeof sectionFilter)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {sectionFilters.map((section) => (
+                <SelectItem key={section} value={section}>
+                  {section === "all" ? "All Sections" : QUO_AI_SECTION_LABELS[section]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={numberFilter} onValueChange={setNumberFilter}>
+            <SelectTrigger><SelectValue placeholder="Quo number" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Quo Numbers</SelectItem>
+              {numberOptions.map(([id, label]) => (
+                <SelectItem key={id} value={id}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={confidenceFilter} onValueChange={setConfidenceFilter}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Confidence</SelectItem>
+              <SelectItem value="high">90%+</SelectItem>
+              <SelectItem value="review">Below 75%</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={dateFilter} onValueChange={setDateFilter}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Dates</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="7d">Last 7 Days</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={linkedFilter} onValueChange={setLinkedFilter}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Linked + Unlinked</SelectItem>
+              <SelectItem value="linked">Linked</SelectItem>
+              <SelectItem value="unlinked">Unlinked</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(360px,0.9fr)_minmax(520px,1.4fr)]">
+        <Card className="min-h-[680px]">
+          <CardHeader className="border-b p-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Conversations</CardTitle>
+              <CardTitle className="text-base">Conversation Queue</CardTitle>
               <Badge variant="secondary">{filteredConversations.length}</Badge>
             </div>
-            
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search name or number..."
-                className="pl-9 h-9 text-sm"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-8 text-xs flex-1">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="Important">Important</SelectItem>
-                  <SelectItem value="Needs Follow-Up">Needs Follow-Up</SelectItem>
-                  <SelectItem value="Delayed Reply">Delayed</SelectItem>
-                  <SelectItem value="Dead Lead">Dead</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={directionFilter} onValueChange={setDirectionFilter}>
-                <SelectTrigger className="h-8 text-xs flex-1">
-                  <SelectValue placeholder="Direction" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Dirs</SelectItem>
-                  <SelectItem value="incoming">Incoming</SelectItem>
-                  <SelectItem value="outgoing">Outgoing</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </CardHeader>
-          <ScrollArea className="flex-1">
-            <div className="p-2 space-y-1">
-              {isConversationsLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="p-3 border rounded-lg space-y-2">
-                    <Skeleton className="h-4 w-[60%]" />
-                    <Skeleton className="h-3 w-[80%]" />
-                    <Skeleton className="h-3 w-[40%]" />
-                  </div>
-                ))
+          <ScrollArea className="h-[620px]">
+            <div className="space-y-2 p-3">
+              {conversationsQuery.isLoading ? (
+                Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-lg" />)
               ) : filteredConversations.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  No conversations found.
-                </div>
+                <div className="py-12 text-center text-sm text-muted-foreground">No conversations match the filters.</div>
               ) : (
-                filteredConversations.map(conv => (
-                  <button
-                    key={conv.id}
-                    onClick={() => setSelectedConvId(conv.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition-all ${
-                      selectedConvId === conv.id 
-                        ? "bg-primary/5 border-primary/20" 
-                        : "bg-card hover:bg-muted/50 border-transparent"
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="font-medium text-sm truncate pr-2">
-                        {conv.customerName !== "Unknown" ? conv.customerName : conv.customerNumber}
+                filteredConversations.map((conversation) => {
+                  const state = getState(conversation);
+                  const section = getSection(conversation);
+                  const priority = getPriority(conversation);
+                  const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
+                  return (
+                    <button
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedConvId(conversation.id);
+                        setOverrideSection(section);
+                      }}
+                      className={`w-full rounded-lg border bg-card p-3 text-left transition hover:bg-muted/50 ${
+                        selectedConvId === conversation.id ? "border-primary/50 ring-1 ring-primary/25" : "border-border"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold">
+                            {conversation.customer_name || conversation.customer_number || "Unknown Customer"}
+                          </div>
+                          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            <span className="truncate">{conversation.customer_number || "No phone"}</span>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className={priorityClasses[priority]}>
+                          {priority}
+                        </Badge>
                       </div>
-                      <div className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        {new Date(conv.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
+                        {conversation.last_message_preview || conversation.rolling_ai_summary || "No message preview"}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                        <Badge variant={section === "needs_human_review" ? "destructive" : "secondary"}>
+                          {QUO_AI_SECTION_LABELS[section]}
+                        </Badge>
+                        {linked && <Badge variant="outline"><Link2 className="mr-1 h-3 w-3" />Linked</Badge>}
+                        {state && <Badge variant="outline">{Math.round(state.confidence * 100)}%</Badge>}
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {formatShortDate(conversation.last_message_at ?? conversation.last_message_time)}
+                        </span>
                       </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-2 line-clamp-1">
-                      {conv.direction === "incoming" ? "↓" : "↑"} {conv.lastMessagePreview}
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      <Badge variant={getStatusBadgeVariant(conv.status)} className="text-[10px] px-1.5 py-0">
-                        {conv.status}
-                      </Badge>
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${getPriorityBadgeColor(conv.priority)}`}>
-                        {conv.priority}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground ml-auto self-center truncate max-w-[80px]">
-                        {conv.numberName}
-                      </span>
-                    </div>
-                  </button>
-                ))
+                    </button>
+                  );
+                })
               )}
             </div>
           </ScrollArea>
         </Card>
 
-        {/* Right Panel: Thread and Analysis */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
+        <div className="space-y-4">
           {!selectedConversation ? (
-            <Card className="h-[600px] flex items-center justify-center bg-muted/20 border-dashed">
-              <div className="text-center">
-                <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-20" />
-                <p className="text-muted-foreground text-sm">Select a conversation to view details</p>
+            <Card className="flex min-h-[680px] items-center justify-center border-dashed bg-muted/20">
+              <div className="text-center text-sm text-muted-foreground">
+                <MessageSquare className="mx-auto mb-3 h-10 w-10 opacity-30" />
+                Select a conversation to review AI evidence, messages, reminders, and overrides.
               </div>
             </Card>
           ) : (
             <>
-              {/* Message Thread */}
-              <Card className="flex-1 min-h-[350px] flex flex-col">
-                <CardHeader className="py-3 px-4 border-b bg-muted/20">
-                  <div className="flex justify-between items-center">
+              <Card>
+                <CardHeader className="border-b p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <CardTitle className="text-base">{selectedConversation.customerName}</CardTitle>
-                      <CardDescription className="text-xs mt-0.5">{selectedConversation.customerNumber}</CardDescription>
+                      <CardTitle className="text-lg">
+                        {selectedConversation.customer_name || selectedConversation.customer_number || "Unknown Customer"}
+                      </CardTitle>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {selectedConversation.customer_number || "No phone"} via{" "}
+                        {selectedConversation.quo_phone_numbers?.label ||
+                          selectedConversation.quo_phone_numbers?.name ||
+                          selectedConversation.quo_phone_numbers?.display_number ||
+                          "Unknown Quo number"}
+                      </p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => {
-                        window.open(`https://app.openphone.com/conversations/${selectedConversation.quo_conversation_id}`, '_blank');
-                      }}>
-                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                        Open in Quo
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => analyzeMutation.mutate()} disabled={analyzeMutation.isPending}>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Run AI
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(`https://app.openphone.com/conversations/${selectedConversation.quo_conversation_id}`, "_blank")}
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Open Chat
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
-                <ScrollArea className="flex-1 p-4">
-                  <div className="space-y-4">
-                    {isMessagesLoading ? (
-                      Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className={`flex ${i % 2 === 0 ? "justify-start" : "justify-end"}`}>
-                          <Skeleton className={`h-12 w-[60%] rounded-xl ${i % 2 === 0 ? "rounded-tl-none" : "rounded-tr-none"}`} />
-                        </div>
-                      ))
-                    ) : messages?.length === 0 ? (
-                      <div className="text-center text-sm text-muted-foreground py-10">No messages found</div>
-                    ) : (
-                      messages?.map((msg: any) => {
-                        const isCustomer = msg.sender === "customer";
-                        return (
-                          <div key={msg.id} className={`flex ${isCustomer ? "justify-start" : "justify-end"}`}>
-                            <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
-                              isCustomer 
-                                ? "bg-muted text-foreground rounded-tl-none" 
-                                : "bg-primary text-primary-foreground rounded-tr-none"
-                            }`}>
-                              <div>{msg.text}</div>
-                              <div className={`text-[10px] mt-1 ${isCustomer ? "text-muted-foreground" : "text-primary-foreground/70"} text-right`}>
-                                {new Date(msg.message_time).toLocaleString()}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </ScrollArea>
-              </Card>
-
-              {/* Analysis & Actions Panel */}
-              <Card className="shrink-0 border-primary/20 shadow-sm bg-gradient-to-br from-card to-primary/5">
-                <CardHeader className="py-3 px-4 border-b/50">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <SparklesIcon className="h-4 w-4 text-primary" />
-                      Rule Analysis
-                    </CardTitle>
-                    <Badge variant={getStatusBadgeVariant(selectedConversation.status)}>
-                      {selectedConversation.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 grid gap-4 grid-cols-1 md:grid-cols-2">
+                <CardContent className="grid gap-4 p-4 lg:grid-cols-2">
                   <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium mb-1">Rule Result</p>
-                      <p className="text-sm font-semibold">{selectedConversation.flags?.rule_result || "Normal"}</p>
+                    <div className="rounded-lg border p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">AI Decision</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant={getSection(selectedConversation) === "needs_human_review" ? "destructive" : "secondary"}>
+                          {QUO_AI_SECTION_LABELS[getSection(selectedConversation)]}
+                        </Badge>
+                        <Badge variant="outline" className={priorityClasses[getPriority(selectedConversation)]}>
+                          {getPriority(selectedConversation)}
+                        </Badge>
+                        {selectedState && <Badge variant="outline">{Math.round(selectedState.confidence * 100)}% confidence</Badge>}
+                        {selectedState && <Badge variant="outline">{selectedState.risk_level}</Badge>}
+                      </div>
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        {latestDecision?.reason || selectedConversation.rolling_ai_summary || "No AI summary saved yet."}
+                      </p>
+                      {selectedState?.evidence?.length ? (
+                        <div className="mt-3 space-y-2">
+                          {selectedState.evidence.map((item, index) => (
+                            <div key={`${item.message_id}-${index}`} className="rounded-md bg-muted/60 p-2 text-xs">
+                              <div className="font-medium">{item.quote || "Evidence message"}</div>
+                              <div className="mt-1 text-muted-foreground">{item.why_it_matters}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium mb-1">Reasoning</p>
-                      <p className="text-sm">{selectedConversation.flags?.reason || "No special rules triggered."}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium mb-1">Suggested Action</p>
-                      <p className="text-sm text-primary font-medium">{selectedConversation.flags?.suggested_action || "None"}</p>
+
+                    <div className="rounded-lg border p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Manual Override</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Select value={overrideSection} onValueChange={(value) => setOverrideSection(value as QuoAiSection)}>
+                          <SelectTrigger className="w-[260px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {QUO_AI_SECTIONS.map((section) => (
+                              <SelectItem key={section} value={section}>{QUO_AI_SECTION_LABELS[section]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button onClick={() => overrideMutation.mutate({ section: overrideSection })} disabled={overrideMutation.isPending}>
+                          Move Section
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => overrideMutation.mutate({ section: getSection(selectedConversation), reviewed: true })}
+                          disabled={overrideMutation.isPending}
+                        >
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Mark Reviewed
+                        </Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => overrideMutation.mutate({ section: "not_a_lead_spam_wrong_number", reviewed: true })}>
+                          Mark Not Lead
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => overrideMutation.mutate({ section: "lost_found_other_tech", reviewed: true })}>
+                          Mark Lost
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => overrideMutation.mutate({ section: "waiting_for_customer", reviewed: true })}>
+                          Restore From Possible Dead
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="space-y-3 border-l pl-4 md:pl-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium mb-1">Response Delay</p>
-                      <p className="text-sm font-medium">{selectedConversation.flags?.response_delay || "N/A"}</p>
+
+                  <div className="space-y-3">
+                    <div className="rounded-lg border p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lead Link</div>
+                      {selectedLead || selectedConversation.linked_lead_id ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-medium">{selectedLead?.customer_name || "Linked Lead"}</div>
+                            <div className="text-xs text-muted-foreground">{selectedLead?.job_id || selectedConversation.linked_lead_id}</div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.open(`/leads/${selectedLead?.id || selectedConversation.linked_lead_id}`, "_blank")}
+                          >
+                            Open Lead
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm text-muted-foreground">No linked CRM lead.</p>
+                          <Button size="sm" onClick={() => setShowAddLead(true)}>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Create Lead
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <p className="text-[10px] text-muted-foreground">Last Customer Reply</p>
-                        <p className="text-xs font-medium">
-                          {selectedConversation.flags?.last_customer_reply_time ? new Date(selectedConversation.flags.last_customer_reply_time).toLocaleString() : "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground">Last Agent Reply</p>
-                        <p className="text-xs font-medium">
-                          {selectedConversation.flags?.last_agent_reply_time ? new Date(selectedConversation.flags.last_agent_reply_time).toLocaleString() : "N/A"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="pt-2 flex flex-wrap gap-2">
-                      <Button size="sm" variant="default" className="text-xs h-8" onClick={() => setShowAddLead(true)}>
-                        <UserPlus className="h-3.5 w-3.5 mr-1.5" />
-                        Create Lead
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant={selectedConversation.flags?.is_important ? "default" : "outline"} 
-                        className="text-xs h-8" 
-                        onClick={handleMarkImportant}
-                      >
-                        <AlertCircle className="h-3.5 w-3.5 mr-1.5" />
-                        Important
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant={selectedConversation.flags?.needs_follow_up === false ? "default" : "outline"} 
-                        className="text-xs h-8" 
-                        onClick={handleMarkFollowedUp}
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                        Followed Up
-                      </Button>
+
+                    <div className="rounded-lg border p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reminders</div>
+                      {selectedConversation.ai_reminders?.length ? (
+                        <div className="space-y-2">
+                          {selectedConversation.ai_reminders.map((reminder) => (
+                            <div key={reminder.id} className="flex items-start justify-between gap-3 rounded-md bg-muted/50 p-2">
+                              <div>
+                                <div className="text-sm font-medium capitalize">{reminder.reminder_type.replace("_", " ")}</div>
+                                <div className="text-xs text-muted-foreground">{formatDate(reminder.due_at)}</div>
+                                {reminder.reason && <div className="mt-1 text-xs">{reminder.reason}</div>}
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={reminder.status !== "pending" || reminderMutation.isPending}
+                                onClick={() => reminderMutation.mutate(reminder.id)}
+                              >
+                                {reminder.status === "pending" ? "Complete" : reminder.status}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No AI reminders for this conversation.</p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card>
+                  <CardHeader className="border-b p-4">
+                    <CardTitle className="text-base">Full Chat</CardTitle>
+                  </CardHeader>
+                  <ScrollArea className="h-[420px]">
+                    <div className="space-y-3 p-4">
+                      {messagesQuery.isLoading ? (
+                        Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-16 rounded-lg" />)
+                      ) : messagesQuery.data?.length ? (
+                        messagesQuery.data.map((message) => {
+                          const isCustomer = message.sender === "customer";
+                          return (
+                            <div key={message.id} className={`flex ${isCustomer ? "justify-start" : "justify-end"}`}>
+                              <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${isCustomer ? "bg-muted" : "bg-primary text-primary-foreground"}`}>
+                                <div>{message.text || "[Media or empty message]"}</div>
+                                <div className={`mt-1 text-[11px] ${isCustomer ? "text-muted-foreground" : "text-primary-foreground/75"}`}>
+                                  {formatDate(message.message_time)}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="py-10 text-center text-sm text-muted-foreground">No messages stored.</p>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </Card>
+
+                <Card>
+                  <CardHeader className="border-b p-4">
+                    <CardTitle className="text-base">Decision Audit</CardTitle>
+                  </CardHeader>
+                  <ScrollArea className="h-[420px]">
+                    <div className="space-y-3 p-4">
+                      {decisionsQuery.isLoading ? (
+                        Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-24 rounded-lg" />)
+                      ) : decisionsQuery.data?.length ? (
+                        decisionsQuery.data.map((decision) => (
+                          <div key={decision.id} className="rounded-lg border p-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={decision.needs_human_review ? "destructive" : "secondary"}>
+                                {decision.needs_human_review ? "Review" : "Applied"}
+                              </Badge>
+                              <Badge variant="outline">{Math.round(Number(decision.confidence || 0) * 100)}%</Badge>
+                              <Badge variant="outline">{decision.model_used || "rule-engine"}</Badge>
+                              {decision.estimated_cost_usd ? (
+                                <Badge variant="outline">${Number(decision.estimated_cost_usd).toFixed(4)}</Badge>
+                              ) : null}
+                            </div>
+                            <p className="mt-2 text-sm text-muted-foreground">{decision.reason || "No reason stored."}</p>
+                            <div className="mt-2 text-xs text-muted-foreground">{formatDate(decision.created_at)}</div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="py-10 text-center text-sm text-muted-foreground">No AI decisions stored yet.</p>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </Card>
+              </div>
             </>
           )}
         </div>
       </div>
 
-      {/* Number-wise Activity Table */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Number-wise Activity</CardTitle>
-          <CardDescription>Daily performance and backlog per line</CardDescription>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Number Name</TableHead>
-                <TableHead className="text-right">Incoming Today</TableHead>
-                <TableHead className="text-right">Outgoing Today</TableHead>
-                <TableHead className="text-right">Needs Follow-Up</TableHead>
-                <TableHead className="text-right">Important Leads</TableHead>
-                <TableHead className="text-right">Delayed Replies</TableHead>
-                <TableHead className="text-right">Dead Convos</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {numberStats.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
-                    No activity data available.
-                  </TableCell>
-                </TableRow>
-              ) : numberStats.map((stat: any) => (
-                <TableRow key={stat.id}>
-                  <TableCell className="font-medium">{stat.numberName}</TableCell>
-                  <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-medium">{stat.incomingToday}</TableCell>
-                  <TableCell className="text-right text-orange-600 dark:text-orange-400 font-medium">{stat.outgoingToday}</TableCell>
-                  <TableCell className="text-right font-medium">{stat.needsFollowUp}</TableCell>
-                  <TableCell className="text-right text-red-600 dark:text-red-400 font-medium">{stat.importantLeads}</TableCell>
-                  <TableCell className="text-right font-medium">{stat.delayedReplies}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{stat.deadConversations}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Add Lead Dialog */}
       {selectedConversation && (
-        <AddLeadDialog 
-          open={showAddLead} 
-          onOpenChange={setShowAddLead} 
-          onSuccess={() => setShowAddLead(false)}
+        <AddLeadDialog
+          open={showAddLead}
+          onOpenChange={setShowAddLead}
+          onSuccess={() => {
+            setShowAddLead(false);
+            queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+          }}
           initialData={{
-            customer_name: selectedConversation.customerName,
-            customer_phone: selectedConversation.customerNumber,
-            direction: selectedConversation.direction === "incoming" ? "incoming" : "outgoing"
+            customer_name: selectedConversation.customer_name || "",
+            customer_phone: selectedConversation.customer_number || "",
+            direction: "incoming",
           }}
         />
       )}
@@ -556,41 +817,26 @@ export default function QuoMonitorPage() {
   );
 }
 
-function StatCard({ title, value, icon }: { title: string; value: number; icon?: React.ReactNode }) {
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+}: {
+  title: string;
+  value: number;
+  icon: LucideIcon;
+}) {
   return (
     <Card>
       <CardContent className="flex items-center justify-between p-4">
         <div>
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{title}</div>
-          <div className="mt-1.5 text-2xl font-bold tracking-tight">{value}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+          <div className="mt-1 text-2xl font-semibold">{value}</div>
         </div>
-        <div className="bg-muted/50 p-2 rounded-full">
-          {icon}
+        <div className="rounded-lg border bg-muted/50 p-2">
+          <Icon className="h-4 w-4 text-primary" />
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function SparklesIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-      <path d="M5 3v4" />
-      <path d="M19 17v4" />
-      <path d="M3 5h4" />
-      <path d="M17 19h4" />
-    </svg>
   );
 }
