@@ -144,6 +144,134 @@ export type AiDecisionOutput = {
   human_readable_summary: string;
 };
 
+export type QuoAiOpsTask = {
+  task_type: string;
+  title: string;
+  instructions: string;
+  reason: string;
+  priority: "low" | "medium" | "high" | "critical";
+  due_at: string | null;
+  assigned_role: string;
+  requires_human_review: boolean;
+  evidence: unknown[];
+};
+
+export type QuoAiOpsTag = {
+  tag: string;
+  confidence: number;
+  reason: string;
+  evidence: unknown[];
+};
+
+export type QuoAiOpsEvent = {
+  event_type: string;
+  event_json: JsonObject;
+  confidence: number;
+  evidence: unknown[];
+};
+
+export type QuoAiOpsCaseOutput = {
+  case_summary: string;
+  service_needed: string | null;
+  customer_issue: string | null;
+  lead_stage: string;
+  customer_situation: JsonObject;
+  waiting_on: "staff" | "customer" | "technician" | "manager" | "no_one" | "unknown";
+  urgency_level: "low" | "medium" | "high" | "critical";
+  urgency_score: number;
+  risk_level: "low" | "medium" | "high" | "critical";
+  sentiment: "positive" | "neutral" | "confused" | "angry" | "frustrated" | "unknown";
+  current_status: string;
+  next_action: string;
+  next_action_due_at: string | null;
+  assigned_role: string;
+  scheduled_for: string | null;
+  schedule_status: "none" | "requested" | "tentative" | "unconfirmed" | "confirmed" | "reschedule_needed" | "unknown";
+  quote_status: "none" | "needed" | "sent" | "accepted" | "rejected" | "follow_up_due" | "unknown";
+  payment_status: "none" | "pending" | "paid" | "dispute" | "unknown";
+  tags: QuoAiOpsTag[];
+  tasks: QuoAiOpsTask[];
+  events: QuoAiOpsEvent[];
+  missing_information: unknown[];
+  evidence: unknown[];
+  confidence: number;
+  requires_human_review: boolean;
+  human_review_reason: string | null;
+};
+
+const allowedOpsWaitingOn = new Set(["staff", "customer", "technician", "manager", "no_one", "unknown"]);
+const allowedOpsPriorities = new Set(["low", "medium", "high", "critical"]);
+const allowedOpsSentiments = new Set(["positive", "neutral", "confused", "angry", "frustrated", "unknown"]);
+const allowedOpsScheduleStatuses = new Set(["none", "requested", "tentative", "unconfirmed", "confirmed", "reschedule_needed", "unknown"]);
+const allowedOpsQuoteStatuses = new Set(["none", "needed", "sent", "accepted", "rejected", "follow_up_due", "unknown"]);
+const allowedOpsPaymentStatuses = new Set(["none", "pending", "paid", "dispute", "unknown"]);
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isIsoOrNull(value: unknown) {
+  return value === null || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
+}
+
+function isConfidence(value: unknown) {
+  return typeof value === "number" && value >= 0 && value <= 1;
+}
+
+export function validateQuoAiOpsCaseOutput(
+  value: unknown,
+): { ok: true; data: QuoAiOpsCaseOutput } | { ok: false; error: string } {
+  if (!isJsonObject(value)) return { ok: false, error: "AI output must be an object." };
+  const data = value as Partial<QuoAiOpsCaseOutput>;
+
+  if (typeof data.case_summary !== "string" || !data.case_summary.trim()) return { ok: false, error: "Missing case_summary." };
+  if (typeof data.lead_stage !== "string" || !data.lead_stage.trim()) return { ok: false, error: "Missing lead_stage." };
+  if (!isJsonObject(data.customer_situation)) return { ok: false, error: "customer_situation must be an object." };
+  if (!allowedOpsWaitingOn.has(String(data.waiting_on))) return { ok: false, error: "Invalid waiting_on." };
+  if (!allowedOpsPriorities.has(String(data.urgency_level))) return { ok: false, error: "Invalid urgency_level." };
+  if (!allowedOpsPriorities.has(String(data.risk_level))) return { ok: false, error: "Invalid risk_level." };
+  if (!allowedOpsSentiments.has(String(data.sentiment))) return { ok: false, error: "Invalid sentiment." };
+  if (!allowedOpsScheduleStatuses.has(String(data.schedule_status))) return { ok: false, error: "Invalid schedule_status." };
+  if (!allowedOpsQuoteStatuses.has(String(data.quote_status))) return { ok: false, error: "Invalid quote_status." };
+  if (!allowedOpsPaymentStatuses.has(String(data.payment_status))) return { ok: false, error: "Invalid payment_status." };
+  if (typeof data.urgency_score !== "number" || data.urgency_score < 0 || data.urgency_score > 100) {
+    return { ok: false, error: "Invalid urgency_score." };
+  }
+  if (!isIsoOrNull(data.next_action_due_at) || !isIsoOrNull(data.scheduled_for)) {
+    return { ok: false, error: "Dates must be ISO strings or null." };
+  }
+  if (!Array.isArray(data.tags)) return { ok: false, error: "Missing tags array." };
+  if (!Array.isArray(data.tasks)) return { ok: false, error: "Missing tasks array." };
+  if (!Array.isArray(data.events)) return { ok: false, error: "Missing events array." };
+  if (!Array.isArray(data.missing_information)) return { ok: false, error: "Missing missing_information array." };
+  if (!Array.isArray(data.evidence)) return { ok: false, error: "Missing evidence array." };
+  if (!isConfidence(data.confidence)) return { ok: false, error: "Invalid confidence." };
+  if (typeof data.requires_human_review !== "boolean") return { ok: false, error: "Invalid requires_human_review." };
+
+  for (const tag of data.tags) {
+    if (!isJsonObject(tag) || typeof tag.tag !== "string" || !isConfidence(tag.confidence)) {
+      return { ok: false, error: "Invalid tag." };
+    }
+  }
+
+  for (const task of data.tasks) {
+    if (!isJsonObject(task) || typeof task.task_type !== "string" || typeof task.title !== "string") {
+      return { ok: false, error: "Invalid task." };
+    }
+    if (!allowedOpsPriorities.has(String(task.priority)) || !isIsoOrNull(task.due_at)) {
+      return { ok: false, error: "Invalid task priority or due_at." };
+    }
+  }
+
+  for (const event of data.events) {
+    if (!isJsonObject(event) || typeof event.event_type !== "string" || !isJsonObject(event.event_json) || !isConfidence(event.confidence)) {
+      return { ok: false, error: "Invalid event." };
+    }
+  }
+
+  return { ok: true, data: data as QuoAiOpsCaseOutput };
+}
+
 export function jsonResponse(body: JsonObject, status = 200) {
   return new Response(JSON.stringify(body), {
     status,

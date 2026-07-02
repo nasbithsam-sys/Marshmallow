@@ -32,6 +32,43 @@ export function shouldProcessAiJob({
   return priority === "critical" && isRisky;
 }
 
+export function shouldUseRiskVerifier({
+  riskLevel,
+  urgencyLevel,
+  confidence,
+  requiresHumanReview,
+  hasRiskKeyword,
+  reviewThreshold = 0.85,
+}: {
+  riskLevel: "low" | "medium" | "high" | "critical";
+  urgencyLevel: "low" | "medium" | "high" | "critical";
+  confidence: number;
+  requiresHumanReview: boolean;
+  hasRiskKeyword: boolean;
+  reviewThreshold?: number;
+}) {
+  return (
+    riskLevel === "high" ||
+    riskLevel === "critical" ||
+    urgencyLevel === "critical" ||
+    confidence < reviewThreshold ||
+    requiresHumanReview ||
+    hasRiskKeyword
+  );
+}
+
+export function getQuoAiModelPurpose(modelKey: string) {
+  const purposes: Record<string, string> = {
+    AI_MODEL_FAST_CLASSIFIER: "cheap first-pass triage, spam/wrong-number checks, basic tags, simple waiting-on detection",
+    AI_MODEL_MAIN_REASONER: "persistent case-state reasoning, summaries, next actions, follow-up tasks, schedule/quote reasoning",
+    AI_MODEL_RISK_VERIFIER: "risky or uncertain cases that can lose a customer",
+    AI_MODEL_DAILY_BRIEF: "management daily brief generation",
+    AI_MODEL_EMBEDDINGS: "similar-conversation and history search only",
+  };
+
+  return purposes[modelKey] ?? "unknown";
+}
+
 export const QUO_AI_TASK_LABELS: Record<string, string> = {
   missed_reply: "Missed Reply",
   hot_lead_follow_up: "Hot Lead Follow-Up",

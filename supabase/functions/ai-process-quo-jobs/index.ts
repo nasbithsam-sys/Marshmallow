@@ -1,12 +1,31 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, jsonResponse } from "../_shared/quo-ai.ts";
+import {
+  corsHeaders,
+  hashJson,
+  isLowValueMessage,
+  jsonResponse,
+  type QuoAiOpsCaseOutput,
+  validateQuoAiOpsCaseOutput,
+} from "../_shared/quo-ai.ts";
 
 type SupabaseClient = ReturnType<typeof createClient>;
-type JsonObject = Record<string, unknown>;
+type Priority = "low" | "medium" | "high" | "critical";
+type BudgetMode = "normal" | "soft_cap" | "critical_only" | "stopped";
+
+const reviewThreshold = () => envNumber("AI_CONFIDENCE_REVIEW_THRESHOLD", 0.85);
 
 function envNumber(name: string, fallback: number) {
   const value = Number(Deno.env.get(name));
   return Number.isFinite(value) ? value : fallback;
+}
+
+function asPriority(value: unknown): Priority {
+  return value === "low" || value === "medium" || value === "high" || value === "critical" ? value : "medium";
+}
+
+function clampBatchSize(value: unknown) {
+  const requested = Number(value ?? envNumber("AI_JOB_BATCH_SIZE", 10));
+  return Math.max(1, Math.min(Number.isFinite(requested) ? requested : 10, 25));
 }
 
 async function authorizeJob(req: Request, supabase: SupabaseClient) {
@@ -40,118 +59,459 @@ async function authorizeJob(req: Request, supabase: SupabaseClient) {
   return null;
 }
 
-function mapPriority(priority: string | null | undefined) {
-  if (priority === "urgent") return "critical";
-  if (priority === "high" || priority === "medium" || priority === "low") return priority;
-  return "medium";
+function chooseModel(kind: "fast" | "main" | "risk") {
+  if (kind === "fast") {
+    return Deno.env.get("AI_MODEL_FAST_CLASSIFIER") ?? Deno.env.get("OPENAI_MODEL_CHEAP") ?? "gpt-5.4-nano";
+  }
+  if (kind === "risk") {
+    return Deno.env.get("AI_MODEL_RISK_VERIFIER") ?? Deno.env.get("OPENAI_MODEL_REVIEW") ?? "gpt-5.5";
+  }
+  return Deno.env.get("AI_MODEL_MAIN_REASONER") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-5.4-mini";
 }
 
-function mapRisk(risk: string | null | undefined) {
-  if (risk === "risky") return "high";
-  if (risk === "moderate") return "medium";
-  if (risk === "safe") return "low";
-  if (risk === "critical" || risk === "high" || risk === "medium" || risk === "low") return risk;
-  return "medium";
+function estimateCost(model: string, inputTokens: number, outputTokens: number) {
+  const costTable: Record<string, { input: number; output: number }> = {
+    "gpt-5.5": { input: 0.000005, output: 0.00003 },
+    "gpt-5.4-mini": { input: 0.00000075, output: 0.0000045 },
+    "gpt-5.4-nano": { input: 0.0000002, output: 0.00000125 },
+    "gpt-4.1": { input: 0.000002, output: 0.000008 },
+    "gpt-4.1-mini": { input: 0.0000004, output: 0.0000016 },
+    "gpt-4.1-nano": { input: 0.0000001, output: 0.0000004 },
+  };
+  const pricing = costTable[model] ?? costTable["gpt-5.4-mini"];
+  return inputTokens * pricing.input + outputTokens * pricing.output;
 }
 
-function inferWaitingOn(section: string | null | undefined) {
-  if (section === "needs_reply" || section === "urgent_complaint" || section === "needs_human_review") return "staff";
-  if (section === "waiting_for_customer" || section === "possible_dead") return "customer";
-  return "unknown";
+function getBudgetMode(monthlySpend: number) {
+  const softCap = envNumber("AI_MONTHLY_SOFT_CAP_USD", 180);
+  const hardCap = envNumber("AI_MONTHLY_HARD_CAP_USD", envNumber("AI_MONTHLY_BUDGET_USD", 200));
+
+  if (monthlySpend >= hardCap) return "stopped" as const;
+  if (monthlySpend >= hardCap * 0.95) return "critical_only" as const;
+  if (monthlySpend >= softCap || monthlySpend >= hardCap * 0.8) return "soft_cap" as const;
+  return "normal" as const;
 }
 
-function safeArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
+function shouldProcessAiJob({
+  budgetMode,
+  priority,
+  isNewInbound,
+  isRisky,
+}: {
+  budgetMode: BudgetMode;
+  priority: Priority;
+  isNewInbound: boolean;
+  isRisky: boolean;
+}) {
+  if (budgetMode === "normal") return true;
+  if (budgetMode === "soft_cap") return priority !== "low" || isNewInbound || isRisky;
+  if (budgetMode === "critical_only") return priority === "critical" || isRisky || isNewInbound;
+  return priority === "critical" && isRisky;
 }
 
-async function copyAnalyzerResultToOperationsTables(
-  supabase: SupabaseClient,
-  job: { id: string; conversation_id: string; latest_message_id: string | null },
-) {
-  const [{ data: conversation }, { data: state }, { data: decision }, { data: reminders }] = await Promise.all([
+async function getBudgetStatus(supabase: SupabaseClient) {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+
+  const [{ count: dailyCalls }, { data: monthlyRows }] = await Promise.all([
     supabase
-      .from("quo_conversations")
-      .select("*, quo_phone_numbers(*)")
-      .eq("id", job.conversation_id)
-      .maybeSingle(),
-    supabase.from("ai_conversation_states").select("*").eq("conversation_id", job.conversation_id).maybeSingle(),
+      .from("quo_ai_cost_logs")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", today.toISOString()),
     supabase
-      .from("ai_decisions")
-      .select("*")
-      .eq("conversation_id", job.conversation_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("ai_reminders")
-      .select("*")
-      .eq("conversation_id", job.conversation_id)
-      .eq("status", "pending")
-      .order("due_at", { ascending: true })
-      .limit(20),
+      .from("quo_ai_cost_logs")
+      .select("estimated_cost")
+      .gte("created_at", monthStart.toISOString()),
   ]);
 
-  if (!conversation) throw new Error("Conversation missing after analysis.");
+  const monthlySpend = (monthlyRows ?? []).reduce(
+    (sum: number, row: { estimated_cost?: number | string | null }) => sum + Number(row.estimated_cost ?? 0),
+    0,
+  );
+  const dailyCallLimit = envNumber("AI_DAILY_CALL_LIMIT", 500);
+  const dailyLimitReached = (dailyCalls ?? 0) >= dailyCallLimit;
+  const mode = dailyLimitReached ? "stopped" : getBudgetMode(monthlySpend);
 
-  const output = (decision?.output_json ?? {}) as JsonObject;
-  const section = String(state?.section ?? conversation.current_ai_section ?? "needs_human_review");
-  const confidence = Number(state?.confidence ?? decision?.confidence ?? 0);
-  const requiresHumanReview =
-    Boolean(state?.human_review_status === "pending") ||
-    Boolean(decision?.needs_human_review) ||
-    confidence < envNumber("AI_CONFIDENCE_REVIEW_THRESHOLD", 0.85);
-  const evidence = state?.evidence ?? output.evidence ?? [];
-  const tags = Array.isArray(output.tags) ? output.tags : conversation.ai_tags ?? [];
-  const firstReminder = reminders?.[0] ?? null;
-  const priority = mapPriority(String(state?.priority ?? conversation.current_priority ?? "medium"));
+  return {
+    mode,
+    dailyCalls: dailyCalls ?? 0,
+    monthlySpend,
+  };
+}
+
+function containsRiskText(text: string) {
+  return /angry|cancel|refund|complaint|dispute|lawsuit|chargeback|bad review|emergency|asap|urgent|manager/i.test(text);
+}
+
+async function findExactLead(supabase: SupabaseClient, customerNumber: string | null) {
+  if (!customerNumber) return null;
+  const digits = customerNumber.replace(/\D/g, "");
+  if (!digits) return null;
+
+  const { data } = await supabase
+    .from("leads")
+    .select("id, job_id, customer_name, customer_phone, status, service_type, scheduled_date, address")
+    .order("created_at", { ascending: false })
+    .limit(250);
+
+  return (data ?? []).find((lead: { customer_phone?: string | null }) => {
+    const leadDigits = String(lead.customer_phone ?? "").replace(/\D/g, "");
+    return leadDigits && leadDigits === digits;
+  }) ?? null;
+}
+
+async function loadContext(supabase: SupabaseClient, job: { conversation_id: string; latest_message_id: string | null }) {
+  const { data: conversation, error: conversationError } = await supabase
+    .from("quo_conversations")
+    .select("*, quo_phone_numbers(*)")
+    .eq("id", job.conversation_id)
+    .maybeSingle();
+  if (conversationError || !conversation) throw new Error("Conversation not found.");
+
+  const { data: messages, error: messagesError } = await supabase
+    .from("quo_messages")
+    .select("id, quo_message_id, sender, direction, text, status, message_time, created_at")
+    .eq("conversation_id", job.conversation_id)
+    .order("message_time", { ascending: false })
+    .limit(14);
+  if (messagesError) throw messagesError;
+
+  const latestMessage =
+    (job.latest_message_id ? messages?.find((message: { id: string }) => message.id === job.latest_message_id) : null) ??
+    messages?.[0];
+  if (!latestMessage) throw new Error("No messages found for conversation.");
+
+  const linkedLeadPromise = conversation.linked_lead_id
+    ? supabase
+        .from("leads")
+        .select("id, job_id, customer_name, customer_phone, status, service_type, scheduled_date, address")
+        .eq("id", conversation.linked_lead_id)
+        .maybeSingle()
+    : findExactLead(supabase, conversation.customer_number);
+
+  const [linkedLead, { data: opsState }, { data: openTasks }, { data: tags }, { data: feedback }] = await Promise.all([
+    linkedLeadPromise,
+    supabase.from("quo_ai_conversation_state").select("*").eq("conversation_id", job.conversation_id).maybeSingle(),
+    supabase
+      .from("quo_ai_tasks")
+      .select("id, task_type, title, status, priority, due_at, reason")
+      .eq("conversation_id", job.conversation_id)
+      .in("status", ["open", "needs_review", "snoozed"])
+      .order("updated_at", { ascending: false })
+      .limit(25),
+    supabase.from("quo_ai_tags").select("tag, confidence, reason").eq("conversation_id", job.conversation_id).eq("status", "active"),
+    supabase
+      .from("quo_ai_feedback")
+      .select("feedback_type, user_note, corrected_json, created_at")
+      .eq("conversation_id", job.conversation_id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
+
+  return {
+    conversation,
+    messages: (messages ?? []).slice().reverse(),
+    latestMessage,
+    linkedLead: linkedLead && typeof linkedLead === "object" && "data" in linkedLead ? linkedLead.data : linkedLead,
+    opsState,
+    openTasks: openTasks ?? [],
+    tags: tags ?? [],
+    feedback: feedback ?? [],
+  };
+}
+
+function buildRuleCase(
+  context: Awaited<ReturnType<typeof loadContext>>,
+  reason: string,
+  waitingOn: QuoAiOpsCaseOutput["waiting_on"],
+  urgency: Priority,
+) {
+  const latestText = typeof context.latestMessage.text === "string" ? context.latestMessage.text : "";
+
+  return {
+    case_summary: reason,
+    service_needed: context.linkedLead?.service_type ?? null,
+    customer_issue: null,
+    lead_stage: context.linkedLead?.status ?? "monitoring",
+    customer_situation: {
+      source: "rule_engine",
+      latest_message: latestText.slice(0, 240),
+      linked_lead_id: context.linkedLead?.id ?? null,
+    },
+    waiting_on: waitingOn,
+    urgency_level: urgency,
+    urgency_score: urgency === "critical" ? 95 : urgency === "high" ? 80 : urgency === "medium" ? 50 : 20,
+    risk_level: urgency === "critical" ? "critical" : urgency === "high" ? "medium" : "low",
+    sentiment: "unknown",
+    current_status: "open",
+    next_action: reason,
+    next_action_due_at: null,
+    assigned_role: urgency === "critical" ? "manager" : "customer_service",
+    scheduled_for: null,
+    schedule_status: "unknown",
+    quote_status: "unknown",
+    payment_status: "unknown",
+    tags: [],
+    tasks: waitingOn === "staff"
+      ? [{
+          task_type: "missed_reply",
+          title: "Reply to customer",
+          instructions: reason,
+          reason,
+          priority: urgency,
+          due_at: null,
+          assigned_role: urgency === "critical" ? "manager" : "customer_service",
+          requires_human_review: urgency === "critical",
+          evidence: [],
+        }]
+      : [],
+    events: [],
+    missing_information: [],
+    evidence: [],
+    confidence: 0.92,
+    requires_human_review: urgency === "critical",
+    human_review_reason: urgency === "critical" ? reason : null,
+  } satisfies QuoAiOpsCaseOutput;
+}
+
+function inferRuleCase(context: Awaited<ReturnType<typeof loadContext>>) {
+  const latestText = typeof context.latestMessage.text === "string" ? context.latestMessage.text : "";
+
+  if (context.latestMessage.sender !== "customer") {
+    return buildRuleCase(context, "Latest message is from staff, so the case is waiting on the customer.", "customer", "low");
+  }
+
+  if (isLowValueMessage(latestText) && context.opsState) {
+    return buildRuleCase(context, "Customer sent a simple acknowledgement; keep the existing case state without spending AI.", "no_one", "low");
+  }
+
+  return null;
+}
+
+function buildCasePrompt(context: Awaited<ReturnType<typeof loadContext>>, jobType: string) {
+  return [
+    {
+      role: "system",
+      content:
+        "You are a conservative internal Quo CRM operations assistant. Return JSON only. Do not write customer-facing replies. Do not promise technician availability, confirm appointments, cancel jobs, mark leads lost, change payment state, delete records, or make irreversible decisions.",
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        task: "Update persistent conversation case memory and create only internal tasks/reminders/tags/events that are safe.",
+        job_type: jobType,
+        business_rules: [
+          "Use evidence from messages, previous AI state, open tasks, linked lead, and feedback.",
+          "If confidence is below 0.85, require human review.",
+          "Complaints, angry customers, cancellation risk, payment issues, uncertain scheduling, conflicting evidence, and customer-loss risk require human review.",
+          "Prefer rule-based no-op if nothing meaningful changed.",
+          "Tasks must be internal staff instructions, never automatic customer messages.",
+        ],
+        required_json_schema: {
+          case_summary: "short persistent case summary",
+          service_needed: "string or null",
+          customer_issue: "string or null",
+          lead_stage: "short stage label",
+          customer_situation: {},
+          waiting_on: "staff | customer | technician | manager | no_one | unknown",
+          urgency_level: "low | medium | high | critical",
+          urgency_score: "0-100 number",
+          risk_level: "low | medium | high | critical",
+          sentiment: "positive | neutral | confused | angry | frustrated | unknown",
+          current_status: "short status",
+          next_action: "single safest internal next action",
+          next_action_due_at: "ISO datetime or null",
+          assigned_role: "admin | manager | customer_service | processor",
+          scheduled_for: "ISO datetime or null",
+          schedule_status: "none | requested | tentative | unconfirmed | confirmed | reschedule_needed | unknown",
+          quote_status: "none | needed | sent | accepted | rejected | follow_up_due | unknown",
+          payment_status: "none | pending | paid | dispute | unknown",
+          tags: [{ tag: "string", confidence: 0.9, reason: "string", evidence: [] }],
+          tasks: [{
+            task_type: "missed_reply|hot_lead_follow_up|quote_follow_up|schedule_confirmation|complaint_follow_up|payment_follow_up|ghosting_follow_up|manager_escalation|other",
+            title: "string",
+            instructions: "internal instructions",
+            reason: "string",
+            priority: "low | medium | high | critical",
+            due_at: "ISO datetime or null",
+            assigned_role: "admin | manager | customer_service | processor",
+            requires_human_review: false,
+            evidence: [],
+          }],
+          events: [{ event_type: "schedule|quote|payment|complaint|risk", event_json: {}, confidence: 0.9, evidence: [] }],
+          missing_information: [],
+          evidence: [],
+          confidence: 0.9,
+          requires_human_review: false,
+          human_review_reason: "string or null",
+        },
+        context: {
+          conversation: context.conversation,
+          recent_messages: context.messages,
+          previous_case_state: context.opsState,
+          open_tasks: context.openTasks,
+          active_tags: context.tags,
+          linked_lead: context.linkedLead,
+          user_feedback: context.feedback,
+          business_timezone: Deno.env.get("BUSINESS_TIMEZONE") ?? "America/New_York",
+        },
+      }),
+    },
+  ];
+}
+
+function buildVerifierPrompt(output: QuoAiOpsCaseOutput, context: Awaited<ReturnType<typeof loadContext>>) {
+  return [
+    {
+      role: "system",
+      content:
+        "You are a strict risk verifier for a CRM AI assistant. Return the same JSON schema only. Make the case safer, not more aggressive.",
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        task: "Verify this case output for customer-loss risk, scheduling uncertainty, complaints, payment disputes, and unsupported claims. If evidence is weak, require human review and lower confidence.",
+        proposed_output: output,
+        recent_messages: context.messages,
+        linked_lead: context.linkedLead,
+        previous_case_state: context.opsState,
+      }),
+    },
+  ];
+}
+
+async function callOpenAi(messages: Array<{ role: string; content: string }>, model: string) {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.1,
+      max_tokens: envNumber("AI_MAX_TOKENS_PER_CALL", 1200),
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error?.message ?? `OpenAI request failed with status ${response.status}`);
+
+  const rawContent = data?.choices?.[0]?.message?.content;
+  if (typeof rawContent !== "string") throw new Error("OpenAI response did not include JSON content.");
+
+  const inputTokens = Number(data?.usage?.prompt_tokens ?? 0);
+  const outputTokens = Number(data?.usage?.completion_tokens ?? 0);
+
+  return {
+    output: JSON.parse(rawContent),
+    usage: {
+      inputTokens,
+      outputTokens,
+      estimatedCost: estimateCost(model, inputTokens, outputTokens),
+    },
+  };
+}
+
+function shouldVerify(output: QuoAiOpsCaseOutput, context: Awaited<ReturnType<typeof loadContext>>) {
+  const text = context.messages.map((message: { text?: string | null }) => message.text ?? "").join(" ");
+  return (
+    output.risk_level === "high" ||
+    output.risk_level === "critical" ||
+    output.urgency_level === "critical" ||
+    output.confidence < reviewThreshold() ||
+    output.requires_human_review ||
+    containsRiskText(text)
+  );
+}
+
+async function logCost(
+  supabase: SupabaseClient,
+  jobId: string,
+  conversationId: string,
+  feature: string,
+  model: string,
+  usage: { inputTokens: number; outputTokens: number; estimatedCost: number },
+) {
+  await supabase.from("quo_ai_cost_logs").insert({
+    conversation_id: conversationId,
+    job_id: jobId,
+    feature,
+    model,
+    input_tokens: usage.inputTokens,
+    output_tokens: usage.outputTokens,
+    estimated_cost: usage.estimatedCost,
+  });
+}
+
+async function saveOpsOutput(
+  supabase: SupabaseClient,
+  job: { id: string; conversation_id: string; latest_message_id: string | null },
+  context: Awaited<ReturnType<typeof loadContext>>,
+  output: QuoAiOpsCaseOutput,
+) {
+  const requiresReview = output.requires_human_review || output.confidence < reviewThreshold();
 
   await supabase.from("quo_ai_conversation_state").upsert(
     {
       conversation_id: job.conversation_id,
-      customer_name: conversation.customer_name,
-      customer_phone: conversation.customer_number,
-      quo_phone_number_id: conversation.number_id,
-      linked_lead_id: conversation.linked_lead_id,
-      ai_summary: String(output.human_readable_summary ?? decision?.reason ?? conversation.rolling_ai_summary ?? ""),
-      service_needed: output?.suggested_lead_fields && typeof output.suggested_lead_fields === "object"
-        ? ((output.suggested_lead_fields as JsonObject).service_type as string | null)
-        : null,
-      customer_issue: section === "urgent_complaint" ? "Urgent or complaint risk detected" : null,
-      lead_stage: section,
-      customer_situation: tags.filter((tag: unknown): tag is string => typeof tag === "string"),
-      waiting_on: inferWaitingOn(section),
-      urgency_level: priority,
-      urgency_score: priority === "critical" ? 95 : priority === "high" ? 80 : priority === "medium" ? 50 : 20,
-      sentiment: section === "urgent_complaint" ? "frustrated" : "unknown",
-      risk_level: mapRisk(String(state?.risk_level ?? decision?.risk_level ?? "moderate")),
-      current_status: conversation.current_status ?? "open",
-      next_action: String(output.next_action ?? output.human_readable_summary ?? decision?.reason ?? "Review the conversation."),
-      next_action_due_at: firstReminder?.due_at ?? null,
-      assigned_role: section === "urgent_complaint" ? "manager" : "customer_service",
-      scheduled_for: output.scheduled_for ?? null,
-      schedule_status: section === "appointment_mentioned" ? "unconfirmed" : "unknown",
-      quote_status: section === "hot_lead" || section === "new_interested_lead" ? "needed" : "unknown",
-      payment_status: "unknown",
-      missing_information: output.missing_information ?? [],
-      evidence,
-      confidence,
-      requires_human_review: requiresHumanReview,
-      human_review_reason: requiresHumanReview ? String(decision?.reason ?? "Low confidence or risky AI decision.") : null,
+      customer_name: context.conversation.customer_name,
+      customer_phone: context.conversation.customer_number,
+      quo_phone_number_id: context.conversation.number_id,
+      linked_lead_id: context.conversation.linked_lead_id ?? context.linkedLead?.id ?? null,
+      ai_summary: output.case_summary,
+      service_needed: output.service_needed,
+      customer_issue: output.customer_issue,
+      lead_stage: output.lead_stage,
+      customer_situation: output.customer_situation,
+      waiting_on: output.waiting_on,
+      urgency_level: output.urgency_level,
+      urgency_score: Math.round(output.urgency_score),
+      sentiment: output.sentiment,
+      risk_level: output.risk_level,
+      current_status: output.current_status,
+      next_action: output.next_action,
+      next_action_due_at: output.next_action_due_at,
+      assigned_role: output.assigned_role,
+      scheduled_for: output.scheduled_for,
+      schedule_status: output.schedule_status,
+      quote_status: output.quote_status,
+      payment_status: output.payment_status,
+      missing_information: output.missing_information,
+      evidence: output.evidence,
+      confidence: output.confidence,
+      requires_human_review: requiresReview,
+      human_review_reason: requiresReview ? output.human_review_reason ?? "Low confidence or risky case." : null,
       last_ai_checked_at: new Date().toISOString(),
-      last_message_id: job.latest_message_id ?? decision?.latest_message_id ?? null,
+      last_message_id: job.latest_message_id ?? context.latestMessage.id,
     },
     { onConflict: "conversation_id" },
   );
 
-  for (const tag of tags) {
-    if (typeof tag !== "string" || !tag.trim()) continue;
+  await supabase
+    .from("quo_conversations")
+    .update({
+      current_priority: output.urgency_level === "critical" ? "urgent" : output.urgency_level,
+      rolling_ai_summary: output.case_summary,
+      last_ai_analyzed_at: new Date().toISOString(),
+      ai_tags: output.tags.map((tag) => tag.tag),
+    })
+    .eq("id", job.conversation_id);
+
+  for (const tag of output.tags.slice(0, 20)) {
     await supabase.from("quo_ai_tags").upsert(
       {
         conversation_id: job.conversation_id,
-        tag: tag.trim(),
-        confidence,
-        reason: decision?.reason,
-        evidence,
+        tag: tag.tag.trim(),
+        confidence: tag.confidence,
+        reason: tag.reason,
+        evidence: tag.evidence,
         created_by_ai: true,
         status: "active",
       },
@@ -159,81 +519,77 @@ async function copyAnalyzerResultToOperationsTables(
     );
   }
 
-  const recommendedActions = safeArray(output.recommended_actions);
-  for (const action of recommendedActions) {
-    if (!action || typeof action !== "object") continue;
-    const actionObject = action as JsonObject;
-    const actionName = String(actionObject.action ?? "review");
-    const title = actionName.replace(/_/g, " ");
-    const existing = await supabase
+  for (const task of output.tasks.slice(0, 10)) {
+    const { data: existing } = await supabase
       .from("quo_ai_tasks")
       .select("id")
       .eq("conversation_id", job.conversation_id)
-      .eq("task_type", actionName)
+      .eq("task_type", task.task_type)
       .in("status", ["open", "needs_review", "snoozed"])
       .limit(1)
       .maybeSingle();
 
-    if (existing.data?.id) continue;
+    if (existing?.id) continue;
 
     await supabase.from("quo_ai_tasks").insert({
       conversation_id: job.conversation_id,
-      linked_lead_id: conversation.linked_lead_id,
-      task_type: actionName,
-      title,
-      instructions: String(actionObject.reason ?? output.human_readable_summary ?? "Review this conversation."),
-      reason: String(actionObject.reason ?? decision?.reason ?? ""),
-      evidence,
-      priority,
-      status: requiresHumanReview || actionName.includes("review") ? "needs_review" : "open",
-      due_at: firstReminder?.due_at ?? null,
-      assigned_role: section === "urgent_complaint" ? "manager" : "customer_service",
+      linked_lead_id: context.conversation.linked_lead_id ?? context.linkedLead?.id ?? null,
+      task_type: task.task_type,
+      title: task.title,
+      instructions: task.instructions,
+      reason: task.reason,
+      evidence: task.evidence,
+      priority: task.priority,
+      status: task.requires_human_review || requiresReview ? "needs_review" : "open",
+      due_at: task.due_at,
+      assigned_role: task.assigned_role,
       created_by_ai: true,
-      requires_human_review: requiresHumanReview,
+      requires_human_review: task.requires_human_review || requiresReview,
     });
   }
 
-  for (const reminder of reminders ?? []) {
-    const existing = await supabase
-      .from("quo_ai_tasks")
-      .select("id")
-      .eq("conversation_id", job.conversation_id)
-      .eq("task_type", reminder.reminder_type)
-      .eq("due_at", reminder.due_at)
-      .in("status", ["open", "needs_review", "snoozed"])
-      .limit(1)
-      .maybeSingle();
-
-    if (existing.data?.id) continue;
-
-    await supabase.from("quo_ai_tasks").insert({
+  for (const event of output.events.slice(0, 20)) {
+    await supabase.from("quo_ai_events").insert({
       conversation_id: job.conversation_id,
-      linked_lead_id: conversation.linked_lead_id,
-      task_type: reminder.reminder_type,
-      title: reminder.reminder_type.replace(/_/g, " "),
-      instructions: reminder.reason ?? "Follow up on this conversation.",
-      reason: reminder.reason,
-      evidence,
-      priority,
-      status: requiresHumanReview ? "needs_review" : "open",
-      due_at: reminder.due_at,
-      assigned_role: section === "urgent_complaint" ? "manager" : "customer_service",
-      created_by_ai: true,
-      requires_human_review: requiresHumanReview,
+      event_type: event.event_type,
+      event_json: event.event_json,
+      confidence: event.confidence,
+      evidence: event.evidence,
     });
   }
+}
 
-  if (decision?.estimated_cost_usd || decision?.prompt_tokens || decision?.completion_tokens) {
-    await supabase.from("quo_ai_cost_logs").insert({
-      conversation_id: job.conversation_id,
-      job_id: job.id,
-      feature: job.id ? "job_processing" : "conversation_analysis",
-      model: decision.model_used ?? "rule-engine",
-      input_tokens: decision.prompt_tokens ?? 0,
-      output_tokens: decision.completion_tokens ?? 0,
-      estimated_cost: decision.estimated_cost_usd ?? 0,
-    });
-  }
+async function createBudgetReviewTask(
+  supabase: SupabaseClient,
+  job: { conversation_id: string },
+  context: Awaited<ReturnType<typeof loadContext>>,
+  reason: string,
+) {
+  const { data: existing } = await supabase
+    .from("quo_ai_tasks")
+    .select("id")
+    .eq("conversation_id", job.conversation_id)
+    .eq("task_type", "manager_escalation")
+    .in("status", ["open", "needs_review", "snoozed"])
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) return;
+
+  await supabase.from("quo_ai_tasks").insert({
+    conversation_id: job.conversation_id,
+    linked_lead_id: context.conversation.linked_lead_id ?? context.linkedLead?.id ?? null,
+    task_type: "manager_escalation",
+    title: "Review Quo conversation",
+    instructions: reason,
+    reason,
+    evidence: [],
+    priority: "high",
+    status: "needs_review",
+    assigned_role: "manager",
+    created_by_ai: false,
+    requires_human_review: true,
+  });
 }
 
 Deno.serve(async (req) => {
@@ -242,8 +598,7 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey =
-      Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const serviceRoleKey = Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceRoleKey) {
       return jsonResponse({ error: "Missing Supabase service configuration." }, 500);
     }
@@ -256,7 +611,7 @@ Deno.serve(async (req) => {
     if (authErrorResponse) return authErrorResponse;
 
     const body = await req.json().catch(() => ({}));
-    const batchSize = Math.min(Number(body.batch_size ?? envNumber("AI_JOB_BATCH_SIZE", 10)), 25);
+    const batchSize = clampBatchSize(body.batch_size);
     const workerId = crypto.randomUUID();
 
     const { data: jobs, error: jobsError } = await supabase
@@ -269,11 +624,17 @@ Deno.serve(async (req) => {
       .limit(batchSize);
 
     if (jobsError) throw jobsError;
+    if (!jobs?.length) {
+      return jsonResponse({ success: true, picked: 0, processed: 0, failed: 0, ai_calls: 0 });
+    }
 
+    const budget = await getBudgetStatus(supabase);
     let processed = 0;
     let failed = 0;
+    let skipped = 0;
+    let aiCalls = 0;
 
-    for (const job of jobs ?? []) {
+    for (const job of jobs) {
       const { data: lockedJob } = await supabase
         .from("quo_ai_jobs")
         .update({
@@ -290,16 +651,59 @@ Deno.serve(async (req) => {
       if (!lockedJob) continue;
 
       try {
-        if (lockedJob.job_type !== "daily_brief") {
-          const { error: invokeError } = await supabase.functions.invoke("ai-analyze-conversation", {
-            body: {
-              conversation_id: lockedJob.conversation_id,
-              latest_message_id: lockedJob.latest_message_id,
-            },
-          });
-          if (invokeError) throw invokeError;
+        const context = await loadContext(supabase, lockedJob);
+        const latestText = typeof context.latestMessage.text === "string" ? context.latestMessage.text : "";
+        const priority = asPriority(lockedJob.priority);
+        const isRisky = priority === "critical" || containsRiskText(latestText) || context.opsState?.risk_level === "high" || context.opsState?.risk_level === "critical";
+        const isNewInbound = context.latestMessage.sender === "customer";
+        const ruleCase = inferRuleCase(context);
 
-          await copyAnalyzerResultToOperationsTables(supabase, lockedJob);
+        if (ruleCase) {
+          await saveOpsOutput(supabase, lockedJob, context, ruleCase);
+        } else if (Deno.env.get("AI_ENABLED") === "false") {
+          await createBudgetReviewTask(supabase, lockedJob, context, "AI is disabled; conversation needs human review.");
+          skipped += 1;
+        } else if (!shouldProcessAiJob({ budgetMode: budget.mode, priority, isNewInbound, isRisky })) {
+          await createBudgetReviewTask(
+            supabase,
+            lockedJob,
+            context,
+            `AI budget mode is ${budget.mode}; skipped non-critical AI and kept rule-based manager review.`,
+          );
+          skipped += 1;
+        } else {
+          const inputSnapshot = {
+            job_type: lockedJob.job_type,
+            latest_message_id: lockedJob.latest_message_id,
+            context,
+          };
+          const inputHash = await hashJson(inputSnapshot);
+          const primaryModel = isLowValueMessage(latestText) ? chooseModel("fast") : chooseModel("main");
+          const primary = await callOpenAi(buildCasePrompt(context, lockedJob.job_type), primaryModel);
+          aiCalls += 1;
+          await logCost(supabase, lockedJob.id, lockedJob.conversation_id, "quo_case_analysis", primaryModel, primary.usage);
+
+          const validated = validateQuoAiOpsCaseOutput(primary.output);
+          if (!validated.ok) throw new Error(`AI output failed validation: ${validated.error}`);
+
+          let output = validated.data;
+          if (shouldVerify(output, context) && budget.mode !== "stopped") {
+            const verifierModel = chooseModel("risk");
+            const verified = await callOpenAi(buildVerifierPrompt(output, context), verifierModel);
+            aiCalls += 1;
+            await logCost(supabase, lockedJob.id, lockedJob.conversation_id, "quo_risk_verification", verifierModel, verified.usage);
+
+            const verifiedOutput = validateQuoAiOpsCaseOutput(verified.output);
+            if (!verifiedOutput.ok) throw new Error(`Risk verifier output failed validation: ${verifiedOutput.error}`);
+            output = verifiedOutput.data;
+          }
+
+          await saveOpsOutput(supabase, lockedJob, context, output);
+
+          await supabase
+            .from("quo_ai_jobs")
+            .update({ input_hash: inputHash })
+            .eq("id", lockedJob.id);
         }
 
         await supabase
@@ -333,9 +737,14 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       success: true,
-      picked: jobs?.length ?? 0,
+      picked: jobs.length,
       processed,
       failed,
+      skipped,
+      ai_calls: aiCalls,
+      budget_mode: budget.mode,
+      monthly_spend: Number(budget.monthlySpend.toFixed(6)),
+      daily_calls: budget.dailyCalls,
     });
   } catch (error) {
     return jsonResponse(

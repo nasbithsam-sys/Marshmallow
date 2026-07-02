@@ -60,6 +60,33 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Quo AI Operations
+
+Quo AI processing is event-driven and budget-gated. Webhooks store Quo messages and enqueue small jobs; scheduled Edge Functions should mostly check database state and exit without AI calls when there is no real work.
+
+Recommended Supabase Cron cadence:
+
+- `ai-process-quo-jobs`: every 1-2 minutes. Processes pending `quo_ai_jobs` in small batches, locks jobs before work, retries failed jobs up to `max_attempts`, and respects AI budget mode.
+- `ai-reminder-checker`: every 3-5 minutes. Checks due `quo_ai_tasks` and marks due work for review. This is database logic and should not normally call AI.
+- `ai-sweep-conversations`: every 15-30 minutes. Uses SQL/rules first and only enqueues selected conversations needing attention.
+- `ai-daily-brief`: every morning. Builds the management summary from existing state/tasks/cost logs.
+- `quo-reconcile-sync`: every 60 minutes. Reconciles missed Quo data incrementally and only enqueues jobs for new/changed conversations.
+
+Model routing is configured with environment variables, not hard-coded in UI:
+
+- `AI_MODEL_FAST_CLASSIFIER`: cheap first-pass triage and simple acknowledgements.
+- `AI_MODEL_MAIN_REASONER`: main persistent case-state reasoning.
+- `AI_MODEL_RISK_VERIFIER`: only for risky or uncertain cases such as complaints, cancellation risk, payment disputes, uncertain scheduling, low confidence, or possible customer-loss decisions.
+- `AI_MODEL_DAILY_BRIEF`: daily brief generation if AI summaries are enabled later.
+- `AI_MODEL_EMBEDDINGS`: only for similarity/history features, not normal message processing.
+
+Budget behavior:
+
+- Below soft cap: normal routing.
+- At soft cap or 80% of hard cap: skip low-priority old work.
+- At 95% of hard cap: process only new/risky/high-value work.
+- At hard cap: stop non-critical AI calls, keep storing messages, and create rule-based manager review tasks.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAiBudgetMode, shouldProcessAiJob } from "@/lib/quo-ai-ops";
+import { getAiBudgetMode, getQuoAiModelPurpose, shouldProcessAiJob, shouldUseRiskVerifier } from "@/lib/quo-ai-ops";
 
 describe("Quo AI budget mode", () => {
   it("uses normal mode below soft and 80 percent caps", () => {
@@ -16,6 +16,36 @@ describe("Quo AI budget mode", () => {
 
   it("stops non-critical AI at the hard cap", () => {
     expect(getAiBudgetMode({ monthlySpend: 200, softCap: 180, hardCap: 200 })).toBe("stopped");
+  });
+});
+
+describe("Quo AI model routing", () => {
+  it("uses the risk verifier for high-risk or low-confidence cases only", () => {
+    expect(
+      shouldUseRiskVerifier({
+        riskLevel: "high",
+        urgencyLevel: "medium",
+        confidence: 0.91,
+        requiresHumanReview: false,
+        hasRiskKeyword: false,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldUseRiskVerifier({
+        riskLevel: "low",
+        urgencyLevel: "medium",
+        confidence: 0.92,
+        requiresHumanReview: false,
+        hasRiskKeyword: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("documents model responsibilities without making the strongest model the default", () => {
+    expect(getQuoAiModelPurpose("AI_MODEL_MAIN_REASONER")).toContain("persistent case-state");
+    expect(getQuoAiModelPurpose("AI_MODEL_RISK_VERIFIER")).toContain("risky");
+    expect(getQuoAiModelPurpose("AI_MODEL_FAST_CLASSIFIER")).toContain("cheap");
   });
 });
 
