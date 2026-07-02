@@ -6,6 +6,21 @@ import {
   verifySignature,
 } from "../_shared/quo-ai.ts";
 
+async function isIngestionPaused(supabase: ReturnType<typeof createClient>) {
+  const { data, error } = await supabase
+    .from("quo_ai_settings")
+    .select("value")
+    .eq("key", "quo_webhook_ingestion_paused")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not read Quo webhook pause setting:", error.message);
+    return false;
+  }
+
+  return data?.value === true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
@@ -58,6 +73,34 @@ Deno.serve(async (req) => {
   let webhookEventId: string | null = null;
 
   try {
+    if (await isIngestionPaused(supabase)) {
+      await supabase
+        .from("quo_webhook_events")
+        .upsert(
+          {
+            quo_event_id: eventId,
+            event_type: eventType,
+            raw_payload: payload,
+            processing_status: "ignored",
+            signature_verified: signatureVerified,
+            processed_at: new Date().toISOString(),
+            error_message: "Quo Monitor ingestion is paused by an admin testing switch.",
+          },
+          {
+            onConflict: eventId ? "quo_event_id" : "quo_message_id,event_type",
+            ignoreDuplicates: true,
+          },
+        );
+
+      return jsonResponse({
+        success: true,
+        ignored: true,
+        paused: true,
+        event_type: eventType,
+        reason: "Quo Monitor ingestion is paused.",
+      });
+    }
+
     if (!isMessageEvent || !shouldProcessMessageEvent) {
       await supabase
         .from("quo_webhook_events")

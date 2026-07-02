@@ -9,10 +9,12 @@ import {
   Link2,
   MessageSquare,
   Phone,
+  Power,
   RefreshCw,
   Search,
   ShieldAlert,
   ClipboardList,
+  Trash2,
   UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   QUO_AI_SECTION_LABELS,
   QUO_AI_SECTIONS,
@@ -156,6 +159,16 @@ type CostLog = {
   feature: string;
 };
 
+type AdminControlStatus = {
+  success: boolean;
+  ingestion_paused: boolean;
+};
+
+type AdminDeleteResult = {
+  success: boolean;
+  deleted: number;
+};
+
 type DbError = { message: string } | null;
 type DbResult<T> = PromiseLike<{ data: T | null; error: DbError }>;
 type DbCountResult<T> = PromiseLike<{ data: T | null; error: DbError; count?: number | null }>;
@@ -222,7 +235,7 @@ function isSameDay(value: string, offsetDays = 0) {
 
 export default function QuoMonitorPage() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [search, setSearch] = useState("");
   const [sectionFilter, setSectionFilter] = useState<(typeof sectionFilters)[number]>("all");
   const [numberFilter, setNumberFilter] = useState("all");
@@ -234,6 +247,7 @@ export default function QuoMonitorPage() {
   const [showAddLead, setShowAddLead] = useState(false);
 
   const db = supabase as unknown as LooseSupabase;
+  const isAdmin = role === "admin";
 
   const conversationsQuery = useQuery({
     queryKey: ["quo-ai-conversations"],
@@ -333,6 +347,18 @@ export default function QuoMonitorPage() {
       if (error) throw error;
       return (data ?? []) as CostLog[];
     },
+  });
+
+  const adminStatusQuery = useQuery({
+    queryKey: ["quo-admin-controls-status"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke<AdminControlStatus>("quo-admin-controls", {
+        body: { action: "get_status" },
+      });
+      if (error) throw error;
+      return data ?? { success: true, ingestion_paused: false };
+    },
+    enabled: isAdmin,
   });
 
   const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
@@ -502,9 +528,67 @@ export default function QuoMonitorPage() {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to run analysis"),
   });
 
+  const ingestionToggleMutation = useMutation({
+    mutationFn: async (paused: boolean) => {
+      const { data, error } = await supabase.functions.invoke<AdminControlStatus>("quo-admin-controls", {
+        body: { action: "set_ingestion_paused", paused },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data?.ingestion_paused ? "Quo ingestion paused" : "Quo ingestion resumed");
+      queryClient.invalidateQueries({ queryKey: ["quo-admin-controls-status"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update ingestion switch"),
+  });
+
+  const deleteConversationMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      const { data, error } = await supabase.functions.invoke<AdminDeleteResult>("quo-admin-controls", {
+        body: { action: "delete_conversation", conversation_id: conversationId },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Quo chat deleted");
+      setSelectedConvId(null);
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-cost-today"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to delete Quo chat"),
+  });
+
+  const deleteAllConversationsMutation = useMutation({
+    mutationFn: async () => {
+      const confirmation = window.prompt('Type "DELETE QUO TEST CHATS" to delete all stored Quo Monitor chats.');
+      if (confirmation !== "DELETE QUO TEST CHATS") throw new Error("Bulk delete cancelled.");
+
+      const { data, error } = await supabase.functions.invoke<AdminDeleteResult>("quo-admin-controls", {
+        body: { action: "delete_all_conversations", confirm: confirmation },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Deleted ${data?.deleted ?? 0} Quo chats`);
+      setSelectedConvId(null);
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-cost-today"] });
+    },
+    onError: (error) => {
+      if (error instanceof Error && error.message === "Bulk delete cancelled.") return;
+      toast.error(error instanceof Error ? error.message : "Failed to delete Quo chats");
+    },
+  });
+
   const selectedState = selectedConversation ? getState(selectedConversation) : null;
   const selectedLead = selectedConversation?.ai_lead_links?.[0]?.leads ?? null;
   const latestDecision = decisionsQuery.data?.[0] ?? null;
+  const ingestionPaused = Boolean(adminStatusQuery.data?.ingestion_paused);
 
   return (
     <div className="space-y-4">
@@ -532,6 +616,44 @@ export default function QuoMonitorPage() {
         <StatCard title="Needs Review" value={stats.needsReview} icon={ShieldAlert} />
         <StatCard title="Possible Dead" value={stats.possibleDead} icon={Filter} />
       </div>
+
+      {isAdmin && (
+        <Card className={ingestionPaused ? "border-amber-300 bg-amber-50/60" : ""}>
+          <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Power className="h-4 w-4" />
+                Admin Testing Controls
+                <Badge variant={ingestionPaused ? "destructive" : "secondary"}>
+                  {ingestionPaused ? "Ingestion Paused" : "Ingestion On"}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Pause stops future Quo webhooks from creating conversations, messages, and AI jobs. Quo still receives a successful response.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
+                <Switch
+                  checked={ingestionPaused}
+                  disabled={adminStatusQuery.isLoading || ingestionToggleMutation.isPending}
+                  onCheckedChange={(checked) => ingestionToggleMutation.mutate(checked)}
+                />
+                <span className="text-sm">{ingestionPaused ? "Paused" : "Receiving"}</span>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deleteAllConversationsMutation.isPending}
+                onClick={() => deleteAllConversationsMutation.mutate()}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete All Test Chats
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr]">
         <Card>
@@ -716,6 +838,21 @@ export default function QuoMonitorPage() {
                         <RefreshCw className="mr-2 h-4 w-4" />
                         Run AI
                       </Button>
+                      {isAdmin && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            if (!selectedConversation) return;
+                            const ok = window.confirm("Delete this stored Quo chat and related AI data from CRM? This does not delete the chat in Quo.");
+                            if (ok) deleteConversationMutation.mutate(selectedConversation.id);
+                          }}
+                          disabled={deleteConversationMutation.isPending}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete Chat
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
