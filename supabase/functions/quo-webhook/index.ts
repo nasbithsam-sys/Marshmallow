@@ -49,10 +49,44 @@ Deno.serve(async (req) => {
         : typeof payload.eventId === "string"
           ? payload.eventId
           : null;
+  const isMessageEvent = eventType.startsWith("message.");
+  const shouldProcessMessageEvent =
+    eventType === "message.received" ||
+    eventType === "message.sent" ||
+    eventType === "message.created";
 
   let webhookEventId: string | null = null;
 
   try {
+    if (!isMessageEvent || !shouldProcessMessageEvent) {
+      await supabase
+        .from("quo_webhook_events")
+        .upsert(
+          {
+            quo_event_id: eventId,
+            event_type: eventType,
+            raw_payload: payload,
+            processing_status: "ignored",
+            signature_verified: signatureVerified,
+            processed_at: new Date().toISOString(),
+            error_message: "Non-message Quo event ignored by CRM webhook.",
+          },
+          {
+            onConflict: eventId ? "quo_event_id" : "quo_message_id,event_type",
+            ignoreDuplicates: true,
+          },
+        );
+
+      return jsonResponse({
+        success: true,
+        ignored: true,
+        event_type: eventType,
+        reason: isMessageEvent
+          ? "Message status events are acknowledged but not processed."
+          : "Only message create/receive/send events are processed by this webhook.",
+      });
+    }
+
     const { message, conversation } = normalizeQuoPayload(payload);
 
     const { data: eventData, error: eventError } = await supabase
