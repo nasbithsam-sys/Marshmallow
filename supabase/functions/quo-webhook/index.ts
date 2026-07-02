@@ -65,10 +65,6 @@ Deno.serve(async (req) => {
           ? payload.eventId
           : null;
   const isMessageEvent = eventType.startsWith("message.");
-  const shouldProcessMessageEvent =
-    eventType === "message.received" ||
-    eventType === "message.sent" ||
-    eventType === "message.created";
 
   let webhookEventId: string | null = null;
 
@@ -101,7 +97,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!isMessageEvent || !shouldProcessMessageEvent) {
+    if (!isMessageEvent) {
       await supabase
         .from("quo_webhook_events")
         .upsert(
@@ -124,13 +120,41 @@ Deno.serve(async (req) => {
         success: true,
         ignored: true,
         event_type: eventType,
-        reason: isMessageEvent
-          ? "Message status events are acknowledged but not processed."
-          : "Only message create/receive/send events are processed by this webhook.",
+        reason: "Only message events are processed by this webhook.",
       });
     }
 
-    const { message, conversation } = normalizeQuoPayload(payload);
+    let normalizedPayload: ReturnType<typeof normalizeQuoPayload>;
+    try {
+      normalizedPayload = normalizeQuoPayload(payload);
+    } catch (error) {
+      await supabase
+        .from("quo_webhook_events")
+        .upsert(
+          {
+            quo_event_id: eventId,
+            event_type: eventType,
+            raw_payload: payload,
+            processing_status: "ignored",
+            signature_verified: signatureVerified,
+            processed_at: new Date().toISOString(),
+            error_message: error instanceof Error ? error.message : "Message event did not include a processable message payload.",
+          },
+          {
+            onConflict: eventId ? "quo_event_id" : "quo_message_id,event_type",
+            ignoreDuplicates: true,
+          },
+        );
+
+      return jsonResponse({
+        success: true,
+        ignored: true,
+        event_type: eventType,
+        reason: "Message event did not include a processable message payload.",
+      });
+    }
+
+    const { message, conversation } = normalizedPayload;
 
     const { data: eventData, error: eventError } = await supabase
       .from("quo_webhook_events")
