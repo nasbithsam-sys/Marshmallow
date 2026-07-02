@@ -15,3 +15,15 @@ describe("cancellation request navigation access", () => {
     expect(canAccessNavItem("no_role", "cancellation_requests")).toBe(false);
   });
 });
+
+describe("quo monitor navigation access", () => {
+  it.each(["admin", "processor", "customer_service"] as const)("is visible to %s by default", (role) => {
+    expect(getDefaultNavAccess(role).has("quo_monitor")).toBe(true);
+    expect(canAccessNavItem(role, "quo_monitor")).toBe(true);
+  });
+
+  it("remains hidden from OPR and users without a role", () => {
+    expect(canAccessNavItem("opr", "quo_monitor")).toBe(false);
+    expect(canAccessNavItem("no_role", "quo_monitor")).toBe(false);
+  });
+});

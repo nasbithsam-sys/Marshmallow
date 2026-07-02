@@ -6,6 +6,46 @@ function envNumber(name: string, fallback: number) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+async function authorizeJob(req: Request, supabase: ReturnType<typeof createClient>) {
+  const cronSecret = Deno.env.get("FUNCTION_CRON_SECRET");
+  const requestSecret = req.headers.get("x-cron-secret");
+
+  if (cronSecret && requestSecret === cronSecret) {
+    return null;
+  }
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return jsonResponse({ error: "Admin token or valid x-cron-secret required" }, 401);
+  }
+
+  const token = authHeader.replace("Bearer ", "");
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser(token);
+
+  if (userError || !user) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+
+  const { data: roleData, error: roleError } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (roleError) {
+    return jsonResponse({ error: "Could not verify role" }, 500);
+  }
+
+  if (roleData?.role !== "admin") {
+    return jsonResponse({ error: "Admin access required" }, 403);
+  }
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
@@ -25,6 +65,9 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+
+    const authErrorResponse = await authorizeJob(req, supabase);
+    if (authErrorResponse) return authErrorResponse;
 
     const staleHours = envNumber("AI_STALE_CONVERSATION_HOURS", 24);
     const cutoff = new Date(Date.now() - staleHours * 60 * 60 * 1000).toISOString();

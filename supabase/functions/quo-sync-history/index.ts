@@ -13,10 +13,18 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabaseServiceKey =
+      Deno.env.get('SB_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Auth Check: require admin/processor role or just a valid user token
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({ error: 'Missing Supabase service configuration' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Auth Check: only admins can trigger the manual historical sync.
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Missing Auth Header' }), { status: 401, headers: corsHeaders })
@@ -25,6 +33,26 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
     if (authError || !user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+    }
+
+    const { data: roleData, error: roleError } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (roleError) {
+      return new Response(JSON.stringify({ error: 'Could not verify role' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (roleData?.role !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     // Parse requested parameters
@@ -36,7 +64,7 @@ serve(async (req) => {
     }
 
     // Mock API Base URL (OpenPhone / Quo typically uses api.openphone.com/v1 or similar)
-    const API_BASE = "https://api.quo.com/v1"; 
+    const API_BASE = Deno.env.get('QUO_API_BASE_URL') ?? "https://api.quo.com/v1";
 
     // Construct query
     const params = new URLSearchParams();
@@ -63,7 +91,7 @@ serve(async (req) => {
     let syncedCount = 0;
 
     // Log the sync attempt
-    const { data: syncLog, error: logError } = await supabase
+    const { data: syncLog } = await supabase
         .from('quo_sync_logs')
         .insert({
             sync_type: 'history',

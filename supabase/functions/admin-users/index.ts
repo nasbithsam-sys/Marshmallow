@@ -20,11 +20,13 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SB_SERVICE_ROLE_KEY");
+    const serviceRoleKey =
+      Deno.env.get("SB_SERVICE_ROLE_KEY") ??
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !serviceRoleKey) {
-      console.error("Missing env: SUPABASE_URL or SB_SERVICE_ROLE_KEY");
-      return jsonResponse({ error: "Server configuration missing. Set SB_SERVICE_ROLE_KEY in Supabase secrets." }, 500);
+      console.error("Missing env: SUPABASE_URL and service role key");
+      return jsonResponse({ error: "Server configuration missing. Set SB_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY in Supabase secrets." }, 500);
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
