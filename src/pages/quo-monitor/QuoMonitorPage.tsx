@@ -1,20 +1,26 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  Bot,
   CalendarClock,
+  Clock3,
   CheckCircle2,
   ExternalLink,
   Filter,
+  Inbox,
   Link2,
   MessageSquare,
+  MoreHorizontal,
   Phone,
   Power,
   RefreshCw,
   Search,
   ShieldAlert,
+  Sparkles,
   ClipboardList,
   Trash2,
+  UserRound,
   UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -589,8 +595,537 @@ export default function QuoMonitorPage() {
   const selectedLead = selectedConversation?.ai_lead_links?.[0]?.leads ?? null;
   const latestDecision = decisionsQuery.data?.[0] ?? null;
   const ingestionPaused = Boolean(adminStatusQuery.data?.ingestion_paused);
+  const selectedMessages = messagesQuery.data ?? [];
+  const selectedNumberLabel =
+    numberFilter === "all"
+      ? "All inboxes"
+      : numberOptions.find(([id]) => id === numberFilter)?.[1] ?? "Selected inbox";
+  const numberSummaries = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number; latest: string | null; urgent: number }>();
 
-  return (
+    conversations.forEach((conversation) => {
+      const number = conversation.quo_phone_numbers;
+      const id = number?.id ?? "unknown";
+      const label = number?.label || number?.name || number?.display_number || number?.number || "Unknown Number";
+      const existing = counts.get(id) ?? { label, count: 0, latest: null, urgent: 0 };
+      const lastActivity = conversation.last_message_at ?? conversation.last_message_time;
+      existing.count += 1;
+      existing.urgent += getPriority(conversation) === "urgent" ? 1 : 0;
+      existing.latest =
+        !existing.latest || (lastActivity && new Date(lastActivity).getTime() > new Date(existing.latest).getTime())
+          ? lastActivity ?? existing.latest
+          : existing.latest;
+      counts.set(id, existing);
+    });
+
+    return Array.from(counts.entries()).sort(([, left], [, right]) => {
+      const leftTime = left.latest ? new Date(left.latest).getTime() : 0;
+      const rightTime = right.latest ? new Date(right.latest).getTime() : 0;
+      return rightTime - leftTime;
+    });
+  }, [conversations]);
+
+  useEffect(() => {
+    if (!filteredConversations.length) {
+      setSelectedConvId(null);
+      return;
+    }
+
+    if (!selectedConvId || !filteredConversations.some((conversation) => conversation.id === selectedConvId)) {
+      const first = filteredConversations[0];
+      setSelectedConvId(first.id);
+      setOverrideSection(getSection(first));
+    }
+  }, [filteredConversations, selectedConvId]);
+
+  const renderInboxUi = true;
+
+  return renderInboxUi ? (
+    <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#111217] text-slate-100 shadow-2xl">
+      <div className="grid h-[calc(100vh-96px)] min-h-[760px] grid-cols-[76px_minmax(290px,360px)_minmax(420px,1fr)_minmax(300px,360px)] max-2xl:grid-cols-[76px_minmax(280px,340px)_1fr] max-lg:h-auto max-lg:min-h-0 max-lg:grid-cols-1">
+        <aside className="flex flex-col border-r border-slate-800 bg-[#0b0c10] max-lg:hidden">
+          <div className="flex h-16 items-center justify-center border-b border-slate-800">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-violet-600 text-sm font-bold">
+              Q
+            </div>
+          </div>
+          <div className="flex-1 space-y-2 overflow-y-auto p-2">
+            <button
+              type="button"
+              onClick={() => setNumberFilter("all")}
+              className={`group flex w-full flex-col items-center gap-1 rounded-xl p-2 text-[11px] transition ${
+                numberFilter === "all" ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-900 hover:text-white"
+              }`}
+              title="All inboxes"
+            >
+              <Inbox className="h-5 w-5" />
+              <span>All</span>
+            </button>
+            {numberSummaries.map(([id, item]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setNumberFilter(id)}
+                className={`relative flex w-full flex-col items-center gap-1 rounded-xl p-2 text-[10px] transition ${
+                  numberFilter === id ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-900 hover:text-white"
+                }`}
+                title={item.label}
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-[11px] font-semibold">
+                  {item.label.slice(0, 2).toUpperCase()}
+                </span>
+                <span className="w-full truncate">{item.count}</span>
+                {item.urgent > 0 && (
+                  <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-[#0b0c10]" />
+                )}
+              </button>
+            ))}
+          </div>
+          {isAdmin && (
+            <div className="space-y-2 border-t border-slate-800 p-2">
+              <button
+                type="button"
+                onClick={() => ingestionToggleMutation.mutate(!ingestionPaused)}
+                disabled={adminStatusQuery.isLoading || ingestionToggleMutation.isPending}
+                className={`flex w-full flex-col items-center gap-1 rounded-xl p-2 text-[10px] transition ${
+                  ingestionPaused ? "bg-amber-500/15 text-amber-300" : "bg-emerald-500/10 text-emerald-300"
+                }`}
+                title={ingestionPaused ? "Resume Quo ingestion" : "Pause Quo ingestion"}
+              >
+                <Power className="h-4 w-4" />
+                {ingestionPaused ? "Paused" : "Live"}
+              </button>
+            </div>
+          )}
+        </aside>
+
+        <section className="flex min-w-0 flex-col border-r border-slate-800 bg-[#15161c]">
+          <div className="border-b border-slate-800 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-base font-semibold">Chats</div>
+                <div className="text-xs text-slate-400">{selectedNumberLabel}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-slate-300 hover:bg-slate-800 hover:text-white"
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] })}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-300 hover:bg-slate-800 hover:text-white">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search chats"
+                className="border-slate-800 bg-[#0f1015] pl-9 text-slate-100 placeholder:text-slate-500"
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSectionFilter("all");
+                  setDateFilter("all");
+                  setConfidenceFilter("all");
+                  setLinkedFilter("all");
+                }}
+                className="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-medium text-blue-200"
+              >
+                Open
+              </button>
+              <button
+                type="button"
+                onClick={() => setSectionFilter("needs_reply")}
+                className="rounded-full bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700"
+              >
+                Needs reply
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfidenceFilter("review")}
+                className="rounded-full bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700"
+              >
+                AI review
+              </button>
+              <button
+                type="button"
+                onClick={() => setLinkedFilter("unlinked")}
+                className="rounded-full bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700"
+              >
+                Unlinked
+              </button>
+            </div>
+          </div>
+
+          <ScrollArea className="flex-1">
+            <div className="space-y-1 p-2">
+              {conversationsQuery.isLoading ? (
+                Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-20 rounded-xl bg-slate-800" />)
+              ) : filteredConversations.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-400">No chats in this inbox.</div>
+              ) : (
+                filteredConversations.map((conversation) => {
+                  const section = getSection(conversation);
+                  const priority = getPriority(conversation);
+                  const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
+                  const name = conversation.customer_name || conversation.customer_number || "Unknown Customer";
+                  return (
+                    <button
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedConvId(conversation.id);
+                        setOverrideSection(section);
+                      }}
+                      className={`w-full rounded-xl p-3 text-left transition ${
+                        selectedConvId === conversation.id ? "bg-[#24252d]" : "hover:bg-[#1d1e25]"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-sm font-semibold">
+                          {name.slice(0, 1).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="truncate text-sm font-semibold text-slate-100">{name}</div>
+                            <div className="shrink-0 text-[11px] text-slate-500">
+                              {formatShortDate(conversation.last_message_at ?? conversation.last_message_time)}
+                            </div>
+                          </div>
+                          <div className="mt-1 truncate text-xs text-slate-400">
+                            {conversation.last_message_preview || conversation.rolling_ai_summary || "No message preview"}
+                          </div>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] ${priorityClasses[priority]}`}>
+                              {priority}
+                            </span>
+                            <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                              {QUO_AI_SECTION_LABELS[section]}
+                            </span>
+                            {linked && <Link2 className="ml-auto h-3.5 w-3.5 text-emerald-300" />}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </section>
+
+        <main className="flex min-w-0 flex-col bg-[#111217]">
+          {!selectedConversation ? (
+            <div className="flex h-full items-center justify-center p-10 text-center text-slate-400">
+              <div>
+                <MessageSquare className="mx-auto mb-4 h-12 w-12 opacity-40" />
+                <div className="text-lg font-semibold text-slate-200">Select a chat</div>
+                <p className="mt-2 text-sm">Choose an inbox on the left, then pick a conversation.</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-500 text-sm font-bold">
+                    {(selectedConversation.customer_name || selectedConversation.customer_number || "U").slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-white">
+                      {selectedConversation.customer_name || selectedConversation.customer_number || "Unknown Customer"}
+                    </div>
+                    <div className="truncate text-xs text-slate-400">
+                      {selectedConversation.customer_number || "No phone"} ·{" "}
+                      {selectedConversation.quo_phone_numbers?.label ||
+                        selectedConversation.quo_phone_numbers?.name ||
+                        selectedConversation.quo_phone_numbers?.display_number ||
+                        "Unknown Quo number"}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-slate-300 hover:bg-slate-800 hover:text-white"
+                    onClick={() => analyzeMutation.mutate()}
+                    disabled={analyzeMutation.isPending}
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Run AI
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-slate-300 hover:bg-slate-800 hover:text-white"
+                    onClick={() => window.open(`https://app.openphone.com/conversations/${selectedConversation.quo_conversation_id}`, "_blank")}
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Quo
+                  </Button>
+                </div>
+              </div>
+
+              <ScrollArea className="flex-1">
+                <div className="mx-auto max-w-4xl space-y-4 p-5">
+                  <div className="rounded-xl border border-violet-500/20 bg-[#171822] p-4 shadow-lg">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-violet-200">
+                        <Bot className="h-4 w-4" />
+                        AI Case Summary
+                      </div>
+                      <Badge variant={selectedState?.human_review_status === "pending" ? "destructive" : "secondary"}>
+                        {Math.round(Number(selectedState?.confidence ?? 0) * 100)}% confidence
+                      </Badge>
+                    </div>
+                    <p className="text-sm leading-6 text-slate-300">
+                      {latestDecision?.reason || selectedConversation.rolling_ai_summary || "No AI summary saved yet. Run AI after messages arrive."}
+                    </p>
+                    {selectedTasks.length > 0 && (
+                      <div className="mt-4 border-t border-slate-800 pt-3">
+                        <div className="mb-2 text-xs font-semibold text-slate-400">Next steps</div>
+                        <ul className="space-y-2 text-sm text-slate-300">
+                          {selectedTasks.slice(0, 3).map((task) => (
+                            <li key={task.id} className="flex gap-2">
+                              <span className="mt-2 h-1.5 w-1.5 rounded-full bg-violet-400" />
+                              <span>{task.instructions || task.title}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {messagesQuery.isLoading ? (
+                    Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-16 rounded-xl bg-slate-800" />)
+                  ) : selectedMessages.length ? (
+                    selectedMessages.map((message) => {
+                      const isCustomer = message.sender === "customer";
+                      return (
+                        <div key={message.id} className={`flex items-end gap-2 ${isCustomer ? "justify-start" : "justify-end"}`}>
+                          {isCustomer && (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-pink-500 text-xs font-bold">
+                              {(selectedConversation.customer_name || "C").slice(0, 1).toUpperCase()}
+                            </div>
+                          )}
+                          <div
+                            className={`max-w-[72%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+                              isCustomer ? "bg-[#24252d] text-slate-100" : "bg-blue-600 text-white"
+                            }`}
+                          >
+                            <div>{message.text || "[Media or empty message]"}</div>
+                            <div className={`mt-1 text-[11px] ${isCustomer ? "text-slate-500" : "text-blue-100/80"}`}>
+                              {formatDate(message.message_time)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="py-12 text-center text-sm text-slate-400">No messages stored for this chat.</p>
+                  )}
+                </div>
+              </ScrollArea>
+
+              <div className="border-t border-slate-800 p-4">
+                <div className="rounded-xl border border-blue-500/40 bg-[#15161c] p-3">
+                  <div className="text-sm text-slate-500">Write a message...</div>
+                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                    <span>CRM is read-only. Reply from Quo.</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white"
+                      onClick={() => window.open(`https://app.openphone.com/conversations/${selectedConversation.quo_conversation_id}`, "_blank")}
+                    >
+                      Open in Quo
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </main>
+
+        <aside className="quo-inspector flex min-w-0 flex-col border-l border-slate-800 bg-[#15161c] max-2xl:hidden">
+          {!selectedConversation ? (
+            <div className="p-6 text-sm text-slate-400">Select a conversation to see AI and customer context.</div>
+          ) : (
+            <ScrollArea className="flex-1">
+              <div className="space-y-5 p-5">
+                <div className="text-center">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-violet-500 text-xl font-bold">
+                    {(selectedConversation.customer_name || selectedConversation.customer_number || "U").slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="mt-3 text-lg font-semibold">{selectedConversation.customer_name || "Unknown Customer"}</div>
+                  <div className="text-sm text-slate-400">{selectedConversation.customer_number || "No phone"}</div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <Button size="icon" variant="ghost" className="bg-slate-800 text-slate-200 hover:bg-slate-700">
+                    <Phone className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="bg-slate-800 text-slate-200 hover:bg-slate-700">
+                    <MessageSquare className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="bg-slate-800 text-slate-200 hover:bg-slate-700">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                    <Sparkles className="h-4 w-4 text-violet-300" />
+                    AI Status
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <InfoLine label="Section" value={QUO_AI_SECTION_LABELS[getSection(selectedConversation)]} />
+                    <InfoLine label="Priority" value={getPriority(selectedConversation)} />
+                    <InfoLine label="Risk" value={selectedState?.risk_level ?? "unknown"} />
+                    <InfoLine label="Last analyzed" value={formatDate(selectedConversation.last_ai_analyzed_at)} />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                    <ClipboardList className="h-4 w-4 text-slate-300" />
+                    Tasks
+                  </div>
+                  {selectedTasks.length ? (
+                    <div className="space-y-3">
+                      {selectedTasks.slice(0, 5).map((task) => (
+                        <div key={task.id} className="rounded-lg bg-slate-900/70 p-3">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={task.status === "needs_review" ? "destructive" : "secondary"}>
+                              {task.status.replace("_", " ")}
+                            </Badge>
+                            <span className="text-sm font-medium">{task.title}</span>
+                          </div>
+                          <div className="mt-2 text-xs text-slate-400">
+                            {task.due_at ? `Due ${formatDate(task.due_at)}` : "No due date"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-400">No open AI tasks.</div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-slate-800 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                    <UserRound className="h-4 w-4 text-slate-300" />
+                    Contact
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <InfoLine label="Phone" value={selectedConversation.customer_number || "Not set"} />
+                    <InfoLine label="Inbox" value={selectedNumberLabel} />
+                    <InfoLine label="Lead" value={selectedLead?.job_id || selectedConversation.linked_lead_id || "Not linked"} />
+                  </div>
+                  {!selectedConversation.linked_lead_id && (
+                    <Button size="sm" className="mt-4 w-full" onClick={() => setShowAddLead(true)}>
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Create Lead
+                    </Button>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-slate-800 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                    <Clock3 className="h-4 w-4 text-slate-300" />
+                    Manual Controls
+                  </div>
+                  <div className="space-y-2">
+                    <Select value={overrideSection} onValueChange={(value) => setOverrideSection(value as QuoAiSection)}>
+                      <SelectTrigger className="border-slate-700 bg-slate-900 text-slate-100"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {QUO_AI_SECTIONS.map((section) => (
+                          <SelectItem key={section} value={section}>{QUO_AI_SECTION_LABELS[section]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button className="w-full" onClick={() => overrideMutation.mutate({ section: overrideSection })} disabled={overrideMutation.isPending}>
+                      Move Section
+                    </Button>
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => overrideMutation.mutate({ section: getSection(selectedConversation), reviewed: true })}
+                      disabled={overrideMutation.isPending}
+                    >
+                      Mark Reviewed
+                    </Button>
+                    {isAdmin && (
+                      <Button
+                        className="w-full"
+                        variant="destructive"
+                        onClick={() => {
+                          const ok = window.confirm("Delete this stored Quo chat and related AI data from CRM? This does not delete the chat in Quo.");
+                          if (ok) deleteConversationMutation.mutate(selectedConversation.id);
+                        }}
+                        disabled={deleteConversationMutation.isPending}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Chat
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {isAdmin && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                    <div className="mb-3 text-sm font-semibold text-amber-200">Admin testing</div>
+                    <div className="mb-3 flex items-center justify-between rounded-lg bg-slate-950/40 p-3">
+                      <span className="text-sm text-slate-200">Ingestion paused</span>
+                      <Switch
+                        checked={ingestionPaused}
+                        disabled={adminStatusQuery.isLoading || ingestionToggleMutation.isPending}
+                        onCheckedChange={(checked) => ingestionToggleMutation.mutate(checked)}
+                      />
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                      disabled={deleteAllConversationsMutation.isPending}
+                      onClick={() => deleteAllConversationsMutation.mutate()}
+                    >
+                      Delete All Test Chats
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          )}
+        </aside>
+      </div>
+
+      {selectedConversation && (
+        <AddLeadDialog
+          open={showAddLead}
+          onOpenChange={setShowAddLead}
+          onSuccess={() => {
+            setShowAddLead(false);
+            queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+          }}
+          initialData={{
+            customer_name: selectedConversation.customer_name || "",
+            customer_phone: selectedConversation.customer_number || "",
+            direction: "incoming",
+          }}
+        />
+      )}
+    </div>
+  ) : (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -1135,5 +1670,14 @@ function StatCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-slate-500">{label}</span>
+      <span className="min-w-0 truncate text-right text-slate-200">{value}</span>
+    </div>
   );
 }
