@@ -117,18 +117,22 @@ serve(async (req) => {
         console.error('Flag error:', flagError);
     }
 
-    // 4. Trigger Analysis Function asynchronously
-    // Deno edge functions can call other functions without awaiting their completion
-    // or just invoke it and don't await
-    try {
-       supabase.functions.invoke('quo-analyze-conversations', {
-           body: { conversation_id: internalConversationId }
+    if (sender === 'customer') {
+       const debounceSeconds = Number(Deno.env.get('AI_MESSAGE_DEBOUNCE_SECONDS') ?? '60');
+       const { error: enqueueError } = await supabase.rpc('enqueue_quo_ai_job', {
+           _conversation_id: internalConversationId,
+           _latest_message_id: null,
+           _job_type: 'message_analysis',
+           _priority: text.toLowerCase().match(/urgent|asap|angry|cancel|refund|complaint|emergency/) ? 'high' : 'medium',
+           _debounce_seconds: Number.isFinite(debounceSeconds) ? debounceSeconds : 60,
        });
-    } catch (e) {
-       console.error("Failed to invoke analysis", e);
+
+       if (enqueueError) {
+          console.error("Failed to enqueue AI job", enqueueError);
+       }
     }
 
-    return new Response(JSON.stringify({ success: true, messageId: quoMessageId }), {
+    return new Response(JSON.stringify({ success: true, messageId: quoMessageId, aiJobEnqueued: sender === 'customer' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {

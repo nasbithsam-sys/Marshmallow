@@ -43,7 +43,7 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number) 
 
 async function budgetAllowsAi(supabase: SupabaseClient) {
   const dailyLimit = envNumber("AI_DAILY_CALL_LIMIT", 500);
-  const monthlyBudget = envNumber("AI_MONTHLY_BUDGET_USD", 200);
+  const monthlyBudget = envNumber("AI_MONTHLY_HARD_CAP_USD", envNumber("AI_MONTHLY_BUDGET_USD", 200));
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
   const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
@@ -153,9 +153,13 @@ function inferRuleDecision(latestMessage: JsonObject, messages: JsonObject[], co
 }
 
 function chooseModel(decisionHint: string | null) {
-  if (decisionHint === "risky") return Deno.env.get("OPENAI_MODEL_REVIEW") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4.1";
-  if (decisionHint === "cheap") return Deno.env.get("OPENAI_MODEL_CHEAP") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4.1-mini";
-  return Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4.1-mini";
+  if (decisionHint === "risky") {
+    return Deno.env.get("AI_MODEL_RISK_VERIFIER") ?? Deno.env.get("OPENAI_MODEL_REVIEW") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4.1";
+  }
+  if (decisionHint === "cheap") {
+    return Deno.env.get("AI_MODEL_FAST_CLASSIFIER") ?? Deno.env.get("OPENAI_MODEL_CHEAP") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4.1-mini";
+  }
+  return Deno.env.get("AI_MODEL_MAIN_REASONER") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4.1-mini";
 }
 
 function buildPrompt(input: JsonObject) {
@@ -606,7 +610,7 @@ Deno.serve(async (req) => {
         const actionPlan = getSafeActionPlan(
           validated.data,
           envNumber("AI_CONFIDENCE_AUTO_APPLY_THRESHOLD", 0.9),
-          envNumber("AI_CONFIDENCE_REVIEW_THRESHOLD", 0.75),
+          envNumber("AI_CONFIDENCE_REVIEW_THRESHOLD", 0.85),
         );
         await applyDecision(supabase, context, validated.data, cached.id, actionPlan);
         return jsonResponse({ success: true, cached: true, decision_id: cached.id });
@@ -644,7 +648,7 @@ Deno.serve(async (req) => {
     const actionPlan = getSafeActionPlan(
       decision,
       envNumber("AI_CONFIDENCE_AUTO_APPLY_THRESHOLD", 0.9),
-      envNumber("AI_CONFIDENCE_REVIEW_THRESHOLD", 0.75),
+      envNumber("AI_CONFIDENCE_REVIEW_THRESHOLD", 0.85),
     );
     const decisionId = await saveDecision(
       supabase,

@@ -121,12 +121,15 @@ Deno.serve(async (req) => {
           .eq("id", conversation.id);
         markedPossibleDead += 1;
       } else {
-        EdgeRuntime.waitUntil(
-          supabase.functions.invoke("ai-analyze-conversation", {
-            body: { conversation_id: conversation.id },
-          }),
-        );
-        queuedAnalysis += 1;
+        const { error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
+          _conversation_id: conversation.id,
+          _latest_message_id: null,
+          _job_type: "sweep_analysis",
+          _priority: "medium",
+          _debounce_seconds: 0,
+        });
+
+        if (!enqueueError) queuedAnalysis += 1;
       }
     }
 

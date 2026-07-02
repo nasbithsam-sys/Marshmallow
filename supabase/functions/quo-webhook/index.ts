@@ -187,14 +187,20 @@ Deno.serve(async (req) => {
     }
 
     if (message.sender === "customer") {
-      EdgeRuntime.waitUntil(
-        supabase.functions.invoke("ai-analyze-conversation", {
-          body: {
-            conversation_id: conversationRow.id,
-            latest_message_id: messageRow.id,
-          },
-        }),
-      );
+      const debounceSeconds = Number(Deno.env.get("AI_MESSAGE_DEBOUNCE_SECONDS") ?? "60");
+      const { error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
+        _conversation_id: conversationRow.id,
+        _latest_message_id: messageRow.id,
+        _job_type: "message_analysis",
+        _priority: message.text.toLowerCase().match(/urgent|asap|angry|cancel|refund|complaint|emergency/)
+          ? "high"
+          : "medium",
+        _debounce_seconds: Number.isFinite(debounceSeconds) ? debounceSeconds : 60,
+      });
+
+      if (enqueueError) {
+        console.error("Failed to enqueue Quo AI job:", enqueueError.message);
+      }
     }
 
     return jsonResponse({
@@ -202,6 +208,7 @@ Deno.serve(async (req) => {
       conversation_id: conversationRow.id,
       message_id: messageRow.id,
       linked_lead_id: existingLead?.id ?? conversationRow.linked_lead_id ?? null,
+      ai_job_enqueued: message.sender === "customer",
     });
   } catch (error) {
     if (webhookEventId) {

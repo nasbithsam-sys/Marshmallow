@@ -205,15 +205,15 @@ Deno.serve(async (req) => {
       if (!messageError) {
         insertedOrUpdated += 1;
         if (message.sender === "customer") {
-          analyzed += 1;
-          EdgeRuntime.waitUntil(
-            supabase.functions.invoke("ai-analyze-conversation", {
-              body: {
-                conversation_id: conversationRow.id,
-                latest_message_id: messageRow?.id,
-              },
-            }),
-          );
+          const { error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
+            _conversation_id: conversationRow.id,
+            _latest_message_id: messageRow?.id ?? null,
+            _job_type: "historical_backfill",
+            _priority: "low",
+            _debounce_seconds: 0,
+          });
+
+          if (!enqueueError) analyzed += 1;
         }
       }
     }

@@ -51,7 +51,7 @@ export const QUO_AI_CUSTOMER_STATES = [
 ] as const;
 
 export const AUTO_APPLY_CONFIDENCE = 0.9;
-export const REVIEW_CONFIDENCE = 0.75;
+export const REVIEW_CONFIDENCE = 0.85;
 
 export const aiEvidenceSchema = z.object({
   message_id: z.string(),

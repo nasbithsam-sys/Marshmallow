@@ -72,10 +72,10 @@ describe("quo AI safe action plan", () => {
     expect(plan.needsReview).toBe(false);
   });
 
-  it("sends low-confidence decisions to human review", () => {
+  it("sends decisions below 0.85 confidence to human review", () => {
     const plan = getSafeActionPlan({
       ...baseDecision,
-      confidence: 0.6,
+      confidence: 0.84,
     });
 
     expect(plan.applied).toHaveLength(0);

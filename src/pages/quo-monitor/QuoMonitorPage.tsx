@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Search,
   ShieldAlert,
+  ClipboardList,
   UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -127,6 +128,34 @@ type DecisionRow = {
   created_at: string;
 };
 
+type QuoAiTask = {
+  id: string;
+  conversation_id: string;
+  task_type: string;
+  title: string;
+  instructions: string | null;
+  priority: "low" | "medium" | "high" | "critical";
+  status: "open" | "done" | "snoozed" | "cancelled" | "needs_review";
+  due_at: string | null;
+  assigned_role: string;
+  requires_human_review: boolean;
+};
+
+type DailyBrief = {
+  id: string;
+  brief_date: string;
+  summary: string | null;
+  metrics: Record<string, unknown>;
+  urgent_items: unknown[];
+  created_at: string;
+};
+
+type CostLog = {
+  estimated_cost: number | string | null;
+  model: string;
+  feature: string;
+};
+
 type DbError = { message: string } | null;
 type DbResult<T> = PromiseLike<{ data: T | null; error: DbError }>;
 type DbCountResult<T> = PromiseLike<{ data: T | null; error: DbError; count?: number | null }>;
@@ -136,6 +165,8 @@ type LooseQuery<T = unknown> = {
   update: <Next = T>(values: unknown) => LooseQuery<Next>;
   upsert: <Next = T>(values: unknown, options?: unknown) => LooseQuery<Next>;
   eq: (column: string, value: unknown) => LooseQuery<T>;
+  in: (column: string, values: unknown[]) => LooseQuery<T>;
+  gte: (column: string, value: unknown) => LooseQuery<T>;
   order: (column: string, options?: unknown) => LooseQuery<T>;
   limit: (count: number) => LooseQuery<T>;
   single: () => DbResult<T>;
@@ -152,6 +183,7 @@ const priorityClasses: Record<string, string> = {
   medium: "border-amber-200 bg-amber-50 text-amber-800",
   high: "border-orange-200 bg-orange-50 text-orange-800",
   urgent: "border-red-200 bg-red-50 text-red-800",
+  critical: "border-red-300 bg-red-100 text-red-900",
 };
 
 function getState(conversation: ConversationRow) {
@@ -260,6 +292,49 @@ export default function QuoMonitorPage() {
     enabled: Boolean(selectedConvId),
   });
 
+  const tasksQuery = useQuery({
+    queryKey: ["quo-ai-tasks"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("quo_ai_tasks")
+        .select("*")
+        .in("status", ["open", "needs_review", "snoozed"])
+        .order("due_at", { ascending: true, nullsFirst: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as QuoAiTask[];
+    },
+  });
+
+  const briefQuery = useQuery({
+    queryKey: ["quo-ai-daily-brief"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("quo_ai_daily_briefs")
+        .select("*")
+        .order("brief_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as DailyBrief | null;
+    },
+  });
+
+  const costQuery = useQuery({
+    queryKey: ["quo-ai-cost-today"],
+    queryFn: async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const { data, error } = await db
+        .from("quo_ai_cost_logs")
+        .select("estimated_cost, model, feature")
+        .gte("created_at", today.toISOString())
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as CostLog[];
+    },
+  });
+
   const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
   const numberOptions = useMemo(() => {
     const values = new Map<string, string>();
@@ -307,7 +382,8 @@ export default function QuoMonitorPage() {
   }, [conversations, confidenceFilter, dateFilter, linkedFilter, numberFilter, search, sectionFilter]);
 
   const stats = useMemo(() => {
-    return conversations.reduce(
+    const tasks = tasksQuery.data ?? [];
+    const conversationStats = conversations.reduce(
       (acc, conversation) => {
         const section = getSection(conversation);
         const reminders = conversation.ai_reminders ?? [];
@@ -323,7 +399,22 @@ export default function QuoMonitorPage() {
       },
       { needsReply: 0, newLeads: 0, followUpsToday: 0, urgent: 0, needsReview: 0, possibleDead: 0 },
     );
-  }, [conversations]);
+
+    return {
+      ...conversationStats,
+      needsReview:
+        conversationStats.needsReview +
+        tasks.filter((task) => task.status === "needs_review" || task.requires_human_review).length,
+    };
+  }, [conversations, tasksQuery.data]);
+
+  const openTasks = tasksQuery.data ?? [];
+  const selectedTasks = selectedConvId ? openTasks.filter((task) => task.conversation_id === selectedConvId) : [];
+  const overdueTasks = openTasks.filter((task) => task.due_at && new Date(task.due_at).getTime() < Date.now());
+  const todayAiSpend = useMemo(
+    () => (costQuery.data ?? []).reduce((sum, row) => sum + Number(row.estimated_cost ?? 0), 0),
+    [costQuery.data],
+  );
 
   const audit = async (action: string, details: Record<string, unknown>) => {
     if (!user || !selectedConvId) return;
@@ -440,6 +531,35 @@ export default function QuoMonitorPage() {
         <StatCard title="Urgent" value={stats.urgent} icon={AlertTriangle} />
         <StatCard title="Needs Review" value={stats.needsReview} icon={ShieldAlert} />
         <StatCard title="Possible Dead" value={stats.possibleDead} icon={Filter} />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr]">
+        <Card>
+          <CardHeader className="border-b p-4">
+            <CardTitle className="text-base">Today&apos;s Operations Brief</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4">
+            <p className="text-sm text-muted-foreground">
+              {briefQuery.data?.summary || "No daily brief generated yet. Run ai-daily-brief after AI jobs start producing tasks."}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">{openTasks.length} open tasks</Badge>
+              <Badge variant={overdueTasks.length ? "destructive" : "secondary"}>{overdueTasks.length} overdue</Badge>
+              <Badge variant="outline">${todayAiSpend.toFixed(4)} AI today</Badge>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="border-b p-4">
+            <CardTitle className="text-base">AI Task Queues</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-2 p-4 text-sm">
+            <QueueMetric label="Due / Overdue" value={overdueTasks.length} />
+            <QueueMetric label="Needs Review" value={openTasks.filter((task) => task.requires_human_review).length} />
+            <QueueMetric label="Complaints" value={openTasks.filter((task) => task.task_type.includes("complaint")).length} />
+            <QueueMetric label="Hot / Quote" value={openTasks.filter((task) => task.task_type.includes("quote") || task.task_type.includes("hot")).length} />
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -675,6 +795,37 @@ export default function QuoMonitorPage() {
 
                   <div className="space-y-3">
                     <div className="rounded-lg border p-3">
+                      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <ClipboardList className="h-3.5 w-3.5" />
+                        AI Tasks / Follow-Ups
+                      </div>
+                      {selectedTasks.length ? (
+                        <div className="space-y-2">
+                          {selectedTasks.slice(0, 6).map((task) => (
+                            <div key={task.id} className="rounded-md bg-muted/50 p-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant={task.status === "needs_review" ? "destructive" : "secondary"}>
+                                  {task.status.replace("_", " ")}
+                                </Badge>
+                                <Badge variant="outline" className={priorityClasses[task.priority]}>
+                                  {task.priority}
+                                </Badge>
+                                <span className="text-sm font-medium">{task.title}</span>
+                              </div>
+                              {task.instructions && <p className="mt-2 text-xs text-muted-foreground">{task.instructions}</p>}
+                              <div className="mt-1 text-[11px] text-muted-foreground">
+                                {task.assigned_role}
+                                {task.due_at ? ` - due ${formatDate(task.due_at)}` : ""}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No open AI tasks for this conversation.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border p-3">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lead Link</div>
                       {selectedLead || selectedConversation.linked_lead_id ? (
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -813,6 +964,15 @@ export default function QuoMonitorPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function QueueMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 text-xl font-semibold">{value}</div>
     </div>
   );
 }
