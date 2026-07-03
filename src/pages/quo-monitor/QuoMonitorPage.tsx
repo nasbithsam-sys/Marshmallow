@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -69,6 +70,7 @@ type ConversationRow = {
   last_ai_analyzed_at: string | null;
   quo_phone_numbers?: {
     id: string;
+    quo_phone_number_id: string | null;
     name: string | null;
     label: string | null;
     number: string | null;
@@ -285,6 +287,33 @@ function getLastMessageSide(conversation: ConversationRow) {
   return customerTime >= agentTime ? "Customer" : "Us";
 }
 
+function getQuoNumberLabel(conversation: ConversationRow) {
+  const number = conversation.quo_phone_numbers;
+  return number?.label || number?.name || number?.display_number || number?.number || "Unknown Quo Number";
+}
+
+function getQuoNumberDisplay(conversation: ConversationRow) {
+  const number = conversation.quo_phone_numbers;
+  return number?.display_number || number?.number || number?.quo_phone_number_id || "No number";
+}
+
+function getQuoChatUrl(conversation: ConversationRow) {
+  const phoneNumberId = conversation.quo_phone_numbers?.quo_phone_number_id;
+  if (phoneNumberId) {
+    return `https://my.quo.com/inbox/${encodeURIComponent(phoneNumberId)}/c/${encodeURIComponent(conversation.quo_conversation_id)}`;
+  }
+
+  return `https://my.quo.com/inbox`;
+}
+
+function getConversationTags(conversation: ConversationRow) {
+  const tags = [getScenarioTag(conversation), ...(conversation.ai_tags ?? [])]
+    .map((tag) => toTitleCase(tag))
+    .filter((tag, index, all) => tag && all.indexOf(tag) === index);
+  const phoneTag = conversation.customer_number ? `@${conversation.customer_number.replace(/\s+/g, "")}` : null;
+  return phoneTag ? [...tags, phoneTag] : tags;
+}
+
 function matchesDatePreset(value: string | null | undefined, preset: string, rangeStart: string, rangeEnd: string) {
   if (preset === "all") return true;
   if (!value) return false;
@@ -478,6 +507,7 @@ export default function QuoMonitorPage() {
         const haystack = [
           conversation.customer_name,
           conversation.customer_number,
+          conversation.customer_number ? `@${conversation.customer_number.replace(/\s+/g, "")}` : null,
           conversation.last_message_preview,
           conversation.rolling_ai_summary,
           scenarioTag,
@@ -787,8 +817,10 @@ export default function QuoMonitorPage() {
           <div className="border-b border-slate-800 p-4">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <div className="text-base font-semibold">{viewMode === "table" ? "AI Table" : "Chats"}</div>
-                <div className="text-xs text-slate-400">{selectedNumberLabel}</div>
+                <div className="text-base font-semibold">{viewMode === "table" ? "Quo Numbers" : "Chats"}</div>
+                <div className="text-xs text-slate-400">
+                  {viewMode === "table" ? "Pick a number to filter the table" : selectedNumberLabel}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex rounded-lg border border-slate-800 bg-[#0f1015] p-1">
@@ -933,59 +965,107 @@ export default function QuoMonitorPage() {
           </div>
 
           <ScrollArea className="flex-1">
-            <div className="space-y-1 p-2">
-              {conversationsQuery.isLoading ? (
-                Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-20 rounded-xl bg-slate-800" />)
-              ) : filteredConversations.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-400">No chats in this inbox.</div>
-              ) : (
-                filteredConversations.map((conversation) => {
-                  const section = getSection(conversation);
-                  const priority = getPriority(conversation);
-                  const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
-                  const name = conversation.customer_name || conversation.customer_number || "Unknown Customer";
+            {viewMode === "table" ? (
+              <div className="space-y-2 p-2">
+                <button
+                  type="button"
+                  onClick={() => setNumberFilter("all")}
+                  className={`w-full rounded-xl p-3 text-left transition ${
+                    numberFilter === "all" ? "bg-[#24252d]" : "hover:bg-[#1d1e25]"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold">
+                      ALL
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-100">All Quo Numbers</div>
+                      <div className="text-xs text-slate-400">{conversations.length} customer chats</div>
+                    </div>
+                  </div>
+                </button>
+                {numberSummaries.map(([id, item]) => {
+                  const matchingConversation = conversations.find((conversation) => conversation.quo_phone_numbers?.id === id);
                   return (
                     <button
-                      key={conversation.id}
+                      key={id}
                       type="button"
-                      onClick={() => {
-                        setSelectedConvId(conversation.id);
-                        setOverrideSection(section);
-                      }}
+                      onClick={() => setNumberFilter(id)}
                       className={`w-full rounded-xl p-3 text-left transition ${
-                        selectedConvId === conversation.id ? "bg-[#24252d]" : "hover:bg-[#1d1e25]"
+                        numberFilter === id ? "bg-[#24252d]" : "hover:bg-[#1d1e25]"
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-sm font-semibold">
-                          {name.slice(0, 1).toUpperCase()}
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold">
+                          {item.label.slice(0, 2).toUpperCase()}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="truncate text-sm font-semibold text-slate-100">{name}</div>
-                            <div className="shrink-0 text-[11px] text-slate-500">
-                              {formatShortDate(conversation.last_message_at ?? conversation.last_message_time)}
-                            </div>
-                          </div>
-                          <div className="mt-1 truncate text-xs text-slate-400">
-                            {conversation.last_message_preview || conversation.rolling_ai_summary || "No message preview"}
-                          </div>
-                          <div className="mt-2 flex items-center gap-1.5">
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] ${priorityClasses[priority]}`}>
-                              {priority}
-                            </span>
-                            <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
-                              {QUO_AI_SECTION_LABELS[section]}
-                            </span>
-                            {linked && <Link2 className="ml-auto h-3.5 w-3.5 text-emerald-300" />}
+                          <div className="truncate text-sm font-semibold text-slate-100">{item.label}</div>
+                          <div className="truncate text-xs text-slate-400">
+                            {matchingConversation ? getQuoNumberDisplay(matchingConversation) : "No number"}
                           </div>
                         </div>
+                        <div className="rounded-full bg-slate-900 px-2 py-1 text-[11px] text-slate-300">{item.count}</div>
                       </div>
                     </button>
                   );
-                })
-              )}
-            </div>
+                })}
+              </div>
+            ) : (
+              <div className="space-y-1 p-2">
+                {conversationsQuery.isLoading ? (
+                  Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-20 rounded-xl bg-slate-800" />)
+                ) : filteredConversations.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-slate-400">No chats in this inbox.</div>
+                ) : (
+                  filteredConversations.map((conversation) => {
+                    const section = getSection(conversation);
+                    const priority = getPriority(conversation);
+                    const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
+                    const name = conversation.customer_name || conversation.customer_number || "Unknown Customer";
+                    return (
+                      <button
+                        key={conversation.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedConvId(conversation.id);
+                          setOverrideSection(section);
+                        }}
+                        className={`w-full rounded-xl p-3 text-left transition ${
+                          selectedConvId === conversation.id ? "bg-[#24252d]" : "hover:bg-[#1d1e25]"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-sm font-semibold">
+                            {name.slice(0, 1).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="truncate text-sm font-semibold text-slate-100">{name}</div>
+                              <div className="shrink-0 text-[11px] text-slate-500">
+                                {formatShortDate(conversation.last_message_at ?? conversation.last_message_time)}
+                              </div>
+                            </div>
+                            <div className="mt-1 truncate text-xs text-slate-400">
+                              {conversation.last_message_preview || conversation.rolling_ai_summary || "No message preview"}
+                            </div>
+                            <div className="mt-2 flex items-center gap-1.5">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] ${priorityClasses[priority]}`}>
+                                {priority}
+                              </span>
+                              <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                                {QUO_AI_SECTION_LABELS[section]}
+                              </span>
+                              {linked && <Link2 className="ml-auto h-3.5 w-3.5 text-emerald-300" />}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </ScrollArea>
         </section>
 
@@ -1020,15 +1100,17 @@ export default function QuoMonitorPage() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full min-w-[980px] text-left text-sm">
+                <table className="w-full min-w-[1240px] text-left text-sm">
                   <thead className="sticky top-0 z-10 border-b border-slate-800 bg-[#15161c] text-xs uppercase tracking-wide text-slate-500">
                     <tr>
-                      <th className="px-4 py-3 font-semibold">Customer</th>
-                      <th className="px-4 py-3 font-semibold">AI Situation Tag</th>
+                      <th className="px-4 py-3 font-semibold">Customer Number</th>
+                      <th className="px-4 py-3 font-semibold">AI Tags</th>
                       <th className="px-4 py-3 font-semibold">Last Message</th>
-                      <th className="px-4 py-3 font-semibold">Side</th>
-                      <th className="px-4 py-3 font-semibold">Date</th>
-                      <th className="px-4 py-3 font-semibold">Verify</th>
+                      <th className="px-4 py-3 font-semibold">All Messages</th>
+                      <th className="px-4 py-3 font-semibold">Last Side</th>
+                      <th className="px-4 py-3 font-semibold">Date / Time</th>
+                      <th className="px-4 py-3 font-semibold">Confidence</th>
+                      <th className="px-4 py-3 font-semibold">Lead</th>
                       <th className="px-4 py-3 text-right font-semibold">Quo</th>
                     </tr>
                   </thead>
@@ -1036,14 +1118,14 @@ export default function QuoMonitorPage() {
                     {conversationsQuery.isLoading ? (
                       Array.from({ length: 8 }).map((_, index) => (
                         <tr key={index}>
-                          <td colSpan={7} className="px-4 py-3">
+                          <td colSpan={9} className="px-4 py-3">
                             <Skeleton className="h-12 rounded-lg bg-slate-800" />
                           </td>
                         </tr>
                       ))
                     ) : filteredConversations.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-16 text-center text-slate-400">
+                        <td colSpan={9} className="px-4 py-16 text-center text-slate-400">
                           No chats match this number, date, search, and tag filter.
                         </td>
                       </tr>
@@ -1053,7 +1135,12 @@ export default function QuoMonitorPage() {
                         const priority = getPriority(conversation);
                         const confidence = getState(conversation)?.confidence ?? 0;
                         const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
-                        const name = conversation.customer_name || "Unknown Customer";
+                        const rowTags = getConversationTags(conversation);
+                        const lastMessage = conversation.last_message_preview || conversation.rolling_ai_summary || "No message preview";
+                        const rowMessages =
+                          selectedConvId === conversation.id
+                            ? selectedMessages
+                            : [];
                         return (
                           <tr
                             key={conversation.id}
@@ -1068,27 +1155,96 @@ export default function QuoMonitorPage() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-sm font-semibold">
-                                  {(conversation.customer_name || conversation.customer_number || "U").slice(0, 1).toUpperCase()}
+                                  {(conversation.customer_number || "#").slice(-2)}
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="truncate font-semibold text-slate-100">{name}</div>
-                                  <div className="truncate text-xs text-slate-400">{conversation.customer_number || "No phone"}</div>
+                                  <div className="truncate font-semibold text-slate-100">{conversation.customer_number || "No customer number"}</div>
+                                  <div className="truncate text-xs text-slate-400">{getQuoNumberLabel(conversation)}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityClasses[priority]}`}>
-                                  {scenarioTag}
-                                </span>
-                                {linked && <Badge variant="outline" className="border-emerald-700 bg-emerald-500/10 text-emerald-200">Linked</Badge>}
+                            <td className="max-w-[260px] px-4 py-3">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {rowTags.slice(0, 3).map((tag, index) => (
+                                  <span
+                                    key={`${conversation.id}-${tag}`}
+                                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                      index === 0 && tag === scenarioTag ? priorityClasses[priority] : "bg-slate-800 text-slate-200"
+                                    }`}
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                                {rowTags.length > 3 && (
+                                  <span className="rounded-full bg-slate-900 px-2 py-1 text-xs text-slate-400">
+                                    +{rowTags.length - 3}
+                                  </span>
+                                )}
                               </div>
-                              <div className="mt-1 text-xs text-slate-500">{QUO_AI_SECTION_LABELS[getSection(conversation)]}</div>
                             </td>
-                            <td className="max-w-[360px] px-4 py-3">
-                              <div className="line-clamp-2 text-slate-200">
-                                {conversation.last_message_preview || conversation.rolling_ai_summary || "No message preview"}
-                              </div>
+                            <td className="max-w-[320px] px-4 py-3">
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="line-clamp-2 text-left text-slate-200 underline-offset-4 hover:text-white hover:underline"
+                                    onClick={(event) => event.stopPropagation()}
+                                  >
+                                    {lastMessage}
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[420px] border-slate-700 bg-[#15161c] text-slate-100">
+                                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Complete last message</div>
+                                  <div className="max-h-64 overflow-auto whitespace-pre-wrap text-sm leading-6 text-slate-100">{lastMessage}</div>
+                                </PopoverContent>
+                              </Popover>
+                            </td>
+                            <td className="px-4 py-3">
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedConvId(conversation.id);
+                                      setOverrideSection(getSection(conversation));
+                                    }}
+                                  >
+                                    <MessageSquare className="mr-2 h-4 w-4" />
+                                    Open
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[520px] border-slate-700 bg-[#15161c] p-0 text-slate-100">
+                                  <div className="border-b border-slate-800 px-4 py-3">
+                                    <div className="text-sm font-semibold">{conversation.customer_number || "No customer number"}</div>
+                                    <div className="text-xs text-slate-400">Stored messages received and sent in this conversation</div>
+                                  </div>
+                                  <div className="max-h-[420px] space-y-3 overflow-auto p-4">
+                                    {selectedConvId !== conversation.id || messagesQuery.isLoading ? (
+                                      <Skeleton className="h-20 rounded-lg bg-slate-800" />
+                                    ) : rowMessages.length === 0 ? (
+                                      <div className="text-sm text-slate-400">No stored messages yet.</div>
+                                    ) : (
+                                      rowMessages.map((message) => (
+                                        <div
+                                          key={message.id}
+                                          className={`rounded-xl px-3 py-2 ${
+                                            message.sender === "customer" ? "bg-slate-800 text-slate-100" : "bg-blue-600/20 text-blue-50"
+                                          }`}
+                                        >
+                                          <div className="mb-1 flex items-center justify-between gap-3 text-[11px] uppercase tracking-wide text-slate-400">
+                                            <span>{message.sender === "customer" ? "Customer" : "Us"}</span>
+                                            <span>{formatDate(message.message_time)}</span>
+                                          </div>
+                                          <div className="whitespace-pre-wrap text-sm leading-6">{message.text || "No text"}</div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
                             </td>
                             <td className="px-4 py-3">
                               <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-200">
@@ -1106,6 +1262,17 @@ export default function QuoMonitorPage() {
                                 </div>
                               </div>
                             </td>
+                            <td className="px-4 py-3">
+                              {linked ? (
+                                <Badge variant="outline" className="border-emerald-700 bg-emerald-500/10 text-emerald-200">
+                                  Linked
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="border-amber-700 bg-amber-500/10 text-amber-200">
+                                  Not linked
+                                </Badge>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-right">
                               <Button
                                 size="sm"
@@ -1113,11 +1280,13 @@ export default function QuoMonitorPage() {
                                 className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  window.open(`https://app.openphone.com/conversations/${conversation.quo_conversation_id}`, "_blank");
+                                  window.open(getQuoChatUrl(conversation), "_blank");
                                 }}
                               >
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                Quo
+                                <span className="mr-2 flex h-5 w-5 items-center justify-center rounded-full bg-violet-600 text-[10px] font-bold text-white">
+                                  Q
+                                </span>
+                                Open
                               </Button>
                             </td>
                           </tr>
@@ -1171,7 +1340,7 @@ export default function QuoMonitorPage() {
                     size="sm"
                     variant="ghost"
                     className="text-slate-300 hover:bg-slate-800 hover:text-white"
-                    onClick={() => window.open(`https://app.openphone.com/conversations/${selectedConversation.quo_conversation_id}`, "_blank")}
+                    onClick={() => window.open(getQuoChatUrl(selectedConversation), "_blank")}
                   >
                     <ExternalLink className="mr-2 h-4 w-4" />
                     Quo
@@ -1249,7 +1418,7 @@ export default function QuoMonitorPage() {
                       size="sm"
                       variant="outline"
                       className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white"
-                      onClick={() => window.open(`https://app.openphone.com/conversations/${selectedConversation.quo_conversation_id}`, "_blank")}
+                      onClick={() => window.open(getQuoChatUrl(selectedConversation), "_blank")}
                     >
                       Open in Quo
                     </Button>
@@ -1695,7 +1864,7 @@ export default function QuoMonitorPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => window.open(`https://app.openphone.com/conversations/${selectedConversation.quo_conversation_id}`, "_blank")}
+                        onClick={() => window.open(getQuoChatUrl(selectedConversation), "_blank")}
                       >
                         <ExternalLink className="mr-2 h-4 w-4" />
                         Open Chat
