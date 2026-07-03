@@ -494,6 +494,7 @@ export default function QuoMonitorPage() {
       const numberId = conversation.quo_phone_numbers?.id;
       const lastActivity = conversation.last_message_at ?? conversation.last_message_time;
       const scenarioTag = getScenarioTag(conversation);
+      const rowTags = getConversationTags(conversation);
 
       if (sectionFilter !== "all" && section !== sectionFilter) return false;
       if (numberFilter !== "all" && numberId !== numberFilter) return false;
@@ -502,7 +503,7 @@ export default function QuoMonitorPage() {
       if (linkedFilter === "linked" && !linked) return false;
       if (linkedFilter === "unlinked" && linked) return false;
       if (!matchesDatePreset(lastActivity, dateFilter, dateRangeStart, dateRangeEnd)) return false;
-      if (tagFilter.trim() && !scenarioTag.toLowerCase().includes(tagFilter.trim().toLowerCase())) return false;
+      if (tagFilter.trim() && !rowTags.some((tag) => tag.toLowerCase().includes(tagFilter.trim().toLowerCase()))) return false;
       if (query) {
         const haystack = [
           conversation.customer_name,
@@ -511,7 +512,7 @@ export default function QuoMonitorPage() {
           conversation.last_message_preview,
           conversation.rolling_ai_summary,
           scenarioTag,
-          ...(conversation.ai_tags ?? []),
+          ...rowTags,
         ]
           .filter(Boolean)
           .join(" ")
@@ -734,6 +735,17 @@ export default function QuoMonitorPage() {
       return rightTime - leftTime;
     });
   }, [conversations]);
+  const tagSummaries = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    conversations.forEach((conversation) => {
+      getConversationTags(conversation)
+        .filter((tag) => !tag.startsWith("@"))
+        .forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1));
+    });
+
+    return Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
+  }, [conversations]);
 
   useEffect(() => {
     if (!filteredConversations.length) {
@@ -754,10 +766,10 @@ export default function QuoMonitorPage() {
     <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#111217] text-slate-100 shadow-2xl">
       <div className={`grid h-[calc(100vh-96px)] min-h-[760px] max-lg:h-auto max-lg:min-h-0 max-lg:grid-cols-1 ${
         viewMode === "table"
-          ? "grid-cols-[76px_minmax(320px,380px)_minmax(620px,1fr)]"
+          ? "grid-cols-1"
           : "grid-cols-[76px_minmax(290px,360px)_minmax(420px,1fr)_minmax(300px,360px)] max-2xl:grid-cols-[76px_minmax(280px,340px)_1fr]"
       }`}>
-        <aside className="flex flex-col border-r border-slate-800 bg-[#0b0c10] max-lg:hidden">
+        <aside className={`${viewMode === "table" ? "hidden" : "flex"} flex-col border-r border-slate-800 bg-[#0b0c10] max-lg:hidden`}>
           <div className="flex h-16 items-center justify-center border-b border-slate-800">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-violet-600 text-sm font-bold">
               Q
@@ -813,7 +825,7 @@ export default function QuoMonitorPage() {
           )}
         </aside>
 
-        <section className="flex min-w-0 flex-col border-r border-slate-800 bg-[#15161c]">
+        <section className={`${viewMode === "table" ? "hidden" : "flex"} min-w-0 flex-col border-r border-slate-800 bg-[#15161c]`}>
           <div className="border-b border-slate-800 p-4">
             <div className="mb-3 flex items-center justify-between">
               <div>
@@ -1072,30 +1084,210 @@ export default function QuoMonitorPage() {
         <main className="flex min-w-0 flex-col bg-[#111217]">
           {viewMode === "table" ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-5 py-4">
-                <div>
-                  <div className="flex items-center gap-2 text-lg font-semibold text-white">
-                    <Table2 className="h-5 w-5 text-blue-300" />
-                    AI Tagged Chats
+              <div className="space-y-4 border-b border-slate-800 bg-[#101116] px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 text-lg font-semibold text-white">
+                      <Table2 className="h-5 w-5 text-blue-300" />
+                      AI Tagged Chats
+                    </div>
+                    <div className="mt-1 text-sm text-slate-400">
+                      {filteredConversations.length} chats in {selectedNumberLabel}. AI updates only the conversation that received a new message.
+                    </div>
                   </div>
-                  <div className="mt-1 text-sm text-slate-400">
-                    {filteredConversations.length} chats in {selectedNumberLabel}. AI updates only the conversation that received a new message.
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isAdmin && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={`border-slate-700 bg-transparent hover:bg-slate-800 ${
+                          ingestionPaused ? "text-amber-200" : "text-emerald-200"
+                        }`}
+                        onClick={() => ingestionToggleMutation.mutate(!ingestionPaused)}
+                        disabled={adminStatusQuery.isLoading || ingestionToggleMutation.isPending}
+                      >
+                        <Power className="mr-2 h-4 w-4" />
+                        {ingestionPaused ? "Paused" : "Live"}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                      onClick={() => setViewMode("inbox")}
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Chat view
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                      onClick={() => queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] })}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Refresh
+                    </Button>
                   </div>
                 </div>
+
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <Input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search customer number, AI tag, last message, or @phone"
+                    className="h-11 border-slate-800 bg-[#0b0c10] pl-9 text-slate-100 placeholder:text-slate-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <Inbox className="h-3.5 w-3.5" />
+                    Quo numbers
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    <button
+                      type="button"
+                      onClick={() => setNumberFilter("all")}
+                      className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                        numberFilter === "all"
+                          ? "border-blue-500 bg-blue-500/15 text-blue-100"
+                          : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
+                      }`}
+                    >
+                      All numbers
+                      <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{conversations.length}</span>
+                    </button>
+                    {numberSummaries.map(([id, item]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setNumberFilter(id)}
+                        className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                          numberFilter === id
+                            ? "border-blue-500 bg-blue-500/15 text-blue-100"
+                            : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
+                        }`}
+                      >
+                        {item.label}
+                        <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{item.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <Tags className="h-3.5 w-3.5" />
+                    AI tags
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTagFilter("")}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        !tagFilter
+                          ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
+                          : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
+                      }`}
+                    >
+                      All tags
+                    </button>
+                    {tagSummaries.slice(0, 18).map(([tag, count]) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setTagFilter(tagFilter === tag ? "" : tag)}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                          tagFilter === tag
+                            ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
+                            : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
+                        }`}
+                      >
+                        {tag}
+                        <span className="ml-2 text-[10px] text-slate-500">{count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-200">
-                    <CalendarDays className="mr-1 h-3.5 w-3.5" />
-                    {dateFilter === "all" ? "All dates" : toTitleCase(dateFilter)}
-                  </Badge>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
-                    onClick={() => queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] })}
+                    className="h-8 border-slate-800 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800 hover:text-white"
+                    onClick={() => {
+                      setSectionFilter("all");
+                      setDateFilter("all");
+                      setConfidenceFilter("all");
+                      setLinkedFilter("all");
+                      setTagFilter("");
+                      setDateRangeStart("");
+                      setDateRangeEnd("");
+                    }}
                   >
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Refresh
+                    Open
                   </Button>
+                  {(["today", "yesterday", "week", "month"] as const).map((preset) => (
+                    <Button
+                      key={preset}
+                      size="sm"
+                      variant="outline"
+                      className={`h-8 border-slate-800 text-xs hover:bg-slate-800 hover:text-white ${
+                        dateFilter === preset ? "bg-blue-500/15 text-blue-100" : "bg-slate-900 text-slate-200"
+                      }`}
+                      onClick={() => setDateFilter(preset)}
+                    >
+                      {toTitleCase(preset)}
+                    </Button>
+                  ))}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 border-slate-800 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800 hover:text-white"
+                    onClick={() => setSectionFilter("needs_reply")}
+                  >
+                    Needs reply
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 border-slate-800 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800 hover:text-white"
+                    onClick={() => setConfidenceFilter("review")}
+                  >
+                    AI review
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 border-slate-800 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800 hover:text-white"
+                    onClick={() => setLinkedFilter("unlinked")}
+                  >
+                    Unlinked
+                  </Button>
+                  <Input
+                    type="date"
+                    value={dateRangeStart}
+                    onChange={(event) => {
+                      setDateRangeStart(event.target.value);
+                      setDateFilter("custom");
+                    }}
+                    className="h-8 w-[150px] border-slate-800 bg-slate-900 text-xs text-slate-100"
+                  />
+                  <Input
+                    type="date"
+                    value={dateRangeEnd}
+                    onChange={(event) => {
+                      setDateRangeEnd(event.target.value);
+                      setDateFilter("custom");
+                    }}
+                    className="h-8 w-[150px] border-slate-800 bg-slate-900 text-xs text-slate-100"
+                  />
+                  <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-300">
+                    <CalendarDays className="mr-1 h-3.5 w-3.5" />
+                    {dateFilter === "all" ? "All dates" : toTitleCase(dateFilter)}
+                  </Badge>
                 </div>
               </div>
 
