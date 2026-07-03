@@ -60,14 +60,14 @@ Deno.serve(async (req) => {
           signature_verified: signatureVerified,
         },
         {
-          onConflict: eventId ? "quo_event_id" : "quo_message_id,event_type",
+          onConflict: "quo_message_id,event_type",
           ignoreDuplicates: true,
         },
       )
       .select("id")
       .maybeSingle();
 
-    if (eventError) throw eventError;
+    if (eventError) throw new Error(`Failed to upsert webhook event: ${eventError.message}`);
 
     let phoneNumberRowId: string | null = null;
     if (conversation.phoneNumberId) {
@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
         .select("id")
         .single();
 
-      if (phoneError) throw phoneError;
+      if (phoneError) throw new Error(`Failed to upsert phone number: ${phoneError.message}`);
       phoneNumberRowId = phoneRow.id;
     }
 
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
       .select("id, linked_lead_id")
       .single();
 
-    if (conversationError) throw conversationError;
+    if (conversationError) throw new Error(`Failed to upsert conversation: ${conversationError.message}`);
 
     const { data: messageRow, error: messageError } = await supabase
       .from("quo_messages")
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
       .select("id")
       .single();
 
-    if (messageError) throw messageError;
+    if (messageError) throw new Error(`Failed to upsert message: ${messageError.message}`);
 
     await supabase.from("quo_conversation_flags").upsert(
       { conversation_id: conversationRow.id },
@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
     return jsonResponse(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown Quo message webhook error",
+        error: error instanceof Error ? error.message : JSON.stringify(error),
       },
       400,
     );
