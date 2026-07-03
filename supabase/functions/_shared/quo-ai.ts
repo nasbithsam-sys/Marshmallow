@@ -319,21 +319,31 @@ function asString(value: unknown) {
 }
 
 function arrayOfStrings(value: unknown): string[] {
+  if (typeof value === "string") return [value];
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 export function normalizeQuoPayload(payload: JsonObject) {
   const data = (payload.data && typeof payload.data === "object" ? payload.data : payload) as JsonObject;
-  const message = ((data.message && typeof data.message === "object" ? data.message : data) ?? {}) as JsonObject;
+  const dataObject = (data.object && typeof data.object === "object" ? data.object : null) as JsonObject | null;
+  const message = ((data.message && typeof data.message === "object"
+    ? data.message
+    : dataObject?.object === "message" || dataObject?.conversationId || dataObject?.conversation_id
+      ? dataObject
+      : data) ?? {}) as JsonObject;
   const conversation = ((data.conversation && typeof data.conversation === "object"
     ? data.conversation
     : payload.conversation && typeof payload.conversation === "object"
       ? payload.conversation
-      : {}) ?? {}) as JsonObject;
+      : message.conversation && typeof message.conversation === "object"
+        ? message.conversation
+        : {}) ?? {}) as JsonObject;
 
   const messageId = asString(message.id);
   const conversationId =
-    asString(conversation.id) ?? asString(message.conversationId) ?? asString(message.conversation_id);
+    asString(conversation.id) ??
+    asString(message.conversationId) ??
+    asString(message.conversation_id);
 
   if (!messageId || !conversationId) {
     throw new Error("Invalid Quo payload: missing message id or conversation id.");
@@ -366,7 +376,7 @@ export function normalizeQuoPayload(payload: JsonObject) {
     sender,
     from: normalizePhone(from),
     to: to.map((item) => normalizePhone(item) ?? item),
-    text: asString(message.text) ?? "",
+    text: asString(message.text) ?? asString(message.body) ?? "",
     media: Array.isArray(message.media) ? message.media : [],
     status: asString(message.status),
     createdAt: asString(message.createdAt) ?? asString(message.created_at) ?? new Date().toISOString(),

@@ -1,144 +1,212 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  corsHeaders,
+  jsonResponse,
+  normalizeQuoPayload,
+  verifySignature,
+} from "../_shared/quo-ai.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { status: 200, headers: corsHeaders });
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   try {
-    const WEBHOOK_TOKEN = Deno.env.get('QUO_WEBHOOK_TOKEN');
-    
-    // Simple token validation (assume passed in headers or query for simplicity if not signed, 
-    // but typically Quo sends it in header or we check url param)
-    const url = new URL(req.url);
-    const token = url.searchParams.get('token') || req.headers.get('Authorization')?.replace('Bearer ', '');
-    
-    if (WEBHOOK_TOKEN && token !== WEBHOOK_TOKEN) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-            status: 401,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return jsonResponse({ error: "Missing Supabase service configuration." }, 500);
     }
 
-    const payload = await req.json()
-    
-    // Expected Quo payload structure for a new message
-    // payload.data.message = { id, text, createdAt, direction, conversationId, etc. }
-    // payload.data.conversation = { id, contact: { name, phoneNumbers }, etc. }
-    const message = payload?.data?.message || payload;
-    const conversation = payload?.data?.conversation || payload?.conversation;
-    
-    if (!message || !message.id) {
-        return new Response(JSON.stringify({ error: 'Invalid payload: missing message id' }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-    }
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseServiceKey =
-      Deno.env.get('SB_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    if (!supabaseUrl || !supabaseServiceKey) {
-        return new Response(JSON.stringify({ error: 'Missing Supabase service configuration' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-    }
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const rawBody = await req.text();
+    const payload = JSON.parse(rawBody || "{}") as Record<string, unknown>;
+    const webhookSecret = Deno.env.get("QUO_WEBHOOK_SECRET") ?? Deno.env.get("QUO_WEBHOOK_TOKEN") ?? undefined;
+    const signature = req.headers.get("x-quo-signature") ?? req.headers.get("x-signature");
+    const signatureVerified = await verifySignature(rawBody, signature, webhookSecret);
+    const eventType =
+      typeof payload.type === "string"
+        ? payload.type
+        : typeof payload.event_type === "string"
+          ? payload.event_type
+          : typeof payload.eventType === "string"
+            ? payload.eventType
+            : "message.received";
+    const eventId =
+      typeof payload.id === "string"
+        ? payload.id
+        : typeof payload.event_id === "string"
+          ? payload.event_id
+          : typeof payload.eventId === "string"
+            ? payload.eventId
+            : null;
 
-    const quoMessageId = message.id;
-    const quoConversationId = conversation?.id || message.conversationId;
-    
-    // Extract customer info
-    const customerName = conversation?.contact?.name || 'Unknown Contact';
-    const customerNumber = conversation?.contact?.phoneNumbers?.[0]?.value || message.from;
-    const direction = message.direction === 'inbound' || message.direction === 'incoming' ? 'incoming' : 'outgoing';
-    const sender = direction === 'incoming' ? 'customer' : 'agent';
-    const text = message.text || '';
-    const messageTime = message.createdAt ? new Date(message.createdAt).toISOString() : new Date().toISOString();
-    
-    // 1. Upsert Conversation
-    // Use upsert on quo_conversation_id
-    const { data: convData, error: convError } = await supabase
-        .from('quo_conversations')
-        .upsert({
-            quo_conversation_id: quoConversationId,
-            customer_name: customerName,
-            customer_number: customerNumber,
-            last_message_preview: text.substring(0, 200),
-            last_message_time: messageTime,
-            direction: direction,
-            status: 'active',
-            raw_payload: payload
-        }, { onConflict: 'quo_conversation_id' })
-        .select('id')
+    const { message, conversation } = normalizeQuoPayload(payload);
+
+    const { data: eventData, error: eventError } = await supabase
+      .from("quo_webhook_events")
+      .upsert(
+        {
+          quo_event_id: eventId,
+          event_type: eventType,
+          quo_message_id: message.id,
+          quo_conversation_id: conversation.id,
+          quo_phone_number_id: conversation.phoneNumberId,
+          raw_payload: payload,
+          processing_status: "processing",
+          signature_verified: signatureVerified,
+        },
+        {
+          onConflict: eventId ? "quo_event_id" : "quo_message_id,event_type",
+          ignoreDuplicates: true,
+        },
+      )
+      .select("id")
+      .maybeSingle();
+
+    if (eventError) throw eventError;
+
+    let phoneNumberRowId: string | null = null;
+    if (conversation.phoneNumberId) {
+      const { data: phoneRow, error: phoneError } = await supabase
+        .from("quo_phone_numbers")
+        .upsert(
+          {
+            quo_phone_number_id: conversation.phoneNumberId,
+            number: conversation.phoneNumberDisplay ?? conversation.phoneNumberId,
+            display_number: conversation.phoneNumberDisplay,
+            name: conversation.phoneNumberName,
+            label: conversation.phoneNumberName,
+            active: true,
+          },
+          { onConflict: "quo_phone_number_id" },
+        )
+        .select("id")
         .single();
 
-    if (convError) {
-        throw new Error(`Failed to upsert conversation: ${convError.message}`);
+      if (phoneError) throw phoneError;
+      phoneNumberRowId = phoneRow.id;
     }
 
-    const internalConversationId = convData.id;
+    const { data: existingLead } = conversation.customerNumber
+      ? await supabase
+          .from("leads")
+          .select("id")
+          .eq("customer_phone", conversation.customerNumber)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
 
-    // 2. Insert Message safely (ignore duplicates)
-    const { error: msgError } = await supabase
-        .from('quo_messages')
-        .upsert({
-            quo_message_id: quoMessageId,
-            conversation_id: internalConversationId,
-            sender: sender,
-            text: text,
-            message_time: messageTime,
-            raw_payload: payload
-        }, { onConflict: 'quo_message_id', ignoreDuplicates: false }); 
-        // ignoreDuplicates: false will update the row if it exists, which is safe upsert
+    const messageTime = new Date(message.createdAt).toISOString();
+    const { data: conversationRow, error: conversationError } = await supabase
+      .from("quo_conversations")
+      .upsert(
+        {
+          quo_conversation_id: conversation.id,
+          customer_name: conversation.customerName,
+          customer_number: conversation.customerNumber,
+          number_id: phoneNumberRowId,
+          linked_lead_id: existingLead?.id ?? null,
+          last_message_preview: message.text.slice(0, 200),
+          last_message_time: messageTime,
+          last_message_at: messageTime,
+          last_customer_message_at: message.sender === "customer" ? messageTime : undefined,
+          last_agent_message_at: message.sender === "agent" ? messageTime : undefined,
+          direction: message.direction === "inbound" ? "incoming" : "outgoing",
+          status: "active",
+          current_status: "open",
+          raw_payload: payload,
+        },
+        { onConflict: "quo_conversation_id" },
+      )
+      .select("id, linked_lead_id")
+      .single();
 
-    if (msgError) {
-        throw new Error(`Failed to upsert message: ${msgError.message}`);
+    if (conversationError) throw conversationError;
+
+    const { data: messageRow, error: messageError } = await supabase
+      .from("quo_messages")
+      .upsert(
+        {
+          quo_message_id: message.id,
+          conversation_id: conversationRow.id,
+          sender: message.sender,
+          direction: message.direction,
+          recipients: message.to,
+          text: message.text,
+          media: message.media,
+          status: message.status,
+          message_time: messageTime,
+          quo_created_at: messageTime,
+          raw_payload: payload,
+        },
+        { onConflict: "quo_message_id" },
+      )
+      .select("id")
+      .single();
+
+    if (messageError) throw messageError;
+
+    await supabase.from("quo_conversation_flags").upsert(
+      { conversation_id: conversationRow.id },
+      { onConflict: "conversation_id", ignoreDuplicates: true },
+    );
+
+    if (existingLead?.id) {
+      await supabase.from("ai_lead_links").upsert(
+        {
+          conversation_id: conversationRow.id,
+          lead_id: existingLead.id,
+          match_type: "exact_phone",
+          confidence: 1,
+          created_by_ai: true,
+        },
+        { onConflict: "conversation_id,lead_id" },
+      );
     }
-    
-    // 3. Ensure Flags row exists
-    const { error: flagError } = await supabase
-        .from('quo_conversation_flags')
-        .upsert({
-            conversation_id: internalConversationId,
-            // Keep existing values or default to false
-        }, { onConflict: 'conversation_id', ignoreDuplicates: true });
 
-    if (flagError) {
-        console.error('Flag error:', flagError);
+    if (eventData?.id) {
+      await supabase
+        .from("quo_webhook_events")
+        .update({ processing_status: "processed", processed_at: new Date().toISOString() })
+        .eq("id", eventData.id);
     }
 
-    if (sender === 'customer') {
-       const debounceSeconds = Number(Deno.env.get('AI_MESSAGE_DEBOUNCE_SECONDS') ?? '60');
-       const { error: enqueueError } = await supabase.rpc('enqueue_quo_ai_job', {
-           _conversation_id: internalConversationId,
-           _latest_message_id: null,
-           _job_type: 'message_analysis',
-           _priority: text.toLowerCase().match(/urgent|asap|angry|cancel|refund|complaint|emergency/) ? 'high' : 'medium',
-           _debounce_seconds: Number.isFinite(debounceSeconds) ? debounceSeconds : 60,
-       });
+    const debounceSeconds = Number(Deno.env.get("AI_MESSAGE_DEBOUNCE_SECONDS") ?? "60");
+    const priority = message.sender !== "customer"
+      ? "low"
+      : message.text.toLowerCase().match(/urgent|asap|angry|cancel|refund|complaint|emergency/)
+        ? "high"
+        : "medium";
 
-       if (enqueueError) {
-          console.error("Failed to enqueue AI job", enqueueError);
-       }
-    }
+    const { error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
+      _conversation_id: conversationRow.id,
+      _latest_message_id: messageRow.id,
+      _job_type: "message_analysis",
+      _priority: priority,
+      _debounce_seconds: Number.isFinite(debounceSeconds) ? debounceSeconds : 60,
+    });
 
-    return new Response(JSON.stringify({ success: true, messageId: quoMessageId, aiJobEnqueued: sender === 'customer' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    if (enqueueError) console.error("Failed to enqueue Quo AI job:", enqueueError.message);
+
+    return jsonResponse({
+      success: true,
+      conversation_id: conversationRow.id,
+      message_id: messageRow.id,
+      linked_lead_id: existingLead?.id ?? conversationRow.linked_lead_id ?? null,
+      ai_job_enqueued: true,
+    });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
-    })
+    return jsonResponse(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown Quo message webhook error",
+      },
+      400,
+    );
   }
-})
+});
