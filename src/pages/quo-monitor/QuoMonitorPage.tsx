@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Bot,
   CalendarClock,
+  CalendarDays,
   Clock3,
   CheckCircle2,
   ExternalLink,
@@ -19,7 +20,9 @@ import {
   ShieldAlert,
   Sparkles,
   ClipboardList,
+  Table2,
   Trash2,
+  Tags,
   UserRound,
   UserPlus,
 } from "lucide-react";
@@ -239,6 +242,76 @@ function isSameDay(value: string, offsetDays = 0) {
   return date.toDateString() === target.toDateString();
 }
 
+function toTitleCase(value: string) {
+  return value
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getScenarioTag(conversation: ConversationRow) {
+  const firstAiTag = conversation.ai_tags?.find((tag) => tag && tag.trim());
+  if (firstAiTag) return toTitleCase(firstAiTag);
+
+  const state = getState(conversation);
+  if (state?.lost_reason) return toTitleCase(state.lost_reason);
+
+  const section = getSection(conversation);
+  const friendly: Record<string, string> = {
+    needs_reply: "Customer Needs Reply",
+    new_interested_lead: "New Interested Customer",
+    hot_lead: "Hot Lead",
+    follow_up_due_today: "Follow Up Due Today",
+    follow_up_tomorrow: "Follow Up Tomorrow",
+    future_follow_up: "Future Follow Up",
+    appointment_mentioned: "Scheduling Needed",
+    waiting_for_customer: "Waiting Customer Response",
+    possible_dead: "Customer Ghosted",
+    lost_found_other_tech: "Customer Found Other Tech",
+    urgent_complaint: "Complaint Or Urgent Issue",
+    already_added_to_crm: "Already In CRM",
+    not_a_lead_spam_wrong_number: "Spam Or Wrong Number",
+    needs_human_review: "Needs Human Review",
+  };
+
+  return friendly[section] ?? toTitleCase(section);
+}
+
+function getLastMessageSide(conversation: ConversationRow) {
+  const customerTime = conversation.last_customer_message_at ? new Date(conversation.last_customer_message_at).getTime() : 0;
+  const agentTime = conversation.last_agent_message_at ? new Date(conversation.last_agent_message_at).getTime() : 0;
+  if (!customerTime && !agentTime) return "Unknown";
+  return customerTime >= agentTime ? "Customer" : "Us";
+}
+
+function matchesDatePreset(value: string | null | undefined, preset: string, rangeStart: string, rangeEnd: string) {
+  if (preset === "all") return true;
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return false;
+
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+
+  if (preset === "today") return time >= startOfToday.getTime();
+  if (preset === "yesterday") {
+    const start = new Date(startOfToday);
+    start.setDate(start.getDate() - 1);
+    return time >= start.getTime() && time < startOfToday.getTime();
+  }
+  if (preset === "week" || preset === "7d") return Date.now() - time <= 7 * 86400000;
+  if (preset === "month") return Date.now() - time <= 30 * 86400000;
+  if (preset === "custom") {
+    const start = rangeStart ? new Date(`${rangeStart}T00:00:00`).getTime() : -Infinity;
+    const end = rangeEnd ? new Date(`${rangeEnd}T23:59:59`).getTime() : Infinity;
+    return time >= start && time <= end;
+  }
+
+  return true;
+}
+
 export default function QuoMonitorPage() {
   const queryClient = useQueryClient();
   const { user, role } = useAuth();
@@ -248,6 +321,10 @@ export default function QuoMonitorPage() {
   const [confidenceFilter, setConfidenceFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [linkedFilter, setLinkedFilter] = useState("all");
+  const [viewMode, setViewMode] = useState<"inbox" | "table">("table");
+  const [tagFilter, setTagFilter] = useState("");
+  const [dateRangeStart, setDateRangeStart] = useState("");
+  const [dateRangeEnd, setDateRangeEnd] = useState("");
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [overrideSection, setOverrideSection] = useState<QuoAiSection>("needs_human_review");
   const [showAddLead, setShowAddLead] = useState(false);
@@ -387,6 +464,7 @@ export default function QuoMonitorPage() {
       const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
       const numberId = conversation.quo_phone_numbers?.id;
       const lastActivity = conversation.last_message_at ?? conversation.last_message_time;
+      const scenarioTag = getScenarioTag(conversation);
 
       if (sectionFilter !== "all" && section !== sectionFilter) return false;
       if (numberFilter !== "all" && numberId !== numberFilter) return false;
@@ -394,14 +472,16 @@ export default function QuoMonitorPage() {
       if (confidenceFilter === "review" && confidence >= 0.75) return false;
       if (linkedFilter === "linked" && !linked) return false;
       if (linkedFilter === "unlinked" && linked) return false;
-      if (dateFilter === "today" && (!lastActivity || !isSameDay(lastActivity))) return false;
-      if (dateFilter === "7d" && (!lastActivity || Date.now() - new Date(lastActivity).getTime() > 7 * 86400000)) return false;
+      if (!matchesDatePreset(lastActivity, dateFilter, dateRangeStart, dateRangeEnd)) return false;
+      if (tagFilter.trim() && !scenarioTag.toLowerCase().includes(tagFilter.trim().toLowerCase())) return false;
       if (query) {
         const haystack = [
           conversation.customer_name,
           conversation.customer_number,
           conversation.last_message_preview,
           conversation.rolling_ai_summary,
+          scenarioTag,
+          ...(conversation.ai_tags ?? []),
         ]
           .filter(Boolean)
           .join(" ")
@@ -411,7 +491,7 @@ export default function QuoMonitorPage() {
 
       return true;
     });
-  }, [conversations, confidenceFilter, dateFilter, linkedFilter, numberFilter, search, sectionFilter]);
+  }, [conversations, confidenceFilter, dateFilter, dateRangeEnd, dateRangeStart, linkedFilter, numberFilter, search, sectionFilter, tagFilter]);
 
   const stats = useMemo(() => {
     const tasks = tasksQuery.data ?? [];
@@ -642,7 +722,11 @@ export default function QuoMonitorPage() {
 
   return renderInboxUi ? (
     <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#111217] text-slate-100 shadow-2xl">
-      <div className="grid h-[calc(100vh-96px)] min-h-[760px] grid-cols-[76px_minmax(290px,360px)_minmax(420px,1fr)_minmax(300px,360px)] max-2xl:grid-cols-[76px_minmax(280px,340px)_1fr] max-lg:h-auto max-lg:min-h-0 max-lg:grid-cols-1">
+      <div className={`grid h-[calc(100vh-96px)] min-h-[760px] max-lg:h-auto max-lg:min-h-0 max-lg:grid-cols-1 ${
+        viewMode === "table"
+          ? "grid-cols-[76px_minmax(320px,380px)_minmax(620px,1fr)]"
+          : "grid-cols-[76px_minmax(290px,360px)_minmax(420px,1fr)_minmax(300px,360px)] max-2xl:grid-cols-[76px_minmax(280px,340px)_1fr]"
+      }`}>
         <aside className="flex flex-col border-r border-slate-800 bg-[#0b0c10] max-lg:hidden">
           <div className="flex h-16 items-center justify-center border-b border-slate-800">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-violet-600 text-sm font-bold">
@@ -703,10 +787,28 @@ export default function QuoMonitorPage() {
           <div className="border-b border-slate-800 p-4">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <div className="text-base font-semibold">Chats</div>
+                <div className="text-base font-semibold">{viewMode === "table" ? "AI Table" : "Chats"}</div>
                 <div className="text-xs text-slate-400">{selectedNumberLabel}</div>
               </div>
               <div className="flex items-center gap-2">
+                <div className="flex rounded-lg border border-slate-800 bg-[#0f1015] p-1">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={`rounded-md px-2 py-1 text-xs ${viewMode === "table" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
+                    title="Table view"
+                  >
+                    <Table2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("inbox")}
+                    className={`rounded-md px-2 py-1 text-xs ${viewMode === "inbox" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
+                    title="Chat view"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </button>
+                </div>
                 <Button
                   size="icon"
                   variant="ghost"
@@ -725,10 +827,43 @@ export default function QuoMonitorPage() {
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search chats"
+                placeholder="Search customer, phone, tag, message"
                 className="border-slate-800 bg-[#0f1015] pl-9 text-slate-100 placeholder:text-slate-500"
               />
             </div>
+            {viewMode === "table" && (
+              <div className="mt-3 space-y-3">
+                <div className="relative">
+                  <Tags className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                  <Input
+                    value={tagFilter}
+                    onChange={(event) => setTagFilter(event.target.value)}
+                    placeholder="Search AI tag: quote, ghosted, scheduled..."
+                    className="border-slate-800 bg-[#0f1015] pl-9 text-slate-100 placeholder:text-slate-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    value={dateRangeStart}
+                    onChange={(event) => {
+                      setDateRangeStart(event.target.value);
+                      setDateFilter("custom");
+                    }}
+                    className="border-slate-800 bg-[#0f1015] text-slate-100"
+                  />
+                  <Input
+                    type="date"
+                    value={dateRangeEnd}
+                    onChange={(event) => {
+                      setDateRangeEnd(event.target.value);
+                      setDateFilter("custom");
+                    }}
+                    className="border-slate-800 bg-[#0f1015] text-slate-100"
+                  />
+                </div>
+              </div>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -737,10 +872,41 @@ export default function QuoMonitorPage() {
                   setDateFilter("all");
                   setConfidenceFilter("all");
                   setLinkedFilter("all");
+                  setTagFilter("");
+                  setDateRangeStart("");
+                  setDateRangeEnd("");
                 }}
                 className="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-medium text-blue-200"
               >
                 Open
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateFilter("today")}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${dateFilter === "today" ? "bg-blue-500/20 text-blue-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateFilter("yesterday")}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${dateFilter === "yesterday" ? "bg-blue-500/20 text-blue-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateFilter("week")}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${dateFilter === "week" ? "bg-blue-500/20 text-blue-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}
+              >
+                Week
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateFilter("month")}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${dateFilter === "month" ? "bg-blue-500/20 text-blue-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}
+              >
+                Month
               </button>
               <button
                 type="button"
@@ -824,7 +990,145 @@ export default function QuoMonitorPage() {
         </section>
 
         <main className="flex min-w-0 flex-col bg-[#111217]">
-          {!selectedConversation ? (
+          {viewMode === "table" ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-5 py-4">
+                <div>
+                  <div className="flex items-center gap-2 text-lg font-semibold text-white">
+                    <Table2 className="h-5 w-5 text-blue-300" />
+                    AI Tagged Chats
+                  </div>
+                  <div className="mt-1 text-sm text-slate-400">
+                    {filteredConversations.length} chats in {selectedNumberLabel}. AI updates only the conversation that received a new message.
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-200">
+                    <CalendarDays className="mr-1 h-3.5 w-3.5" />
+                    {dateFilter === "all" ? "All dates" : toTitleCase(dateFilter)}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] })}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-auto">
+                <table className="w-full min-w-[980px] text-left text-sm">
+                  <thead className="sticky top-0 z-10 border-b border-slate-800 bg-[#15161c] text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Customer</th>
+                      <th className="px-4 py-3 font-semibold">AI Situation Tag</th>
+                      <th className="px-4 py-3 font-semibold">Last Message</th>
+                      <th className="px-4 py-3 font-semibold">Side</th>
+                      <th className="px-4 py-3 font-semibold">Date</th>
+                      <th className="px-4 py-3 font-semibold">Verify</th>
+                      <th className="px-4 py-3 text-right font-semibold">Quo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {conversationsQuery.isLoading ? (
+                      Array.from({ length: 8 }).map((_, index) => (
+                        <tr key={index}>
+                          <td colSpan={7} className="px-4 py-3">
+                            <Skeleton className="h-12 rounded-lg bg-slate-800" />
+                          </td>
+                        </tr>
+                      ))
+                    ) : filteredConversations.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-16 text-center text-slate-400">
+                          No chats match this number, date, search, and tag filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredConversations.map((conversation) => {
+                        const scenarioTag = getScenarioTag(conversation);
+                        const priority = getPriority(conversation);
+                        const confidence = getState(conversation)?.confidence ?? 0;
+                        const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
+                        const name = conversation.customer_name || "Unknown Customer";
+                        return (
+                          <tr
+                            key={conversation.id}
+                            className={`cursor-pointer transition hover:bg-slate-900/70 ${
+                              selectedConvId === conversation.id ? "bg-blue-500/10" : ""
+                            }`}
+                            onClick={() => {
+                              setSelectedConvId(conversation.id);
+                              setOverrideSection(getSection(conversation));
+                            }}
+                          >
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-sm font-semibold">
+                                  {(conversation.customer_name || conversation.customer_number || "U").slice(0, 1).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="truncate font-semibold text-slate-100">{name}</div>
+                                  <div className="truncate text-xs text-slate-400">{conversation.customer_number || "No phone"}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityClasses[priority]}`}>
+                                  {scenarioTag}
+                                </span>
+                                {linked && <Badge variant="outline" className="border-emerald-700 bg-emerald-500/10 text-emerald-200">Linked</Badge>}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">{QUO_AI_SECTION_LABELS[getSection(conversation)]}</div>
+                            </td>
+                            <td className="max-w-[360px] px-4 py-3">
+                              <div className="line-clamp-2 text-slate-200">
+                                {conversation.last_message_preview || conversation.rolling_ai_summary || "No message preview"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-200">
+                                {getLastMessageSide(conversation)}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-slate-400">
+                              {formatDate(conversation.last_message_at ?? conversation.last_message_time)}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="space-y-1">
+                                <div className="text-xs text-slate-300">{Math.round(confidence * 100)}% confidence</div>
+                                <div className="text-xs text-slate-500">
+                                  {conversation.last_ai_analyzed_at ? `AI ${formatShortDate(conversation.last_ai_analyzed_at)}` : "AI pending"}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  window.open(`https://app.openphone.com/conversations/${conversation.quo_conversation_id}`, "_blank");
+                                }}
+                              >
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Quo
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : !selectedConversation ? (
             <div className="flex h-full items-center justify-center p-10 text-center text-slate-400">
               <div>
                 <MessageSquare className="mx-auto mb-4 h-12 w-12 opacity-40" />
@@ -956,7 +1260,7 @@ export default function QuoMonitorPage() {
           )}
         </main>
 
-        <aside className="quo-inspector flex min-w-0 flex-col border-l border-slate-800 bg-[#15161c] max-2xl:hidden">
+        {viewMode === "inbox" && <aside className="quo-inspector flex min-w-0 flex-col border-l border-slate-800 bg-[#15161c] max-2xl:hidden">
           {!selectedConversation ? (
             <div className="p-6 text-sm text-slate-400">Select a conversation to see AI and customer context.</div>
           ) : (
@@ -1106,7 +1410,7 @@ export default function QuoMonitorPage() {
               </div>
             </ScrollArea>
           )}
-        </aside>
+        </aside>}
       </div>
 
       {selectedConversation && (

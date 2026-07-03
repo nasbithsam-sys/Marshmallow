@@ -307,6 +307,9 @@ function buildCasePrompt(context: Awaited<ReturnType<typeof loadContext>>, jobTy
           "Complaints, angry customers, cancellation risk, payment issues, uncertain scheduling, conflicting evidence, and customer-loss risk require human review.",
           "Prefer rule-based no-op if nothing meaningful changed.",
           "Tasks must be internal staff instructions, never automatic customer messages.",
+          "Create one primary plain-English customer situation tag that staff can scan in a table.",
+          "Home repair workflow examples: Customer Waiting For Quote, We Need Pictures For Quote, Quote Sent Waiting Customer, Customer Ghosted, Spam Or Marketing Call, Customer Found Other Tech, Customer Fixed Issue, Customer Cancelled Job, Waiting Customer Response, Job Scheduled, Reschedule Needed, Payment Follow Up, Complaint Or Manager Review.",
+          "Tags must describe the current situation, not just intent. Use short staff-friendly wording.",
         ],
         required_json_schema: {
           case_summary: "short persistent case summary",
@@ -327,7 +330,7 @@ function buildCasePrompt(context: Awaited<ReturnType<typeof loadContext>>, jobTy
           schedule_status: "none | requested | tentative | unconfirmed | confirmed | reschedule_needed | unknown",
           quote_status: "none | needed | sent | accepted | rejected | follow_up_due | unknown",
           payment_status: "none | pending | paid | dispute | unknown",
-          tags: [{ tag: "string", confidence: 0.9, reason: "string", evidence: [] }],
+          tags: [{ tag: "primary current situation tag in plain English", confidence: 0.9, reason: "string", evidence: [] }],
           tasks: [{
             task_type: "missed_reply|hot_lead_follow_up|quote_follow_up|schedule_confirmation|complaint_follow_up|payment_follow_up|ghosting_follow_up|manager_escalation|other",
             title: "string",
