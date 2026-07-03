@@ -17,13 +17,20 @@ describe("cancellation request navigation access", () => {
 });
 
 describe("quo monitor navigation access", () => {
-  it.each(["admin", "processor", "customer_service"] as const)("is visible to %s by default", (role) => {
-    expect(getDefaultNavAccess(role).has("quo_monitor")).toBe(true);
-    expect(canAccessNavItem(role, "quo_monitor")).toBe(true);
+  it("is visible to admin by default", () => {
+    expect(getDefaultNavAccess("admin").has("quo_monitor")).toBe(true);
+    expect(canAccessNavItem("admin", "quo_monitor")).toBe(true);
   });
 
-  it("remains hidden from OPR and users without a role", () => {
-    expect(canAccessNavItem("opr", "quo_monitor")).toBe(false);
-    expect(canAccessNavItem("no_role", "quo_monitor")).toBe(false);
+  it.each(["processor", "customer_service", "opr", "no_role"] as const)("is hidden from %s", (role) => {
+    expect(getDefaultNavAccess(role).has("quo_monitor")).toBe(false);
+    expect(canAccessNavItem(role, "quo_monitor")).toBe(false);
+  });
+
+  it("ignores non-admin navigation overrides for quo monitor", () => {
+    const allowedOverride = [{ nav_section: "quo_monitor", allowed: true }] as NavigationPermission[];
+
+    expect(canAccessNavItem("processor", "quo_monitor", allowedOverride)).toBe(false);
+    expect(canAccessNavItem("customer_service", "quo_monitor", allowedOverride)).toBe(false);
   });
 });

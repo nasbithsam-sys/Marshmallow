@@ -44,6 +44,7 @@ const generateCode = () => {
 
 const NAV_SECTION_LABELS: Record<string, string> = {
   leads: "All Leads",
+  quo_monitor: "Quo AI Assistant",
   calls: "Calls Log",
   analytics: "Analytics",
   settings: "Settings",
@@ -94,6 +95,24 @@ interface StatusVisibilityRow {
   status: string;
   is_visible: boolean;
 }
+
+type MessageTemplateRow = {
+  key: MessageTemplateKey;
+  template: string;
+};
+
+type MessageTemplateUpsert = MessageTemplateRow & {
+  updated_by: string | null;
+};
+
+type MessageTemplateClient = {
+  from: (table: "message_templates") => {
+    select: (columns: string) => Promise<{ data: MessageTemplateRow[] | null; error: Error | null }>;
+    upsert: (row: MessageTemplateUpsert) => Promise<{ error: Error | null }>;
+  };
+};
+
+const messageTemplateDb = supabase as unknown as MessageTemplateClient;
 
 function TemplateEditor({
   initialValue,
@@ -199,7 +218,7 @@ const Settings = () => {
     queryKey: ["settings-message-templates"],
     enabled: isAdmin,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("message_templates").select("key, template");
+      const { data, error } = await messageTemplateDb.from("message_templates").select("key, template");
       if (error) throw error;
 
       const rows = (data ?? []) as Array<{ key: MessageTemplateKey; template: string }>;
@@ -213,11 +232,11 @@ const Settings = () => {
 
   const updateTemplate = useMutation({
     mutationFn: async ({ key, template }: { key: MessageTemplateKey; template: string }) => {
-      const { error } = await (supabase as any).from("message_templates").upsert({
+      const { error } = await messageTemplateDb.from("message_templates").upsert({
         key,
         template,
         updated_by: user?.id ?? null,
-      } as never);
+      });
       if (error) throw error;
     },
     onSuccess: (_data, variables) => {
@@ -339,6 +358,10 @@ const Settings = () => {
       const targetUser = getUserById(userId);
       const beforeAllowed = existing?.allowed ?? false;
 
+      if (section === "quo_monitor" && targetUser?.role !== "admin") {
+        throw new Error("Quo AI Assistant is admin-only.");
+      }
+
       if (existing) {
         await supabase
           .from("navigation_permissions")
@@ -365,6 +388,9 @@ const Settings = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings-nav-permissions"] });
       toast.success("Navigation permission updated");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to update navigation permission");
     },
   });
 
@@ -542,6 +568,10 @@ const Settings = () => {
     const targetUser = getUserById(userId);
     const override = navPermissionByUserAndSection.get(`${userId}:${section}`);
 
+    if (section === "quo_monitor") {
+      return targetUser?.role === "admin";
+    }
+
     if (targetUser && section === "cancellation_requests" && canAccessCancellationRequests(targetUser.role)) {
       return true;
     }
@@ -594,6 +624,9 @@ const Settings = () => {
         return (
           count +
           ALL_NAV_ITEMS.filter((section) => {
+            if (section === "quo_monitor") {
+              return false;
+            }
             const override = navPermissionByUserAndSection.get(`${targetUser.id}:${section}`);
             return typeof override === "boolean" ? override : defaultAccess.has(section);
           }).length
@@ -604,10 +637,21 @@ const Settings = () => {
   const hiddenStatusCount = useMemo(
     () =>
       nonAdminUsers.reduce((count, targetUser) => {
-        const hiddenForUser = ALL_LEAD_STATUSES.filter((status) => !getStatusVisibility(targetUser.id, status)).length;
+        const hiddenForUser = ALL_LEAD_STATUSES.filter((status) => {
+          const userOverride = statusVisibilityByUserAndStatus.get(`${targetUser.id}:${status}`);
+          if (typeof userOverride === "boolean") {
+            return !userOverride;
+          }
+
+          if (targetUser.role === "no_role") {
+            return false;
+          }
+
+          return !(statusVisibilityByRoleAndStatus.get(`${targetUser.role}:${status}`) ?? true);
+        }).length;
         return count + hiddenForUser;
       }, 0),
-    [nonAdminUsers, statusVisibilityByRoleAndStatus, statusVisibilityByUserAndStatus, userById],
+    [nonAdminUsers, statusVisibilityByRoleAndStatus, statusVisibilityByUserAndStatus],
   );
 
   return (
@@ -891,17 +935,25 @@ const Settings = () => {
                         </div>
                       </td>
 
-                      {ALL_NAV_ITEMS.map((section) => (
-                        <td key={section} className="px-3 py-3 text-center">
-                          <Switch
-                            checked={getNavPermission(u.id, section)}
-                            disabled={section === "cancellation_requests" && canAccessCancellationRequests(u.role)}
-                            onCheckedChange={(checked) =>
-                              toggleNavPermission.mutate({ userId: u.id, section, allowed: checked })
-                            }
-                          />
-                        </td>
-                      ))}
+                      {ALL_NAV_ITEMS.map((section) => {
+                        const isAdminOnlyQuo = section === "quo_monitor";
+                        return (
+                          <td key={section} className="px-3 py-3 text-center">
+                            <Switch
+                              checked={getNavPermission(u.id, section)}
+                              disabled={isAdminOnlyQuo || (section === "cancellation_requests" && canAccessCancellationRequests(u.role))}
+                              onCheckedChange={(checked) =>
+                                toggleNavPermission.mutate({ userId: u.id, section, allowed: checked })
+                              }
+                            />
+                            {isAdminOnlyQuo && (
+                              <div className="mt-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                                Admin only
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>

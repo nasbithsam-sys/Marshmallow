@@ -23,6 +23,7 @@ export default function AppLayout() {
   const activeMeta =
     Object.entries(pageMeta).find(([path]) => location.pathname.startsWith(path))?.[1] ??
     pageMeta["/leads"];
+  const isQuoMonitor = location.pathname.startsWith("/quo-monitor");
 
   return (
     <SidebarProvider>
@@ -72,7 +73,7 @@ export default function AppLayout() {
               </div>
               <div className="flex items-center gap-2">
                 <ThemeToggle />
-                <NotificationBell />
+                {!isQuoMonitor && <NotificationBell />}
               </div>
             </motion.div>
           </header>
@@ -92,7 +93,7 @@ export default function AppLayout() {
             </AnimatePresence>
           </main>
         </div>
-        <UrgentLeadPopup />
+        {!isQuoMonitor && <UrgentLeadPopup />}
       </div>
     </SidebarProvider>
   );
