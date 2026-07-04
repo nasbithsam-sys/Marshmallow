@@ -1,1 +1,13 @@
 project_id = "kxiqholnmhkwhdkhtopp"
+
+[functions.quo-message-webhook]
+verify_jwt = false
+
+[functions.quo-webhook]
+verify_jwt = false
+
+[functions.quo-reconcile-sync]
+verify_jwt = false
+
+[functions.ai-process-quo-jobs]
+verify_jwt = false
