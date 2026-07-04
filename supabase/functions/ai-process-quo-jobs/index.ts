@@ -171,7 +171,7 @@ async function loadContext(supabase: SupabaseClient, job: { conversation_id: str
 
   const { data: messages, error: messagesError } = await supabase
     .from("quo_messages")
-    .select("id, quo_message_id, sender, direction, text, status, message_time, created_at")
+    .select("id, quo_message_id, sender, direction, text, media, status, message_time, created_at")
     .eq("conversation_id", job.conversation_id)
     .order("message_time", { ascending: false })
     .limit(14);
@@ -308,6 +308,9 @@ function buildCasePrompt(context: Awaited<ReturnType<typeof loadContext>>, jobTy
           "Prefer rule-based no-op if nothing meaningful changed.",
           "Tasks must be internal staff instructions, never automatic customer messages.",
           "Create one primary plain-English customer situation tag that staff can scan in a table.",
+          "For tagging, prioritize the latest 3 to 5 messages together, not only the final message.",
+          "If the latest 3 to 5 messages are too short, emoji-only, media-only, or ambiguous, use the broader recent message context before deciding.",
+          "If messages contain media without text, treat it as pictures/videos sent and infer cautiously from surrounding messages.",
           "Home repair workflow examples: Customer Waiting For Quote, We Need Pictures For Quote, Quote Sent Waiting Customer, Customer Ghosted, Spam Or Marketing Call, Customer Found Other Tech, Customer Fixed Issue, Customer Cancelled Job, Waiting Customer Response, Job Scheduled, Reschedule Needed, Payment Follow Up, Complaint Or Manager Review.",
           "Tags must describe the current situation, not just intent. Use short staff-friendly wording.",
         ],

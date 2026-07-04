@@ -314,6 +314,35 @@ export function isLowValueMessage(text: string | null | undefined) {
   ].includes(normalized);
 }
 
+export function summarizeQuoMedia(media: unknown[] | null | undefined) {
+  if (!Array.isArray(media) || media.length === 0) return null;
+
+  let images = 0;
+  let videos = 0;
+  let audio = 0;
+
+  media.forEach((item) => {
+    const mediaItem = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    const type = String(mediaItem.type ?? mediaItem.contentType ?? mediaItem.mime_type ?? mediaItem.mimeType ?? "").toLowerCase();
+    const url = String(mediaItem.url ?? mediaItem.src ?? "").toLowerCase();
+    if (type.includes("video") || /\.(mp4|mov|webm)(\?|$)/.test(url)) videos += 1;
+    else if (type.includes("audio") || /\.(mp3|wav|m4a)(\?|$)/.test(url)) audio += 1;
+    else images += 1;
+  });
+
+  const parts = [];
+  if (images) parts.push(`${images} ${images === 1 ? "picture" : "pictures"}`);
+  if (videos) parts.push(`${videos} ${videos === 1 ? "video" : "videos"}`);
+  if (audio) parts.push(`${audio} ${audio === 1 ? "audio" : "audios"}`);
+  return parts.join(", ");
+}
+
+export function getQuoMessagePreview(text: string | null | undefined, media: unknown[] | null | undefined) {
+  const trimmed = text?.trim();
+  if (trimmed) return trimmed.slice(0, 200);
+  return summarizeQuoMedia(media) ?? "No message preview";
+}
+
 function asString(value: unknown) {
   return typeof value === "string" ? value : null;
 }

@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   corsHeaders,
+  getQuoMessagePreview,
   jsonResponse,
   normalizeQuoPayload,
   verifySignature,
@@ -111,7 +112,7 @@ Deno.serve(async (req) => {
           customer_number: conversation.customerNumber,
           number_id: phoneNumberRowId,
           linked_lead_id: existingLead?.id ?? null,
-          last_message_preview: message.text.slice(0, 200),
+          last_message_preview: getQuoMessagePreview(message.text, message.media),
           last_message_time: messageTime,
           last_message_at: messageTime,
           last_customer_message_at: message.sender === "customer" ? messageTime : undefined,

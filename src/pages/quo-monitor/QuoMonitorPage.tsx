@@ -2,21 +2,29 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Bot,
   CalendarClock,
   CalendarDays,
   Clock3,
   CheckCircle2,
   ExternalLink,
+  Eye,
+  EyeOff,
   Filter,
+  GripVertical,
   Inbox,
   Link2,
   MessageSquare,
   MoreHorizontal,
   Phone,
+  Pin,
+  PinOff,
   Power,
   RefreshCw,
   Search,
+  Settings2,
   ShieldAlert,
   Sparkles,
   ClipboardList,
@@ -68,6 +76,7 @@ type ConversationRow = {
   ai_tags: string[] | null;
   rolling_ai_summary: string | null;
   last_ai_analyzed_at: string | null;
+  raw_payload?: unknown;
   quo_phone_numbers?: {
     id: string;
     quo_phone_number_id: string | null;
@@ -126,6 +135,23 @@ type MessageRow = {
   sender: "customer" | "agent";
   text: string | null;
   message_time: string | null;
+  media?: unknown[] | null;
+};
+
+type NumberPreference = {
+  id: string;
+  phone_number_id: string;
+  label_override: string | null;
+  emoji: string | null;
+  hidden: boolean;
+  sort_order: number | null;
+};
+
+type PinnedConversation = {
+  id: string;
+  conversation_id: string;
+  sort_order: number | null;
+  created_at: string;
 };
 
 type DecisionRow = {
@@ -188,6 +214,7 @@ type LooseQuery<T = unknown> = {
   insert: <Next = T>(values: unknown) => LooseQuery<Next>;
   update: <Next = T>(values: unknown) => LooseQuery<Next>;
   upsert: <Next = T>(values: unknown, options?: unknown) => LooseQuery<Next>;
+  delete: <Next = T>() => LooseQuery<Next>;
   eq: (column: string, value: unknown) => LooseQuery<T>;
   in: (column: string, values: unknown[]) => LooseQuery<T>;
   gte: (column: string, value: unknown) => LooseQuery<T>;
@@ -235,6 +262,14 @@ function formatShortDate(value?: string | null) {
   return Number.isNaN(date.getTime())
     ? "Invalid"
     : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatUsPhone(value?: string | null) {
+  if (!value) return "No number";
+  const digits = value.replace(/\D/g, "");
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  if (last10.length !== 10) return value;
+  return `(${last10.slice(0, 3)})-${last10.slice(3, 6)} ${last10.slice(6)}`;
 }
 
 function isSameDay(value: string, offsetDays = 0) {
@@ -292,26 +327,84 @@ function getQuoNumberLabel(conversation: ConversationRow) {
   return number?.label || number?.name || number?.display_number || number?.number || "Unknown Quo Number";
 }
 
+function getPreferredQuoNumberLabel(conversation: ConversationRow, preference?: NumberPreference | null) {
+  return preference?.label_override?.trim() || getQuoNumberLabel(conversation);
+}
+
+function getPreferredQuoNumberEmoji(preference?: NumberPreference | null) {
+  return preference?.emoji?.trim() || "Q";
+}
+
 function getQuoNumberDisplay(conversation: ConversationRow) {
   const number = conversation.quo_phone_numbers;
-  return number?.display_number || number?.number || number?.quo_phone_number_id || "No number";
+  return formatUsPhone(number?.display_number || number?.number || number?.quo_phone_number_id || null);
+}
+
+function getPayloadPhoneNumberId(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const payload = value as Record<string, unknown>;
+  const data = payload.data && typeof payload.data === "object" ? payload.data as Record<string, unknown> : payload;
+  const object = data.object && typeof data.object === "object" ? data.object as Record<string, unknown> : null;
+  const message = data.message && typeof data.message === "object" ? data.message as Record<string, unknown> : object;
+  const direct = message?.phoneNumberId ?? message?.phone_number_id ?? data.phoneNumberId ?? data.phone_number_id;
+  return typeof direct === "string" && direct.trim() ? direct : null;
+}
+
+function getPayloadMedia(value: unknown): unknown[] {
+  if (!value || typeof value !== "object") return [];
+  const payload = value as Record<string, unknown>;
+  const data = payload.data && typeof payload.data === "object" ? payload.data as Record<string, unknown> : payload;
+  const object = data.object && typeof data.object === "object" ? data.object as Record<string, unknown> : null;
+  const message = data.message && typeof data.message === "object" ? data.message as Record<string, unknown> : object;
+  return Array.isArray(message?.media) ? message.media : [];
 }
 
 function getQuoChatUrl(conversation: ConversationRow) {
-  const phoneNumberId = conversation.quo_phone_numbers?.quo_phone_number_id;
+  const phoneNumberId = conversation.quo_phone_numbers?.quo_phone_number_id || getPayloadPhoneNumberId(conversation.raw_payload);
   if (phoneNumberId) {
     return `https://my.quo.com/inbox/${encodeURIComponent(phoneNumberId)}/c/${encodeURIComponent(conversation.quo_conversation_id)}`;
   }
 
-  return `https://my.quo.com/inbox`;
+  return `https://my.quo.com/inbox/c/${encodeURIComponent(conversation.quo_conversation_id)}`;
 }
 
 function getConversationTags(conversation: ConversationRow) {
   const tags = [getScenarioTag(conversation), ...(conversation.ai_tags ?? [])]
     .map((tag) => toTitleCase(tag))
     .filter((tag, index, all) => tag && all.indexOf(tag) === index);
-  const phoneTag = conversation.customer_number ? `@${conversation.customer_number.replace(/\s+/g, "")}` : null;
-  return phoneTag ? [...tags, phoneTag] : tags;
+  return tags;
+}
+
+function summarizeMedia(media: unknown[] | null | undefined) {
+  if (!Array.isArray(media) || media.length === 0) return null;
+  let images = 0;
+  let videos = 0;
+  let audio = 0;
+
+  media.forEach((item) => {
+    const mediaItem = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    const type = String(mediaItem.type ?? mediaItem.contentType ?? mediaItem.mime_type ?? mediaItem.mimeType ?? "").toLowerCase();
+    const url = String(mediaItem.url ?? mediaItem.src ?? "").toLowerCase();
+    if (type.includes("video") || /\.(mp4|mov|webm)(\?|$)/.test(url)) videos += 1;
+    else if (type.includes("audio") || /\.(mp3|wav|m4a)(\?|$)/.test(url)) audio += 1;
+    else images += 1;
+  });
+
+  const parts = [];
+  if (images) parts.push(`${images} ${images === 1 ? "picture" : "pictures"}`);
+  if (videos) parts.push(`${videos} ${videos === 1 ? "video" : "videos"}`);
+  if (audio) parts.push(`${audio} ${audio === 1 ? "audio" : "audios"}`);
+  return parts.join(", ");
+}
+
+function getMessagePreview(text: string | null | undefined, media?: unknown[] | null) {
+  const trimmed = text?.trim();
+  if (trimmed) return trimmed;
+  return summarizeMedia(media) ?? "No message preview";
+}
+
+function getConversationPreview(conversation: ConversationRow) {
+  return getMessagePreview(conversation.last_message_preview || conversation.rolling_ai_summary, getPayloadMedia(conversation.raw_payload));
 }
 
 function matchesDatePreset(value: string | null | undefined, preset: string, rangeStart: string, rangeEnd: string) {
@@ -357,6 +450,7 @@ export default function QuoMonitorPage() {
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [overrideSection, setOverrideSection] = useState<QuoAiSection>("needs_human_review");
   const [showAddLead, setShowAddLead] = useState(false);
+  const [tableNumberIds, setTableNumberIds] = useState<string[]>([]);
 
   const db = supabase as unknown as LooseSupabase;
   const isAdmin = role === "admin";
@@ -392,7 +486,7 @@ export default function QuoMonitorPage() {
       if (!selectedConvId) return [];
       const { data, error } = await db
         .from("quo_messages")
-        .select("id, sender, text, message_time")
+        .select("id, sender, text, message_time, media")
         .eq("conversation_id", selectedConvId)
         .order("message_time", { ascending: true })
         .limit(100);
@@ -473,16 +567,59 @@ export default function QuoMonitorPage() {
     enabled: isAdmin,
   });
 
+  const numberPreferencesQuery = useQuery({
+    queryKey: ["quo-number-preferences"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("quo_number_preferences")
+        .select("*")
+        .order("sort_order", { ascending: true, nullsFirst: false });
+      if (error) {
+        if (error.message?.includes("quo_number_preferences")) return [];
+        throw error;
+      }
+      return (data ?? []) as NumberPreference[];
+    },
+    enabled: isAdmin,
+  });
+
+  const pinnedConversationsQuery = useQuery({
+    queryKey: ["quo-pinned-conversations"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("quo_pinned_conversations")
+        .select("*")
+        .order("sort_order", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true });
+      if (error) {
+        if (error.message?.includes("quo_pinned_conversations")) return [];
+        throw error;
+      }
+      return (data ?? []) as PinnedConversation[];
+    },
+    enabled: isAdmin,
+  });
+
   const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
+  const numberPreferences = useMemo(() => numberPreferencesQuery.data ?? [], [numberPreferencesQuery.data]);
+  const preferenceByNumberId = useMemo(
+    () => new Map(numberPreferences.map((preference) => [preference.phone_number_id, preference])),
+    [numberPreferences],
+  );
+  const pinnedConversations = useMemo(() => pinnedConversationsQuery.data ?? [], [pinnedConversationsQuery.data]);
+  const pinnedConversationIds = useMemo(
+    () => new Set(pinnedConversations.map((pin) => pin.conversation_id)),
+    [pinnedConversations],
+  );
   const numberOptions = useMemo(() => {
     const values = new Map<string, string>();
     conversations.forEach((conversation) => {
       const number = conversation.quo_phone_numbers;
       const id = number?.id;
-      if (id) values.set(id, number.label || number.name || number.display_number || number.number || "Unknown Number");
+      if (id) values.set(id, getPreferredQuoNumberLabel(conversation, preferenceByNumberId.get(id)));
     });
     return Array.from(values.entries());
-  }, [conversations]);
+  }, [conversations, preferenceByNumberId]);
 
   const filteredConversations = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -492,12 +629,18 @@ export default function QuoMonitorPage() {
       const confidence = state?.confidence ?? 0;
       const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
       const numberId = conversation.quo_phone_numbers?.id;
+      const preference = numberId ? preferenceByNumberId.get(numberId) : null;
       const lastActivity = conversation.last_message_at ?? conversation.last_message_time;
       const scenarioTag = getScenarioTag(conversation);
       const rowTags = getConversationTags(conversation);
 
       if (sectionFilter !== "all" && section !== sectionFilter) return false;
-      if (numberFilter !== "all" && numberId !== numberFilter) return false;
+      if (viewMode === "table") {
+        if (preference?.hidden) return false;
+        if (tableNumberIds.length > 0 && (!numberId || !tableNumberIds.includes(numberId))) return false;
+      } else if (numberFilter !== "all" && numberId !== numberFilter) {
+        return false;
+      }
       if (confidenceFilter === "high" && confidence < 0.9) return false;
       if (confidenceFilter === "review" && confidence >= 0.75) return false;
       if (linkedFilter === "linked" && !linked) return false;
@@ -522,7 +665,21 @@ export default function QuoMonitorPage() {
 
       return true;
     });
-  }, [conversations, confidenceFilter, dateFilter, dateRangeEnd, dateRangeStart, linkedFilter, numberFilter, search, sectionFilter, tagFilter]);
+  }, [
+    conversations,
+    confidenceFilter,
+    dateFilter,
+    dateRangeEnd,
+    dateRangeStart,
+    linkedFilter,
+    numberFilter,
+    preferenceByNumberId,
+    search,
+    sectionFilter,
+    tableNumberIds,
+    tagFilter,
+    viewMode,
+  ]);
 
   const stats = useMemo(() => {
     const tasks = tasksQuery.data ?? [];
@@ -702,23 +859,81 @@ export default function QuoMonitorPage() {
     },
   });
 
+  const numberPreferenceMutation = useMutation({
+    mutationFn: async ({ phoneNumberId, patch }: { phoneNumberId: string; patch: Partial<NumberPreference> }) => {
+      const { error } = await db.from("quo_number_preferences").upsert(
+        {
+          phone_number_id: phoneNumberId,
+          ...patch,
+          updated_by: user?.id ?? null,
+        },
+        { onConflict: "phone_number_id" },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quo-number-preferences"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to save number settings"),
+  });
+
+  const pinConversationMutation = useMutation({
+    mutationFn: async ({ conversationId, pinned }: { conversationId: string; pinned: boolean }) => {
+      if (pinned) {
+        const { error } = await db.from("quo_pinned_conversations").delete().eq("conversation_id", conversationId);
+        if (error) throw error;
+        return;
+      }
+
+      if (pinnedConversations.length >= 50) {
+        throw new Error("Pin limit reached. Unpin one chat before pinning another.");
+      }
+
+      const { error } = await db.from("quo_pinned_conversations").insert({
+        conversation_id: conversationId,
+        pinned_by: user?.id ?? null,
+        sort_order: pinnedConversations.length,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quo-pinned-conversations"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update pinned chat"),
+  });
+
   const selectedState = selectedConversation ? getState(selectedConversation) : null;
   const selectedLead = selectedConversation?.ai_lead_links?.[0]?.leads ?? null;
   const latestDecision = decisionsQuery.data?.[0] ?? null;
   const ingestionPaused = Boolean(adminStatusQuery.data?.ingestion_paused);
   const selectedMessages = messagesQuery.data ?? [];
   const selectedNumberLabel =
-    numberFilter === "all"
-      ? "All inboxes"
-      : numberOptions.find(([id]) => id === numberFilter)?.[1] ?? "Selected inbox";
+    viewMode === "table"
+      ? tableNumberIds.length === 0
+        ? "All visible numbers"
+        : tableNumberIds.length === 1
+          ? numberOptions.find(([id]) => id === tableNumberIds[0])?.[1] ?? "Selected number"
+          : `${tableNumberIds.length} numbers selected`
+      : numberFilter === "all"
+        ? "All inboxes"
+        : numberOptions.find(([id]) => id === numberFilter)?.[1] ?? "Selected inbox";
   const numberSummaries = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number; latest: string | null; urgent: number }>();
+    const counts = new Map<string, { label: string; emoji: string; count: number; latest: string | null; urgent: number; hidden: boolean; sort: number }>();
 
     conversations.forEach((conversation) => {
       const number = conversation.quo_phone_numbers;
       const id = number?.id ?? "unknown";
-      const label = number?.label || number?.name || number?.display_number || number?.number || "Unknown Number";
-      const existing = counts.get(id) ?? { label, count: 0, latest: null, urgent: 0 };
+      const preference = id !== "unknown" ? preferenceByNumberId.get(id) : null;
+      const label = getPreferredQuoNumberLabel(conversation, preference);
+      const existing = counts.get(id) ?? {
+        label,
+        emoji: getPreferredQuoNumberEmoji(preference),
+        count: 0,
+        latest: null,
+        urgent: 0,
+        hidden: Boolean(preference?.hidden),
+        sort: preference?.sort_order ?? 9999,
+      };
       const lastActivity = conversation.last_message_at ?? conversation.last_message_time;
       existing.count += 1;
       existing.urgent += getPriority(conversation) === "urgent" ? 1 : 0;
@@ -730,11 +945,13 @@ export default function QuoMonitorPage() {
     });
 
     return Array.from(counts.entries()).sort(([, left], [, right]) => {
+      if (left.hidden !== right.hidden) return Number(left.hidden) - Number(right.hidden);
+      if (left.sort !== right.sort) return left.sort - right.sort;
       const leftTime = left.latest ? new Date(left.latest).getTime() : 0;
       const rightTime = right.latest ? new Date(right.latest).getTime() : 0;
       return rightTime - leftTime;
     });
-  }, [conversations]);
+  }, [conversations, preferenceByNumberId]);
   const tagSummaries = useMemo(() => {
     const counts = new Map<string, number>();
 
@@ -746,6 +963,41 @@ export default function QuoMonitorPage() {
 
     return Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
   }, [conversations]);
+  const tableConversations = useMemo(() => {
+    return filteredConversations.slice().sort((left, right) => {
+      const leftPinned = pinnedConversationIds.has(left.id);
+      const rightPinned = pinnedConversationIds.has(right.id);
+      if (leftPinned !== rightPinned) return leftPinned ? -1 : 1;
+
+      const leftTime = new Date(left.last_message_at ?? left.last_message_time ?? 0).getTime() || 0;
+      const rightTime = new Date(right.last_message_at ?? right.last_message_time ?? 0).getTime() || 0;
+      return rightTime - leftTime;
+    });
+  }, [filteredConversations, pinnedConversationIds]);
+  const visibleNumberSummaries = useMemo(
+    () => numberSummaries.filter(([, item]) => !item.hidden),
+    [numberSummaries],
+  );
+  const toggleTableNumber = (id: string) => {
+    setTableNumberIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  };
+  const moveNumberPreference = (phoneNumberId: string, direction: -1 | 1) => {
+    const visible = numberSummaries.filter(([id]) => id !== "unknown");
+    const index = visible.findIndex(([id]) => id === phoneNumberId);
+    const target = visible[index + direction];
+    if (index < 0 || !target) return;
+
+    const currentPreference = preferenceByNumberId.get(phoneNumberId);
+    const targetPreference = preferenceByNumberId.get(target[0]);
+    numberPreferenceMutation.mutate({
+      phoneNumberId,
+      patch: { sort_order: targetPreference?.sort_order ?? index + direction },
+    });
+    numberPreferenceMutation.mutate({
+      phoneNumberId: target[0],
+      patch: { sort_order: currentPreference?.sort_order ?? index },
+    });
+  };
 
   useEffect(() => {
     if (!filteredConversations.length) {
@@ -1081,7 +1333,7 @@ export default function QuoMonitorPage() {
           </ScrollArea>
         </section>
 
-        <main className="flex min-w-0 flex-col bg-[#111217]">
+        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#111217]">
           {viewMode === "table" ? (
             <>
               <div className="space-y-4 border-b border-slate-800 bg-[#101116] px-5 py-4">
@@ -1149,31 +1401,137 @@ export default function QuoMonitorPage() {
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     <button
                       type="button"
-                      onClick={() => setNumberFilter("all")}
+                      onClick={() => setTableNumberIds([])}
                       className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                        numberFilter === "all"
+                        tableNumberIds.length === 0
                           ? "border-blue-500 bg-blue-500/15 text-blue-100"
                           : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
                       }`}
                     >
                       All numbers
-                      <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{conversations.length}</span>
+                      <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{filteredConversations.length}</span>
                     </button>
-                    {numberSummaries.map(([id, item]) => (
+                    {visibleNumberSummaries.map(([id, item]) => (
                       <button
                         key={id}
                         type="button"
-                        onClick={() => setNumberFilter(id)}
+                        onClick={() => toggleTableNumber(id)}
                         className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                          numberFilter === id
+                          tableNumberIds.includes(id)
                             ? "border-blue-500 bg-blue-500/15 text-blue-100"
                             : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
                         }`}
                       >
+                        <span className="mr-2">{item.emoji}</span>
                         {item.label}
                         <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{item.count}</span>
                       </button>
                     ))}
+                    {isAdmin && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0 rounded-full border-slate-700 bg-transparent text-xs text-slate-200 hover:bg-slate-800 hover:text-white"
+                          >
+                            <Settings2 className="mr-2 h-4 w-4" />
+                            Manage numbers
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[720px] border-slate-700 bg-[#15161c] p-0 text-slate-100" align="end">
+                          <div className="border-b border-slate-800 px-4 py-3">
+                            <div className="text-sm font-semibold">Quo number display</div>
+                            <div className="text-xs text-slate-400">
+                              Rename, add emoji, hide from table, or reorder. Drag a row or use arrows.
+                            </div>
+                          </div>
+                          <div className="max-h-[520px] overflow-auto p-3">
+                            {numberSummaries.filter(([id]) => id !== "unknown").map(([id, item], index) => {
+                              const preference = preferenceByNumberId.get(id);
+                              return (
+                                <div
+                                  key={id}
+                                  draggable
+                                  onDragStart={(event) => event.dataTransfer.setData("text/plain", id)}
+                                  onDragOver={(event) => event.preventDefault()}
+                                  onDrop={(event) => {
+                                    event.preventDefault();
+                                    const draggedId = event.dataTransfer.getData("text/plain");
+                                    if (!draggedId || draggedId === id) return;
+                                    const draggedPreference = preferenceByNumberId.get(draggedId);
+                                    numberPreferenceMutation.mutate({
+                                      phoneNumberId: draggedId,
+                                      patch: { sort_order: preference?.sort_order ?? index },
+                                    });
+                                    numberPreferenceMutation.mutate({
+                                      phoneNumberId: id,
+                                      patch: { sort_order: draggedPreference?.sort_order ?? index + 1 },
+                                    });
+                                  }}
+                                  className={`mb-2 grid grid-cols-[32px_52px_minmax(220px,1fr)_120px_120px] items-center gap-2 rounded-xl border px-3 py-2 ${
+                                    item.hidden ? "border-slate-800 bg-slate-950/70 opacity-60" : "border-slate-800 bg-slate-900/80"
+                                  }`}
+                                >
+                                  <GripVertical className="h-4 w-4 cursor-grab text-slate-500" />
+                                  <Input
+                                    defaultValue={preference?.emoji ?? item.emoji}
+                                    maxLength={4}
+                                    onBlur={(event) =>
+                                      numberPreferenceMutation.mutate({ phoneNumberId: id, patch: { emoji: event.target.value } })
+                                    }
+                                    className="h-9 border-slate-700 bg-slate-950 text-center text-lg"
+                                    title="Emoji"
+                                  />
+                                  <div className="min-w-0">
+                                    <Input
+                                      defaultValue={preference?.label_override ?? item.label}
+                                      onBlur={(event) =>
+                                        numberPreferenceMutation.mutate({ phoneNumberId: id, patch: { label_override: event.target.value } })
+                                      }
+                                      className="h-9 border-slate-700 bg-slate-950 text-slate-100"
+                                      title="Number name"
+                                    />
+                                    <div className="mt-1 text-[11px] text-slate-500">{item.count} chats</div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                                    onClick={() => numberPreferenceMutation.mutate({ phoneNumberId: id, patch: { hidden: !item.hidden } })}
+                                  >
+                                    {item.hidden ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
+                                    {item.hidden ? "Show" : "Hide"}
+                                  </Button>
+                                  <div className="flex justify-end gap-1">
+                                    <Button
+                                      size="icon"
+                                      variant="outline"
+                                      className="h-9 w-9 border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                                      onClick={() => moveNumberPreference(id, -1)}
+                                      disabled={index === 0}
+                                      title="Move up"
+                                    >
+                                      <ArrowUp className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="outline"
+                                      className="h-9 w-9 border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                                      onClick={() => moveNumberPreference(id, 1)}
+                                      disabled={index === numberSummaries.filter(([numberId]) => numberId !== "unknown").length - 1}
+                                      title="Move down"
+                                    >
+                                      <ArrowDown className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
                   </div>
                 </div>
 
@@ -1291,44 +1649,48 @@ export default function QuoMonitorPage() {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full min-w-[1240px] text-left text-sm">
+              <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+                <table className="w-full min-w-[1080px] table-fixed text-left text-sm xl:min-w-[1240px]">
                   <thead className="sticky top-0 z-10 border-b border-slate-800 bg-[#15161c] text-xs uppercase tracking-wide text-slate-500">
                     <tr>
-                      <th className="px-4 py-3 font-semibold">Customer Number</th>
-                      <th className="px-4 py-3 font-semibold">AI Tags</th>
-                      <th className="px-4 py-3 font-semibold">Last Message</th>
-                      <th className="px-4 py-3 font-semibold">All Messages</th>
-                      <th className="px-4 py-3 font-semibold">Last Side</th>
-                      <th className="px-4 py-3 font-semibold">Date / Time</th>
-                      <th className="px-4 py-3 font-semibold">Confidence</th>
-                      <th className="px-4 py-3 font-semibold">Lead</th>
-                      <th className="px-4 py-3 text-right font-semibold">Quo</th>
+                      <th className="w-[52px] px-3 py-3 font-semibold">Pin</th>
+                      <th className="w-[210px] px-3 py-3 font-semibold">Customer Number</th>
+                      <th className="w-[260px] px-3 py-3 font-semibold">AI Tags</th>
+                      <th className="px-3 py-3 font-semibold">Last Message</th>
+                      <th className="w-[118px] px-3 py-3 font-semibold">All Messages</th>
+                      <th className="w-[96px] px-3 py-3 font-semibold">Last Side</th>
+                      <th className="w-[170px] px-3 py-3 font-semibold">Date / Time</th>
+                      <th className="w-[126px] px-3 py-3 font-semibold">Confidence</th>
+                      <th className="w-[100px] px-3 py-3 font-semibold">Lead</th>
+                      <th className="w-[96px] px-3 py-3 text-right font-semibold">Quo</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
                     {conversationsQuery.isLoading ? (
                       Array.from({ length: 8 }).map((_, index) => (
                         <tr key={index}>
-                          <td colSpan={9} className="px-4 py-3">
+                          <td colSpan={10} className="px-4 py-3">
                             <Skeleton className="h-12 rounded-lg bg-slate-800" />
                           </td>
                         </tr>
                       ))
                     ) : filteredConversations.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-16 text-center text-slate-400">
+                        <td colSpan={10} className="px-4 py-16 text-center text-slate-400">
                           No chats match this number, date, search, and tag filter.
                         </td>
                       </tr>
                     ) : (
-                      filteredConversations.map((conversation) => {
-                        const scenarioTag = getScenarioTag(conversation);
-                        const priority = getPriority(conversation);
+                      tableConversations.map((conversation) => {
                         const confidence = getState(conversation)?.confidence ?? 0;
                         const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
+                        const numberId = conversation.quo_phone_numbers?.id;
+                        const preference = numberId ? preferenceByNumberId.get(numberId) : null;
+                        const sourceLabel = getPreferredQuoNumberLabel(conversation, preference);
+                        const showSourceNumber = tableNumberIds.length !== 1;
+                        const pinned = pinnedConversationIds.has(conversation.id);
                         const rowTags = getConversationTags(conversation);
-                        const lastMessage = conversation.last_message_preview || conversation.rolling_ai_summary || "No message preview";
+                        const lastMessage = getConversationPreview(conversation);
                         const rowMessages =
                           selectedConvId === conversation.id
                             ? selectedMessages
@@ -1344,25 +1706,45 @@ export default function QuoMonitorPage() {
                               setOverrideSection(getSection(conversation));
                             }}
                           >
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-3">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className={`h-8 w-8 rounded-full ${
+                                  pinned ? "text-amber-300 hover:bg-amber-500/10" : "text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+                                }`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  pinConversationMutation.mutate({ conversationId: conversation.id, pinned });
+                                }}
+                                disabled={pinConversationMutation.isPending}
+                                title={pinned ? "Unpin chat" : "Pin chat"}
+                              >
+                                {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                              </Button>
+                            </td>
+                            <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-sm font-semibold">
-                                  {(conversation.customer_number || "#").slice(-2)}
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-sm font-semibold shadow-[0_0_24px_rgba(168,85,247,0.28)]">
+                                  {(conversation.customer_number || "#").replace(/\D/g, "").slice(-2) || "#"}
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="truncate font-semibold text-slate-100">{conversation.customer_number || "No customer number"}</div>
-                                  <div className="truncate text-xs text-slate-400">{getQuoNumberLabel(conversation)}</div>
+                                  <div className="truncate font-semibold text-slate-100">{formatUsPhone(conversation.customer_number)}</div>
+                                  {showSourceNumber && (
+                                    <div className="truncate text-xs text-slate-400">
+                                      <span className="mr-1">{getPreferredQuoNumberEmoji(preference)}</span>
+                                      {sourceLabel}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </td>
-                            <td className="max-w-[260px] px-4 py-3">
+                            <td className="px-3 py-3">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {rowTags.slice(0, 3).map((tag, index) => (
                                   <span
                                     key={`${conversation.id}-${tag}`}
-                                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                      index === 0 && tag === scenarioTag ? priorityClasses[priority] : "bg-slate-800 text-slate-200"
-                                    }`}
+                                    className="rounded-full border border-cyan-300/20 bg-white/10 px-2.5 py-1 text-xs font-semibold text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.16)] backdrop-blur-md"
                                   >
                                     {tag}
                                   </span>
@@ -1374,7 +1756,7 @@ export default function QuoMonitorPage() {
                                 )}
                               </div>
                             </td>
-                            <td className="max-w-[320px] px-4 py-3">
+                            <td className="px-3 py-3">
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <button
@@ -1391,7 +1773,7 @@ export default function QuoMonitorPage() {
                                 </PopoverContent>
                               </Popover>
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-3">
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <Button
@@ -1430,7 +1812,7 @@ export default function QuoMonitorPage() {
                                             <span>{message.sender === "customer" ? "Customer" : "Us"}</span>
                                             <span>{formatDate(message.message_time)}</span>
                                           </div>
-                                          <div className="whitespace-pre-wrap text-sm leading-6">{message.text || "No text"}</div>
+                                          <div className="whitespace-pre-wrap text-sm leading-6">{getMessagePreview(message.text, message.media)}</div>
                                         </div>
                                       ))
                                     )}
@@ -1457,11 +1839,11 @@ export default function QuoMonitorPage() {
                             <td className="px-4 py-3">
                               {linked ? (
                                 <Badge variant="outline" className="border-emerald-700 bg-emerald-500/10 text-emerald-200">
-                                  Linked
+                                  In CRM
                                 </Badge>
                               ) : (
                                 <Badge variant="outline" className="border-amber-700 bg-amber-500/10 text-amber-200">
-                                  Not linked
+                                  Not in CRM
                                 </Badge>
                               )}
                             </td>
