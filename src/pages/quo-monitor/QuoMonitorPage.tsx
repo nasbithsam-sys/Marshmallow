@@ -338,6 +338,19 @@ function getScenarioTag(conversation: ConversationRow) {
   return friendly[section] ?? toTitleCase(section);
 }
 
+function getTableSortWeight(conversation: ConversationRow) {
+  const section = getSection(conversation);
+  if (section === "urgent_complaint") return 0;
+  if (section === "hot_lead" || section === "new_interested_lead" || section === "needs_reply") return 1;
+  if (section === "appointment_mentioned" || section === "waiting_for_customer") return 2;
+  if (section === "follow_up_due_today" || section === "follow_up_tomorrow" || section === "future_follow_up") return 3;
+  if (section === "needs_human_review" || section === "already_added_to_crm") return 4;
+  if (section === "possible_dead") return 7;
+  if (section === "lost_found_other_tech") return 8;
+  if (section === "not_a_lead_spam_wrong_number") return 9;
+  return 5;
+}
+
 function getLastMessageSide(conversation: ConversationRow) {
   const customerTime = conversation.last_customer_message_at ? new Date(conversation.last_customer_message_at).getTime() : 0;
   const agentTime = conversation.last_agent_message_at ? new Date(conversation.last_agent_message_at).getTime() : 0;
@@ -993,6 +1006,10 @@ export default function QuoMonitorPage() {
       const rightPinned = pinnedConversationIds.has(right.id);
       if (leftPinned !== rightPinned) return leftPinned ? -1 : 1;
 
+      const leftWeight = getTableSortWeight(left);
+      const rightWeight = getTableSortWeight(right);
+      if (leftWeight !== rightWeight) return leftWeight - rightWeight;
+
       const leftTime = new Date(left.last_message_at ?? left.last_message_time ?? 0).getTime() || 0;
       const rightTime = new Date(right.last_message_at ?? right.last_message_time ?? 0).getTime() || 0;
       return rightTime - leftTime;
@@ -1041,6 +1058,47 @@ export default function QuoMonitorPage() {
       setOverrideSection(getSection(first));
     }
   }, [filteredConversations, selectedConvId]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    let refreshTimer: ReturnType<typeof window.setTimeout> | null = null;
+    const scheduleConversationRefresh = () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+      }, 750);
+    };
+
+    const channel = supabase
+      .channel("quo-monitor-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, scheduleConversationRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ai_conversation_states" }, scheduleConversationRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ai_lead_links" }, scheduleConversationRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_pinned_conversations" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["quo-pinned-conversations"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_messages" }, (payload) => {
+        const changedConversationId =
+          typeof payload.new === "object" && payload.new && "conversation_id" in payload.new
+            ? String(payload.new.conversation_id)
+            : typeof payload.old === "object" && payload.old && "conversation_id" in payload.old
+              ? String(payload.old.conversation_id)
+              : null;
+
+        if (changedConversationId && changedConversationId === selectedConvId) {
+          queryClient.invalidateQueries({ queryKey: ["quo-ai-messages", selectedConvId] });
+        }
+
+        scheduleConversationRefresh();
+      })
+      .subscribe();
+
+    return () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [isAdmin, queryClient, selectedConvId]);
 
   const renderInboxUi = true;
 
@@ -1424,9 +1482,35 @@ export default function QuoMonitorPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    <Inbox className="h-3.5 w-3.5" />
-                    Quo numbers
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      <Inbox className="h-3.5 w-3.5" />
+                      Quo numbers
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        type="date"
+                        value={dateRangeStart}
+                        onChange={(event) => {
+                          setDateRangeStart(event.target.value);
+                          setDateFilter("custom");
+                        }}
+                        className="h-8 w-[150px] border-slate-800 bg-slate-900 text-xs text-slate-100"
+                      />
+                      <Input
+                        type="date"
+                        value={dateRangeEnd}
+                        onChange={(event) => {
+                          setDateRangeEnd(event.target.value);
+                          setDateFilter("custom");
+                        }}
+                        className="h-8 w-[150px] border-slate-800 bg-slate-900 text-xs text-slate-100"
+                      />
+                      <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-300">
+                        <CalendarDays className="mr-1 h-3.5 w-3.5" />
+                        {dateFilter === "all" ? "All dates" : toTitleCase(dateFilter)}
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -1596,39 +1680,37 @@ export default function QuoMonitorPage() {
                     )}
                   </div>
 
-                <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     <Tags className="h-3.5 w-3.5" />
-                    AI tags
+                    AI tags:
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTagFilter("")}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      !tagFilter
+                        ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
+                        : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
+                    }`}
+                  >
+                    All tags
+                  </button>
+                  {tagSummaries.slice(0, 18).map(([tag, count]) => (
                     <button
+                      key={tag}
                       type="button"
-                      onClick={() => setTagFilter("")}
+                      onClick={() => setTagFilter(tagFilter === tag ? "" : tag)}
                       className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                        !tagFilter
+                        tagFilter === tag
                           ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
                           : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
                       }`}
                     >
-                      All tags
+                      {tag}
+                      <span className="ml-2 text-[10px] text-slate-500">{count}</span>
                     </button>
-                    {tagSummaries.slice(0, 18).map(([tag, count]) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => setTagFilter(tagFilter === tag ? "" : tag)}
-                        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                          tagFilter === tag
-                            ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
-                            : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
-                        }`}
-                      >
-                        {tag}
-                        <span className="ml-2 text-[10px] text-slate-500">{count}</span>
-                      </button>
-                    ))}
-                  </div>
+                  ))}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -1685,39 +1767,17 @@ export default function QuoMonitorPage() {
                   >
                     Unlinked
                   </Button>
-                  <Input
-                    type="date"
-                    value={dateRangeStart}
-                    onChange={(event) => {
-                      setDateRangeStart(event.target.value);
-                      setDateFilter("custom");
-                    }}
-                    className="h-8 w-[150px] border-slate-800 bg-slate-900 text-xs text-slate-100"
-                  />
-                  <Input
-                    type="date"
-                    value={dateRangeEnd}
-                    onChange={(event) => {
-                      setDateRangeEnd(event.target.value);
-                      setDateFilter("custom");
-                    }}
-                    className="h-8 w-[150px] border-slate-800 bg-slate-900 text-xs text-slate-100"
-                  />
-                  <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-300">
-                    <CalendarDays className="mr-1 h-3.5 w-3.5" />
-                    {dateFilter === "all" ? "All dates" : toTitleCase(dateFilter)}
-                  </Badge>
                 </div>
               </div>
 
               <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
-                <table className="w-full min-w-[1080px] table-fixed text-left text-sm xl:min-w-[1240px]">
+                <table className="w-full min-w-[1560px] table-fixed text-left text-sm xl:min-w-[1680px]">
                   <thead className="sticky top-0 z-10 border-b border-slate-800 bg-[#15161c] text-xs uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="w-[52px] px-3 py-3 font-semibold">Pin</th>
                       <th className="w-[210px] px-3 py-3 font-semibold">Customer Number</th>
-                      <th className="w-[260px] px-3 py-3 font-semibold">AI Tags</th>
-                      <th className="px-3 py-3 font-semibold">Last Message</th>
+                      <th className="w-[230px] px-3 py-3 font-semibold">AI Tags</th>
+                      <th className="w-[460px] px-3 py-3 font-semibold">Last Message</th>
                       <th className="w-[118px] px-3 py-3 font-semibold">All Messages</th>
                       <th className="w-[96px] px-3 py-3 font-semibold">Last Side</th>
                       <th className="w-[170px] px-3 py-3 font-semibold">Date / Time</th>

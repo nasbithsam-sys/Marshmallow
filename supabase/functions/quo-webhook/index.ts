@@ -2,8 +2,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   corsHeaders,
   getQuoMessagePreview,
+  isProcessableQuoWebhookEvent,
   jsonResponse,
   normalizeQuoPayload,
+  shouldEnqueueQuoAiForEvent,
   verifySignature,
 } from "../_shared/quo-ai.ts";
 
@@ -65,7 +67,7 @@ Deno.serve(async (req) => {
         : typeof payload.eventId === "string"
           ? payload.eventId
           : null;
-  const isMessageEvent = eventType.startsWith("message.");
+  const isProcessableEvent = isProcessableQuoWebhookEvent(eventType);
 
   let webhookEventId: string | null = null;
 
@@ -98,7 +100,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!isMessageEvent) {
+    if (!isProcessableEvent) {
       await supabase
         .from("quo_webhook_events")
         .upsert(
@@ -109,7 +111,7 @@ Deno.serve(async (req) => {
             processing_status: "ignored",
             signature_verified: signatureVerified,
             processed_at: new Date().toISOString(),
-            error_message: "Non-message Quo event ignored by CRM webhook.",
+            error_message: "Quo event logged but not processed by CRM webhook.",
           },
           {
             onConflict: eventId ? "quo_event_id" : "quo_message_id,event_type",
@@ -121,13 +123,13 @@ Deno.serve(async (req) => {
         success: true,
         ignored: true,
         event_type: eventType,
-        reason: "Only message events are processed by this webhook.",
+        reason: "This event does not update Quo AI conversations.",
       });
     }
 
     let normalizedPayload: ReturnType<typeof normalizeQuoPayload>;
     try {
-      normalizedPayload = normalizeQuoPayload(payload);
+      normalizedPayload = normalizeQuoPayload(payload, eventType);
     } catch (error) {
       await supabase
         .from("quo_webhook_events")
@@ -139,7 +141,7 @@ Deno.serve(async (req) => {
             processing_status: "ignored",
             signature_verified: signatureVerified,
             processed_at: new Date().toISOString(),
-            error_message: error instanceof Error ? error.message : "Message event did not include a processable message payload.",
+            error_message: error instanceof Error ? error.message : "Quo event did not include a processable payload.",
           },
           {
             onConflict: eventId ? "quo_event_id" : "quo_message_id,event_type",
@@ -151,7 +153,7 @@ Deno.serve(async (req) => {
         success: true,
         ignored: true,
         event_type: eventType,
-        reason: "Message event did not include a processable message payload.",
+        reason: "Quo event did not include a processable payload.",
       });
     }
 
@@ -288,22 +290,27 @@ Deno.serve(async (req) => {
         .eq("id", webhookEventId);
     }
 
-    const debounceSeconds = Number(Deno.env.get("AI_MESSAGE_DEBOUNCE_SECONDS") ?? "60");
-    const priority = message.sender !== "customer"
-      ? "low"
-      : message.text.toLowerCase().match(/urgent|asap|angry|cancel|refund|complaint|emergency/)
-        ? "high"
-        : "medium";
-    const { error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
-      _conversation_id: conversationRow.id,
-      _latest_message_id: messageRow.id,
-      _job_type: "message_analysis",
-      _priority: priority,
-      _debounce_seconds: Number.isFinite(debounceSeconds) ? debounceSeconds : 60,
-    });
+    let aiJobEnqueued = false;
+    if (shouldEnqueueQuoAiForEvent(eventType, message)) {
+      const debounceSeconds = Number(Deno.env.get("AI_MESSAGE_DEBOUNCE_SECONDS") ?? "60");
+      const priority = message.sender !== "customer"
+        ? "low"
+        : message.text.toLowerCase().match(/urgent|asap|angry|cancel|refund|complaint|emergency/)
+          ? "high"
+          : "medium";
+      const { error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
+        _conversation_id: conversationRow.id,
+        _latest_message_id: messageRow.id,
+        _job_type: "message_analysis",
+        _priority: priority,
+        _debounce_seconds: Number.isFinite(debounceSeconds) ? debounceSeconds : 60,
+      });
 
-    if (enqueueError) {
-      console.error("Failed to enqueue Quo AI job:", enqueueError.message);
+      if (enqueueError) {
+        console.error("Failed to enqueue Quo AI job:", enqueueError.message);
+      } else {
+        aiJobEnqueued = true;
+      }
     }
 
     return jsonResponse({
@@ -311,7 +318,7 @@ Deno.serve(async (req) => {
       conversation_id: conversationRow.id,
       message_id: messageRow.id,
       linked_lead_id: existingLead?.id ?? conversationRow.linked_lead_id ?? null,
-      ai_job_enqueued: true,
+      ai_job_enqueued: aiJobEnqueued,
     });
   } catch (error) {
     if (webhookEventId) {

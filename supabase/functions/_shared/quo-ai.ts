@@ -352,7 +352,128 @@ function arrayOfStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
-export function normalizeQuoPayload(payload: JsonObject) {
+const processableCallEvents = new Set([
+  "call.completed",
+  "call.recording.completed",
+  "call.transcript.completed",
+  "call.summary.completed",
+]);
+
+export function isProcessableQuoWebhookEvent(eventType: string) {
+  return eventType.startsWith("message.") || processableCallEvents.has(eventType);
+}
+
+export function shouldEnqueueQuoAiForEvent(eventType: string, message: NormalizedQuoMessage) {
+  if (eventType === "message.received") return true;
+  if (eventType === "message.delivered") return message.sender === "agent";
+  if (eventType === "call.transcript.completed" || eventType === "call.summary.completed") return Boolean(message.text.trim());
+  return false;
+}
+
+function pickCallText(call: JsonObject, data: JsonObject, eventType: string) {
+  const summary =
+    asString(call.summary) ??
+    asString(call.callSummary) ??
+    asString(call.aiSummary) ??
+    asString(data.summary);
+  const transcript =
+    asString(call.transcript) ??
+    asString(call.transcriptText) ??
+    asString(data.transcript);
+  const duration =
+    asString(call.duration) ??
+    asString(call.durationSeconds) ??
+    asString(data.duration);
+
+  if (eventType === "call.summary.completed") return summary ? `Call summary: ${summary}` : "Call summary completed.";
+  if (eventType === "call.transcript.completed") return transcript ? `Call transcript: ${transcript}` : "Call transcript completed.";
+  if (eventType === "call.recording.completed") return "Call recording completed.";
+  return duration ? `Call completed. Duration: ${duration}` : "Call completed.";
+}
+
+function normalizeQuoCallPayload(payload: JsonObject, eventType: string) {
+  const data = (payload.data && typeof payload.data === "object" ? payload.data : payload) as JsonObject;
+  const dataObject = (data.object && typeof data.object === "object" ? data.object : null) as JsonObject | null;
+  const call = ((data.call && typeof data.call === "object"
+    ? data.call
+    : dataObject?.object === "call" || dataObject?.conversationId || dataObject?.conversation_id
+      ? dataObject
+      : data) ?? {}) as JsonObject;
+  const conversation = ((data.conversation && typeof data.conversation === "object"
+    ? data.conversation
+    : payload.conversation && typeof payload.conversation === "object"
+      ? payload.conversation
+      : call.conversation && typeof call.conversation === "object"
+        ? call.conversation
+        : {}) ?? {}) as JsonObject;
+
+  const callId = asString(call.id);
+  const conversationId =
+    asString(conversation.id) ??
+    asString(call.conversationId) ??
+    asString(call.conversation_id);
+
+  if (!callId || !conversationId) {
+    throw new Error("Invalid Quo call payload: missing call id or conversation id.");
+  }
+
+  const rawDirection = asString(call.direction)?.toLowerCase();
+  const direction = rawDirection === "outbound" || rawDirection === "outgoing" ? "outbound" : "inbound";
+  const sender = direction === "inbound" ? "customer" : "agent";
+  const to = arrayOfStrings(call.to);
+  const from = asString(call.from);
+  const contact = (conversation.contact && typeof conversation.contact === "object"
+    ? conversation.contact
+    : call.contact && typeof call.contact === "object"
+      ? call.contact
+      : {}) as JsonObject;
+  const phoneNumbers = Array.isArray(contact.phoneNumbers) ? contact.phoneNumbers : [];
+  const firstPhone = phoneNumbers[0] && typeof phoneNumbers[0] === "object" ? phoneNumbers[0] as JsonObject : {};
+  const phoneNumberId =
+    asString(call.phoneNumberId) ??
+    asString(call.phone_number_id) ??
+    asString(conversation.phoneNumberId) ??
+    null;
+  const recordingUrl =
+    asString(call.recordingUrl) ??
+    asString(call.recording_url) ??
+    asString(data.recordingUrl) ??
+    null;
+
+  const normalizedMessage: NormalizedQuoMessage = {
+    id: `${callId}:${eventType}`,
+    conversationId,
+    phoneNumberId,
+    direction,
+    sender,
+    from: normalizePhone(from),
+    to: to.map((item) => normalizePhone(item) ?? item),
+    text: pickCallText(call, data, eventType),
+    media: recordingUrl ? [{ type: "audio", url: recordingUrl }] : [],
+    status: asString(call.status) ?? eventType,
+    createdAt: asString(call.createdAt) ?? asString(call.created_at) ?? asString(data.createdAt) ?? new Date().toISOString(),
+  };
+
+  const normalizedConversation: NormalizedQuoConversation = {
+    id: conversationId,
+    customerName: asString(contact.name) ?? asString(conversation.name),
+    customerNumber: normalizePhone(asString(firstPhone.value) ?? (direction === "inbound" ? from : to[0])),
+    phoneNumberId,
+    phoneNumberDisplay:
+      asString(call.phoneNumber) ??
+      asString(conversation.phoneNumber) ??
+      (direction === "inbound" ? normalizedMessage.to[0] ?? null : normalizedMessage.from),
+    phoneNumberName: asString(conversation.phoneNumberName) ?? asString(call.phoneNumberName),
+  };
+
+  return { message: normalizedMessage, conversation: normalizedConversation };
+}
+
+export function normalizeQuoPayload(payload: JsonObject, eventType = "message.received") {
+  if (processableCallEvents.has(eventType)) {
+    return normalizeQuoCallPayload(payload, eventType);
+  }
+
   const data = (payload.data && typeof payload.data === "object" ? payload.data : payload) as JsonObject;
   const dataObject = (data.object && typeof data.object === "object" ? data.object : null) as JsonObject | null;
   const message = ((data.message && typeof data.message === "object"
