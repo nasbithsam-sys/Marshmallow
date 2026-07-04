@@ -4,6 +4,7 @@ import {
   getQuoMessagePreview,
   isProcessableQuoWebhookEvent,
   jsonResponse,
+  normalizeQuoContactPayload,
   normalizeQuoPayload,
   shouldEnqueueQuoAiForEvent,
   verifySignature,
@@ -97,6 +98,48 @@ Deno.serve(async (req) => {
         paused: true,
         event_type: eventType,
         reason: "Quo Monitor ingestion is paused.",
+      });
+    }
+
+    if (eventType === "contact.updated") {
+      const contact = normalizeQuoContactPayload(payload);
+      let updatedConversations = 0;
+
+      if (contact.name && contact.phoneNumbers.length > 0) {
+        const { data: updatedRows, error: updateError } = await supabase
+          .from("quo_conversations")
+          .update({ customer_name: contact.name, raw_payload: payload })
+          .in("customer_number", contact.phoneNumbers)
+          .select("id");
+
+        if (updateError) throw updateError;
+        updatedConversations = updatedRows?.length ?? 0;
+      }
+
+      await supabase
+        .from("quo_webhook_events")
+        .upsert(
+          {
+            quo_event_id: eventId,
+            event_type: eventType,
+            raw_payload: payload,
+            processing_status: "processed",
+            signature_verified: signatureVerified,
+            processed_at: new Date().toISOString(),
+            error_message: updatedConversations
+              ? `Updated contact name on ${updatedConversations} existing Quo conversation(s).`
+              : "Contact update accepted; no matching stored conversation found.",
+          },
+          {
+            onConflict: eventId ? "quo_event_id" : "quo_message_id,event_type",
+            ignoreDuplicates: true,
+          },
+        );
+
+      return jsonResponse({
+        success: true,
+        event_type: eventType,
+        updated_conversations: updatedConversations,
       });
     }
 

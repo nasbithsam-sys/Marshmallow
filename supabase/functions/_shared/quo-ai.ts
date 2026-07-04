@@ -100,6 +100,12 @@ export type NormalizedQuoConversation = {
   phoneNumberName: string | null;
 };
 
+export type NormalizedQuoContact = {
+  id: string | null;
+  name: string | null;
+  phoneNumbers: string[];
+};
+
 export type AiDecisionOutput = {
   section: string;
   priority: string;
@@ -360,7 +366,7 @@ const processableCallEvents = new Set([
 ]);
 
 export function isProcessableQuoWebhookEvent(eventType: string) {
-  return eventType.startsWith("message.") || processableCallEvents.has(eventType);
+  return eventType.startsWith("message.") || processableCallEvents.has(eventType) || eventType === "contact.updated";
 }
 
 export function shouldEnqueueQuoAiForEvent(eventType: string, message: NormalizedQuoMessage) {
@@ -389,6 +395,41 @@ function pickCallText(call: JsonObject, data: JsonObject, eventType: string) {
   if (eventType === "call.transcript.completed") return transcript ? `Call transcript: ${transcript}` : "Call transcript completed.";
   if (eventType === "call.recording.completed") return "Call recording completed.";
   return duration ? `Call completed. Duration: ${duration}` : "Call completed.";
+}
+
+export function normalizeQuoContactPayload(payload: JsonObject): NormalizedQuoContact {
+  const data = (payload.data && typeof payload.data === "object" ? payload.data : payload) as JsonObject;
+  const dataObject = (data.object && typeof data.object === "object" ? data.object : null) as JsonObject | null;
+  const contact = ((data.contact && typeof data.contact === "object"
+    ? data.contact
+    : dataObject?.object === "contact" || dataObject?.phoneNumbers || dataObject?.phone_numbers
+      ? dataObject
+      : data) ?? {}) as JsonObject;
+  const rawPhoneNumbers = Array.isArray(contact.phoneNumbers)
+    ? contact.phoneNumbers
+    : Array.isArray(contact.phone_numbers)
+      ? contact.phone_numbers
+      : [];
+  const phoneNumbers = rawPhoneNumbers
+    .map((item) => {
+      if (typeof item === "string") return normalizePhone(item);
+      if (item && typeof item === "object") {
+        const phone = item as JsonObject;
+        return normalizePhone(asString(phone.value) ?? asString(phone.phoneNumber) ?? asString(phone.phone_number));
+      }
+      return null;
+    })
+    .filter((item): item is string => Boolean(item));
+
+  const directPhone =
+    normalizePhone(asString(contact.phoneNumber) ?? asString(contact.phone_number) ?? asString(data.phoneNumber) ?? asString(data.phone_number));
+  if (directPhone && !phoneNumbers.includes(directPhone)) phoneNumbers.push(directPhone);
+
+  return {
+    id: asString(contact.id),
+    name: asString(contact.name) ?? asString(contact.fullName) ?? asString(contact.full_name),
+    phoneNumbers,
+  };
 }
 
 function normalizeQuoCallPayload(payload: JsonObject, eventType: string) {
