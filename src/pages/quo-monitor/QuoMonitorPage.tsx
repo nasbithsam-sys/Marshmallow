@@ -439,6 +439,18 @@ function getMessagePreview(text: string | null | undefined, media?: unknown[] | 
   return summarizeMedia(media) ?? "No message preview";
 }
 
+function getStoredMessageKind(message: Pick<MessageRow, "text" | "media" | "sender">) {
+  const text = message.text?.trim().toLowerCase() ?? "";
+  const mediaSummary = summarizeMedia(message.media);
+
+  if (text.startsWith("call summary:")) return { label: "Call Summary", isCall: true };
+  if (text.startsWith("call transcript:")) return { label: "Call Transcript", isCall: true };
+  if (text.includes("call recording completed") || mediaSummary?.includes("audio")) return { label: "Call Recording", isCall: true };
+  if (text.includes("call completed")) return { label: "Call", isCall: true };
+
+  return { label: message.sender === "customer" ? "Customer" : "Us", isCall: false };
+}
+
 function getConversationPreview(conversation: ConversationRow) {
   return getMessagePreview(conversation.last_message_preview || conversation.rolling_ai_summary, getPayloadMedia(conversation.raw_payload));
 }
@@ -1922,20 +1934,27 @@ export default function QuoMonitorPage() {
                                     ) : rowMessages.length === 0 ? (
                                       <div className="text-sm text-slate-400">No stored messages yet.</div>
                                     ) : (
-                                      rowMessages.map((message) => (
-                                        <div
-                                          key={message.id}
-                                          className={`rounded-xl px-3 py-2 ${
-                                            message.sender === "customer" ? "bg-slate-800 text-slate-100" : "bg-blue-600/20 text-blue-50"
-                                          }`}
-                                        >
-                                          <div className="mb-1 flex items-center justify-between gap-3 text-[11px] uppercase tracking-wide text-slate-400">
-                                            <span>{message.sender === "customer" ? "Customer" : "Us"}</span>
-                                            <span>{formatDate(message.message_time)}</span>
+                                      rowMessages.map((message) => {
+                                        const kind = getStoredMessageKind(message);
+                                        return (
+                                          <div
+                                            key={message.id}
+                                            className={`rounded-xl border px-3 py-2 ${
+                                              kind.isCall
+                                                ? "border-amber-400/20 bg-amber-500/10 text-amber-50"
+                                                : message.sender === "customer"
+                                                  ? "border-transparent bg-slate-800 text-slate-100"
+                                                  : "border-transparent bg-blue-600/20 text-blue-50"
+                                            }`}
+                                          >
+                                            <div className="mb-1 flex items-center justify-between gap-3 text-[11px] uppercase tracking-wide text-slate-400">
+                                              <span>{kind.label}</span>
+                                              <span>{formatDate(message.message_time)}</span>
+                                            </div>
+                                            <div className="whitespace-pre-wrap text-sm leading-6">{getMessagePreview(message.text, message.media)}</div>
                                           </div>
-                                          <div className="whitespace-pre-wrap text-sm leading-6">{getMessagePreview(message.text, message.media)}</div>
-                                        </div>
-                                      ))
+                                        );
+                                      })
                                     )}
                                   </div>
                                 </PopoverContent>
@@ -2078,8 +2097,9 @@ export default function QuoMonitorPage() {
                   ) : selectedMessages.length ? (
                     selectedMessages.map((message) => {
                       const isCustomer = message.sender === "customer";
+                      const kind = getStoredMessageKind(message);
                       return (
-                        <div key={message.id} className={`flex items-end gap-2 ${isCustomer ? "justify-start" : "justify-end"}`}>
+                        <div key={message.id} className={`flex items-end gap-2 ${kind.isCall ? "justify-center" : isCustomer ? "justify-start" : "justify-end"}`}>
                           {isCustomer && (
                             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-pink-500 text-xs font-bold">
                               {(selectedConversation.customer_name || "C").slice(0, 1).toUpperCase()}
@@ -2087,11 +2107,16 @@ export default function QuoMonitorPage() {
                           )}
                           <div
                             className={`max-w-[72%] rounded-2xl px-4 py-3 text-sm leading-6 ${
-                              isCustomer ? "bg-[#24252d] text-slate-100" : "bg-blue-600 text-white"
+                              kind.isCall
+                                ? "border border-amber-400/20 bg-amber-500/10 text-amber-50"
+                                : isCustomer
+                                  ? "bg-[#24252d] text-slate-100"
+                                  : "bg-blue-600 text-white"
                             }`}
                           >
-                            <div>{message.text || "[Media or empty message]"}</div>
-                            <div className={`mt-1 text-[11px] ${isCustomer ? "text-slate-500" : "text-blue-100/80"}`}>
+                            {kind.isCall && <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200">{kind.label}</div>}
+                            <div>{getMessagePreview(message.text, message.media)}</div>
+                            <div className={`mt-1 text-[11px] ${kind.isCall ? "text-amber-100/70" : isCustomer ? "text-slate-500" : "text-blue-100/80"}`}>
                               {formatDate(message.message_time)}
                             </div>
                           </div>
