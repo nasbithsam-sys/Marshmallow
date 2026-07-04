@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -7,6 +7,8 @@ import {
   Bot,
   CalendarClock,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   CheckCircle2,
   ExternalLink,
@@ -269,7 +271,28 @@ function formatUsPhone(value?: string | null) {
   const digits = value.replace(/\D/g, "");
   const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
   if (last10.length !== 10) return value;
-  return `(${last10.slice(0, 3)})-${last10.slice(3, 6)} ${last10.slice(6)}`;
+  return `(${last10.slice(0, 3)}) ${last10.slice(3, 6)}-${last10.slice(6)}`;
+}
+
+function getFlagEmojiUrl(value: string) {
+  const codePoints = Array.from(value.trim()).map((char) => char.codePointAt(0));
+  const isFlag =
+    codePoints.length === 2 &&
+    codePoints.every((codePoint) => typeof codePoint === "number" && codePoint >= 0x1f1e6 && codePoint <= 0x1f1ff);
+
+  return isFlag
+    ? `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${codePoints.map((codePoint) => codePoint!.toString(16)).join("-")}.svg`
+    : null;
+}
+
+function QuoEmoji({ value, className = "" }: { value: string; className?: string }) {
+  const flagUrl = getFlagEmojiUrl(value);
+
+  if (flagUrl) {
+    return <img src={flagUrl} alt={value} className={`inline-block h-4 w-4 align-[-0.125em] ${className}`} loading="lazy" />;
+  }
+
+  return <span className={className}>{value}</span>;
 }
 
 function isSameDay(value: string, offsetDays = 0) {
@@ -437,6 +460,7 @@ function matchesDatePreset(value: string | null | undefined, preset: string, ran
 export default function QuoMonitorPage() {
   const queryClient = useQueryClient();
   const { user, role } = useAuth();
+  const tableNumberScrollerRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState("");
   const [sectionFilter, setSectionFilter] = useState<(typeof sectionFilters)[number]>("all");
   const [numberFilter, setNumberFilter] = useState("all");
@@ -981,6 +1005,12 @@ export default function QuoMonitorPage() {
   const toggleTableNumber = (id: string) => {
     setTableNumberIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   };
+  const scrollTableNumberList = (direction: -1 | 1) => {
+    tableNumberScrollerRef.current?.scrollBy({
+      left: direction * 420,
+      behavior: "smooth",
+    });
+  };
   const moveNumberPreference = (phoneNumberId: string, direction: -1 | 1) => {
     const visible = numberSummaries.filter(([id]) => id !== "unknown");
     const index = visible.findIndex(([id]) => id === phoneNumberId);
@@ -1398,35 +1428,67 @@ export default function QuoMonitorPage() {
                     <Inbox className="h-3.5 w-3.5" />
                     Quo numbers
                   </div>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    <button
+                  <div className="flex items-center gap-2">
+                    <Button
                       type="button"
-                      onClick={() => setTableNumberIds([])}
-                      className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                        tableNumberIds.length === 0
-                          ? "border-blue-500 bg-blue-500/15 text-blue-100"
-                          : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
-                      }`}
+                      size="icon"
+                      variant="outline"
+                      className="h-9 w-9 shrink-0 rounded-full border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
+                      onClick={() => scrollTableNumberList(-1)}
+                      title="Scroll Quo numbers left"
                     >
-                      All numbers
-                      <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{filteredConversations.length}</span>
-                    </button>
-                    {visibleNumberSummaries.map(([id, item]) => (
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div
+                      ref={tableNumberScrollerRef}
+                      className="flex min-w-0 flex-1 gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                      onWheel={(event) => {
+                        if (!tableNumberScrollerRef.current) return;
+                        if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+                        event.preventDefault();
+                        tableNumberScrollerRef.current.scrollLeft += event.deltaY;
+                      }}
+                    >
                       <button
-                        key={id}
                         type="button"
-                        onClick={() => toggleTableNumber(id)}
+                        onClick={() => setTableNumberIds([])}
                         className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                          tableNumberIds.includes(id)
+                          tableNumberIds.length === 0
                             ? "border-blue-500 bg-blue-500/15 text-blue-100"
                             : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
                         }`}
                       >
-                        <span className="mr-2">{item.emoji}</span>
-                        {item.label}
-                        <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{item.count}</span>
+                        All numbers
+                        <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{filteredConversations.length}</span>
                       </button>
-                    ))}
+                      {visibleNumberSummaries.map(([id, item]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => toggleTableNumber(id)}
+                          className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                            tableNumberIds.includes(id)
+                              ? "border-blue-500 bg-blue-500/15 text-blue-100"
+                              : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
+                          }`}
+                        >
+                          <QuoEmoji value={item.emoji} className="mr-2" />
+                          {item.label}
+                          <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{item.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className="h-9 w-9 shrink-0 rounded-full border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
+                      onClick={() => scrollTableNumberList(1)}
+                      title="Scroll Quo numbers right"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                     {isAdmin && (
                       <Popover>
                         <PopoverTrigger asChild>
@@ -1533,7 +1595,6 @@ export default function QuoMonitorPage() {
                       </Popover>
                     )}
                   </div>
-                </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -1732,7 +1793,7 @@ export default function QuoMonitorPage() {
                                   <div className="truncate font-semibold text-slate-100">{formatUsPhone(conversation.customer_number)}</div>
                                   {showSourceNumber && (
                                     <div className="truncate text-xs text-slate-400">
-                                      <span className="mr-1">{getPreferredQuoNumberEmoji(preference)}</span>
+                                      <QuoEmoji value={getPreferredQuoNumberEmoji(preference)} className="mr-1" />
                                       {sourceLabel}
                                     </div>
                                   )}
