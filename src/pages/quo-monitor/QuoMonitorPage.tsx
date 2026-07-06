@@ -162,6 +162,7 @@ type ManualAiRunResult = {
   skipped?: number;
   tagged?: number;
   ai_calls?: number;
+  budget_mode?: string;
   remaining: number;
 };
 
@@ -760,19 +761,24 @@ export default function QuoMonitorPage() {
         skipped: data?.skipped,
         tagged: data?.tagged,
         ai_calls: data?.ai_calls,
+        budget_mode: data?.budget_mode,
         remaining: Math.max(manualAiCandidates.length - batch.length, 0),
       };
     },
     onSuccess: (result) => {
       if (result.queued === 0) {
         toast.info("No visible chats need AI tagging right now.");
+      } else if ((result.skipped ?? 0) > 0 && (result.tagged ?? 0) === 0) {
+        toast.warning(
+          `AI skipped ${result.skipped ?? 0} chat${result.skipped === 1 ? "" : "s"} because budget mode is ${result.budget_mode ?? "limited"}. No tags were saved.`,
+        );
       } else if ((result.processed ?? 0) > 0 && (result.tagged ?? 0) === 0) {
         toast.warning(
-          `AI processed ${result.processed ?? 0} chat${result.processed === 1 ? "" : "s"} but saved 0 tags. Check AI key, model, budget, or output quality.`,
+          `AI processed ${result.processed ?? 0} chat${result.processed === 1 ? "" : "s"} with ${result.ai_calls ?? 0} AI call${result.ai_calls === 1 ? "" : "s"} but saved 0 tags. Check model output quality.`,
         );
       } else {
         toast.success(
-          `AI tagging run queued ${result.queued} chat${result.queued === 1 ? "" : "s"}; tagged ${result.tagged ?? 0}, processed ${result.processed ?? 0}. ${result.remaining} left in this view.`,
+          `AI tagging run queued ${result.queued} chat${result.queued === 1 ? "" : "s"}; tagged ${result.tagged ?? 0}, processed ${result.processed ?? 0}, AI calls ${result.ai_calls ?? 0}. ${result.remaining} left in this view.`,
         );
       }
       queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
