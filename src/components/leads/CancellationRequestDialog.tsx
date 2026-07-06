@@ -54,7 +54,7 @@ export default function CancellationRequestDialog({
           <DialogDescription>
             {isDirect
               ? "Add the cancellation reason before this lead is marked cancelled."
-              : `This lead will move to Cancellation Request first. ${requesterLabel} can approve or reject it after checking your comment and proof.`}
+              : `This lead will move to Cancellation Pending first. ${requesterLabel} can approve or reject it after checking your comment and proof.`}
           </DialogDescription>
         </DialogHeader>
 

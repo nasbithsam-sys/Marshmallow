@@ -25,7 +25,16 @@ function asPriority(value: unknown): Priority {
 
 function clampBatchSize(value: unknown) {
   const requested = Number(value ?? envNumber("AI_JOB_BATCH_SIZE", 10));
-  return Math.max(1, Math.min(Number.isFinite(requested) ? requested : 10, 25));
+  return Math.max(1, Math.min(Number.isFinite(requested) ? requested : 10, 50));
+}
+
+function parseJobIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 50);
 }
 
 async function authorizeJob(req: Request, supabase: SupabaseClient) {
@@ -107,6 +116,11 @@ function shouldProcessAiJob({
   if (budgetMode === "soft_cap") return priority !== "low" || isNewInbound || isRisky;
   if (budgetMode === "critical_only") return priority === "critical" || isRisky || isNewInbound;
   return priority === "critical" && isRisky;
+}
+
+function isRealAiTag(value: string) {
+  const normalized = value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  return normalized.length > 0 && normalized !== "needs human review" && normalized !== "human review";
 }
 
 async function getBudgetStatus(supabase: SupabaseClient) {
@@ -463,6 +477,7 @@ async function saveOpsOutput(
   output: QuoAiOpsCaseOutput,
 ) {
   const requiresReview = output.requires_human_review || output.confidence < reviewThreshold();
+  const realTags = output.tags.filter((tag) => isRealAiTag(tag.tag));
 
   await supabase.from("quo_ai_conversation_state").upsert(
     {
@@ -506,11 +521,11 @@ async function saveOpsOutput(
       current_priority: output.urgency_level === "critical" ? "urgent" : output.urgency_level,
       rolling_ai_summary: output.case_summary,
       last_ai_analyzed_at: new Date().toISOString(),
-      ai_tags: output.tags.map((tag) => tag.tag),
+      ai_tags: realTags.map((tag) => tag.tag),
     })
     .eq("id", job.conversation_id);
 
-  for (const tag of output.tags.slice(0, 20)) {
+  for (const tag of realTags.slice(0, 20)) {
     await supabase.from("quo_ai_tags").upsert(
       {
         conversation_id: job.conversation_id,
@@ -618,13 +633,20 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const batchSize = clampBatchSize(body.batch_size);
+    const requestedJobIds = parseJobIds(body.job_ids);
     const workerId = crypto.randomUUID();
 
-    const { data: jobs, error: jobsError } = await supabase
+    let jobsQuery = supabase
       .from("quo_ai_jobs")
       .select("*")
       .eq("status", "pending")
-      .lte("run_after", new Date().toISOString())
+      .lte("run_after", new Date().toISOString());
+
+    if (requestedJobIds.length > 0) {
+      jobsQuery = jobsQuery.in("id", requestedJobIds);
+    }
+
+    const { data: jobs, error: jobsError } = await jobsQuery
       .order("priority", { ascending: true })
       .order("run_after", { ascending: true })
       .limit(batchSize);

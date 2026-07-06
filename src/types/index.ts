@@ -46,7 +46,7 @@ export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: stri
   needs_reschedule: { label: 'Needs Reschedule', color: 'status-amber' },
   job_done: { label: 'Job Done', color: 'status-green' },
   payment_pending: { label: 'Payment Pending', color: 'status-amber' },
-  cancellation_requested: { label: 'Cancellation Request', color: 'status-red' },
+  cancellation_requested: { label: 'Cancellation Pending', color: 'status-amber' },
   cancelled: { label: 'Cancelled', color: 'status-muted' },
   paid: { label: 'Paid', color: 'status-green' },
   partial_paid: { label: 'Partial Paid', color: 'status-green' },

@@ -29,6 +29,11 @@ function envNumber(name: string, fallback: number) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function isRealAiTag(value: string) {
+  const normalized = value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  return normalized.length > 0 && normalized !== "needs human review" && normalized !== "human review";
+}
+
 function estimateCost(model: string, inputTokens: number, outputTokens: number) {
   const costTable: Record<string, { input: number; output: number }> = {
     "gpt-4.1": { input: 0.000002, output: 0.000008 },
@@ -434,6 +439,8 @@ async function applyDecision(
     { onConflict: "conversation_id" },
   );
 
+  const realTags = decision.tags.filter(isRealAiTag);
+
   await supabase
     .from("quo_conversations")
     .update({
@@ -441,7 +448,7 @@ async function applyDecision(
       current_priority: decision.priority,
       rolling_ai_summary: decision.human_readable_summary,
       last_ai_analyzed_at: now,
-      ai_tags: decision.tags,
+      ai_tags: realTags,
     })
     .eq("id", context.conversation.id);
 

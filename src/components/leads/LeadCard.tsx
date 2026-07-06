@@ -26,6 +26,7 @@ import {
   Clipboard,
   ExternalLink,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -324,7 +325,7 @@ function LeadCard({
       icon: ExternalLink,
       wrap: true,
     },
-  ].filter((row): row is { key: string; label: string; value: string; icon: any; wrap: boolean } => Boolean(row.value));
+  ].filter((row): row is { key: string; label: string; value: string; icon: LucideIcon; wrap: boolean } => Boolean(row.value));
 
   // Reload key can be kept in case we need it to force updates
   const [reloadKey] = useState(0);
