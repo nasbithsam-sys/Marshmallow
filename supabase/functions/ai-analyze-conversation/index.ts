@@ -230,24 +230,36 @@ function buildPrompt(input: JsonObject) {
   ];
 }
 
+function usesMaxCompletionTokens(model: string) {
+  const normalized = model.trim().toLowerCase();
+  return normalized.startsWith("gpt-5") || normalized.startsWith("o");
+}
+
 async function callOpenAi(inputSnapshot: JsonObject, model: string) {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
 
   const maxTokens = envNumber("AI_MAX_TOKENS_PER_CALL", 1200);
+  const body: Record<string, unknown> = {
+    model,
+    messages: buildPrompt(inputSnapshot),
+    response_format: { type: "json_object" },
+  };
+
+  if (usesMaxCompletionTokens(model)) {
+    body.max_completion_tokens = maxTokens;
+  } else {
+    body.temperature = 0.1;
+    body.max_tokens = maxTokens;
+  }
+
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model,
-      messages: buildPrompt(inputSnapshot),
-      temperature: 0.1,
-      max_tokens: maxTokens,
-      response_format: { type: "json_object" },
-    }),
+    body: JSON.stringify(body),
   });
 
   const data = await response.json();
