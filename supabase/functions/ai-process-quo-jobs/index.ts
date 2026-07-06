@@ -578,6 +578,8 @@ async function saveOpsOutput(
       evidence: event.evidence,
     });
   }
+
+  return realTags.length;
 }
 
 async function createBudgetReviewTask(
@@ -634,6 +636,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const batchSize = clampBatchSize(body.batch_size);
     const requestedJobIds = parseJobIds(body.job_ids);
+    const forceAi = body.force_ai === true;
     const workerId = crypto.randomUUID();
 
     let jobsQuery = supabase
@@ -661,6 +664,7 @@ Deno.serve(async (req) => {
     let failed = 0;
     let skipped = 0;
     let aiCalls = 0;
+    let tagged = 0;
 
     for (const job of jobs) {
       const { data: lockedJob } = await supabase
@@ -684,14 +688,22 @@ Deno.serve(async (req) => {
         const priority = asPriority(lockedJob.priority);
         const isRisky = priority === "critical" || containsRiskText(latestText) || context.opsState?.risk_level === "high" || context.opsState?.risk_level === "critical";
         const isNewInbound = context.latestMessage.sender === "customer";
-        const ruleCase = inferRuleCase(context);
+        const ruleCase = forceAi ? null : inferRuleCase(context);
 
         if (ruleCase) {
-          await saveOpsOutput(supabase, lockedJob, context, ruleCase);
+          tagged += await saveOpsOutput(supabase, lockedJob, context, ruleCase);
         } else if (Deno.env.get("AI_ENABLED") === "false") {
           await createBudgetReviewTask(supabase, lockedJob, context, "AI is disabled; conversation needs human review.");
           skipped += 1;
-        } else if (!shouldProcessAiJob({ budgetMode: budget.mode, priority, isNewInbound, isRisky })) {
+        } else if (budget.mode === "stopped") {
+          await createBudgetReviewTask(
+            supabase,
+            lockedJob,
+            context,
+            "AI budget mode is stopped; manual AI tagging did not run.",
+          );
+          skipped += 1;
+        } else if (!forceAi && !shouldProcessAiJob({ budgetMode: budget.mode, priority, isNewInbound, isRisky })) {
           await createBudgetReviewTask(
             supabase,
             lockedJob,
@@ -726,7 +738,7 @@ Deno.serve(async (req) => {
             output = verifiedOutput.data;
           }
 
-          await saveOpsOutput(supabase, lockedJob, context, output);
+          tagged += await saveOpsOutput(supabase, lockedJob, context, output);
 
           await supabase
             .from("quo_ai_jobs")
@@ -769,6 +781,7 @@ Deno.serve(async (req) => {
       processed,
       failed,
       skipped,
+      tagged,
       ai_calls: aiCalls,
       budget_mode: budget.mode,
       monthly_spend: Number(budget.monthlySpend.toFixed(6)),

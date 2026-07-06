@@ -160,6 +160,7 @@ type ManualAiRunResult = {
   processed?: number;
   failed?: number;
   skipped?: number;
+  tagged?: number;
   ai_calls?: number;
   remaining: number;
 };
@@ -747,7 +748,7 @@ export default function QuoMonitorPage() {
       }
 
       const { data, error } = await supabase.functions.invoke<Omit<ManualAiRunResult, "queued" | "remaining">>("ai-process-quo-jobs", {
-        body: { batch_size: 50, job_ids: jobIds },
+        body: { batch_size: 50, job_ids: jobIds, force_ai: true },
       });
       if (error) throw error;
 
@@ -757,6 +758,7 @@ export default function QuoMonitorPage() {
         processed: data?.processed,
         failed: data?.failed,
         skipped: data?.skipped,
+        tagged: data?.tagged,
         ai_calls: data?.ai_calls,
         remaining: Math.max(manualAiCandidates.length - batch.length, 0),
       };
@@ -764,9 +766,13 @@ export default function QuoMonitorPage() {
     onSuccess: (result) => {
       if (result.queued === 0) {
         toast.info("No visible chats need AI tagging right now.");
+      } else if ((result.processed ?? 0) > 0 && (result.tagged ?? 0) === 0) {
+        toast.warning(
+          `AI processed ${result.processed ?? 0} chat${result.processed === 1 ? "" : "s"} but saved 0 tags. Check AI key, model, budget, or output quality.`,
+        );
       } else {
         toast.success(
-          `AI tagging run queued ${result.queued} chat${result.queued === 1 ? "" : "s"}; processed ${result.processed ?? 0}. ${result.remaining} left in this view.`,
+          `AI tagging run queued ${result.queued} chat${result.queued === 1 ? "" : "s"}; tagged ${result.tagged ?? 0}, processed ${result.processed ?? 0}. ${result.remaining} left in this view.`,
         );
       }
       queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
