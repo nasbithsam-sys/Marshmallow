@@ -333,15 +333,24 @@ export default function LeadsPage() {
     const noteSummaryByLead: Record<string, { general: string; cs: string; processor: string }> = {};
 
     if (leadIds.length > 0) {
-      const { data: noteRows, error } = await supabase
-        .from("lead_notes")
-        .select("lead_id, note_type, content, user_id, created_at")
-        .in("lead_id", leadIds)
-        .order("created_at", { ascending: true });
+      let noteRows: LeadNoteExportRow[] = [];
+      const chunkSize = 100;
 
-      if (error) {
-        toast.error(`Failed to prepare note export: ${error.message}`);
-        return;
+      for (let i = 0; i < leadIds.length; i += chunkSize) {
+        const chunk = leadIds.slice(i, i + chunkSize);
+        const { data: chunkRows, error } = await supabase
+          .from("lead_notes")
+          .select("lead_id, note_type, content, user_id, created_at")
+          .in("lead_id", chunk)
+          .order("created_at", { ascending: true });
+
+        if (error) {
+          toast.error(`Failed to prepare note export: ${error.message}`);
+          return;
+        }
+        if (chunkRows) {
+          noteRows = noteRows.concat(chunkRows as LeadNoteExportRow[]);
+        }
       }
 
       (noteRows as LeadNoteExportRow[] | null)?.forEach((note) => {
