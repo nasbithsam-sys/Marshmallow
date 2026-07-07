@@ -919,14 +919,67 @@ export default function QuoMonitorPage() {
     </div>
   </div>
 
-  <div className="relative">
-    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
-    <Input
-      value={search}
-      onChange={(event) => setSearch(event.target.value)}
-      placeholder="Search customer number, AI tag, last message, or @phone"
-      className="h-11 border-slate-800 bg-[#0b0c10] pl-9 text-slate-100 placeholder:text-slate-500"
-    />
+  <div className="flex flex-wrap items-center gap-3">
+    <div className="relative flex-1 min-w-[280px]">
+      <Search className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+      <Input
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search customer number, AI tag, last message, or @phone"
+        className="h-11 border-slate-800 bg-[#0b0c10] pl-9 text-slate-100 placeholder:text-slate-500"
+      />
+    </div>
+
+    <div className="flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        className={`h-9 border-slate-800 text-xs ${
+          sectionFilter === "needs_reply" ? "bg-red-500/15 text-red-200 border-red-500/30" : "bg-[#0b0c10] text-slate-300"
+        }`}
+        onClick={() => setSectionFilter(sectionFilter === "needs_reply" ? "all" : "needs_reply")}
+      >
+        Needs reply
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className={`h-9 border-slate-800 text-xs ${
+          confidenceFilter === "review" ? "bg-amber-500/15 text-amber-200 border-amber-500/30" : "bg-[#0b0c10] text-slate-300"
+        }`}
+        onClick={() => setConfidenceFilter(confidenceFilter === "review" ? "all" : "review")}
+      >
+        AI review
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className={`h-9 border-slate-800 text-xs ${
+          linkedFilter === "unlinked" ? "bg-cyan-500/15 text-cyan-200 border-cyan-500/30" : "bg-[#0b0c10] text-slate-300"
+        }`}
+        onClick={() => setLinkedFilter(linkedFilter === "unlinked" ? "all" : "unlinked")}
+      >
+        Unlinked
+      </Button>
+      {(sectionFilter !== "all" || confidenceFilter !== "all" || linkedFilter !== "all" || dateFilter !== "all" || tagFilter !== "") && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-9 text-xs text-slate-400 hover:text-white"
+          onClick={() => {
+            setSectionFilter("all");
+            setConfidenceFilter("all");
+            setLinkedFilter("all");
+            setDateFilter("all");
+            setTagFilter("");
+            setDateRangeStart("");
+            setDateRangeEnd("");
+          }}
+        >
+          Reset
+        </Button>
+      )}
+    </div>
   </div>
 
   <div className="space-y-2">
@@ -936,28 +989,50 @@ export default function QuoMonitorPage() {
         Quo numbers
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          type="date"
-          value={dateRangeStart}
-          onChange={(event) => {
-            setDateRangeStart(event.target.value);
-            setDateFilter("custom");
-          }}
-          className="h-8 w-[150px] border-slate-800 bg-slate-900 text-xs text-slate-100"
-        />
-        <Input
-          type="date"
-          value={dateRangeEnd}
-          onChange={(event) => {
-            setDateRangeEnd(event.target.value);
-            setDateFilter("custom");
-          }}
-          className="h-8 w-[150px] border-slate-800 bg-slate-900 text-xs text-slate-100"
-        />
-        <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-300">
-          <CalendarDays className="mr-1 h-3.5 w-3.5" />
-          {dateFilter === "all" ? "All dates" : toTitleCase(dateFilter)}
-        </Badge>
+        <div className="flex items-center gap-1 bg-[#0b0c10] p-1 rounded-xl border border-slate-800/80">
+          {(["all", "today", "yesterday", "week", "month"] as const).map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => {
+                setDateFilter(preset);
+                if (preset !== "custom") {
+                  setDateRangeStart("");
+                  setDateRangeEnd("");
+                }
+              }}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
+                dateFilter === preset
+                  ? "bg-blue-500/20 text-blue-200 border border-blue-500/20"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {preset === "all" ? "All dates" : toTitleCase(preset)}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <Input
+            type="date"
+            value={dateRangeStart}
+            onChange={(event) => {
+              setDateRangeStart(event.target.value);
+              setDateFilter("custom");
+            }}
+            className="h-8 w-[125px] border-slate-800 bg-slate-900 text-xs text-slate-100 rounded-xl"
+          />
+          <span className="text-[10px] text-slate-500">to</span>
+          <Input
+            type="date"
+            value={dateRangeEnd}
+            onChange={(event) => {
+              setDateRangeEnd(event.target.value);
+              setDateFilter("custom");
+            }}
+            className="h-8 w-[125px] border-slate-800 bg-slate-900 text-xs text-slate-100 rounded-xl"
+          />
+        </div>
       </div>
     </div>
     <div className="flex items-center gap-2">
@@ -1161,61 +1236,7 @@ export default function QuoMonitorPage() {
     ))}
   </div>
 
-  <div className="flex flex-wrap items-center gap-2">
-    <Button
-      size="sm"
-      variant="outline"
-      className="h-8 border-slate-800 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800 hover:text-white"
-      onClick={() => {
-        setSectionFilter("all");
-        setDateFilter("all");
-        setConfidenceFilter("all");
-        setLinkedFilter("all");
-        setTagFilter("");
-        setDateRangeStart("");
-        setDateRangeEnd("");
-      }}
-    >
-      Open
-    </Button>
-    {(["today", "yesterday", "week", "month"] as const).map((preset) => (
-      <Button
-        key={preset}
-        size="sm"
-        variant="outline"
-        className={`h-8 border-slate-800 text-xs hover:bg-slate-800 hover:text-white ${
-          dateFilter === preset ? "bg-blue-500/15 text-blue-100" : "bg-slate-900 text-slate-200"
-        }`}
-        onClick={() => setDateFilter(preset)}
-      >
-        {toTitleCase(preset)}
-      </Button>
-    ))}
-    <Button
-      size="sm"
-      variant="outline"
-      className="h-8 border-slate-800 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800 hover:text-white"
-      onClick={() => setSectionFilter("needs_reply")}
-    >
-      Needs reply
-    </Button>
-    <Button
-      size="sm"
-      variant="outline"
-      className="h-8 border-slate-800 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800 hover:text-white"
-      onClick={() => setConfidenceFilter("review")}
-    >
-      AI review
-    </Button>
-    <Button
-      size="sm"
-      variant="outline"
-      className="h-8 border-slate-800 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800 hover:text-white"
-      onClick={() => setLinkedFilter("unlinked")}
-    >
-      Unlinked
-    </Button>
-  </div>
+
 </div>
 
 <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
