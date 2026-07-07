@@ -18,16 +18,11 @@ interface AnalyticsLeadRow {
   assigned_cs: string | null;
 }
 
-const ranges = [
-  { label: "7d", days: 7 },
-  { label: "30d", days: 30 },
-  { label: "90d", days: 90 },
-];
 
 const Analytics = () => {
-  const [activeDays, setActiveDays] = useState(30);
-  const startDate = format(subDays(new Date(), activeDays), "yyyy-MM-dd");
-  const endDate = format(new Date(), "yyyy-MM-dd");
+  const [dateFilter, setDateFilter] = useState<"7d" | "30d" | "90d" | "all" | "custom">("30d");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
 
   // Fetch full details of all leads (operational fields only)
   const { data: allLeads = [] } = useQuery<AnalyticsLeadRow[]>({
@@ -58,33 +53,118 @@ const Analytics = () => {
     return new Map(profiles.map((p) => [p.id, p.full_name]));
   }, [profiles]);
 
+  // Calculate current range start/end timestamps
+  const filteredRange = useMemo(() => {
+    let startMs = 0;
+    let endMs = Date.now();
+
+    if (dateFilter === "7d") {
+      startMs = subDays(new Date(), 7).getTime();
+    } else if (dateFilter === "30d") {
+      startMs = subDays(new Date(), 30).getTime();
+    } else if (dateFilter === "90d") {
+      startMs = subDays(new Date(), 90).getTime();
+    } else if (dateFilter === "custom") {
+      if (customStart) {
+        const start = new Date(customStart);
+        start.setHours(0, 0, 0, 0);
+        startMs = start.getTime();
+      }
+      if (customEnd) {
+        const end = new Date(customEnd);
+        end.setHours(23, 59, 59, 999);
+        endMs = end.getTime();
+      }
+    } else {
+      startMs = 0;
+    }
+
+    return { startMs, endMs };
+  }, [dateFilter, customStart, customEnd]);
+
+  // Calculate previous range of equal length
+  const prevRange = useMemo(() => {
+    let startMs = 0;
+    let endMs = 0;
+    let durationMs = 0;
+
+    if (dateFilter === "7d") {
+      durationMs = 7 * 24 * 60 * 60 * 1000;
+      endMs = subDays(new Date(), 7).getTime();
+      startMs = endMs - durationMs;
+    } else if (dateFilter === "30d") {
+      durationMs = 30 * 24 * 60 * 60 * 1000;
+      endMs = subDays(new Date(), 30).getTime();
+      startMs = endMs - durationMs;
+    } else if (dateFilter === "90d") {
+      durationMs = 90 * 24 * 60 * 60 * 1000;
+      endMs = subDays(new Date(), 90).getTime();
+      startMs = endMs - durationMs;
+    } else if (dateFilter === "custom") {
+      const s = customStart ? new Date(customStart).getTime() : 0;
+      const e = customEnd ? new Date(customEnd).getTime() : Date.now();
+      durationMs = e - s;
+      endMs = s;
+      startMs = s - durationMs;
+    }
+
+    return { startMs, endMs };
+  }, [dateFilter, customStart, customEnd]);
+
   // Filter leads for the selected range
   const leads = useMemo(() => {
-    const startMs = subDays(new Date(), activeDays).getTime();
-    const endMs = new Date().getTime();
+    const { startMs, endMs } = filteredRange;
     return allLeads.filter((lead) => {
       const leadTime = new Date(lead.created_at).getTime();
       return leadTime >= startMs && leadTime <= endMs;
     });
-  }, [allLeads, activeDays]);
+  }, [allLeads, filteredRange]);
 
-  // Filter leads for the previous range of equal length
+  // Filter leads for the previous range
   const prevLeads = useMemo(() => {
-    const endMs = subDays(new Date(), activeDays).getTime();
-    const startMs = subDays(new Date(), activeDays * 2).getTime();
+    if (dateFilter === "all") return [];
+    const { startMs, endMs } = prevRange;
     return allLeads.filter((lead) => {
       const leadTime = new Date(lead.created_at).getTime();
       return leadTime >= startMs && leadTime <= endMs;
     });
-  }, [allLeads, activeDays]);
+  }, [allLeads, prevRange, dateFilter]);
+
+  // Calculate dynamic start/end dates for the chart interval
+  const chartInterval = useMemo(() => {
+    let start = subDays(new Date(), 30);
+    let end = new Date();
+
+    if (dateFilter === "7d") {
+      start = subDays(new Date(), 7);
+    } else if (dateFilter === "30d") {
+      start = subDays(new Date(), 30);
+    } else if (dateFilter === "90d") {
+      start = subDays(new Date(), 90);
+    } else if (dateFilter === "custom") {
+      if (customStart) start = new Date(customStart);
+      if (customEnd) end = new Date(customEnd);
+    } else {
+      if (allLeads.length > 0) {
+        const times = allLeads.map((l) => new Date(l.created_at).getTime());
+        const minTime = Math.min(...times);
+        const maxAgo = subDays(new Date(), 120).getTime();
+        start = new Date(Math.max(minTime, maxAgo));
+      } else {
+        start = subDays(new Date(), 30);
+      }
+    }
+
+    return { start, end };
+  }, [dateFilter, customStart, customEnd, allLeads]);
 
   // Generate Date interval steps
   const days = useMemo(() => {
     return eachDayOfInterval({
-      start: parseISO(startDate),
-      end: parseISO(endDate),
+      start: startOfDay(chartInterval.start),
+      end: startOfDay(chartInterval.end),
     });
-  }, [startDate, endDate]);
+  }, [chartInterval]);
 
   // Daily leads intake chart data
   const chartData = useMemo(() => {
@@ -351,21 +431,50 @@ const Analytics = () => {
             </p>
           </motion.div>
 
-          <div className="inline-flex w-fit rounded-2xl border border-slate-800 bg-[#0e0f12] p-1.5 shadow-[0_14px_34px_-28px_rgba(0,0,0,0.35)]">
-            {ranges.map((r) => (
-              <button
-                key={r.days}
-                onClick={() => setActiveDays(r.days)}
-                className={cn(
-                  "rounded-xl px-4 py-2 text-[12px] font-semibold transition-all duration-200",
-                  activeDays === r.days
-                    ? "bg-[#1d1f27] text-slate-100 shadow-sm border border-slate-800/40"
-                    : "text-slate-400 hover:text-slate-200",
-                )}
-              >
-                {r.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex rounded-2xl border border-slate-800 bg-[#0e0f12] p-1.5 shadow-[0_14px_34px_-28px_rgba(0,0,0,0.35)]">
+              {(["7d", "30d", "90d", "all"] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => {
+                    setDateFilter(r);
+                    setCustomStart("");
+                    setCustomEnd("");
+                  }}
+                  className={cn(
+                    "rounded-xl px-4 py-2 text-[12px] font-semibold transition-all duration-200",
+                    dateFilter === r
+                      ? "bg-[#1d1f27] text-slate-100 shadow-sm border border-slate-800/40"
+                      : "text-slate-400 hover:text-slate-200",
+                  )}
+                >
+                  {r === "all" ? "All Time" : r}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => {
+                  setCustomStart(e.target.value);
+                  setDateFilter("custom");
+                }}
+                className="h-9 w-[130px] rounded-xl border border-slate-800 bg-[#0e0f12] px-3 text-[11px] text-slate-100"
+              />
+              <span className="text-[10px] text-slate-500">to</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => {
+                  setCustomEnd(e.target.value);
+                  setDateFilter("custom");
+                }}
+                className="h-9 w-[130px] rounded-xl border border-slate-800 bg-[#0e0f12] px-3 text-[11px] text-slate-100"
+              />
+            </div>
           </div>
         </div>
       </div>
