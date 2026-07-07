@@ -35,6 +35,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { motion } from "framer-motion";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
   { title: "All Leads", url: "/leads", icon: Users, navKey: "leads" },
@@ -53,6 +56,43 @@ export default function AppSidebar() {
   const location = useLocation();
   const { profile, role, signOut, canAccess } = useAuth();
   const { allowedStatuses } = useAllowedStatuses();
+  const queryClient = useQueryClient();
+
+  // Fetch pending cancellation requests count for the sidebar badge
+  const { data: pendingCancellationCount = 0 } = useQuery({
+    queryKey: ["pending-cancellations-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("lead_cancellation_requests")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending");
+
+      if (error) {
+        console.error("Error fetching pending cancellations count:", error.message);
+        return 0;
+      }
+      return count || 0;
+    },
+    refetchInterval: 15000, // Fallback polling every 15s
+  });
+
+  // Realtime subscription for instant sidebar updates when a cancellation is requested/resolved
+  useEffect(() => {
+    const channel = supabase
+      .channel("lead-cancellations-sidebar-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "lead_cancellation_requests" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["pending-cancellations-count"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const visibleItems = navItems.filter((item) => canAccess(item.navKey));
   const visibleStatuses = ALL_LEAD_STATUSES.filter((status) => allowedStatuses.has(status));
@@ -156,17 +196,31 @@ export default function AppSidebar() {
                               />
                             )}
 
-                            <item.icon
-                              className={`relative z-10 h-4 w-4 shrink-0 transition-all duration-200 ${
-                                isActive
-                                  ? "text-primary"
-                                  : "text-sidebar-foreground/42 group-hover/nav:text-sidebar-foreground/78 group-hover/nav:scale-105"
-                              }`}
-                            />
+                            <div className="relative shrink-0">
+                              <item.icon
+                                className={`relative z-10 h-4 w-4 transition-all duration-200 ${
+                                  isActive
+                                    ? "text-primary"
+                                    : "text-sidebar-foreground/42 group-hover/nav:text-sidebar-foreground/78 group-hover/nav:scale-105"
+                                }`}
+                              />
+                              {item.navKey === "cancellation_requests" && pendingCancellationCount > 0 && collapsed && (
+                                <span className="absolute -top-1.5 -right-1.5 flex h-2 w-2 z-20">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-[0_0_6px_#ef4444]"></span>
+                                </span>
+                              )}
+                            </div>
 
                             {!collapsed && (
                               <>
-                                <span className="relative z-10 ml-3 flex-1 text-[13px] font-medium tracking-[-0.01em]">
+                                <span className="relative z-10 ml-3 flex-1 text-[13px] font-medium tracking-[-0.01em] flex items-center gap-2">
+                                  {item.navKey === "cancellation_requests" && pendingCancellationCount > 0 && (
+                                    <span className="relative flex h-2 w-2 shrink-0">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
+                                    </span>
+                                  )}
                                   {item.title}
                                 </span>
 
