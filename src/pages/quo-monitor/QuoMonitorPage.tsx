@@ -441,8 +441,7 @@ export default function QuoMonitorPage() {
           ai_reminders (*),
           ai_lead_links (*, leads (id, job_id, customer_name, status))
         `)
-        .order("last_message_at", { ascending: false, nullsFirst: false })
-        .limit(300);
+        .order("last_message_at", { ascending: false, nullsFirst: false });
 
       if (error) throw error;
       return (data ?? []) as ConversationRow[];
