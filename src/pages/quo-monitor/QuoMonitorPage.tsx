@@ -1295,16 +1295,33 @@ export default function QuoMonitorPage() {
               <td className="px-3 py-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-sm font-semibold shadow-[0_0_24px_rgba(168,85,247,0.28)]">
-                    {(conversation.customer_number || "#").replace(/\D/g, "").slice(-2) || "#"}
+                    {conversation.customer_name
+                      ? conversation.customer_name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2)
+                      : (conversation.customer_number || "#").replace(/\D/g, "").slice(-2) || "#"}
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate font-semibold text-slate-100">{formatUsPhone(conversation.customer_number)}</div>
-                    {showSourceNumber && (
-                      <div className="truncate text-xs text-slate-400">
-                        <QuoEmoji value={getPreferredQuoNumberEmoji(preference)} className="mr-1" />
-                        {sourceLabel}
-                      </div>
-                    )}
+                    <div className="truncate font-semibold text-slate-100">
+                      {conversation.customer_name || formatUsPhone(conversation.customer_number)}
+                    </div>
+                    <div className="truncate text-xs text-slate-400 flex items-center gap-1.5">
+                      {conversation.customer_name && (
+                        <span>{formatUsPhone(conversation.customer_number)}</span>
+                      )}
+                      {showSourceNumber && (
+                        <>
+                          {conversation.customer_name && <span className="text-slate-600">•</span>}
+                          <span className="flex items-center">
+                            <QuoEmoji value={getPreferredQuoNumberEmoji(preference)} className="mr-1" />
+                            {sourceLabel}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </td>
@@ -1364,7 +1381,11 @@ export default function QuoMonitorPage() {
                   </PopoverTrigger>
                   <PopoverContent className="w-[520px] border-border bg-popover p-0 text-popover-foreground dark:border-slate-700 dark:bg-[#15161c] dark:text-slate-100">
                     <div className="border-b border-slate-800 px-4 py-3">
-                      <div className="text-sm font-semibold">{conversation.customer_number || "No customer number"}</div>
+                      <div className="text-sm font-semibold">
+                        {conversation.customer_name
+                          ? `${conversation.customer_name} (${formatUsPhone(conversation.customer_number)})`
+                          : (formatUsPhone(conversation.customer_number) || "No customer number")}
+                      </div>
                       <div className="text-xs text-slate-400">Stored messages received and sent in this conversation</div>
                     </div>
                     <div className="max-h-[420px] space-y-3 overflow-auto p-4">
