@@ -443,6 +443,9 @@ export default function QuoMonitorPage() {
           ai_lead_links (*, leads (id, job_id, customer_name, status)),
           quo_messages (text)
         `)
+        // Exclude conversations with no customer number (internal/system events)
+        .not("customer_number", "is", null)
+        .neq("customer_number", "")
         .order("last_message_at", { ascending: false, nullsFirst: false });
 
       if (error) throw error;
@@ -462,14 +465,19 @@ export default function QuoMonitorPage() {
     },
   });
 
-  // Build a set of normalized known Quo phone digits for fast lookups
+  // Build a set of last-10-digit normalized Quo phone numbers for fast lookups
+  // Uses last-10-digit matching, consistent with how the rest of the codebase normalizes Quo numbers
   const knownQuoNumbers = useMemo(() => {
     const set = new Set<string>();
+    const last10 = (s: string | null) => {
+      if (!s) return null;
+      const digits = s.replace(/\D/g, "");
+      return digits.length >= 10 ? digits.slice(-10) : digits || null;
+    };
     for (const row of (phoneNumbersQuery.data ?? [])) {
-      const normalize = (s: string | null) => s ? s.replace(/\D/g, "") : null;
-      const n = normalize(row.number);
-      const d = normalize(row.display_number);
-      const q = normalize(row.quo_phone_number_id);
+      const n = last10(row.number);
+      const d = last10(row.display_number);
+      const q = last10(row.quo_phone_number_id);
       if (n) set.add(n);
       if (d) set.add(d);
       if (q) set.add(q);
@@ -576,11 +584,16 @@ export default function QuoMonitorPage() {
       if (preference?.hidden) return false;
 
       // Filter out internal Quo-to-Quo staff conversations
-      // These have a customer_number that matches one of our own registered phone lines
-      const customerDigits = conversation.customer_number ? conversation.customer_number.replace(/\D/g, "") : null;
-      if (customerDigits && knownQuoNumbers.has(customerDigits)) return false;
-      // Also filter out conversations with no customer number (internal system messages)
-      if (!conversation.customer_number?.trim()) return false;
+      // These have a customer_number that matches one of our own registered Quo phone lines
+      // Uses last-10-digit matching, consistent with the rest of the codebase
+      if (conversation.customer_number) {
+        const digits = conversation.customer_number.replace(/\D/g, "");
+        const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+        if (last10 && knownQuoNumbers.has(last10)) return false;
+      } else {
+        // No customer number = internal/system message, skip
+        return false;
+      }
       if (tableNumberIds.length > 0 && (!numberId || !tableNumberIds.includes(numberId))) return false;
       if (confidenceFilter === "high" && confidence < 0.9) return false;
       if (confidenceFilter === "review" && confidence >= 0.75) return false;
