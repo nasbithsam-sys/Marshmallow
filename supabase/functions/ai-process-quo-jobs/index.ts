@@ -660,7 +660,11 @@ Deno.serve(async (req) => {
       .eq("status", "pending");
 
     if (requestedJobIds.length > 0) {
+      // Specific job IDs requested — fetch them regardless of run_after
       jobsQuery = jobsQuery.in("id", requestedJobIds);
+    } else if (forceAi) {
+      // force_ai=true (manual run or webhook trigger) — skip run_after so debounced jobs run now
+      // no run_after filter applied
     } else {
       jobsQuery = jobsQuery.lte("run_after", new Date().toISOString());
     }

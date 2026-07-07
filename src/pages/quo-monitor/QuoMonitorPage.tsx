@@ -784,22 +784,24 @@ export default function QuoMonitorPage() {
         return { queued: 0, processed: 0, remaining: 0 };
       }
 
-      const jobIds: string[] = [];
+      // Enqueue fresh jobs for all candidates (debounce=0 so they're due immediately)
+      // Note: ON CONFLICT on existing pending jobs may return null — that's fine,
+      // those jobs are already pending and will be picked up by force_ai below
       for (const conversation of batch) {
         const priority = getPriority(conversation);
-        const { data, error } = await supabase.rpc("enqueue_quo_ai_job", {
+        await supabase.rpc("enqueue_quo_ai_job", {
           _conversation_id: conversation.id,
           _latest_message_id: null,
           _job_type: "message_analysis",
           _priority: priority === "urgent" ? "critical" : priority,
           _debounce_seconds: 0,
         });
-        if (error) throw error;
-        if (data) jobIds.push(data);
       }
 
+      // Invoke processor with force_ai=true — this bypasses run_after so ALL pending
+      // jobs (including debounced ones) are processed immediately
       const { data, error } = await supabase.functions.invoke<Omit<ManualAiRunResult, "queued" | "remaining">>("ai-process-quo-jobs", {
-        body: { batch_size: 50, job_ids: jobIds, force_ai: true },
+        body: { batch_size: 50, force_ai: true },
       });
       if (error) throw error;
 
@@ -935,7 +937,7 @@ export default function QuoMonitorPage() {
         if (pendingJobs && pendingJobs.length > 0) {
           // Silently invoke the processor — no toast, just background work
           await supabase.functions.invoke("ai-process-quo-jobs", {
-            body: { batch_size: 50 },
+            body: { batch_size: 50, force_ai: true },
           });
           if (!cancelled) {
             // Refresh conversations after a short delay to pick up new tags
