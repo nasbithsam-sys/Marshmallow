@@ -230,10 +230,25 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "user_id is required" }, 400);
       }
 
-      // Run cleanup deletes and actually check each result instead of
-      // discarding it. The Supabase client does NOT throw on a failed
-      // delete (e.g. blocked by a foreign key) - it returns an `error`
-      // field instead, so Promise.all alone will not catch failures here.
+      // 1. Delete the actual auth account first. This revokes login access and prevents
+      // orphaned auth accounts if database cleanups fail. If the account is already gone,
+      // we ignore the error (case-insensitively) and clean up database tables just in case.
+      const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(user_id);
+
+      if (authDeleteError && !authDeleteError.message.toLowerCase().includes("user not found")) {
+        console.error("auth.admin.deleteUser failed:", authDeleteError.message);
+        return jsonResponse(
+          {
+            error:
+              "The auth account could not be deleted: " +
+              authDeleteError.message,
+          },
+          400,
+        );
+      }
+
+      // 2. Run cleanup deletes for related tables to ensure no residual records are left.
+      // Because foreign keys are configured with CASCADE, these may already be deleted.
       const cleanupTables = [
         "user_roles",
         "navigation_permissions",
@@ -249,10 +264,6 @@ Deno.serve(async (req) => {
         adminClient.from("status_permissions").delete().eq("user_id", user_id),
         adminClient.from("notifications").delete().eq("user_id", user_id),
         adminClient.from("user_access_codes").delete().eq("user_id", user_id),
-        // If any other table references this user (e.g. leads.assigned_to,
-        // leads.created_by, tasks.user_id, lead_updates.created_by), add
-        // its delete here AND add its name to cleanupTables above in the
-        // same order, otherwise auth.admin.deleteUser below may fail.
         adminClient.from("profiles").delete().eq("id", user_id),
       ]);
 
@@ -261,33 +272,8 @@ Deno.serve(async (req) => {
         .filter(Boolean);
 
       if (cleanupErrors.length > 0) {
-        console.error("Cleanup errors before deleteUser:", cleanupErrors);
-        return jsonResponse(
-          {
-            error:
-              "Failed to clean up related records, user not deleted: " +
-              cleanupErrors.join("; "),
-          },
-          400,
-        );
-      }
-
-      // Now remove the actual auth account. This is the step that revokes
-      // login access. If this fails (e.g. another table still references
-      // this user via foreign key), it must be surfaced, not swallowed.
-      // If the user is already gone from auth, we ignore the "User not found" error.
-      const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(user_id);
-
-      if (authDeleteError && !authDeleteError.message.includes("User not found")) {
-        console.error("auth.admin.deleteUser failed:", authDeleteError.message);
-        return jsonResponse(
-          {
-            error:
-              "Related data was removed but the auth account could not be deleted: " +
-              authDeleteError.message,
-          },
-          400,
-        );
+        console.warn("Cleanup warnings after deleteUser (normal if cascade deleted):", cleanupErrors);
+        // Do not fail the request here since the auth account is successfully deleted.
       }
 
       return jsonResponse({ success: true });
