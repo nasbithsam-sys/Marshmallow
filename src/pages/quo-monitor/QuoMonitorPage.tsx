@@ -50,6 +50,7 @@ type ConversationRow = {
   rolling_ai_summary: string | null;
   last_ai_analyzed_at: string | null;
   raw_payload?: unknown;
+  quo_messages?: Array<{ text: string | null }>;
   quo_phone_numbers?: {
     id: string;
     quo_phone_number_id: string | null;
@@ -439,7 +440,8 @@ export default function QuoMonitorPage() {
           quo_phone_numbers (*),
           ai_conversation_states (*),
           ai_reminders (*),
-          ai_lead_links (*, leads (id, job_id, customer_name, status))
+          ai_lead_links (*, leads (id, job_id, customer_name, status)),
+          quo_messages (text)
         `)
         .order("last_message_at", { ascending: false, nullsFirst: false });
 
@@ -553,6 +555,7 @@ export default function QuoMonitorPage() {
       if (!matchesDatePreset(lastActivity, dateFilter, dateRangeStart, dateRangeEnd)) return false;
       if (tagFilter.trim() && !rowTags.some((tag) => tag.toLowerCase().includes(tagFilter.trim().toLowerCase()))) return false;
       if (query) {
+        const messageTexts = (conversation.quo_messages ?? []).map((m) => m.text).filter(Boolean);
         const haystack = [
           conversation.customer_name,
           conversation.customer_number,
@@ -561,6 +564,7 @@ export default function QuoMonitorPage() {
           conversation.rolling_ai_summary,
           scenarioTag,
           ...rowTags,
+          ...messageTexts,
         ]
           .filter(Boolean)
           .join(" ")
