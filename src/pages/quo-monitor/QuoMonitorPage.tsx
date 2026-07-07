@@ -902,6 +902,48 @@ export default function QuoMonitorPage() {
     };
   }, [isAdmin, queryClient, selectedConvId]);
 
+  // Auto-trigger AI processing on page load if there are any pending jobs
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+
+    const autoTriggerPendingJobs = async () => {
+      try {
+        // Check if there are any pending or failed jobs in the queue
+        const db2 = supabase as unknown as LooseSupabase;
+        const { data: pendingJobs, error } = await db2
+          .from("quo_ai_jobs")
+          .select("id")
+          .in("status", ["pending", "failed"])
+          .limit(1);
+
+        if (error || cancelled) return;
+
+        if (pendingJobs && pendingJobs.length > 0) {
+          // Silently invoke the processor — no toast, just background work
+          await supabase.functions.invoke("ai-process-quo-jobs", {
+            body: { batch_size: 50 },
+          });
+          if (!cancelled) {
+            // Refresh conversations after a short delay to pick up new tags
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+            }, 4000);
+          }
+        }
+      } catch {
+        // Silent — auto-trigger failures should not surface errors to the user
+      }
+    };
+
+    // Small delay so the page renders first
+    const timer = setTimeout(autoTriggerPendingJobs, 1500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isAdmin, queryClient]);
+
   return (
     <div className="quo-theme overflow-hidden rounded-2xl border border-slate-800 bg-[#111217] text-slate-100 shadow-2xl">
       <div className="grid h-[calc(100vh-96px)] min-h-[760px] grid-cols-1 max-lg:h-auto max-lg:min-h-0">
