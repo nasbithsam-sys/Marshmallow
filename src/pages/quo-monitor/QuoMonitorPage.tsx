@@ -450,6 +450,33 @@ export default function QuoMonitorPage() {
     },
   });
 
+  // Fetch all registered Quo phone numbers so we can detect internal conversations
+  const phoneNumbersQuery = useQuery({
+    queryKey: ["quo-phone-numbers-list"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("quo_phone_numbers")
+        .select("number, display_number, quo_phone_number_id");
+      if (error) throw error;
+      return (data ?? []) as Array<{ number: string | null; display_number: string | null; quo_phone_number_id: string | null }>;
+    },
+  });
+
+  // Build a set of normalized known Quo phone digits for fast lookups
+  const knownQuoNumbers = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of (phoneNumbersQuery.data ?? [])) {
+      const normalize = (s: string | null) => s ? s.replace(/\D/g, "") : null;
+      const n = normalize(row.number);
+      const d = normalize(row.display_number);
+      const q = normalize(row.quo_phone_number_id);
+      if (n) set.add(n);
+      if (d) set.add(d);
+      if (q) set.add(q);
+    }
+    return set;
+  }, [phoneNumbersQuery.data]);
+
   const messagesQuery = useQuery({
     queryKey: ["quo-ai-messages", selectedConvId],
     queryFn: async () => {
@@ -547,6 +574,13 @@ export default function QuoMonitorPage() {
 
       if (sectionFilter !== "all" && section !== sectionFilter) return false;
       if (preference?.hidden) return false;
+
+      // Filter out internal Quo-to-Quo staff conversations
+      // These have a customer_number that matches one of our own registered phone lines
+      const customerDigits = conversation.customer_number ? conversation.customer_number.replace(/\D/g, "") : null;
+      if (customerDigits && knownQuoNumbers.has(customerDigits)) return false;
+      // Also filter out conversations with no customer number (internal system messages)
+      if (!conversation.customer_number?.trim()) return false;
       if (tableNumberIds.length > 0 && (!numberId || !tableNumberIds.includes(numberId))) return false;
       if (confidenceFilter === "high" && confidence < 0.9) return false;
       if (confidenceFilter === "review" && confidence >= 0.75) return false;
