@@ -341,7 +341,7 @@ Deno.serve(async (req) => {
         : message.text.toLowerCase().match(/urgent|asap|angry|cancel|refund|complaint|emergency/)
           ? "high"
           : "medium";
-      const { error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
+      const { data: jobData, error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
         _conversation_id: conversationRow.id,
         _latest_message_id: messageRow.id,
         _job_type: "message_analysis",
@@ -353,6 +353,29 @@ Deno.serve(async (req) => {
         console.error("Failed to enqueue Quo AI job:", enqueueError.message);
       } else {
         aiJobEnqueued = true;
+
+        if (jobData) {
+          // Trigger the process-quo-jobs Edge Function asynchronously in the background
+          // so it runs immediately and tags the chat without waiting for pg_cron.
+          const functionUrl = `${supabaseUrl}/functions/v1/ai-process-quo-jobs`;
+          const cronSecret = Deno.env.get("FUNCTION_CRON_SECRET");
+
+          fetch(functionUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${serviceRoleKey}`,
+              "apikey": serviceRoleKey,
+              "x-cron-secret": cronSecret || "",
+            },
+            body: JSON.stringify({
+              batch_size: 1,
+              job_ids: [jobData],
+            }),
+          }).catch((err) => {
+            console.error("Failed to trigger immediate AI job processing:", err.message);
+          });
+        }
       }
     }
 

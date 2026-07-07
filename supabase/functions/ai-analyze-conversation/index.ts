@@ -42,7 +42,7 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number) 
     "gpt-4o": { input: 0.0000025, output: 0.00001 },
     "gpt-4o-mini": { input: 0.00000015, output: 0.0000006 },
   };
-  const pricing = costTable[model] ?? costTable["gpt-4.1-mini"];
+  const pricing = costTable[model] ?? costTable["gpt-4o-mini"];
   return inputTokens * pricing.input + outputTokens * pricing.output;
 }
 
@@ -159,12 +159,12 @@ function inferRuleDecision(latestMessage: JsonObject, messages: JsonObject[], co
 
 function chooseModel(decisionHint: string | null) {
   if (decisionHint === "risky") {
-    return Deno.env.get("AI_MODEL_RISK_VERIFIER") ?? Deno.env.get("OPENAI_MODEL_REVIEW") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4.1";
+    return Deno.env.get("AI_MODEL_RISK_VERIFIER") ?? Deno.env.get("OPENAI_MODEL_REVIEW") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4o";
   }
   if (decisionHint === "cheap") {
-    return Deno.env.get("AI_MODEL_FAST_CLASSIFIER") ?? Deno.env.get("OPENAI_MODEL_CHEAP") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4.1-mini";
+    return Deno.env.get("AI_MODEL_FAST_CLASSIFIER") ?? Deno.env.get("OPENAI_MODEL_CHEAP") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4o-mini";
   }
-  return Deno.env.get("AI_MODEL_MAIN_REASONER") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4.1-mini";
+  return Deno.env.get("AI_MODEL_MAIN_REASONER") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4o-mini";
 }
 
 function buildPrompt(input: JsonObject) {

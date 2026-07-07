@@ -658,15 +658,15 @@ export default function QuoMonitorPage() {
       const number = conversation.quo_phone_numbers;
       const id = number?.id ?? "unknown";
       const preference = id !== "unknown" ? preferenceByNumberId.get(id) : null;
-      const label = getPreferredQuoNumberLabel(conversation, preference);
+      const label = id === "unknown" ? "Other / Web" : getPreferredQuoNumberLabel(conversation, preference);
       const existing = counts.get(id) ?? {
         label,
-        emoji: getPreferredQuoNumberEmoji(preference),
+        emoji: id === "unknown" ? "🌐" : getPreferredQuoNumberEmoji(preference),
         count: 0,
         latest: null,
         urgent: 0,
         hidden: Boolean(preference?.hidden),
-        sort: preference?.sort_order ?? 9999,
+        sort: id === "unknown" ? 9998 : (preference?.sort_order ?? 9999),
       };
       const lastActivity = conversation.last_message_at ?? conversation.last_message_time;
       existing.count += 1;

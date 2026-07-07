@@ -70,21 +70,23 @@ async function authorizeJob(req: Request, supabase: SupabaseClient) {
 
 function chooseModel(kind: "fast" | "main" | "risk") {
   if (kind === "fast") {
-    return Deno.env.get("AI_MODEL_FAST_CLASSIFIER") ?? Deno.env.get("OPENAI_MODEL_CHEAP") ?? "gpt-5.4-nano";
+    return Deno.env.get("AI_MODEL_FAST_CLASSIFIER") ?? Deno.env.get("OPENAI_MODEL_CHEAP") ?? "gpt-4o-mini";
   }
   if (kind === "risk") {
-    return Deno.env.get("AI_MODEL_RISK_VERIFIER") ?? Deno.env.get("OPENAI_MODEL_REVIEW") ?? "gpt-5.5";
+    return Deno.env.get("AI_MODEL_RISK_VERIFIER") ?? Deno.env.get("OPENAI_MODEL_REVIEW") ?? "gpt-4o";
   }
-  return Deno.env.get("AI_MODEL_MAIN_REASONER") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-5.4-mini";
+  return Deno.env.get("AI_MODEL_MAIN_REASONER") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4o-mini";
 }
 
 function usesMaxCompletionTokens(model: string) {
   const normalized = model.trim().toLowerCase();
-  return normalized.startsWith("gpt-5") || normalized.startsWith("o");
+  return normalized.startsWith("o1") || normalized.startsWith("o3") || normalized.startsWith("o");
 }
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number) {
   const costTable: Record<string, { input: number; output: number }> = {
+    "gpt-4o": { input: 0.0000025, output: 0.000010 },
+    "gpt-4o-mini": { input: 0.00000015, output: 0.0000006 },
     "gpt-5.5": { input: 0.000005, output: 0.00003 },
     "gpt-5.4-mini": { input: 0.00000075, output: 0.0000045 },
     "gpt-5.4-nano": { input: 0.0000002, output: 0.00000125 },
@@ -92,7 +94,7 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number) 
     "gpt-4.1-mini": { input: 0.0000004, output: 0.0000016 },
     "gpt-4.1-nano": { input: 0.0000001, output: 0.0000004 },
   };
-  const pricing = costTable[model] ?? costTable["gpt-5.4-mini"];
+  const pricing = costTable[model] ?? costTable["gpt-4o-mini"];
   return inputTokens * pricing.input + outputTokens * pricing.output;
 }
 
@@ -655,11 +657,12 @@ Deno.serve(async (req) => {
     let jobsQuery = supabase
       .from("quo_ai_jobs")
       .select("*")
-      .eq("status", "pending")
-      .lte("run_after", new Date().toISOString());
+      .eq("status", "pending");
 
     if (requestedJobIds.length > 0) {
       jobsQuery = jobsQuery.in("id", requestedJobIds);
+    } else {
+      jobsQuery = jobsQuery.lte("run_after", new Date().toISOString());
     }
 
     const { data: jobs, error: jobsError } = await jobsQuery
