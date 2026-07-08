@@ -2118,6 +2118,7 @@ export type Database = {
       cron_ai_reminder_checker: { Args: never; Returns: undefined }
       cron_ai_sweep_conversations: { Args: never; Returns: undefined }
       cron_quo_reconcile_sync: { Args: never; Returns: undefined }
+      cron_quo_sync_contacts: { Args: never; Returns: undefined }
       enqueue_quo_ai_job: {
         Args: {
           _conversation_id: string
