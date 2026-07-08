@@ -860,6 +860,93 @@ export default function QuoMonitorPage() {
 
     return Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
   }, [conversations]);
+
+  const tagScenarioGroups = useMemo(() => {
+    const scenarios: { key: string; label: string; match: (t: string) => boolean }[] = [
+      {
+        key: "lost",
+        label: "Lost / Not Proceeding",
+        match: (t) =>
+          /(lost|found other|another tech|no longer|not interested|already fixed|fixed the issue|declined|cancel|too expensive|ghost|dead)/i.test(t),
+      },
+      {
+        key: "hot",
+        label: "Hot / Interested",
+        match: (t) => /(hot|interested|new (interested )?(lead|customer)|ready|eager)/i.test(t),
+      },
+      {
+        key: "reply",
+        label: "Needs Reply",
+        match: (t) => /(needs reply|customer needs reply|awaiting reply|reply needed)/i.test(t),
+      },
+      {
+        key: "followup",
+        label: "Follow Up",
+        match: (t) => /(follow up|followup|check back|reach out)/i.test(t),
+      },
+      {
+        key: "scheduling",
+        label: "Scheduling",
+        match: (t) => /(schedul|appointment|booking|book|reschedul)/i.test(t),
+      },
+      {
+        key: "waiting",
+        label: "Waiting Customer",
+        match: (t) => /(waiting (for )?(customer|cx|cust)|waiting customer response|pending customer)/i.test(t),
+      },
+      {
+        key: "quote",
+        label: "Quote / Estimate",
+        match: (t) => /(quote|estimate|pricing|price|invoice)/i.test(t),
+      },
+      {
+        key: "urgent",
+        label: "Urgent / Complaint",
+        match: (t) => /(urgent|complaint|angry|upset|escalat|emergency)/i.test(t),
+      },
+      {
+        key: "spam",
+        label: "Spam / Wrong",
+        match: (t) => /(spam|wrong number|not a lead|junk|bot)/i.test(t),
+      },
+      {
+        key: "crm",
+        label: "Already in CRM",
+        match: (t) => /(already (in|added)|in crm|linked)/i.test(t),
+      },
+      {
+        key: "review",
+        label: "Human Review",
+        match: (t) => /(human review|needs review|manual review|unclear)/i.test(t),
+      },
+    ];
+
+    const groups = new Map<string, { key: string; label: string; tags: { tag: string; count: number }[] }>();
+    const other: { tag: string; count: number }[] = [];
+
+    tagSummaries.forEach(([tag, count]) => {
+      const scenario = scenarios.find((s) => s.match(tag));
+      if (!scenario) {
+        other.push({ tag, count });
+        return;
+      }
+      if (!groups.has(scenario.key)) {
+        groups.set(scenario.key, { key: scenario.key, label: scenario.label, tags: [] });
+      }
+      groups.get(scenario.key)!.tags.push({ tag, count });
+    });
+
+    const ordered = scenarios
+      .map((s) => groups.get(s.key))
+      .filter((g): g is { key: string; label: string; tags: { tag: string; count: number }[] } => Boolean(g && g.tags.length));
+
+    if (other.length) {
+      ordered.push({ key: "other", label: "Other", tags: other });
+    }
+
+    return ordered;
+  }, [tagSummaries]);
+
   const tableConversations = useMemo(() => {
     return filteredConversations.slice().sort((left, right) => {
       const leftPinned = pinnedConversationIds.has(left.id);
