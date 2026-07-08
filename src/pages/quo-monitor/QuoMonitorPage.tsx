@@ -295,32 +295,17 @@ function toTitleCase(value: string) {
 }
 
 function getScenarioTag(conversation: ConversationRow) {
+  // Only surface a tag when the AI actually produced a specific, situational one.
+  // We intentionally do NOT fall back to generic section buckets ("Hot Lead",
+  // "Waiting Customer Response", etc.) — the row should either show the
+  // real AI-generated tag describing this chat, or "AI pending".
   const firstAiTag = conversation.ai_tags?.find((tag) => tag && tag.trim());
   if (firstAiTag) return toTitleCase(firstAiTag);
 
   const state = getState(conversation);
   if (state?.lost_reason) return toTitleCase(state.lost_reason);
 
-  const section = getSection(conversation);
-  const friendly: Record<string, string> = {
-    needs_reply: "Customer Needs Reply",
-    new_interested_lead: "New Interested Customer",
-    hot_lead: "Hot Lead",
-    follow_up_due_today: "Follow Up Due Today",
-    follow_up_tomorrow: "Follow Up Tomorrow",
-    future_follow_up: "Future Follow Up",
-    appointment_mentioned: "Scheduling Needed",
-    waiting_for_customer: "Waiting Customer Response",
-    possible_dead: "Customer Ghosted",
-    lost_found_other_tech: "Customer Found Other Tech",
-    urgent_complaint: "Complaint Or Urgent Issue",
-    already_added_to_crm: "Already In CRM",
-    not_a_lead_spam_wrong_number: "Spam Or Wrong Number",
-  };
-
-  return section === "needs_human_review"
-    ? getAiAnalyzedAt(conversation) ? "Human Review" : ""
-    : friendly[section] ?? toTitleCase(section);
+  return "";
 }
 
 function getTableSortWeight(conversation: ConversationRow) {
