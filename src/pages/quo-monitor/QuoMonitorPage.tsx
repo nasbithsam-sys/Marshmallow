@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Eye,
   EyeOff,
   GripVertical,
@@ -859,6 +860,93 @@ export default function QuoMonitorPage() {
 
     return Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
   }, [conversations]);
+
+  const tagScenarioGroups = useMemo(() => {
+    const scenarios: { key: string; label: string; match: (t: string) => boolean }[] = [
+      {
+        key: "lost",
+        label: "Lost / Not Proceeding",
+        match: (t) =>
+          /(lost|found other|another tech|no longer|not interested|already fixed|fixed the issue|declined|cancel|too expensive|ghost|dead)/i.test(t),
+      },
+      {
+        key: "hot",
+        label: "Hot / Interested",
+        match: (t) => /(hot|interested|new (interested )?(lead|customer)|ready|eager)/i.test(t),
+      },
+      {
+        key: "reply",
+        label: "Needs Reply",
+        match: (t) => /(needs reply|customer needs reply|awaiting reply|reply needed)/i.test(t),
+      },
+      {
+        key: "followup",
+        label: "Follow Up",
+        match: (t) => /(follow up|followup|check back|reach out)/i.test(t),
+      },
+      {
+        key: "scheduling",
+        label: "Scheduling",
+        match: (t) => /(schedul|appointment|booking|book|reschedul)/i.test(t),
+      },
+      {
+        key: "waiting",
+        label: "Waiting Customer",
+        match: (t) => /(waiting (for )?(customer|cx|cust)|waiting customer response|pending customer)/i.test(t),
+      },
+      {
+        key: "quote",
+        label: "Quote / Estimate",
+        match: (t) => /(quote|estimate|pricing|price|invoice)/i.test(t),
+      },
+      {
+        key: "urgent",
+        label: "Urgent / Complaint",
+        match: (t) => /(urgent|complaint|angry|upset|escalat|emergency)/i.test(t),
+      },
+      {
+        key: "spam",
+        label: "Spam / Wrong",
+        match: (t) => /(spam|wrong number|not a lead|junk|bot)/i.test(t),
+      },
+      {
+        key: "crm",
+        label: "Already in CRM",
+        match: (t) => /(already (in|added)|in crm|linked)/i.test(t),
+      },
+      {
+        key: "review",
+        label: "Human Review",
+        match: (t) => /(human review|needs review|manual review|unclear)/i.test(t),
+      },
+    ];
+
+    const groups = new Map<string, { key: string; label: string; tags: { tag: string; count: number }[] }>();
+    const other: { tag: string; count: number }[] = [];
+
+    tagSummaries.forEach(([tag, count]) => {
+      const scenario = scenarios.find((s) => s.match(tag));
+      if (!scenario) {
+        other.push({ tag, count });
+        return;
+      }
+      if (!groups.has(scenario.key)) {
+        groups.set(scenario.key, { key: scenario.key, label: scenario.label, tags: [] });
+      }
+      groups.get(scenario.key)!.tags.push({ tag, count });
+    });
+
+    const ordered = scenarios
+      .map((s) => groups.get(s.key))
+      .filter((g): g is { key: string; label: string; tags: { tag: string; count: number }[] } => Boolean(g && g.tags.length));
+
+    if (other.length) {
+      ordered.push({ key: "other", label: "Other", tags: other });
+    }
+
+    return ordered;
+  }, [tagSummaries]);
+
   const tableConversations = useMemo(() => {
     return filteredConversations.slice().sort((left, right) => {
       const leftPinned = pinnedConversationIds.has(left.id);
@@ -1427,21 +1515,56 @@ export default function QuoMonitorPage() {
     >
       All tags
     </button>
-    {tagSummaries.slice(0, 18).map(([tag, count]) => (
-      <button
-        key={tag}
-        type="button"
-        onClick={() => setTagFilter(tagFilter === tag ? "" : tag)}
-        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-          tagFilter === tag
-            ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
-            : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
-        }`}
-      >
-        {tag}
-        <span className="ml-2 text-[10px] text-slate-500">{count}</span>
-      </button>
-    ))}
+    {tagScenarioGroups.map((group) => {
+      const activeTag = group.tags.find((t) => t.tag === tagFilter);
+      const groupActive = Boolean(activeTag);
+      const groupCount = group.tags.reduce((sum, t) => sum + t.count, 0);
+      return (
+        <Popover key={group.key}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                groupActive
+                  ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
+                  : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
+              }`}
+            >
+              <span>{group.label}</span>
+              <span className="text-[10px] text-slate-500">{groupCount}</span>
+              <ChevronDown className="h-3 w-3 opacity-70" />
+              {activeTag && (
+                <span className="ml-1 rounded-full bg-emerald-500/25 px-1.5 py-0.5 text-[10px] text-emerald-100">
+                  {activeTag.tag}
+                </span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-64 border-slate-800 bg-slate-950 p-2">
+            <div className="mb-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              {group.label}
+            </div>
+            <div className="flex flex-col gap-1">
+              {group.tags.map(({ tag, count }) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setTagFilter(tagFilter === tag ? "" : tag)}
+                  className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-left text-xs font-medium transition ${
+                    tagFilter === tag
+                      ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
+                      : "border-slate-800 bg-slate-900 text-slate-200 hover:border-slate-600"
+                  }`}
+                >
+                  <span className="truncate">{tag}</span>
+                  <span className="ml-2 shrink-0 text-[10px] text-slate-500">{count}</span>
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      );
+    })}
   </div>
 
 
