@@ -80,7 +80,8 @@ function chooseModel(kind: "fast" | "main" | "risk") {
 
 function usesMaxCompletionTokens(model: string) {
   const normalized = model.trim().toLowerCase();
-  return ["o1", "o1-mini", "o3", "o3-mini", "o4", "o4-mini"].some((prefix) => normalized.startsWith(prefix));
+  const modernFamilies = ["o1", "o3", "o4", "gpt-5", "gpt-5.4", "gpt-5.5"];
+  return modernFamilies.some((family) => normalized === family || normalized.startsWith(`${family}-`));
 }
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number) {
@@ -416,29 +417,40 @@ async function callOpenAi(messages: Array<{ role: string; content: string }>, mo
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
 
   const maxTokens = envNumber("AI_MAX_TOKENS_PER_CALL", 1200);
-  const body: Record<string, unknown> = {
+  const baseBody: Record<string, unknown> = {
     model,
     messages,
     response_format: { type: "json_object" },
   };
 
-  if (usesMaxCompletionTokens(model)) {
-    body.max_completion_tokens = maxTokens;
-  } else {
-    body.temperature = 0.1;
-    body.max_tokens = maxTokens;
+  const buildBody = (tokenParam: "max_tokens" | "max_completion_tokens") => {
+    const body: Record<string, unknown> = { ...baseBody, [tokenParam]: maxTokens };
+    if (tokenParam === "max_tokens") body.temperature = 0.1;
+    return body;
+  };
+
+  const preferredTokenParam = usesMaxCompletionTokens(model) ? "max_completion_tokens" : "max_tokens";
+  const fallbackTokenParam = preferredTokenParam === "max_tokens" ? "max_completion_tokens" : "max_tokens";
+
+  const request = (tokenParam: "max_tokens" | "max_completion_tokens") =>
+    fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildBody(tokenParam)),
+    });
+
+  let response = await request(preferredTokenParam);
+  let data = await response.json();
+
+  const errorMessage = typeof data?.error?.message === "string" ? data.error.message : "";
+  if (!response.ok && /max_tokens|max_completion_tokens/i.test(errorMessage)) {
+    response = await request(fallbackTokenParam);
+    data = await response.json();
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = await response.json();
   if (!response.ok) throw new Error(data?.error?.message ?? `OpenAI request failed with status ${response.status}`);
 
   const rawContent = data?.choices?.[0]?.message?.content;
@@ -633,6 +645,174 @@ async function createBudgetReviewTask(
   });
 }
 
+async function processPendingJobs(supabase: SupabaseClient, body: Record<string, unknown>) {
+  const batchSize = clampBatchSize(body.batch_size);
+  const requestedJobIds = parseJobIds(body.job_ids);
+  const forceAi = body.force_ai === true || requestedJobIds.length > 0;
+  const workerId = crypto.randomUUID();
+
+  const staleCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
+  await supabase
+    .from("quo_ai_jobs")
+    .update({ status: "pending", locked_at: null, locked_by: null, run_after: new Date().toISOString() })
+    .eq("status", "running")
+    .lt("locked_at", staleCutoff);
+
+  let jobsQuery = supabase
+    .from("quo_ai_jobs")
+    .select("*")
+    .eq("status", "pending");
+
+  if (requestedJobIds.length > 0) {
+    // Specific job IDs requested — fetch them regardless of run_after
+    jobsQuery = jobsQuery.in("id", requestedJobIds);
+  } else if (forceAi) {
+    // force_ai=true (manual run or webhook trigger) — skip run_after so debounced jobs run now
+    // no run_after filter applied
+  } else {
+    jobsQuery = jobsQuery.lte("run_after", new Date().toISOString());
+  }
+
+  const { data: jobs, error: jobsError } = await jobsQuery
+    .order("priority", { ascending: true })
+    .order("run_after", { ascending: true })
+    .limit(batchSize);
+
+  if (jobsError) throw jobsError;
+  if (!jobs?.length) {
+    return { success: true, picked: 0, processed: 0, failed: 0, ai_calls: 0 };
+  }
+
+  const budget = await getBudgetStatus(supabase);
+  let processed = 0;
+  let failed = 0;
+  let skipped = 0;
+  let aiCalls = 0;
+  let tagged = 0;
+
+  for (const job of jobs) {
+    const { data: lockedJob } = await supabase
+      .from("quo_ai_jobs")
+      .update({
+        status: "running",
+        locked_at: new Date().toISOString(),
+        locked_by: workerId,
+        attempts: Number(job.attempts ?? 0) + 1,
+      })
+      .eq("id", job.id)
+      .eq("status", "pending")
+      .select("*")
+      .maybeSingle();
+
+    if (!lockedJob) continue;
+
+    try {
+      const context = await loadContext(supabase, lockedJob);
+      const latestText = typeof context.latestMessage.text === "string" ? context.latestMessage.text : "";
+      const priority = asPriority(lockedJob.priority);
+      const isRisky = priority === "critical" || containsRiskText(latestText) || context.opsState?.risk_level === "high" || context.opsState?.risk_level === "critical";
+      const isNewInbound = context.latestMessage.sender === "customer";
+      const ruleCase = forceAi ? null : inferRuleCase(context);
+
+      if (ruleCase) {
+        tagged += await saveOpsOutput(supabase, lockedJob, context, ruleCase);
+      } else if (Deno.env.get("AI_ENABLED") === "false") {
+        await createBudgetReviewTask(supabase, lockedJob, context, "AI is disabled; conversation needs human review.");
+        skipped += 1;
+      } else if (budget.mode === "stopped") {
+        await createBudgetReviewTask(
+          supabase,
+          lockedJob,
+          context,
+          "AI budget mode is stopped; manual AI tagging did not run.",
+        );
+        skipped += 1;
+      } else if (!forceAi && !shouldProcessAiJob({ budgetMode: budget.mode, priority, isNewInbound, isRisky })) {
+        await createBudgetReviewTask(
+          supabase,
+          lockedJob,
+          context,
+          `AI budget mode is ${budget.mode}; skipped non-critical AI and kept rule-based manager review.`,
+        );
+        skipped += 1;
+      } else {
+        const inputSnapshot = {
+          job_type: lockedJob.job_type,
+          latest_message_id: lockedJob.latest_message_id,
+          context,
+        };
+        const inputHash = await hashJson(inputSnapshot);
+        const primaryModel = isLowValueMessage(latestText) ? chooseModel("fast") : chooseModel("main");
+        const primary = await callOpenAi(buildCasePrompt(context, lockedJob.job_type), primaryModel);
+        aiCalls += 1;
+        await logCost(supabase, lockedJob.id, lockedJob.conversation_id, "quo_case_analysis", primaryModel, primary.usage);
+
+        const validated = validateQuoAiOpsCaseOutput(primary.output);
+        if (!validated.ok) throw new Error(`AI output failed validation: ${validated.error}`);
+
+        let output = validated.data;
+        if (shouldVerify(output, context) && budget.mode !== "stopped") {
+          const verifierModel = chooseModel("risk");
+          const verified = await callOpenAi(buildVerifierPrompt(output, context), verifierModel);
+          aiCalls += 1;
+          await logCost(supabase, lockedJob.id, lockedJob.conversation_id, "quo_risk_verification", verifierModel, verified.usage);
+
+          const verifiedOutput = validateQuoAiOpsCaseOutput(verified.output);
+          if (!verifiedOutput.ok) throw new Error(`Risk verifier output failed validation: ${verifiedOutput.error}`);
+          output = verifiedOutput.data;
+        }
+
+        tagged += await saveOpsOutput(supabase, lockedJob, context, output);
+
+        await supabase
+          .from("quo_ai_jobs")
+          .update({ input_hash: inputHash })
+          .eq("id", lockedJob.id);
+      }
+
+      await supabase
+        .from("quo_ai_jobs")
+        .update({
+          status: "completed",
+          locked_at: null,
+          locked_by: null,
+          error_message: null,
+        })
+        .eq("id", lockedJob.id);
+      processed += 1;
+    } catch (error) {
+      const attempts = Number(lockedJob.attempts ?? 1);
+      const maxAttempts = Number(lockedJob.max_attempts ?? 3);
+      const shouldRetry = attempts < maxAttempts;
+
+      await supabase
+        .from("quo_ai_jobs")
+        .update({
+          status: shouldRetry ? "pending" : "failed",
+          run_after: shouldRetry ? new Date(Date.now() + attempts * 60_000).toISOString() : lockedJob.run_after,
+          locked_at: null,
+          locked_by: null,
+          error_message: error instanceof Error ? error.message : "Unknown job processing error",
+        })
+        .eq("id", lockedJob.id);
+      failed += 1;
+    }
+  }
+
+  return {
+    success: true,
+    picked: jobs.length,
+    processed,
+    failed,
+    skipped,
+    tagged,
+    ai_calls: aiCalls,
+    budget_mode: budget.mode,
+    monthly_spend: Number(budget.monthlySpend.toFixed(6)),
+    daily_calls: budget.dailyCalls,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { status: 200, headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
@@ -651,165 +831,20 @@ Deno.serve(async (req) => {
     const authErrorResponse = await authorizeJob(req, supabase);
     if (authErrorResponse) return authErrorResponse;
 
-    const body = await req.json().catch(() => ({}));
-    const batchSize = clampBatchSize(body.batch_size);
-    const requestedJobIds = parseJobIds(body.job_ids);
-    const forceAi = body.force_ai === true || requestedJobIds.length > 0;
-    const workerId = crypto.randomUUID();
+    const body = await req.json().catch(() => ({})) as Record<string, unknown>;
 
-    let jobsQuery = supabase
-      .from("quo_ai_jobs")
-      .select("*")
-      .eq("status", "pending");
-
-    if (requestedJobIds.length > 0) {
-      // Specific job IDs requested — fetch them regardless of run_after
-      jobsQuery = jobsQuery.in("id", requestedJobIds);
-    } else if (forceAi) {
-      // force_ai=true (manual run or webhook trigger) — skip run_after so debounced jobs run now
-      // no run_after filter applied
-    } else {
-      jobsQuery = jobsQuery.lte("run_after", new Date().toISOString());
+    if (body.wait_for_completion === true || parseJobIds(body.job_ids).length > 0) {
+      const result = await processPendingJobs(supabase, body);
+      return jsonResponse(result);
     }
 
-    const { data: jobs, error: jobsError } = await jobsQuery
-      .order("priority", { ascending: true })
-      .order("run_after", { ascending: true })
-      .limit(batchSize);
+    EdgeRuntime.waitUntil(
+      processPendingJobs(supabase, body).catch((error) => {
+        console.error("Background AI job processor failed", error);
+      }),
+    );
 
-    if (jobsError) throw jobsError;
-    if (!jobs?.length) {
-      return jsonResponse({ success: true, picked: 0, processed: 0, failed: 0, ai_calls: 0 });
-    }
-
-    const budget = await getBudgetStatus(supabase);
-    let processed = 0;
-    let failed = 0;
-    let skipped = 0;
-    let aiCalls = 0;
-    let tagged = 0;
-
-    for (const job of jobs) {
-      const { data: lockedJob } = await supabase
-        .from("quo_ai_jobs")
-        .update({
-          status: "running",
-          locked_at: new Date().toISOString(),
-          locked_by: workerId,
-          attempts: Number(job.attempts ?? 0) + 1,
-        })
-        .eq("id", job.id)
-        .eq("status", "pending")
-        .select("*")
-        .maybeSingle();
-
-      if (!lockedJob) continue;
-
-      try {
-        const context = await loadContext(supabase, lockedJob);
-        const latestText = typeof context.latestMessage.text === "string" ? context.latestMessage.text : "";
-        const priority = asPriority(lockedJob.priority);
-        const isRisky = priority === "critical" || containsRiskText(latestText) || context.opsState?.risk_level === "high" || context.opsState?.risk_level === "critical";
-        const isNewInbound = context.latestMessage.sender === "customer";
-        const ruleCase = forceAi ? null : inferRuleCase(context);
-
-        if (ruleCase) {
-          tagged += await saveOpsOutput(supabase, lockedJob, context, ruleCase);
-        } else if (Deno.env.get("AI_ENABLED") === "false") {
-          await createBudgetReviewTask(supabase, lockedJob, context, "AI is disabled; conversation needs human review.");
-          skipped += 1;
-        } else if (budget.mode === "stopped") {
-          await createBudgetReviewTask(
-            supabase,
-            lockedJob,
-            context,
-            "AI budget mode is stopped; manual AI tagging did not run.",
-          );
-          skipped += 1;
-        } else if (!forceAi && !shouldProcessAiJob({ budgetMode: budget.mode, priority, isNewInbound, isRisky })) {
-          await createBudgetReviewTask(
-            supabase,
-            lockedJob,
-            context,
-            `AI budget mode is ${budget.mode}; skipped non-critical AI and kept rule-based manager review.`,
-          );
-          skipped += 1;
-        } else {
-          const inputSnapshot = {
-            job_type: lockedJob.job_type,
-            latest_message_id: lockedJob.latest_message_id,
-            context,
-          };
-          const inputHash = await hashJson(inputSnapshot);
-          const primaryModel = isLowValueMessage(latestText) ? chooseModel("fast") : chooseModel("main");
-          const primary = await callOpenAi(buildCasePrompt(context, lockedJob.job_type), primaryModel);
-          aiCalls += 1;
-          await logCost(supabase, lockedJob.id, lockedJob.conversation_id, "quo_case_analysis", primaryModel, primary.usage);
-
-          const validated = validateQuoAiOpsCaseOutput(primary.output);
-          if (!validated.ok) throw new Error(`AI output failed validation: ${validated.error}`);
-
-          let output = validated.data;
-          if (shouldVerify(output, context) && budget.mode !== "stopped") {
-            const verifierModel = chooseModel("risk");
-            const verified = await callOpenAi(buildVerifierPrompt(output, context), verifierModel);
-            aiCalls += 1;
-            await logCost(supabase, lockedJob.id, lockedJob.conversation_id, "quo_risk_verification", verifierModel, verified.usage);
-
-            const verifiedOutput = validateQuoAiOpsCaseOutput(verified.output);
-            if (!verifiedOutput.ok) throw new Error(`Risk verifier output failed validation: ${verifiedOutput.error}`);
-            output = verifiedOutput.data;
-          }
-
-          tagged += await saveOpsOutput(supabase, lockedJob, context, output);
-
-          await supabase
-            .from("quo_ai_jobs")
-            .update({ input_hash: inputHash })
-            .eq("id", lockedJob.id);
-        }
-
-        await supabase
-          .from("quo_ai_jobs")
-          .update({
-            status: "completed",
-            locked_at: null,
-            locked_by: null,
-            error_message: null,
-          })
-          .eq("id", lockedJob.id);
-        processed += 1;
-      } catch (error) {
-        const attempts = Number(lockedJob.attempts ?? 1);
-        const maxAttempts = Number(lockedJob.max_attempts ?? 3);
-        const shouldRetry = attempts < maxAttempts;
-
-        await supabase
-          .from("quo_ai_jobs")
-          .update({
-            status: shouldRetry ? "pending" : "failed",
-            run_after: shouldRetry ? new Date(Date.now() + attempts * 60_000).toISOString() : lockedJob.run_after,
-            locked_at: null,
-            locked_by: null,
-            error_message: error instanceof Error ? error.message : "Unknown job processing error",
-          })
-          .eq("id", lockedJob.id);
-        failed += 1;
-      }
-    }
-
-    return jsonResponse({
-      success: true,
-      picked: jobs.length,
-      processed,
-      failed,
-      skipped,
-      tagged,
-      ai_calls: aiCalls,
-      budget_mode: budget.mode,
-      monthly_spend: Number(budget.monthlySpend.toFixed(6)),
-      daily_calls: budget.dailyCalls,
-    });
+    return jsonResponse({ success: true, accepted: true }, 202);
   } catch (error) {
     return jsonResponse(
       {
