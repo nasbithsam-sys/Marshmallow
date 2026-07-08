@@ -765,6 +765,7 @@ export default function QuoMonitorPage() {
         const digits = conversation.customer_number.replace(/\D/g, "");
         const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
         if (last10 && knownQuoNumbers.has(last10)) return false;
+        if (last10 && hiddenInternalNumbers.has(last10)) return false;
       } else {
         // No customer number = internal/system message, skip
         return false;
