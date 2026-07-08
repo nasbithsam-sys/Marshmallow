@@ -51,6 +51,7 @@ type ConversationRow = {
   last_ai_analyzed_at: string | null;
   raw_payload?: unknown;
   quo_messages?: Array<{ text: string | null }>;
+  quo_ai_conversation_state?: QuoOpsState[] | QuoOpsState | null;
   quo_phone_numbers?: {
     id: string;
     quo_phone_number_id: string | null;
@@ -81,6 +82,17 @@ type AiState = {
   evidence: Array<{ message_id?: string; quote?: string; why_it_matters?: string }>;
   human_review_status: string;
   latest_decision_id: string | null;
+};
+
+type QuoOpsState = {
+  conversation_id: string;
+  waiting_on: "staff" | "customer" | "technician" | "manager" | "no_one" | "unknown";
+  urgency_level: "low" | "medium" | "high" | "critical";
+  confidence: number | string | null;
+  risk_level: "low" | "medium" | "high" | "critical" | null;
+  requires_human_review: boolean | null;
+  human_review_reason: string | null;
+  last_ai_checked_at: string | null;
 };
 
 type AiReminder = {
@@ -180,7 +192,46 @@ const priorityClasses: Record<string, string> = {
 
 function getState(conversation: ConversationRow) {
   const state = conversation.ai_conversation_states;
-  return Array.isArray(state) ? state[0] ?? null : state ?? null;
+  const legacyState = Array.isArray(state) ? state[0] ?? null : state ?? null;
+  if (legacyState) return legacyState;
+
+  const opsState = Array.isArray(conversation.quo_ai_conversation_state)
+    ? conversation.quo_ai_conversation_state[0] ?? null
+    : conversation.quo_ai_conversation_state ?? null;
+  if (!opsState) return null;
+
+  const priority = opsState.urgency_level === "critical" ? "urgent" : opsState.urgency_level;
+  const section: QuoAiSection = opsState.requires_human_review
+    ? "needs_human_review"
+    : opsState.waiting_on === "staff" || opsState.waiting_on === "manager"
+      ? "needs_reply"
+      : "waiting_for_customer";
+
+  return {
+    section,
+    priority,
+    customer_state: opsState.waiting_on,
+    lead_state: null,
+    needs_reply: opsState.waiting_on === "staff" || opsState.waiting_on === "manager",
+    should_create_lead: false,
+    should_link_lead: false,
+    should_create_reminder: false,
+    is_possible_dead: false,
+    is_lost: false,
+    lost_reason: opsState.human_review_reason,
+    confidence: Number(opsState.confidence ?? 0),
+    risk_level: opsState.risk_level === "high" || opsState.risk_level === "critical" ? "risky" : opsState.risk_level === "medium" ? "moderate" : "safe",
+    evidence: [],
+    human_review_status: opsState.requires_human_review ? "pending" : "none",
+    latest_decision_id: null,
+  } satisfies AiState;
+}
+
+function getAiAnalyzedAt(conversation: ConversationRow) {
+  const opsState = Array.isArray(conversation.quo_ai_conversation_state)
+    ? conversation.quo_ai_conversation_state[0] ?? null
+    : conversation.quo_ai_conversation_state ?? null;
+  return conversation.last_ai_analyzed_at ?? opsState?.last_ai_checked_at ?? null;
 }
 
 function getSection(conversation: ConversationRow) {
@@ -266,7 +317,9 @@ function getScenarioTag(conversation: ConversationRow) {
     not_a_lead_spam_wrong_number: "Spam Or Wrong Number",
   };
 
-  return section === "needs_human_review" ? "" : friendly[section] ?? toTitleCase(section);
+  return section === "needs_human_review"
+    ? getAiAnalyzedAt(conversation) ? "Human Review" : ""
+    : friendly[section] ?? toTitleCase(section);
 }
 
 function getTableSortWeight(conversation: ConversationRow) {
@@ -451,7 +504,24 @@ export default function QuoMonitorPage() {
         .order("last_message_at", { ascending: false, nullsFirst: false });
 
       if (error) throw error;
-      return (data ?? []) as ConversationRow[];
+      const rows = (data ?? []) as ConversationRow[];
+      const ids = rows.map((row) => row.id);
+      if (ids.length === 0) return rows;
+
+      const { data: opsStates, error: opsError } = await db
+        .from("quo_ai_conversation_state")
+        .select("conversation_id, waiting_on, urgency_level, confidence, risk_level, requires_human_review, human_review_reason, last_ai_checked_at")
+        .in("conversation_id", ids);
+      if (opsError) throw opsError;
+
+      const opsByConversation = new Map(
+        ((opsStates ?? []) as QuoOpsState[]).map((state) => [state.conversation_id, state]),
+      );
+
+      return rows.map((row) => ({
+        ...row,
+        quo_ai_conversation_state: opsByConversation.get(row.id) ?? null,
+      }));
     },
   });
 
@@ -893,6 +963,7 @@ export default function QuoMonitorPage() {
       .channel("quo-monitor-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_conversation_states" }, scheduleConversationRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_conversation_state" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_lead_links" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_pinned_conversations" }, () => {
         queryClient.invalidateQueries({ queryKey: ["quo-pinned-conversations"] });
@@ -1549,7 +1620,7 @@ export default function QuoMonitorPage() {
                 <div className="space-y-1">
                   <div className="text-xs text-slate-300">{Math.round(confidence * 100)}% confidence</div>
                   <div className="text-xs text-slate-500">
-                    {conversation.last_ai_analyzed_at ? `AI ${formatShortDate(conversation.last_ai_analyzed_at)}` : "AI pending"}
+                    {getAiAnalyzedAt(conversation) ? `AI ${formatShortDate(getAiAnalyzedAt(conversation))}` : "AI pending"}
                   </div>
                 </div>
               </td>

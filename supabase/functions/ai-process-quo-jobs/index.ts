@@ -153,6 +153,24 @@ function isRealAiTag(value: string) {
   return normalized.length > 0 && normalized !== "needs human review" && normalized !== "human review";
 }
 
+function buildFallbackTag(output: QuoAiOpsCaseOutput) {
+  if (output.waiting_on === "staff" || output.waiting_on === "manager") return "Customer Needs Reply";
+  if (output.schedule_status === "requested" || output.schedule_status === "tentative" || output.schedule_status === "unconfirmed") return "Scheduling Needed";
+  if (output.schedule_status === "confirmed") return "Job Scheduled";
+  if (output.schedule_status === "reschedule_needed") return "Reschedule Needed";
+  if (output.quote_status === "needed") return "Needs Quote";
+  if (output.quote_status === "sent" || output.quote_status === "follow_up_due") return "Quote Sent Waiting Customer";
+  if (output.payment_status === "pending" || output.payment_status === "dispute") return "Payment Follow Up";
+  if (output.risk_level === "high" || output.risk_level === "critical") return "Manager Review";
+  if (output.waiting_on === "customer") return "Waiting Customer Response";
+  return output.current_status ? toStaffTag(output.current_status) : "AI Reviewed";
+}
+
+function toStaffTag(value: string) {
+  const words = value.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().split(" ");
+  return words.map((word) => word ? `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}` : "").join(" ").trim() || "AI Reviewed";
+}
+
 async function getBudgetStatus(supabase: SupabaseClient) {
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
@@ -530,6 +548,14 @@ async function saveOpsOutput(
 ) {
   const requiresReview = output.requires_human_review || output.confidence < reviewThreshold();
   const realTags = output.tags.filter((tag) => isRealAiTag(tag.tag));
+  const tagsToSave = realTags.length > 0
+    ? realTags
+    : [{
+        tag: buildFallbackTag(output),
+        confidence: Math.max(0.5, Math.min(output.confidence, 0.95)),
+        reason: "Fallback situation tag from validated AI case state.",
+        evidence: output.evidence,
+      }];
 
   await supabase.from("quo_ai_conversation_state").upsert(
     {
@@ -571,13 +597,14 @@ async function saveOpsOutput(
     .from("quo_conversations")
     .update({
       current_priority: output.urgency_level === "critical" ? "urgent" : output.urgency_level,
+      current_ai_section: requiresReview ? "needs_human_review" : output.waiting_on === "staff" || output.waiting_on === "manager" ? "needs_reply" : "waiting_for_customer",
       rolling_ai_summary: output.case_summary,
       last_ai_analyzed_at: new Date().toISOString(),
-      ai_tags: realTags.map((tag) => tag.tag),
+      ai_tags: tagsToSave.map((tag) => tag.tag),
     })
     .eq("id", job.conversation_id);
 
-  for (const tag of realTags.slice(0, 20)) {
+  for (const tag of tagsToSave.slice(0, 20)) {
     await supabase.from("quo_ai_tags").upsert(
       {
         conversation_id: job.conversation_id,
@@ -631,7 +658,7 @@ async function saveOpsOutput(
     });
   }
 
-  return realTags.length;
+  return tagsToSave.length;
 }
 
 async function createBudgetReviewTask(
