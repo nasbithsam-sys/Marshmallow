@@ -1100,19 +1100,6 @@ export default function QuoMonitorPage() {
           {manualAiRunMutation.isPending ? "Running AI..." : `Run AI tags (${Math.min(manualAiCandidates.length, 50)})`}
         </Button>
       )}
-      {isAdmin && (
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-violet-700 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 hover:text-violet-100"
-          onClick={() => syncContactsMutation.mutate()}
-          disabled={syncContactsMutation.isPending}
-          title="Fetches contact names from Quo and fills in missing customer names."
-        >
-          <Tags className="mr-2 h-4 w-4" />
-          {syncContactsMutation.isPending ? "Syncing names..." : "Sync contact names"}
-        </Button>
-      )}
       <Button
         size="sm"
         variant="outline"
