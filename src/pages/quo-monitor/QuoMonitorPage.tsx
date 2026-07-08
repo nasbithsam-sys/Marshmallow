@@ -295,32 +295,17 @@ function toTitleCase(value: string) {
 }
 
 function getScenarioTag(conversation: ConversationRow) {
+  // Only surface a tag when the AI actually produced a specific, situational one.
+  // We intentionally do NOT fall back to generic section buckets ("Hot Lead",
+  // "Waiting Customer Response", etc.) — the row should either show the
+  // real AI-generated tag describing this chat, or "AI pending".
   const firstAiTag = conversation.ai_tags?.find((tag) => tag && tag.trim());
   if (firstAiTag) return toTitleCase(firstAiTag);
 
   const state = getState(conversation);
   if (state?.lost_reason) return toTitleCase(state.lost_reason);
 
-  const section = getSection(conversation);
-  const friendly: Record<string, string> = {
-    needs_reply: "Customer Needs Reply",
-    new_interested_lead: "New Interested Customer",
-    hot_lead: "Hot Lead",
-    follow_up_due_today: "Follow Up Due Today",
-    follow_up_tomorrow: "Follow Up Tomorrow",
-    future_follow_up: "Future Follow Up",
-    appointment_mentioned: "Scheduling Needed",
-    waiting_for_customer: "Waiting Customer Response",
-    possible_dead: "Customer Ghosted",
-    lost_found_other_tech: "Customer Found Other Tech",
-    urgent_complaint: "Complaint Or Urgent Issue",
-    already_added_to_crm: "Already In CRM",
-    not_a_lead_spam_wrong_number: "Spam Or Wrong Number",
-  };
-
-  return section === "needs_human_review"
-    ? getAiAnalyzedAt(conversation) ? "Human Review" : ""
-    : friendly[section] ?? toTitleCase(section);
+  return "";
 }
 
 function getTableSortWeight(conversation: ConversationRow) {
@@ -483,6 +468,38 @@ export default function QuoMonitorPage() {
   const [dateRangeEnd, setDateRangeEnd] = useState("");
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [tableNumberIds, setTableNumberIds] = useState<string[]>([]);
+
+  // Manually-hidden customer numbers (last-10 digits) treated as internal chats.
+  // Persisted in localStorage so hidden numbers stay hidden across reloads.
+  const HIDDEN_INTERNAL_KEY = "quo-monitor-hidden-internal-numbers";
+  const [hiddenInternalNumbers, setHiddenInternalNumbers] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = window.localStorage.getItem(HIDDEN_INTERNAL_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(list) ? list.filter((v): v is string => typeof v === "string") : []);
+    } catch {
+      return new Set();
+    }
+  });
+
+  const toggleInternalHidden = (rawNumber: string | null | undefined) => {
+    if (!rawNumber) return;
+    const digits = rawNumber.replace(/\D/g, "");
+    const key = digits.length >= 10 ? digits.slice(-10) : digits;
+    if (!key) return;
+    setHiddenInternalNumbers((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        window.localStorage.setItem(HIDDEN_INTERNAL_KEY, JSON.stringify(Array.from(next)));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   const db = supabase as unknown as LooseSupabase;
   const isAdmin = role === "admin";
@@ -748,6 +765,7 @@ export default function QuoMonitorPage() {
         const digits = conversation.customer_number.replace(/\D/g, "");
         const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
         if (last10 && knownQuoNumbers.has(last10)) return false;
+        if (last10 && hiddenInternalNumbers.has(last10)) return false;
       } else {
         // No customer number = internal/system message, skip
         return false;
@@ -786,6 +804,7 @@ export default function QuoMonitorPage() {
     dateRangeEnd,
     dateRangeStart,
     knownQuoNumbers,
+    hiddenInternalNumbers,
     isConversationInCrm,
     linkedFilter,
     messageSearchHits,
@@ -1694,6 +1713,18 @@ export default function QuoMonitorPage() {
                   title={pinned ? "Unpin chat" : "Pin chat"}
                 >
                   {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="ml-1 h-8 w-8 rounded-full text-slate-500 hover:bg-slate-800 hover:text-rose-300"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleInternalHidden(conversation.customer_number);
+                  }}
+                  title="Hide as internal chat"
+                >
+                  <EyeOff className="h-4 w-4" />
                 </Button>
               </td>
               <td className="px-3 py-3">
