@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 }
 
 serve(async (req) => {
@@ -16,12 +16,51 @@ serve(async (req) => {
     const supabaseServiceKey =
       Deno.env.get('SB_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     if (!supabaseUrl || !supabaseServiceKey) {
-        return new Response(JSON.stringify({ error: 'Missing Supabase service configuration' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+      return new Response(JSON.stringify({ error: 'Missing Supabase service configuration' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Auth gate: allow cron secret OR admin bearer token
+    const cronSecret = Deno.env.get('FUNCTION_CRON_SECRET');
+    const requestSecret = req.headers.get('x-cron-secret');
+    const isCronCall = cronSecret && requestSecret === cronSecret;
+
+    if (!isCronCall) {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader?.startsWith('Bearer ')) {
+        return new Response(JSON.stringify({ error: 'Admin token or valid x-cron-secret required' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { data: userData, error: userError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+      if (userError || !userData?.user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userData.user.id)
+        .maybeSingle();
+      if (roleError) {
+        return new Response(JSON.stringify({ error: 'Could not verify role' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (roleData?.role !== 'admin') {
+        return new Response(JSON.stringify({ error: 'Admin access required' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
 
     const { conversation_id } = await req.json().catch(() => ({}));
 
@@ -72,7 +111,10 @@ serve(async (req) => {
 
         // Rule: Customer asked price, availability, schedule, or service
         const importantKeywords = ['price', 'cost', 'how much', 'availability', 'schedule', 'service', 'address', 'street', 'zip', 'book'];
-        const customerMsgsText = messages.filter(m => m.sender === 'customer').map(m => m.text.toLowerCase()).join(" ");
+        const customerMsgsText = messages
+            .filter(m => m.sender === 'customer')
+            .map(m => (m.text ?? '').toLowerCase())
+            .join(" ");
         if (importantKeywords.some(kw => customerMsgsText.includes(kw))) {
             isImportant = true;
             ruleResult = ruleResult === "Normal" ? "Important" : ruleResult + ", Important";
@@ -91,7 +133,6 @@ serve(async (req) => {
         }
 
         // Rule: Customer was interested but no follow-up for 24 hours
-        // Simplification: if active conversation and no messages for 24h
         if (conv.status === 'active' && minsSinceLast > 1440) {
             isDead = true;
             ruleResult = "Dead Conversation";

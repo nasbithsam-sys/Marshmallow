@@ -52,6 +52,10 @@ Deno.serve(async (req) => {
   const signature = req.headers.get("x-quo-signature") ?? req.headers.get("x-signature");
   const signatureVerified = await verifySignature(rawBody, signature, webhookSecret);
 
+  if (webhookSecret && !signatureVerified) {
+    return jsonResponse({ error: "Invalid webhook signature" }, 401);
+  }
+
   const eventType =
     typeof payload.type === "string"
       ? payload.type
@@ -258,6 +262,16 @@ Deno.serve(async (req) => {
           .maybeSingle()
       : { data: null };
 
+    // Preserve any previously-set linked_lead_id so re-upserts don't wipe manual/AI links.
+    const { data: existingConversation } = await supabase
+      .from("quo_conversations")
+      .select("linked_lead_id")
+      .eq("quo_conversation_id", conversation.id)
+      .maybeSingle();
+
+    const preservedLinkedLeadId =
+      existingLead?.id ?? existingConversation?.linked_lead_id ?? null;
+
     const messageTime = new Date(message.createdAt).toISOString();
     const { data: conversationRow, error: conversationError } = await supabase
       .from("quo_conversations")
@@ -267,7 +281,7 @@ Deno.serve(async (req) => {
           customer_name: conversation.customerName,
           customer_number: conversation.customerNumber,
           number_id: phoneNumberRowId,
-          linked_lead_id: existingLead?.id ?? null,
+          linked_lead_id: preservedLinkedLeadId,
           last_message_preview: getQuoMessagePreview(message.text, message.media),
           last_message_time: messageTime,
           last_message_at: messageTime,

@@ -80,7 +80,7 @@ function chooseModel(kind: "fast" | "main" | "risk") {
 
 function usesMaxCompletionTokens(model: string) {
   const normalized = model.trim().toLowerCase();
-  return normalized.startsWith("o1") || normalized.startsWith("o3") || normalized.startsWith("o");
+  return ["o1", "o1-mini", "o3", "o3-mini", "o4", "o4-mini"].some((prefix) => normalized.startsWith(prefix));
 }
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number) {
@@ -170,11 +170,14 @@ async function findExactLead(supabase: SupabaseClient, customerNumber: string | 
   const digits = customerNumber.replace(/\D/g, "");
   if (!digits) return null;
 
+  // Server-side filter using the last 10 digits so older leads are found too.
+  const last10 = digits.slice(-10);
   const { data } = await supabase
     .from("leads")
     .select("id, job_id, customer_name, customer_phone, status, service_type, scheduled_date, address")
+    .ilike("customer_phone", `%${last10}%`)
     .order("created_at", { ascending: false })
-    .limit(250);
+    .limit(50);
 
   return (data ?? []).find((lead: { customer_phone?: string | null }) => {
     const leadDigits = String(lead.customer_phone ?? "").replace(/\D/g, "");

@@ -15,14 +15,15 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey =
       Deno.env.get('SB_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
+
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(JSON.stringify({ error: 'Missing Supabase service configuration' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Auth Check: only admins can trigger the manual historical sync.
     const authHeader = req.headers.get('Authorization')
@@ -77,7 +78,8 @@ serve(async (req) => {
     const response = await fetch(`${API_BASE}/messages?${params.toString()}`, {
         method: 'GET',
         headers: {
-            'Authorization': `Bearer ${QUO_API_KEY}`,
+            // Quo API expects the raw key (no Bearer prefix); matches quo-chat / quo-reconcile-sync.
+            'Authorization': QUO_API_KEY,
             'Content-Type': 'application/json'
         }
     });
@@ -91,12 +93,13 @@ serve(async (req) => {
     let syncedCount = 0;
 
     // Log the sync attempt
+    const syncLogDetails: Record<string, unknown> = { createdAfter, createdBefore, count: messages.length };
     const { data: syncLog } = await supabase
         .from('quo_sync_logs')
         .insert({
             sync_type: 'history',
             status: 'running',
-            details: { createdAfter, createdBefore, count: messages.length }
+            details: syncLogDetails
         }).select('id').single();
 
     for (const msg of messages) {
@@ -149,7 +152,7 @@ serve(async (req) => {
     if (syncLog) {
         await supabase.from('quo_sync_logs').update({
             status: 'completed',
-            details: { ...syncLog.details, syncedCount }
+            details: { ...syncLogDetails, syncedCount }
         }).eq('id', syncLog.id);
     }
 

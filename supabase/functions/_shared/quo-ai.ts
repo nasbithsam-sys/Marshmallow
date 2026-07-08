@@ -307,6 +307,9 @@ export function isLowValueMessage(text: string | null | undefined) {
   const normalized = (text ?? "").trim().toLowerCase();
   if (!normalized) return true;
 
+  // Symbol/emoji-only messages ("👍", "✅", "!!!") are low value.
+  if (/^[^\p{L}\p{N}]+$/u.test(normalized)) return true;
+
   return [
     "ok",
     "okay",
@@ -611,7 +614,13 @@ export async function verifySignature(rawBody: string, signature: string | null,
     .join("");
   const normalized = signature.replace(/^sha256=/, "").trim().toLowerCase();
 
-  return expected === normalized;
+  // Constant-time comparison to avoid HMAC timing oracle
+  if (expected.length !== normalized.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= expected.charCodeAt(i) ^ normalized.charCodeAt(i);
+  }
+  return diff === 0;
 }
 
 export function validateAiDecision(value: unknown): { ok: true; data: AiDecisionOutput } | { ok: false; error: string } {
