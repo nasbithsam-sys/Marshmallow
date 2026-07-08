@@ -1696,6 +1696,23 @@ export default function QuoMonitorPage() {
         tableConversations.map((conversation) => {
           const confidence = getState(conversation)?.confidence ?? 0;
           const linked = isConversationInCrm(conversation);
+          const linkedLeadInfo = (() => {
+            const digits = (conversation.customer_number ?? "").replace(/\D/g, "");
+            if (digits.length < 10) return null;
+            return leadByPhoneKey.get(digits.slice(-10)) ?? null;
+          })();
+          const leadStatus = (linkedLeadInfo?.status ?? null) as LeadStatus | null;
+          const customerTime = conversation.last_customer_message_at
+            ? new Date(conversation.last_customer_message_at).getTime()
+            : 0;
+          const agentTime = conversation.last_agent_message_at
+            ? new Date(conversation.last_agent_message_at).getTime()
+            : 0;
+          const needsAttention =
+            linked &&
+            leadStatus !== null &&
+            NEEDS_ATTENTION_STATUSES.has(leadStatus) &&
+            customerTime > agentTime;
           const numberId = conversation.quo_phone_numbers?.id;
           const preference = numberId ? preferenceByNumberId.get(numberId) : null;
           const sourceLabel = getPreferredQuoNumberLabel(conversation, preference);
