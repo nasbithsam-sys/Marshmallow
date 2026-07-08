@@ -1323,11 +1323,21 @@ export default function QuoMonitorPage() {
         size="sm"
         variant="outline"
         className={`h-9 border-slate-800 text-xs ${
+          linkedFilter === "linked" ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/30" : "bg-[#0b0c10] text-slate-300"
+        }`}
+        onClick={() => setLinkedFilter(linkedFilter === "linked" ? "all" : "linked")}
+      >
+        In CRM
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className={`h-9 border-slate-800 text-xs ${
           linkedFilter === "unlinked" ? "bg-cyan-500/15 text-cyan-200 border-cyan-500/30" : "bg-[#0b0c10] text-slate-300"
         }`}
         onClick={() => setLinkedFilter(linkedFilter === "unlinked" ? "all" : "unlinked")}
       >
-        Unlinked
+        Not in CRM
       </Button>
       {(sectionFilter !== "all" || confidenceFilter !== "all" || linkedFilter !== "all" || dateFilter !== "all" || tagFilter !== "") && (
         <Button
