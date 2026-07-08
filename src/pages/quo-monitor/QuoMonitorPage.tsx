@@ -928,11 +928,11 @@ export default function QuoMonitorPage() {
       try {
         // Check if there are any pending or failed jobs in the queue
         const db2 = supabase as unknown as LooseSupabase;
-        const { data: pendingJobs, error } = await db2
-          .from<{ id: string }>("quo_ai_jobs")
+        const { data: pendingJobs, error } = (await db2
+          .from("quo_ai_jobs")
           .select("id")
           .in("status", ["pending", "failed"])
-          .limit(1);
+          .limit(1)) as { data: Array<{ id: string }> | null; error: unknown };
 
         if (error || cancelled) return;
 
