@@ -578,22 +578,33 @@ export default function QuoMonitorPage() {
     queryFn: async () => {
       const { data, error } = await db
         .from("leads")
-        .select("customer_phone")
+        .select("id, job_id, customer_name, customer_phone, status")
         .not("customer_phone", "is", null);
       if (error) throw error;
-      return (data ?? []) as Array<{ customer_phone: string | null }>;
+      return (data ?? []) as Array<{
+        id: string;
+        job_id: string | null;
+        customer_name: string | null;
+        customer_phone: string | null;
+        status: string | null;
+      }>;
     },
     staleTime: 60_000,
   });
 
-  const leadPhoneKeys = useMemo(() => {
-    const set = new Set<string>();
+  const leadByPhoneKey = useMemo(() => {
+    const map = new Map<string, { id: string; job_id: string | null; customer_name: string | null; status: string | null }>();
     for (const row of leadsPhonesQuery.data ?? []) {
       const digits = (row.customer_phone ?? "").replace(/\D/g, "");
-      if (digits.length >= 10) set.add(digits.slice(-10));
+      if (digits.length >= 10) {
+        const key = digits.slice(-10);
+        if (!map.has(key)) map.set(key, row);
+      }
     }
-    return set;
+    return map;
   }, [leadsPhonesQuery.data]);
+
+  const leadPhoneKeys = useMemo(() => new Set(leadByPhoneKey.keys()), [leadByPhoneKey]);
 
   const isConversationInCrm = useMemo(() => {
     return (conversation: ConversationRow) => {
@@ -604,6 +615,7 @@ export default function QuoMonitorPage() {
       return false;
     };
   }, [leadPhoneKeys]);
+
 
 
 
