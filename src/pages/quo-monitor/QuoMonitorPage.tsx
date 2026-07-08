@@ -508,14 +508,21 @@ export default function QuoMonitorPage() {
       const ids = rows.map((row) => row.id);
       if (ids.length === 0) return rows;
 
-      const { data: opsStates, error: opsError } = await db
-        .from("quo_ai_conversation_state")
-        .select("conversation_id, waiting_on, urgency_level, confidence, risk_level, requires_human_review, human_review_reason, last_ai_checked_at")
-        .in("conversation_id", ids);
-      if (opsError) throw opsError;
+      // Batch IN() query in chunks to keep the URL under PostgREST's length limit.
+      const CHUNK = 100;
+      const allOpsStates: QuoOpsState[] = [];
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        const { data: opsStates, error: opsError } = await db
+          .from("quo_ai_conversation_state")
+          .select("conversation_id, waiting_on, urgency_level, confidence, risk_level, requires_human_review, human_review_reason, last_ai_checked_at")
+          .in("conversation_id", chunk);
+        if (opsError) throw opsError;
+        if (opsStates) allOpsStates.push(...(opsStates as QuoOpsState[]));
+      }
 
       const opsByConversation = new Map(
-        ((opsStates ?? []) as QuoOpsState[]).map((state) => [state.conversation_id, state]),
+        allOpsStates.map((state) => [state.conversation_id, state]),
       );
 
       return rows.map((row) => ({
