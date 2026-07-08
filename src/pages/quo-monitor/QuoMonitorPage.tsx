@@ -20,6 +20,7 @@ import {
   Settings2,
   Table2,
   Tags,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   QUO_AI_SECTIONS,
   type QuoAiSection,
@@ -482,6 +484,7 @@ export default function QuoMonitorPage() {
   const [dateRangeStart, setDateRangeStart] = useState("");
   const [dateRangeEnd, setDateRangeEnd] = useState("");
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
+  const [crmVerifyOpen, setCrmVerifyOpen] = useState(false);
   const [tableNumberIds, setTableNumberIds] = useState<string[]>([]);
 
   const db = supabase as unknown as LooseSupabase;
@@ -576,22 +579,33 @@ export default function QuoMonitorPage() {
     queryFn: async () => {
       const { data, error } = await db
         .from("leads")
-        .select("customer_phone")
+        .select("id, job_id, customer_name, customer_phone, status")
         .not("customer_phone", "is", null);
       if (error) throw error;
-      return (data ?? []) as Array<{ customer_phone: string | null }>;
+      return (data ?? []) as Array<{
+        id: string;
+        job_id: string | null;
+        customer_name: string | null;
+        customer_phone: string | null;
+        status: string | null;
+      }>;
     },
     staleTime: 60_000,
   });
 
-  const leadPhoneKeys = useMemo(() => {
-    const set = new Set<string>();
+  const leadByPhoneKey = useMemo(() => {
+    const map = new Map<string, { id: string; job_id: string | null; customer_name: string | null; status: string | null }>();
     for (const row of leadsPhonesQuery.data ?? []) {
       const digits = (row.customer_phone ?? "").replace(/\D/g, "");
-      if (digits.length >= 10) set.add(digits.slice(-10));
+      if (digits.length >= 10) {
+        const key = digits.slice(-10);
+        if (!map.has(key)) map.set(key, row);
+      }
     }
-    return set;
+    return map;
   }, [leadsPhonesQuery.data]);
+
+  const leadPhoneKeys = useMemo(() => new Set(leadByPhoneKey.keys()), [leadByPhoneKey]);
 
   const isConversationInCrm = useMemo(() => {
     return (conversation: ConversationRow) => {
@@ -602,6 +616,7 @@ export default function QuoMonitorPage() {
       return false;
     };
   }, [leadPhoneKeys]);
+
 
 
 
@@ -1249,8 +1264,19 @@ export default function QuoMonitorPage() {
         <RefreshCw className="mr-2 h-4 w-4" />
         Refresh
       </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+        onClick={() => setCrmVerifyOpen(true)}
+        title="Verify how each chat's phone number matches (or doesn't match) a CRM lead"
+      >
+        <ShieldCheck className="mr-2 h-4 w-4" />
+        Verify CRM match
+      </Button>
     </div>
   </div>
+
 
   <div className="flex flex-wrap items-center gap-3">
     <div className="relative flex-1 min-w-[280px]">
@@ -1891,6 +1917,107 @@ export default function QuoMonitorPage() {
 </div>
         </main>
       </div>
+
+      <Dialog open={crmVerifyOpen} onOpenChange={setCrmVerifyOpen}>
+        <DialogContent className="max-w-5xl border-slate-800 bg-[#0b0c10] text-slate-100">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-100">
+              <ShieldCheck className="h-5 w-5 text-emerald-300" />
+              CRM match verification
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Confirms each chat's phone number against the CRM using last-10-digit normalization.
+              Match source shows whether the link is via an existing lead link, the linked_lead_id field, or a phone-number match.
+            </DialogDescription>
+          </DialogHeader>
+
+          {(() => {
+            const rows = filteredConversations.map((conversation) => {
+              const raw = conversation.customer_number ?? "";
+              const digits = raw.replace(/\D/g, "");
+              const key = digits.length >= 10 ? digits.slice(-10) : null;
+              const phoneMatch = key ? leadByPhoneKey.get(key) ?? null : null;
+              const linkMatch = Boolean(conversation.linked_lead_id || (conversation.ai_lead_links && conversation.ai_lead_links.length > 0));
+              let source: "link" | "phone" | "none" = "none";
+              if (linkMatch) source = "link";
+              else if (phoneMatch) source = "phone";
+              return { conversation, raw, key, phoneMatch, linkMatch, source };
+            });
+
+            const matched = rows.filter((r) => r.source !== "none").length;
+            const phoneOnly = rows.filter((r) => r.source === "phone").length;
+            const unmatched = rows.length - matched;
+
+            return (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <Badge variant="outline" className="border-emerald-700 bg-emerald-500/10 text-emerald-200">
+                    In CRM: {matched}
+                  </Badge>
+                  <Badge variant="outline" className="border-cyan-700 bg-cyan-500/10 text-cyan-200">
+                    Matched by phone only: {phoneOnly}
+                  </Badge>
+                  <Badge variant="outline" className="border-amber-700 bg-amber-500/10 text-amber-200">
+                    Not in CRM: {unmatched}
+                  </Badge>
+                  <Badge variant="outline" className="border-slate-700 bg-slate-900 text-slate-300">
+                    Total CRM phones indexed: {leadByPhoneKey.size}
+                  </Badge>
+                </div>
+
+                <div className="max-h-[60vh] overflow-auto rounded-md border border-slate-800">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-slate-950/95 text-[10px] uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Customer</th>
+                        <th className="px-3 py-2 text-left">Raw phone</th>
+                        <th className="px-3 py-2 text-left">Normalized (last 10)</th>
+                        <th className="px-3 py-2 text-left">Matched lead</th>
+                        <th className="px-3 py-2 text-left">Source</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ conversation, raw, key, phoneMatch, source }) => (
+                        <tr key={conversation.id} className="border-t border-slate-900">
+                          <td className="px-3 py-2 text-slate-200">{conversation.customer_name || "—"}</td>
+                          <td className="px-3 py-2 text-slate-400">{raw || "—"}</td>
+                          <td className="px-3 py-2 font-mono text-slate-300">{key ?? "—"}</td>
+                          <td className="px-3 py-2 text-slate-200">
+                            {phoneMatch
+                              ? `${phoneMatch.customer_name || "Unnamed"} · ${phoneMatch.job_id || phoneMatch.id.slice(0, 8)}`
+                              : conversation.linked_lead_id
+                                ? `Linked lead ${conversation.linked_lead_id.slice(0, 8)}`
+                                : "—"}
+                          </td>
+                          <td className="px-3 py-2">
+                            {source === "link" && (
+                              <Badge variant="outline" className="border-emerald-700 bg-emerald-500/10 text-emerald-200">Link</Badge>
+                            )}
+                            {source === "phone" && (
+                              <Badge variant="outline" className="border-cyan-700 bg-cyan-500/10 text-cyan-200">Phone</Badge>
+                            )}
+                            {source === "none" && (
+                              <Badge variant="outline" className="border-amber-700 bg-amber-500/10 text-amber-200">None</Badge>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {rows.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                            No chats in the current view.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
