@@ -637,9 +637,9 @@ export default function QuoMonitorPage() {
       const q = deferredSearch.trim();
       if (q.length < 2) return new Set<string>();
       const escaped = q.replace(/[%_,()]/g, (m) => `\\${m}`);
-      const { data, error } = await db
+      const { data, error } = await (db
         .from("quo_messages")
-        .select("conversation_id")
+        .select("conversation_id") as any)
         .ilike("text", `%${escaped}%`)
         .limit(500);
       if (error) throw error;
