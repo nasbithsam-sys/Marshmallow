@@ -472,6 +472,7 @@ export default function QuoMonitorPage() {
   const { user, role } = useAuth();
   const tableNumberScrollerRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [sectionFilter, setSectionFilter] = useState<(typeof sectionFilters)[number]>("all");
   const [confidenceFilter, setConfidenceFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
