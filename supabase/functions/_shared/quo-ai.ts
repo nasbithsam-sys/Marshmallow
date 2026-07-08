@@ -232,7 +232,15 @@ export function validateQuoAiOpsCaseOutput(
 
   if (typeof data.case_summary !== "string" || !data.case_summary.trim()) return { ok: false, error: "Missing case_summary." };
   if (typeof data.lead_stage !== "string" || !data.lead_stage.trim()) return { ok: false, error: "Missing lead_stage." };
-  if (!isJsonObject(data.customer_situation)) return { ok: false, error: "customer_situation must be an object." };
+  if (!isJsonObject(data.customer_situation)) {
+    if (typeof data.customer_situation === "string" && data.customer_situation.trim()) {
+      data.customer_situation = { description: data.customer_situation.trim() };
+    } else if (data.customer_situation == null) {
+      data.customer_situation = {};
+    } else {
+      return { ok: false, error: "customer_situation must be an object." };
+    }
+  }
   if (!allowedOpsWaitingOn.has(String(data.waiting_on))) return { ok: false, error: "Invalid waiting_on." };
   if (!allowedOpsPriorities.has(String(data.urgency_level))) return { ok: false, error: "Invalid urgency_level." };
   if (!allowedOpsPriorities.has(String(data.risk_level))) return { ok: false, error: "Invalid risk_level." };
