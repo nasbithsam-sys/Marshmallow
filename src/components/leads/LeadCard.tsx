@@ -124,6 +124,8 @@ function LeadCard({
   );
   const [completeCopied, setCompleteCopied] = useState(false);
   const [photoPaths, setPhotoPaths] = useState<string[]>([]);
+  const [photoOriginals, setPhotoOriginals] = useState<(string | undefined)[]>([]);
+  const [resolvedPaymentOriginal, setResolvedPaymentOriginal] = useState<string | null>(null);
   const [photoCount, setPhotoCount] = useState(
     initialPhotoCount !== undefined ? initialPhotoCount : 0
   );

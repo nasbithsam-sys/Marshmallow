@@ -143,6 +143,8 @@ type LooseQuery<T = unknown> = {
   upsert: <Next = T>(values: unknown, options?: unknown) => LooseQuery<Next>;
   delete: <Next = T>() => LooseQuery<Next>;
   eq: (column: string, value: unknown) => LooseQuery<T>;
+  neq: (column: string, value: unknown) => LooseQuery<T>;
+  not: (column: string, operator: string, value: unknown) => LooseQuery<T>;
   in: (column: string, values: unknown[]) => LooseQuery<T>;
   gte: (column: string, value: unknown) => LooseQuery<T>;
   order: (column: string, options?: unknown) => LooseQuery<T>;
@@ -879,10 +881,10 @@ export default function QuoMonitorPage() {
   useEffect(() => {
     if (!isAdmin) return;
 
-    let refreshTimer: ReturnType<typeof window.setTimeout> | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const scheduleConversationRefresh = () => {
-      if (refreshTimer) window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
       }, 750);
     };
@@ -912,7 +914,7 @@ export default function QuoMonitorPage() {
       .subscribe();
 
     return () => {
-      if (refreshTimer) window.clearTimeout(refreshTimer);
+      if (refreshTimer) clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
   }, [isAdmin, queryClient, selectedConvId]);
@@ -926,11 +928,11 @@ export default function QuoMonitorPage() {
       try {
         // Check if there are any pending or failed jobs in the queue
         const db2 = supabase as unknown as LooseSupabase;
-        const { data: pendingJobs, error } = await db2
+        const { data: pendingJobs, error } = (await db2
           .from("quo_ai_jobs")
           .select("id")
           .in("status", ["pending", "failed"])
-          .limit(1);
+          .limit(1)) as { data: Array<{ id: string }> | null; error: unknown };
 
         if (error || cancelled) return;
 
@@ -1085,7 +1087,7 @@ export default function QuoMonitorPage() {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 bg-[#0b0c10] p-1 rounded-xl border border-slate-800/80">
-          {(["all", "today", "yesterday", "week", "month"] as const).map((preset) => (
+          {(["all", "today", "yesterday", "week", "month"] as ReadonlyArray<string>).map((preset) => (
             <button
               key={preset}
               type="button"
