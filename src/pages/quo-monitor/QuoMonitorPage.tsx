@@ -1984,9 +1984,9 @@ export default function QuoMonitorPage() {
                           <td className="px-3 py-2 font-mono text-slate-300">{key ?? "—"}</td>
                           <td className="px-3 py-2 text-slate-200">
                             {phoneMatch
-                              ? `${phoneMatch.customer_name || "Unnamed"} · ${phoneMatch.job_id || phoneMatch.id.slice(0, 8)}`
+                              ? `${phoneMatch.customer_name || "Unnamed"} · ${phoneMatch.job_id || (phoneMatch.id ?? "").slice(0, 8)}`
                               : conversation.linked_lead_id
-                                ? `Linked lead ${conversation.linked_lead_id.slice(0, 8)}`
+                                ? `Linked lead ${(conversation.linked_lead_id ?? "").slice(0, 8)}`
                                 : "—"}
                           </td>
                           <td className="px-3 py-2">
