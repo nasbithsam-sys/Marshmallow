@@ -629,6 +629,32 @@ export default function QuoMonitorPage() {
     enabled: isAdmin,
   });
 
+  // Server-side full-text search over quo_messages. Only runs when the user
+  // is actively searching, so the main list stays fast.
+  const messageSearchQuery = useQuery({
+    queryKey: ["quo-message-search", deferredSearch.trim().toLowerCase()],
+    queryFn: async () => {
+      const q = deferredSearch.trim();
+      if (q.length < 2) return new Set<string>();
+      const escaped = q.replace(/[%_,()]/g, (m) => `\\${m}`);
+      const { data, error } = await db
+        .from("quo_messages")
+        .select("conversation_id")
+        .ilike("text", `%${escaped}%`)
+        .limit(500);
+      if (error) throw error;
+      return new Set<string>(
+        ((data ?? []) as Array<{ conversation_id: string | null }>)
+          .map((r) => r.conversation_id)
+          .filter((id): id is string => Boolean(id)),
+      );
+    },
+    enabled: deferredSearch.trim().length >= 2,
+    staleTime: 30_000,
+  });
+
+  const messageSearchHits = messageSearchQuery.data ?? null;
+
   const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
   const numberPreferences = useMemo(() => numberPreferencesQuery.data ?? [], [numberPreferencesQuery.data]);
   const preferenceByNumberId = useMemo(
@@ -651,7 +677,7 @@ export default function QuoMonitorPage() {
   }, [conversations, preferenceByNumberId]);
 
   const filteredConversations = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = deferredSearch.trim().toLowerCase();
     return conversations.filter((conversation) => {
       const state = getState(conversation);
       const section = getSection(conversation);
@@ -685,7 +711,6 @@ export default function QuoMonitorPage() {
       if (!matchesDatePreset(lastActivity, dateFilter, dateRangeStart, dateRangeEnd)) return false;
       if (tagFilter.trim() && !rowTags.some((tag) => tag.toLowerCase().includes(tagFilter.trim().toLowerCase()))) return false;
       if (query) {
-        const messageTexts = (conversation.quo_messages ?? []).map((m) => m.text).filter(Boolean);
         const haystack = [
           conversation.customer_name,
           conversation.customer_number,
@@ -694,12 +719,13 @@ export default function QuoMonitorPage() {
           conversation.rolling_ai_summary,
           scenarioTag,
           ...rowTags,
-          ...messageTexts,
         ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
-        if (!haystack.includes(query)) return false;
+        const metaMatch = haystack.includes(query);
+        const messageMatch = messageSearchHits ? messageSearchHits.has(conversation.id) : false;
+        if (!metaMatch && !messageMatch) return false;
       }
 
       return true;
@@ -710,9 +736,11 @@ export default function QuoMonitorPage() {
     dateFilter,
     dateRangeEnd,
     dateRangeStart,
+    knownQuoNumbers,
     linkedFilter,
+    messageSearchHits,
     preferenceByNumberId,
-    search,
+    deferredSearch,
     sectionFilter,
     tableNumberIds,
     tagFilter,
