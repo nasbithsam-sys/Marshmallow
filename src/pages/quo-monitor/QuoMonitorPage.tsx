@@ -469,6 +469,38 @@ export default function QuoMonitorPage() {
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [tableNumberIds, setTableNumberIds] = useState<string[]>([]);
 
+  // Manually-hidden customer numbers (last-10 digits) treated as internal chats.
+  // Persisted in localStorage so hidden numbers stay hidden across reloads.
+  const HIDDEN_INTERNAL_KEY = "quo-monitor-hidden-internal-numbers";
+  const [hiddenInternalNumbers, setHiddenInternalNumbers] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = window.localStorage.getItem(HIDDEN_INTERNAL_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(list) ? list.filter((v): v is string => typeof v === "string") : []);
+    } catch {
+      return new Set();
+    }
+  });
+
+  const toggleInternalHidden = (rawNumber: string | null | undefined) => {
+    if (!rawNumber) return;
+    const digits = rawNumber.replace(/\D/g, "");
+    const key = digits.length >= 10 ? digits.slice(-10) : digits;
+    if (!key) return;
+    setHiddenInternalNumbers((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        window.localStorage.setItem(HIDDEN_INTERNAL_KEY, JSON.stringify(Array.from(next)));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
   const db = supabase as unknown as LooseSupabase;
   const isAdmin = role === "admin";
 
