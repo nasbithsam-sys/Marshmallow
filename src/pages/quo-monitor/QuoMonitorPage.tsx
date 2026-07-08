@@ -33,6 +33,15 @@ import {
   QUO_AI_SECTIONS,
   type QuoAiSection,
 } from "@/lib/quo-ai";
+import { STATUS_LABELS, type LeadStatus } from "@/lib/constants";
+
+const NEEDS_ATTENTION_STATUSES: ReadonlySet<LeadStatus> = new Set([
+  "cancelled",
+  "cancellation_requested",
+  "paid",
+  "job_done",
+  "partial_paid",
+]);
 
 type ConversationRow = {
   id: string;
@@ -1687,6 +1696,23 @@ export default function QuoMonitorPage() {
         tableConversations.map((conversation) => {
           const confidence = getState(conversation)?.confidence ?? 0;
           const linked = isConversationInCrm(conversation);
+          const linkedLeadInfo = (() => {
+            const digits = (conversation.customer_number ?? "").replace(/\D/g, "");
+            if (digits.length < 10) return null;
+            return leadByPhoneKey.get(digits.slice(-10)) ?? null;
+          })();
+          const leadStatus = (linkedLeadInfo?.status ?? null) as LeadStatus | null;
+          const customerTime = conversation.last_customer_message_at
+            ? new Date(conversation.last_customer_message_at).getTime()
+            : 0;
+          const agentTime = conversation.last_agent_message_at
+            ? new Date(conversation.last_agent_message_at).getTime()
+            : 0;
+          const needsAttention =
+            linked &&
+            leadStatus !== null &&
+            NEEDS_ATTENTION_STATUSES.has(leadStatus) &&
+            customerTime > agentTime;
           const numberId = conversation.quo_phone_numbers?.id;
           const preference = numberId ? preferenceByNumberId.get(numberId) : null;
           const sourceLabel = getPreferredQuoNumberLabel(conversation, preference);
@@ -1723,18 +1749,6 @@ export default function QuoMonitorPage() {
                   title={pinned ? "Unpin chat" : "Pin chat"}
                 >
                   {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="ml-1 h-8 w-8 rounded-full text-slate-500 hover:bg-slate-800 hover:text-rose-300"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleInternalHidden(conversation.customer_number);
-                  }}
-                  title="Hide as internal chat"
-                >
-                  <EyeOff className="h-4 w-4" />
                 </Button>
               </td>
               <td className="px-3 py-3">
@@ -1914,9 +1928,27 @@ export default function QuoMonitorPage() {
               </td>
               <td className="px-4 py-3">
                 {linked ? (
-                  <Badge variant="outline" className="border-emerald-700 bg-emerald-500/10 text-emerald-200">
-                    In CRM
-                  </Badge>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="border-emerald-700 bg-emerald-500/10 text-emerald-200">
+                        In CRM
+                      </Badge>
+                      {linkedLeadInfo?.job_id && (
+                        <span className="font-mono text-[10px] text-slate-400">{linkedLeadInfo.job_id}</span>
+                      )}
+                    </div>
+                    {leadStatus && (
+                      <Badge variant="outline" className="w-fit border-slate-700 bg-slate-900 text-[10px] text-slate-200">
+                        {STATUS_LABELS[leadStatus] ?? leadStatus}
+                      </Badge>
+                    )}
+                    {needsAttention && (
+                      <span className="inline-flex w-fit items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-200 animate-pulse">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+                        Needs attention
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <Badge variant="outline" className="border-amber-700 bg-amber-500/10 text-amber-200">
                     Not in CRM

@@ -58,6 +58,7 @@ import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { getAssignableLeadTags } from "@/lib/lead-tags";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useQuoAttention } from "@/hooks/useQuoAttention";
 
 interface LeadCardProps {
   lead: Lead;
@@ -137,6 +138,12 @@ function LeadCard({
     }
   );
   const reduceMotion = useReducedMotion();
+  const { needsAttention: quoNeedsAttention } = useQuoAttention({
+    leadId: lead.id,
+    phone: lead.customer_phone,
+    status: lead.status,
+    updatedAt: lead.updated_at,
+  });
 
   useEffect(() => {
     if (initialHasNotes !== undefined) {
@@ -778,8 +785,17 @@ function LeadCard({
               </div>
             </div>
 
-            <div className="shrink-0">
+            <div className="flex shrink-0 flex-col items-end gap-1">
               <StatusBadge status={lead.status} size="sm" />
+              {quoNeedsAttention && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-300 animate-pulse"
+                  title="Customer messaged again on Quo after this lead was resolved/cancelled"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                  Needs attention
+                </span>
+              )}
             </div>
           </div>
 
