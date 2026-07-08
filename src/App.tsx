@@ -1,32 +1,44 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
 import Login from "@/pages/Login";
-import LeadsPage from "@/pages/LeadsPage";
-import LeadDetailPage from "@/pages/LeadDetailPage";
-import SchedulePage from "@/pages/SchedulePage";
-import Analytics from "@/pages/Analytics";
-import AreasPage from "@/pages/AreasPage";
-import ActivityLogs from "@/pages/ActivityLogs";
-import Settings from "@/pages/Settings";
-import NotFound from "@/pages/NotFound";
-import LeadCancellationRequests from "@/pages/LeadCancellationRequests";
-import QuoMonitorPage from "@/pages/quo-monitor/QuoMonitorPage";
+
+// Lazy-load heavy routes so the initial bundle stays small and the CRM feels snappy.
+const LeadsPage = lazy(() => import("@/pages/LeadsPage"));
+const LeadDetailPage = lazy(() => import("@/pages/LeadDetailPage"));
+const SchedulePage = lazy(() => import("@/pages/SchedulePage"));
+const Analytics = lazy(() => import("@/pages/Analytics"));
+const AreasPage = lazy(() => import("@/pages/AreasPage"));
+const ActivityLogs = lazy(() => import("@/pages/ActivityLogs"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
+const LeadCancellationRequests = lazy(() => import("@/pages/LeadCancellationRequests"));
+const QuoMonitorPage = lazy(() => import("@/pages/quo-monitor/QuoMonitorPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
-      staleTime: 30_000,
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+      retry: 1,
     },
   },
 });
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center">
+      <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/30 border-t-foreground animate-spin" />
+    </div>
+  );
+}
 
 function ProtectedRoutes() {
   const { fullyAuthenticated, loading } = useAuth();
@@ -67,18 +79,14 @@ function PageRoute({ navItem, children }: { navItem: string; children: ReactNode
   const { canAccess, profileLoaded } = useAuth();
 
   if (!profileLoaded) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/30 border-t-foreground animate-spin" />
-      </div>
-    );
+    return <PageFallback />;
   }
 
   if (!canAccess(navItem)) {
     return <Navigate to="/leads" replace />;
   }
 
-  return children;
+  return <Suspense fallback={<PageFallback />}>{children}</Suspense>;
 }
 
 const App = () => (
@@ -101,7 +109,7 @@ const App = () => (
               <Route path="lead-cancellation-requests" element={<PageRoute navItem="cancellation_requests"><LeadCancellationRequests /></PageRoute>} />
               <Route path="settings" element={<PageRoute navItem="settings"><Settings /></PageRoute>} />
             </Route>
-            <Route path="*" element={<NotFound />} />
+            <Route path="*" element={<Suspense fallback={<PageFallback />}><NotFound /></Suspense>} />
           </Routes>
         </BrowserRouter>
     </TooltipProvider>
