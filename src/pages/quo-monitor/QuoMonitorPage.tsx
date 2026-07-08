@@ -1928,9 +1928,27 @@ export default function QuoMonitorPage() {
               </td>
               <td className="px-4 py-3">
                 {linked ? (
-                  <Badge variant="outline" className="border-emerald-700 bg-emerald-500/10 text-emerald-200">
-                    In CRM
-                  </Badge>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="border-emerald-700 bg-emerald-500/10 text-emerald-200">
+                        In CRM
+                      </Badge>
+                      {linkedLeadInfo?.job_id && (
+                        <span className="font-mono text-[10px] text-slate-400">{linkedLeadInfo.job_id}</span>
+                      )}
+                    </div>
+                    {leadStatus && (
+                      <Badge variant="outline" className="w-fit border-slate-700 bg-slate-900 text-[10px] text-slate-200">
+                        {STATUS_LABELS[leadStatus] ?? leadStatus}
+                      </Badge>
+                    )}
+                    {needsAttention && (
+                      <span className="inline-flex w-fit items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-200 animate-pulse">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+                        Needs attention
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <Badge variant="outline" className="border-amber-700 bg-amber-500/10 text-amber-200">
                     Not in CRM
