@@ -592,6 +592,30 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // Auth gate: allow cron secret OR admin bearer token
+    const cronSecret = Deno.env.get("FUNCTION_CRON_SECRET");
+    const requestSecret = req.headers.get("x-cron-secret");
+    const authHeader = req.headers.get("Authorization");
+    const isCronCall = cronSecret && requestSecret === cronSecret;
+
+    if (!isCronCall) {
+      if (!authHeader?.startsWith("Bearer ")) {
+        return jsonResponse({ error: "Admin token or valid x-cron-secret required" }, 401);
+      }
+      const token = authHeader.replace("Bearer ", "");
+      const { data: userData, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !userData?.user) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (roleError) return jsonResponse({ error: "Could not verify role" }, 500);
+      if (roleData?.role !== "admin") return jsonResponse({ error: "Admin access required" }, 403);
+    }
+
     const { conversation_id, latest_message_id } = await req.json();
     if (!conversation_id) return jsonResponse({ error: "conversation_id is required." }, 400);
 
