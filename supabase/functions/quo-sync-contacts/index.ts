@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
 
     do {
       const params = new URLSearchParams();
-      params.set("maxResults", "100");
+      params.set("maxResults", "50");
       if (pageToken) params.set("pageToken", pageToken);
 
       const resp = await fetch(`${quoBaseUrl}/contacts?${params.toString()}`, {
