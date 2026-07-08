@@ -43,16 +43,38 @@ async function authorizeJob(req: Request, supabase: SupabaseClient) {
 
   if (cronSecret && requestSecret === cronSecret) return null;
 
+  if (requestSecret) {
+    const { data: setting } = await supabase
+      .from("quo_ai_settings")
+      .select("value")
+      .eq("key", "cron_secret")
+      .maybeSingle();
+    const storedCronSecret = Array.isArray(setting?.value)
+      ? setting.value.find((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
+      : typeof setting?.value === "string"
+        ? setting.value
+        : setting?.value && typeof setting.value === "object" && typeof (setting.value as Record<string, unknown>).secret === "string"
+          ? String((setting.value as Record<string, unknown>).secret)
+          : null;
+
+    if (storedCronSecret && requestSecret === storedCronSecret) return null;
+  }
+
   const authHeader = req.headers.get("Authorization");
+  const serviceRoleKey = Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : null;
+  const apiKey = req.headers.get("apikey");
+
+  if (serviceRoleKey && (bearerToken === serviceRoleKey || apiKey === serviceRoleKey)) return null;
+
   if (!authHeader?.startsWith("Bearer ")) {
     return jsonResponse({ error: "Admin token or valid x-cron-secret required" }, 401);
   }
 
-  const token = authHeader.replace("Bearer ", "");
   const {
     data: { user },
     error: userError,
-  } = await supabase.auth.getUser(token);
+  } = await supabase.auth.getUser(bearerToken ?? "");
 
   if (userError || !user) return jsonResponse({ error: "Unauthorized" }, 401);
 
