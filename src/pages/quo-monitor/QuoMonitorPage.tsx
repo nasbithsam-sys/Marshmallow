@@ -1931,7 +1931,7 @@ export default function QuoMonitorPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {(() => {
+          {crmVerifyOpen && (() => {
             const rows = filteredConversations.map((conversation) => {
               const raw = conversation.customer_number ?? "";
               const digits = raw.replace(/\D/g, "");
