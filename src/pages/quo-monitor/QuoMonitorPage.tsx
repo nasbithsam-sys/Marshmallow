@@ -1142,6 +1142,9 @@ export default function QuoMonitorPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_conversation_states" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_conversation_state" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_lead_links" }, scheduleConversationRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["quo-monitor-lead-phones"] });
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_pinned_conversations" }, () => {
         queryClient.invalidateQueries({ queryKey: ["quo-pinned-conversations"] });
       })
