@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
@@ -488,6 +488,10 @@ export default function QuoMonitorPage() {
   const conversationsQuery = useQuery({
     queryKey: ["quo-ai-conversations"],
     queryFn: async () => {
+      // NOTE: we intentionally do NOT join quo_messages here. Loading every
+      // message text for every conversation is what made this endpoint average
+      // 700ms+. Message-text search is handled by messageSearchQuery below,
+      // which only runs when the user actually types a query.
       const { data, error } = await db
         .from("quo_conversations")
         .select(`
@@ -495,8 +499,7 @@ export default function QuoMonitorPage() {
           quo_phone_numbers (*),
           ai_conversation_states (*),
           ai_reminders (*),
-          ai_lead_links (*, leads (id, job_id, customer_name, status)),
-          quo_messages (text)
+          ai_lead_links (*, leads (id, job_id, customer_name, status))
         `)
         // Exclude conversations with no customer number (internal/system events)
         .not("customer_number", "is", null)
