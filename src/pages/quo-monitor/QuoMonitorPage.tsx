@@ -484,7 +484,6 @@ export default function QuoMonitorPage() {
   const [dateRangeStart, setDateRangeStart] = useState("");
   const [dateRangeEnd, setDateRangeEnd] = useState("");
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
-  const [crmVerifyOpen, setCrmVerifyOpen] = useState(false);
   const [tableNumberIds, setTableNumberIds] = useState<string[]>([]);
 
   const db = supabase as unknown as LooseSupabase;
