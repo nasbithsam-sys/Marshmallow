@@ -1085,7 +1085,7 @@ export default function QuoMonitorPage() {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 bg-[#0b0c10] p-1 rounded-xl border border-slate-800/80">
-          {(["all", "today", "yesterday", "week", "month"] as const).map((preset) => (
+          {(["all", "today", "yesterday", "week", "month"] as ReadonlyArray<string>).map((preset) => (
             <button
               key={preset}
               type="button"

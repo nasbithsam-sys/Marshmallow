@@ -169,7 +169,7 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
         headers.join(","),
         ...csvRows.map((row) =>
           row
-            .map((val) => `"${String(val).replaceAll('"', '""')}"`)
+            .map((val) => `"${String(val).replace(/"/g, '""')}"`)
             .join(",")
         )
       ].join("\n");
