@@ -10,6 +10,21 @@ import {
   verifySignature,
 } from "../_shared/quo-ai.ts";
 
+async function isIngestionPaused(supabase: ReturnType<typeof createClient>) {
+  const { data, error } = await supabase
+    .from("quo_ai_settings")
+    .select("value")
+    .eq("key", "quo_webhook_ingestion_paused")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not read Quo webhook pause setting:", error.message);
+    return false;
+  }
+
+  return data?.value === true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { status: 200, headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
@@ -31,6 +46,22 @@ Deno.serve(async (req) => {
     const webhookSecret = Deno.env.get("QUO_WEBHOOK_SECRET") ?? Deno.env.get("QUO_WEBHOOK_TOKEN") ?? undefined;
     const signature = req.headers.get("x-quo-signature") ?? req.headers.get("x-signature");
     const signatureVerified = await verifySignature(rawBody, signature, webhookSecret);
+
+    // Enforce signature when a secret is configured
+    if (webhookSecret && !signatureVerified) {
+      return jsonResponse({ error: "Invalid webhook signature" }, 401);
+    }
+
+    // Respect ingestion-pause admin toggle
+    if (await isIngestionPaused(supabase)) {
+      return jsonResponse({
+        success: true,
+        ignored: true,
+        paused: true,
+        reason: "Quo Monitor ingestion is paused.",
+      });
+    }
+
     const eventType =
       typeof payload.type === "string"
         ? payload.type
@@ -204,6 +235,16 @@ Deno.serve(async (req) => {
           .maybeSingle()
       : { data: null };
 
+    // Preserve any previously-set linked_lead_id so re-upserts don't wipe manual/AI links.
+    const { data: existingConversation } = await supabase
+      .from("quo_conversations")
+      .select("linked_lead_id")
+      .eq("quo_conversation_id", conversation.id)
+      .maybeSingle();
+
+    const preservedLinkedLeadId =
+      existingLead?.id ?? existingConversation?.linked_lead_id ?? null;
+
     const messageTime = new Date(message.createdAt).toISOString();
     const { data: conversationRow, error: conversationError } = await supabase
       .from("quo_conversations")
@@ -213,7 +254,7 @@ Deno.serve(async (req) => {
           customer_name: conversation.customerName,
           customer_number: conversation.customerNumber,
           number_id: phoneNumberRowId,
-          linked_lead_id: existingLead?.id ?? null,
+          linked_lead_id: preservedLinkedLeadId,
           last_message_preview: getQuoMessagePreview(message.text, message.media),
           last_message_time: messageTime,
           last_message_at: messageTime,
