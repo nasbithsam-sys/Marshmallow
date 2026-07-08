@@ -1640,7 +1640,7 @@ export default function QuoMonitorPage() {
       ) : (
         tableConversations.map((conversation) => {
           const confidence = getState(conversation)?.confidence ?? 0;
-          const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
+          const linked = isConversationInCrm(conversation);
           const numberId = conversation.quo_phone_numbers?.id;
           const preference = numberId ? preferenceByNumberId.get(numberId) : null;
           const sourceLabel = getPreferredQuoNumberLabel(conversation, preference);
