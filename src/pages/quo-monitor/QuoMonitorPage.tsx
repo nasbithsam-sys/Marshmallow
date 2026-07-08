@@ -33,6 +33,15 @@ import {
   QUO_AI_SECTIONS,
   type QuoAiSection,
 } from "@/lib/quo-ai";
+import { STATUS_LABELS, type LeadStatus } from "@/lib/constants";
+
+const NEEDS_ATTENTION_STATUSES: ReadonlySet<LeadStatus> = new Set([
+  "cancelled",
+  "cancellation_requested",
+  "paid",
+  "job_done",
+  "partial_paid",
+]);
 
 type ConversationRow = {
   id: string;
