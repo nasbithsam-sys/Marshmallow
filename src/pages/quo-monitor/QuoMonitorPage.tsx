@@ -774,6 +774,7 @@ export default function QuoMonitorPage() {
     dateRangeEnd,
     dateRangeStart,
     knownQuoNumbers,
+    isConversationInCrm,
     linkedFilter,
     messageSearchHits,
     preferenceByNumberId,
