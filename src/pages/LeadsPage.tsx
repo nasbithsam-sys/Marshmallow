@@ -24,7 +24,7 @@ import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import LeadReportDialog from "@/components/leads/LeadReportDialog";
 import InstallExtensionDialog from "@/components/leads/InstallExtensionDialog";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+
 import { motion } from "framer-motion";
 import { heroTitle, premiumEase, silkySpring, cardGridContainer, cardGridItem } from "@/lib/motion";
 
@@ -405,6 +405,7 @@ export default function LeadsPage() {
       "Updated At": l.updated_at ? new Date(l.updated_at).toLocaleString() : "",
     }));
 
+    const XLSX = await import("xlsx");
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Leads");
