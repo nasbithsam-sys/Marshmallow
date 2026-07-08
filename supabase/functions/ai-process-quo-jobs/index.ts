@@ -651,13 +651,6 @@ async function processPendingJobs(supabase: SupabaseClient, body: Record<string,
   const forceAi = body.force_ai === true || requestedJobIds.length > 0;
   const workerId = crypto.randomUUID();
 
-  const staleCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
-  await supabase
-    .from("quo_ai_jobs")
-    .update({ status: "pending", locked_at: null, locked_by: null, run_after: new Date().toISOString() })
-    .eq("status", "running")
-    .lt("locked_at", staleCutoff);
-
   let jobsQuery = supabase
     .from("quo_ai_jobs")
     .select("*")
