@@ -58,6 +58,7 @@ import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { getAssignableLeadTags } from "@/lib/lead-tags";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useQuoAttention } from "@/hooks/useQuoAttention";
 
 interface LeadCardProps {
   lead: Lead;
