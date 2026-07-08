@@ -1427,21 +1427,56 @@ export default function QuoMonitorPage() {
     >
       All tags
     </button>
-    {tagSummaries.slice(0, 18).map(([tag, count]) => (
-      <button
-        key={tag}
-        type="button"
-        onClick={() => setTagFilter(tagFilter === tag ? "" : tag)}
-        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-          tagFilter === tag
-            ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
-            : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
-        }`}
-      >
-        {tag}
-        <span className="ml-2 text-[10px] text-slate-500">{count}</span>
-      </button>
-    ))}
+    {tagScenarioGroups.map((group) => {
+      const activeTag = group.tags.find((t) => t.tag === tagFilter);
+      const groupActive = Boolean(activeTag);
+      const groupCount = group.tags.reduce((sum, t) => sum + t.count, 0);
+      return (
+        <Popover key={group.key}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                groupActive
+                  ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
+                  : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
+              }`}
+            >
+              <span>{group.label}</span>
+              <span className="text-[10px] text-slate-500">{groupCount}</span>
+              <ChevronDown className="h-3 w-3 opacity-70" />
+              {activeTag && (
+                <span className="ml-1 rounded-full bg-emerald-500/25 px-1.5 py-0.5 text-[10px] text-emerald-100">
+                  {activeTag.tag}
+                </span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-64 border-slate-800 bg-slate-950 p-2">
+            <div className="mb-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              {group.label}
+            </div>
+            <div className="flex flex-col gap-1">
+              {group.tags.map(({ tag, count }) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setTagFilter(tagFilter === tag ? "" : tag)}
+                  className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-left text-xs font-medium transition ${
+                    tagFilter === tag
+                      ? "border-emerald-500 bg-emerald-500/15 text-emerald-100"
+                      : "border-slate-800 bg-slate-900 text-slate-200 hover:border-slate-600"
+                  }`}
+                >
+                  <span className="truncate">{tag}</span>
+                  <span className="ml-2 shrink-0 text-[10px] text-slate-500">{count}</span>
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      );
+    })}
   </div>
 
 
