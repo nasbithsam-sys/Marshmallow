@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole, Profile, NavigationPermission } from "@/types";
@@ -259,30 +259,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     clearPendingAuth();
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user,
-        profile,
-        role,
-        permissions,
-        loading,
-        profileLoaded,
-        fullyAuthenticated,
-        pendingStep,
-        pendingUserId,
-        pendingMfaFactorId,
-        signOut,
-        canAccess,
-        refetchProfile,
-        markFullyAuthenticated,
-        startPendingAccessCode,
-        startPendingMfa,
-        clearPendingAuth,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextType>(
+    () => ({
+      session,
+      user,
+      profile,
+      role,
+      permissions,
+      loading,
+      profileLoaded,
+      fullyAuthenticated,
+      pendingStep,
+      pendingUserId,
+      pendingMfaFactorId,
+      signOut,
+      canAccess,
+      refetchProfile,
+      markFullyAuthenticated,
+      startPendingAccessCode,
+      startPendingMfa,
+      clearPendingAuth,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      session,
+      user,
+      profile,
+      role,
+      permissions,
+      loading,
+      profileLoaded,
+      fullyAuthenticated,
+      pendingStep,
+      pendingUserId,
+      pendingMfaFactorId,
+    ],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
