@@ -138,6 +138,12 @@ function LeadCard({
     }
   );
   const reduceMotion = useReducedMotion();
+  const { needsAttention: quoNeedsAttention } = useQuoAttention({
+    leadId: lead.id,
+    phone: lead.customer_phone,
+    status: lead.status,
+    updatedAt: lead.updated_at,
+  });
 
   useEffect(() => {
     if (initialHasNotes !== undefined) {
