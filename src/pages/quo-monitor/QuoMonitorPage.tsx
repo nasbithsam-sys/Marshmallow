@@ -569,6 +569,42 @@ export default function QuoMonitorPage() {
     return set;
   }, [phoneNumbersQuery.data]);
 
+  // Fetch all lead phone numbers so we can detect when a Quo chat is already
+  // wired to a CRM lead by phone (not just via ai_lead_links / linked_lead_id).
+  const leadsPhonesQuery = useQuery({
+    queryKey: ["quo-monitor-lead-phones"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("leads")
+        .select("customer_phone")
+        .not("customer_phone", "is", null);
+      if (error) throw error;
+      return (data ?? []) as Array<{ customer_phone: string | null }>;
+    },
+    staleTime: 60_000,
+  });
+
+  const leadPhoneKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of leadsPhonesQuery.data ?? []) {
+      const digits = (row.customer_phone ?? "").replace(/\D/g, "");
+      if (digits.length >= 10) set.add(digits.slice(-10));
+    }
+    return set;
+  }, [leadsPhonesQuery.data]);
+
+  const isConversationInCrm = useMemo(() => {
+    return (conversation: ConversationRow) => {
+      if (conversation.linked_lead_id) return true;
+      if (conversation.ai_lead_links && conversation.ai_lead_links.length > 0) return true;
+      const digits = (conversation.customer_number ?? "").replace(/\D/g, "");
+      if (digits.length >= 10 && leadPhoneKeys.has(digits.slice(-10))) return true;
+      return false;
+    };
+  }, [leadPhoneKeys]);
+
+
+
   const messagesQuery = useQuery({
     queryKey: ["quo-ai-messages", selectedConvId],
     queryFn: async () => {
@@ -683,7 +719,7 @@ export default function QuoMonitorPage() {
       const state = getState(conversation);
       const section = getSection(conversation);
       const confidence = state?.confidence ?? 0;
-      const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
+      const linked = isConversationInCrm(conversation);
       const numberId = conversation.quo_phone_numbers?.id;
       const preference = numberId ? preferenceByNumberId.get(numberId) : null;
       const lastActivity = conversation.last_message_at ?? conversation.last_message_time;
@@ -738,6 +774,7 @@ export default function QuoMonitorPage() {
     dateRangeEnd,
     dateRangeStart,
     knownQuoNumbers,
+    isConversationInCrm,
     linkedFilter,
     messageSearchHits,
     preferenceByNumberId,
@@ -1604,7 +1641,7 @@ export default function QuoMonitorPage() {
       ) : (
         tableConversations.map((conversation) => {
           const confidence = getState(conversation)?.confidence ?? 0;
-          const linked = Boolean(conversation.linked_lead_id || conversation.ai_lead_links?.length);
+          const linked = isConversationInCrm(conversation);
           const numberId = conversation.quo_phone_numbers?.id;
           const preference = numberId ? preferenceByNumberId.get(numberId) : null;
           const sourceLabel = getPreferredQuoNumberLabel(conversation, preference);
