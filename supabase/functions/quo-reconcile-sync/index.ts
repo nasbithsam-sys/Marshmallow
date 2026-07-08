@@ -123,13 +123,16 @@ Deno.serve(async (req) => {
     let analyzed = 0;
 
     for (const rawMessage of data?.data ?? []) {
+      const rawContact = (rawMessage as Record<string, unknown>).contact;
       const payload = {
         type: "message.reconciled",
         data: {
           message: rawMessage,
           conversation: {
-            id: rawMessage.conversationId,
-            phoneNumberId: rawMessage.phoneNumberId,
+            id: (rawMessage as Record<string, unknown>).conversationId,
+            phoneNumberId: (rawMessage as Record<string, unknown>).phoneNumberId,
+            // Preserve contact info so normalizeQuoPayload can derive the real customer number
+            contact: rawContact ?? undefined,
           },
         },
       };
