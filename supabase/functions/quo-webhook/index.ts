@@ -52,6 +52,10 @@ Deno.serve(async (req) => {
   const signature = req.headers.get("x-quo-signature") ?? req.headers.get("x-signature");
   const signatureVerified = await verifySignature(rawBody, signature, webhookSecret);
 
+  if (webhookSecret && !signatureVerified) {
+    return jsonResponse({ error: "Invalid webhook signature" }, 401);
+  }
+
   const eventType =
     typeof payload.type === "string"
       ? payload.type
