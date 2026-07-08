@@ -1264,8 +1264,19 @@ export default function QuoMonitorPage() {
         <RefreshCw className="mr-2 h-4 w-4" />
         Refresh
       </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+        onClick={() => setCrmVerifyOpen(true)}
+        title="Verify how each chat's phone number matches (or doesn't match) a CRM lead"
+      >
+        <ShieldCheck className="mr-2 h-4 w-4" />
+        Verify CRM match
+      </Button>
     </div>
   </div>
+
 
   <div className="flex flex-wrap items-center gap-3">
     <div className="relative flex-1 min-w-[280px]">
