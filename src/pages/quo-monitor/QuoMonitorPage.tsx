@@ -1554,25 +1554,56 @@ export default function QuoMonitorPage() {
                 </div>
               </td>
               <td className="px-3 py-3">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {rowTags.length === 0 ? (
-                    <span className="text-xs font-medium text-slate-500">AI pending</span>
-                  ) : (
-                    rowTags.slice(0, 3).map((tag) => (
-                      <span
-                        key={`${conversation.id}-${tag}`}
-                        className="rounded-full border border-cyan-300/20 bg-white/10 px-2.5 py-1 text-xs font-semibold text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.16)] backdrop-blur-md"
+                {rowTags.length === 0 ? (
+                  <span className="text-xs font-medium text-slate-500">AI pending</span>
+                ) : (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(event) => event.stopPropagation()}
+                        className="group inline-flex max-w-[220px] items-center gap-1.5 rounded-full border border-cyan-300/20 bg-white/10 px-2.5 py-1 text-xs font-semibold text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.16)] backdrop-blur-md transition hover:border-cyan-300/40 hover:bg-white/15"
                       >
-                        {tag}
-                      </span>
-                    ))
-                  )}
-                  {rowTags.length > 3 && (
-                    <span className="rounded-full bg-slate-900 px-2 py-1 text-xs text-slate-400">
-                      +{rowTags.length - 3}
-                    </span>
-                  )}
-                </div>
+                        <span className="truncate">{rowTags[0]}</span>
+                        {rowTags.length > 1 && (
+                          <span className="rounded-full bg-slate-900/60 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-100/80">
+                            +{rowTags.length - 1}
+                          </span>
+                        )}
+                        <ChevronRight className="h-3 w-3 rotate-90 text-cyan-100/60 transition group-hover:text-cyan-50" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      className="w-64 border-border bg-popover p-3 text-popover-foreground dark:border-slate-700 dark:bg-[#15161c] dark:text-slate-100"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                        Scenario
+                      </div>
+                      <div className="mb-3 rounded-lg border border-cyan-300/20 bg-cyan-500/10 px-2.5 py-1.5 text-sm font-semibold text-cyan-50">
+                        {rowTags[0]}
+                      </div>
+                      {rowTags.length > 1 && (
+                        <>
+                          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                            Related tags
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {rowTags.slice(1).map((tag) => (
+                              <span
+                                key={`${conversation.id}-${tag}`}
+                                className="rounded-full border border-slate-700/60 bg-slate-900/60 px-2 py-0.5 text-xs text-slate-200"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                )}
               </td>
               <td className="px-3 py-3">
                 <Popover>
