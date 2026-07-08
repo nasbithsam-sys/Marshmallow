@@ -722,6 +722,31 @@ export default function QuoMonitorPage() {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update ingestion switch"),
   });
 
+  const syncContactsMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke<{
+        success: boolean;
+        conversations_updated?: number;
+        matched?: number;
+        contacts_scanned?: number;
+        error?: string;
+      }>("quo-sync-contacts", {
+        body: { overwrite: false },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Contact sync failed");
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(
+        `Synced ${data?.conversations_updated ?? 0} contact names (matched ${data?.matched ?? 0} of ${data?.contacts_scanned ?? 0} scanned).`,
+      );
+      queryClient.invalidateQueries({ queryKey: ["quo-conversations"] });
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Failed to sync contact names"),
+  });
+
   const numberPreferenceMutation = useMutation({
     mutationFn: async ({ phoneNumberId, patch }: { phoneNumberId: string; patch: Partial<NumberPreference> }) => {
       const { error } = await db.from("quo_number_preferences").upsert(
@@ -1073,6 +1098,19 @@ export default function QuoMonitorPage() {
         >
           <Tags className="mr-2 h-4 w-4" />
           {manualAiRunMutation.isPending ? "Running AI..." : `Run AI tags (${Math.min(manualAiCandidates.length, 50)})`}
+        </Button>
+      )}
+      {isAdmin && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-violet-700 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 hover:text-violet-100"
+          onClick={() => syncContactsMutation.mutate()}
+          disabled={syncContactsMutation.isPending}
+          title="Fetches contact names from Quo and fills in missing customer names."
+        >
+          <Tags className="mr-2 h-4 w-4" />
+          {syncContactsMutation.isPending ? "Syncing names..." : "Sync contact names"}
         </Button>
       )}
       <Button
