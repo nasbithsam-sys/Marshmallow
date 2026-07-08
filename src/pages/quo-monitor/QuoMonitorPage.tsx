@@ -1724,18 +1724,6 @@ export default function QuoMonitorPage() {
                 >
                   {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
                 </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="ml-1 h-8 w-8 rounded-full text-slate-500 hover:bg-slate-800 hover:text-rose-300"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleInternalHidden(conversation.customer_number);
-                  }}
-                  title="Hide as internal chat"
-                >
-                  <EyeOff className="h-4 w-4" />
-                </Button>
               </td>
               <td className="px-3 py-3">
                 <div className="flex items-center gap-3">
