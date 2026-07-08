@@ -317,7 +317,9 @@ function getScenarioTag(conversation: ConversationRow) {
     not_a_lead_spam_wrong_number: "Spam Or Wrong Number",
   };
 
-  return section === "needs_human_review" ? "" : friendly[section] ?? toTitleCase(section);
+  return section === "needs_human_review"
+    ? getAiAnalyzedAt(conversation) ? "Human Review" : ""
+    : friendly[section] ?? toTitleCase(section);
 }
 
 function getTableSortWeight(conversation: ConversationRow) {
