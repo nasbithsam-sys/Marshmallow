@@ -28,7 +28,8 @@ export type LeadStatus =
   | 'cancellation_requested'
   | 'cancelled'
   | 'paid'
-  | 'partial_paid';
+  | 'partial_paid'
+  | 'payment_requested';
 
 export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: string }> = {
   waiting_complete_details: { label: 'Waiting Complete Details', color: 'status-amber' },
@@ -50,6 +51,7 @@ export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: stri
   cancelled: { label: 'Cancelled', color: 'status-muted' },
   paid: { label: 'Paid', color: 'status-green' },
   partial_paid: { label: 'Partial Paid', color: 'status-green' },
+  payment_requested: { label: 'Paid Approval Pending', color: 'status-green' },
 };
 
 export interface Profile {

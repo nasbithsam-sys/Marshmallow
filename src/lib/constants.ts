@@ -22,6 +22,7 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   cancelled: "Cancelled",
   paid: "Paid",
   partial_paid: "Partial Paid",
+  payment_requested: "Paid Approval Pending",
 };
 
 export const STATUS_COLORS: Record<LeadStatus, string> = {
@@ -44,6 +45,7 @@ export const STATUS_COLORS: Record<LeadStatus, string> = {
   cancelled: "bg-gray-100 text-gray-800 border-gray-200",
   paid: "bg-green-100 text-green-800 border-green-200",
   partial_paid: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  payment_requested: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
 export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
@@ -66,6 +68,7 @@ export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
   cancelled: "bg-gray-400",
   paid: "bg-green-500",
   partial_paid: "bg-emerald-500",
+  payment_requested: "bg-emerald-500",
 };
 
 export const ALL_LEAD_STATUSES: LeadStatus[] = [
@@ -88,9 +91,10 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "cancelled",
   "paid",
   "partial_paid",
+  "payment_requested",
 ];
 
-export const ALL_NAV_ITEMS = ["leads", "quo_monitor", "cancellation_requests", "analytics", "settings", "activity_logs", "schedule", "areas"] as const;
+export const ALL_NAV_ITEMS = ["leads", "quo_monitor", "cancellation_requests", "payment_requests", "analytics", "settings", "activity_logs", "schedule", "areas"] as const;
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
