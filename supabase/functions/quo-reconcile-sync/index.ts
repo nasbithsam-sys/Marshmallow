@@ -120,6 +120,7 @@ Deno.serve(async (req) => {
     const limit = Math.min(Number(body.limit ?? 100), 250);
     const maxPages = Math.max(1, Math.min(Number(body.maxPages ?? 4), 20));
 
+    let syncLogId: string | null = null;
     const { data: syncLog } = await supabase
       .from("quo_sync_logs")
       .insert({
@@ -129,6 +130,7 @@ Deno.serve(async (req) => {
       })
       .select("id")
       .single();
+    syncLogId = syncLog?.id ?? null;
 
     const allMessages: Record<string, unknown>[] = [];
     let pageToken: string | null | undefined = undefined;
@@ -149,7 +151,7 @@ Deno.serve(async (req) => {
       });
       const data = await safeJson(response) as PaginatedResponse<Record<string, unknown>>;
       if (!response.ok) {
-        throw new Error(`Quo API request failed with status ${response.status}`);
+        throw new Error(`Quo API request failed with status ${response.status}: ${JSON.stringify(data).slice(0, 500)}`);
       }
 
       allMessages.push(...(data?.data ?? []));
@@ -281,7 +283,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (syncLog?.id) {
+    if (syncLogId) {
       await supabase
         .from("quo_sync_logs")
         .update({
@@ -295,7 +297,7 @@ Deno.serve(async (req) => {
             skipped,
           },
         })
-        .eq("id", syncLog.id);
+        .eq("id", syncLogId);
     }
 
     return jsonResponse({
@@ -307,10 +309,34 @@ Deno.serve(async (req) => {
       skipped,
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown reconcile error";
+
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceRoleKey = Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (supabaseUrl && serviceRoleKey) {
+        const supabase = createClient(supabaseUrl, serviceRoleKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+        await supabase
+          .from("quo_sync_logs")
+          .update({
+            status: "failed",
+            details: { error: errorMessage },
+          })
+          .eq("status", "running")
+          .eq("sync_type", "reconcile")
+          .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+      }
+    } catch (logError) {
+      console.error("Failed to mark Quo reconcile sync failed:", logError);
+    }
+
+    console.error("quo-reconcile-sync error:", errorMessage);
     return jsonResponse(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown reconcile error",
+        error: errorMessage,
       },
       400,
     );
