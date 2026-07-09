@@ -53,10 +53,12 @@ export default function PaymentDialog({ open, onOpenChange, onConfirm, loading, 
             <div className="w-8 h-8 rounded-lg bg-[hsl(var(--success)/0.08)] flex items-center justify-center">
               <DollarSign className="h-4 w-4 text-[hsl(var(--success))]" />
             </div>
-            Payment Confirmation
+            {isRequest ? 'Request Paid Approval' : 'Payment Confirmation'}
           </DialogTitle>
           <DialogDescription>
-            Enter the payment amount and optionally upload a payment screenshot.
+            {isRequest
+              ? 'This lead will move to Paid Approval Pending until an Admin approves it.'
+              : 'Enter the payment amount and optionally upload a payment screenshot.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -100,6 +102,17 @@ export default function PaymentDialog({ open, onOpenChange, onConfirm, loading, 
               )}
             </div>
           </div>
+          {isRequest && (
+            <div className="space-y-2">
+              <Label className="text-[11px] font-medium text-muted-foreground/60">Comment (optional)</Label>
+              <Textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Add any context for the Admin reviewing this request..."
+                rows={3}
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -109,7 +122,7 @@ export default function PaymentDialog({ open, onOpenChange, onConfirm, loading, 
             disabled={!amount || parseFloat(amount) <= 0 || loading}
             className="bg-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.9)] text-[hsl(var(--success-foreground))]"
           >
-            {loading ? 'Saving...' : 'Confirm Payment'}
+            {loading ? 'Saving...' : isRequest ? 'Send request' : 'Confirm Payment'}
           </Button>
         </DialogFooter>
       </DialogContent>
