@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 const QUO_API_BASE_URL =
-  Deno.env.get("QUO_API_BASE_URL") ?? "https://api.quo.com/v1";
+  Deno.env.get("QUO_API_BASE_URL") ?? "https://api.openphone.com/v1";
 
 type JsonObject = Record<string, unknown>;
 
