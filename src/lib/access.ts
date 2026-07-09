@@ -10,7 +10,7 @@ const DEFAULT_NAV_ACCESS: Record<AppRole, Set<NavItem>> = {
 };
 
 export const canAccessCancellationRequests = (role: AppRole) =>
-  role === "admin" || role === "processor" || role === "customer_service";
+  role === "admin" || role === "processor";
 
 export function getDefaultNavAccess(role: AppRole): Set<NavItem> {
   return new Set(DEFAULT_NAV_ACCESS[role]);
