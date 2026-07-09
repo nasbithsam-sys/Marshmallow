@@ -322,25 +322,43 @@ Deno.serve(async (req) => {
 
     let aiJobEnqueued = false;
     if (shouldEnqueueQuoAiForEvent(eventType, message)) {
-      const debounceSeconds = Number(Deno.env.get("AI_MESSAGE_DEBOUNCE_SECONDS") ?? "60");
+      // Tag on every message trigger — no debounce delay.
       const priority = message.sender !== "customer"
-        ? "low"
+        ? "medium"
         : message.text.toLowerCase().match(/urgent|asap|angry|cancel|refund|complaint|emergency/)
           ? "high"
           : "medium";
 
-      const { error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
+      const { data: jobData, error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
         _conversation_id: conversationRow.id,
         _latest_message_id: messageRow.id,
         _job_type: "message_analysis",
         _priority: priority,
-        _debounce_seconds: Number.isFinite(debounceSeconds) ? debounceSeconds : 60,
+        _debounce_seconds: 0,
       });
 
       if (enqueueError) {
         console.error("Failed to enqueue Quo AI job:", enqueueError.message);
       } else {
         aiJobEnqueued = true;
+
+        if (jobData) {
+          // Fire-and-forget: trigger immediate AI processing so the tag lands live.
+          const functionUrl = `${supabaseUrl}/functions/v1/ai-process-quo-jobs`;
+          const cronSecret = Deno.env.get("FUNCTION_CRON_SECRET");
+          fetch(functionUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${serviceRoleKey}`,
+              "apikey": serviceRoleKey,
+              "x-cron-secret": cronSecret || "",
+            },
+            body: JSON.stringify({ batch_size: 1, job_ids: [jobData] }),
+          }).catch((err) => {
+            console.error("Failed to trigger immediate AI job processing:", err.message);
+          });
+        }
       }
     }
 

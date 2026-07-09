@@ -349,9 +349,10 @@ Deno.serve(async (req) => {
 
     let aiJobEnqueued = false;
     if (shouldEnqueueQuoAiForEvent(eventType, message)) {
-      const debounceSeconds = Number(Deno.env.get("AI_MESSAGE_DEBOUNCE_SECONDS") ?? "60");
+      // Tag on every message trigger — no debounce delay.
+      const debounceSeconds = 0;
       const priority = message.sender !== "customer"
-        ? "low"
+        ? "medium"
         : message.text.toLowerCase().match(/urgent|asap|angry|cancel|refund|complaint|emergency/)
           ? "high"
           : "medium";
@@ -360,7 +361,7 @@ Deno.serve(async (req) => {
         _latest_message_id: messageRow.id,
         _job_type: "message_analysis",
         _priority: priority,
-        _debounce_seconds: Number.isFinite(debounceSeconds) ? debounceSeconds : 60,
+        _debounce_seconds: debounceSeconds,
       });
 
       if (enqueueError) {
