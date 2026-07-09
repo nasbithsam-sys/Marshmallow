@@ -247,6 +247,12 @@ export default function AppSidebar() {
                                   <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-[0_0_6px_#ef4444]"></span>
                                 </span>
                               )}
+                              {item.navKey === "payment_requests" && pendingPaymentCount > 0 && collapsed && (
+                                <span className="absolute -top-1.5 -right-1.5 flex h-2 w-2 z-20">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_6px_#10b981]"></span>
+                                </span>
+                              )}
                             </div>
 
                             {!collapsed && (
@@ -256,6 +262,12 @@ export default function AppSidebar() {
                                     <span className="relative flex h-2 w-2 shrink-0">
                                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                                       <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
+                                    </span>
+                                  )}
+                                  {item.navKey === "payment_requests" && pendingPaymentCount > 0 && (
+                                    <span className="relative flex h-2 w-2 shrink-0">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
                                     </span>
                                   )}
                                   {item.title}
