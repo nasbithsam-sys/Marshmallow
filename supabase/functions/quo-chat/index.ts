@@ -385,6 +385,9 @@ Deno.serve(async (req) => {
           .single();
 
         const conversationId = sentMessage.conversationId ?? matchingConversation?.id;
+        if (!conversationId) {
+          return jsonResponse({ error: "Quo did not return a conversation for the sent message." }, 502);
+        }
         const messageTime = new Date(sentMessage.createdAt).toISOString();
         const { data: existingConversation } = await adminClient
           .from("quo_conversations")
