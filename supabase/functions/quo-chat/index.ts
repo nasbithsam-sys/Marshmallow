@@ -366,9 +366,83 @@ Deno.serve(async (req) => {
         }),
       });
 
+      const sentMessage = sent.data;
+      if (sentMessage?.id && (sentMessage.conversationId || matchingConversation?.id)) {
+        const { data: phoneRow } = await adminClient
+          .from("quo_phone_numbers")
+          .upsert(
+            {
+              quo_phone_number_id: selectedPhoneNumber.id,
+              number: selectedPhoneNumber.formattedNumber ?? selectedPhoneNumber.number,
+              display_number: selectedPhoneNumber.formattedNumber ?? selectedPhoneNumber.number,
+              name: selectedPhoneNumber.name ?? null,
+              label: selectedPhoneNumber.name ?? null,
+              active: true,
+            },
+            { onConflict: "quo_phone_number_id" },
+          )
+          .select("id")
+          .single();
+
+        const conversationId = sentMessage.conversationId ?? matchingConversation?.id;
+        const messageTime = new Date(sentMessage.createdAt).toISOString();
+        const { data: existingConversation } = await adminClient
+          .from("quo_conversations")
+          .select("linked_lead_id")
+          .eq("quo_conversation_id", conversationId)
+          .maybeSingle();
+
+        const { data: conversationRow } = await adminClient
+          .from("quo_conversations")
+          .upsert(
+            {
+              quo_conversation_id: conversationId,
+              customer_name: matchingConversation?.name ?? null,
+              customer_number: participant,
+              number_id: phoneRow?.id ?? null,
+              linked_lead_id: existingConversation?.linked_lead_id ?? null,
+              last_message_preview: sentMessage.text,
+              last_message_time: messageTime,
+              last_message_at: messageTime,
+              last_agent_message_at: messageTime,
+              direction: "outgoing",
+              status: "active",
+              current_status: "open",
+              raw_payload: sentMessage,
+            },
+            { onConflict: "quo_conversation_id" },
+          )
+          .select("id")
+          .single();
+
+        if (conversationRow?.id) {
+          await adminClient.from("quo_messages").upsert(
+            {
+              quo_message_id: sentMessage.id,
+              conversation_id: conversationRow.id,
+              sender: "agent",
+              direction: "outbound",
+              recipients: sentMessage.to ?? [participant],
+              text: sentMessage.text,
+              media: [],
+              status: sentMessage.status,
+              message_time: messageTime,
+              quo_created_at: messageTime,
+              raw_payload: sentMessage,
+            },
+            { onConflict: "quo_message_id" },
+          );
+
+          await adminClient.from("quo_conversation_flags").upsert(
+            { conversation_id: conversationRow.id },
+            { onConflict: "conversation_id", ignoreDuplicates: true },
+          );
+        }
+      }
+
       return jsonResponse({
         success: true,
-        message: sent.data,
+        message: sentMessage,
         phoneNumber: {
           id: selectedPhoneNumber.id,
           number: selectedPhoneNumber.number,
