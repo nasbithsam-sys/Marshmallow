@@ -1136,6 +1136,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           onOpenChange={setPaymentOpen}
           onConfirm={handlePaymentConfirm}
           loading={paymentLoading}
+          mode={isProcessor ? "request" : "direct"}
         />
 
         <CancellationRequestDialog
