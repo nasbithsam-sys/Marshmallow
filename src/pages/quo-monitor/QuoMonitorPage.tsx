@@ -521,22 +521,31 @@ export default function QuoMonitorPage() {
       // message text for every conversation is what made this endpoint average
       // 700ms+. Message-text search is handled by messageSearchQuery below,
       // which only runs when the user actually types a query.
-      const { data, error } = await db
-        .from("quo_conversations")
-        .select(`
-          *,
-          quo_phone_numbers (*),
-          ai_conversation_states (*),
-          ai_reminders (*),
-          ai_lead_links (*, leads (id, job_id, customer_name, status))
-        `)
-        // Exclude conversations with no customer number (internal/system events)
-        .not("customer_number", "is", null)
-        .neq("customer_number", "")
-        .order("last_message_at", { ascending: false, nullsFirst: false });
+      const rows: ConversationRow[] = [];
+      const PAGE_SIZE = 1000;
 
-      if (error) throw error;
-      const rows = (data ?? []) as ConversationRow[];
+      for (let from = 0; from < 20000; from += PAGE_SIZE) {
+        const { data, error } = await db
+          .from("quo_conversations")
+          .select(`
+            *,
+            quo_phone_numbers (*),
+            ai_conversation_states (*),
+            ai_reminders (*),
+            ai_lead_links (*, leads (id, job_id, customer_name, status))
+          `)
+          // Exclude conversations with no customer number (internal/system events)
+          .not("customer_number", "is", null)
+          .neq("customer_number", "")
+          .order("last_message_at", { ascending: false, nullsFirst: false })
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error) throw error;
+        const page = (data ?? []) as ConversationRow[];
+        rows.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+
       const ids = rows.map((row) => row.id);
       if (ids.length === 0) return rows;
 
@@ -723,14 +732,23 @@ export default function QuoMonitorPage() {
       const q = deferredSearch.trim();
       if (q.length < 2) return new Set<string>();
       const escaped = q.replace(/[%_,()]/g, (m) => `\\${m}`);
-      const { data, error } = await (db
-        .from("quo_messages")
-        .select("conversation_id") as any)
-        .ilike("text", `%${escaped}%`)
-        .limit(500);
-      if (error) throw error;
+      const rows: Array<{ conversation_id: string | null }> = [];
+      const PAGE_SIZE = 1000;
+
+      for (let from = 0; from < 10000; from += PAGE_SIZE) {
+        const { data, error } = await (db
+          .from("quo_messages")
+          .select("conversation_id") as any)
+          .ilike("text", `%${escaped}%`)
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        const page = (data ?? []) as Array<{ conversation_id: string | null }>;
+        rows.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+
       return new Set<string>(
-        ((data ?? []) as Array<{ conversation_id: string | null }>)
+        rows
           .map((r) => r.conversation_id)
           .filter((id): id is string => Boolean(id)),
       );
