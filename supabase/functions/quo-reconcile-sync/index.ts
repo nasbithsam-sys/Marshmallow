@@ -11,6 +11,16 @@ type PaginatedResponse<T> = {
   nextPageToken?: string | null;
 };
 
+type JsonObject = Record<string, unknown>;
+
+function asString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function arrayOfStrings(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+}
+
 function extractCronSecret(value: unknown) {
   if (Array.isArray(value)) {
     return value.find((item): item is string => typeof item === "string" && item.trim().length > 0) ?? null;
@@ -117,9 +127,10 @@ Deno.serve(async (req) => {
       typeof body.createdAfter === "string"
         ? body.createdAfter
         : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const limit = Math.min(Number(body.limit ?? 100), 250);
+    const limit = Math.max(1, Math.min(Number(body.limit ?? 100), 100));
     const maxPages = Math.max(1, Math.min(Number(body.maxPages ?? 4), 20));
 
+    let syncLogId: string | null = null;
     const { data: syncLog } = await supabase
       .from("quo_sync_logs")
       .insert({
@@ -129,19 +140,22 @@ Deno.serve(async (req) => {
       })
       .select("id")
       .single();
+    syncLogId = syncLog?.id ?? null;
 
     const allMessages: Record<string, unknown>[] = [];
+    const conversationsToSync: Record<string, unknown>[] = [];
     let pageToken: string | null | undefined = undefined;
     let pagesFetched = 0;
 
     do {
       const params = new URLSearchParams();
-      params.set("createdAfter", since);
+      params.set("updatedAfter", since);
+      params.set("excludeInactive", "false");
       params.set("maxResults", String(limit));
       if (pageToken) params.set("pageToken", pageToken);
-      if (typeof body.phoneNumberId === "string") params.set("phoneNumberId", body.phoneNumberId);
+      if (typeof body.phoneNumberId === "string") params.append("phoneNumbers", body.phoneNumberId);
 
-      const response = await fetch(`${quoBaseUrl}/messages?${params.toString()}`, {
+      const response = await fetch(`${quoBaseUrl}/conversations?${params.toString()}`, {
         headers: {
           Authorization: quoApiKey,
           Accept: "application/json",
@@ -149,13 +163,64 @@ Deno.serve(async (req) => {
       });
       const data = await safeJson(response) as PaginatedResponse<Record<string, unknown>>;
       if (!response.ok) {
-        throw new Error(`Quo API request failed with status ${response.status}`);
+        throw new Error(`Quo conversations request failed with status ${response.status}: ${JSON.stringify(data).slice(0, 500)}`);
       }
 
-      allMessages.push(...(data?.data ?? []));
+      conversationsToSync.push(...(data?.data ?? []));
       pageToken = data?.nextPageToken ?? null;
       pagesFetched += 1;
     } while (pageToken && pagesFetched < maxPages);
+
+    let messagePagesFetched = 0;
+
+    for (const rawConversation of conversationsToSync) {
+      const conversation = rawConversation as JsonObject;
+      const conversationId = asString(conversation.id);
+      const phoneNumberId = asString(conversation.phoneNumberId) ?? asString(conversation.phone_number_id);
+      const participants = arrayOfStrings(conversation.participants);
+
+      if (!conversationId || !phoneNumberId || participants.length === 0) {
+        continue;
+      }
+
+      let messagePageToken: string | null | undefined = undefined;
+      let conversationMessagePages = 0;
+
+      do {
+        const messageParams = new URLSearchParams();
+        messageParams.set("phoneNumberId", phoneNumberId);
+        participants.slice(0, 10).forEach((participant) => messageParams.append("participants", participant));
+        messageParams.set("createdAfter", since);
+        messageParams.set("maxResults", String(limit));
+        if (messagePageToken) messageParams.set("pageToken", messagePageToken);
+
+        const response = await fetch(`${quoBaseUrl}/messages?${messageParams.toString()}`, {
+          headers: {
+            Authorization: quoApiKey,
+            Accept: "application/json",
+          },
+        });
+        const data = await safeJson(response) as PaginatedResponse<Record<string, unknown>>;
+        if (!response.ok) {
+          throw new Error(`Quo messages request failed with status ${response.status}: ${JSON.stringify(data).slice(0, 500)}`);
+        }
+
+        allMessages.push(
+          ...(data?.data ?? []).map((message) => ({
+            ...message,
+            conversationId: asString((message as JsonObject).conversationId) ?? conversationId,
+            phoneNumberId: asString((message as JsonObject).phoneNumberId) ?? phoneNumberId,
+            contact: (message as JsonObject).contact ?? {
+              name: asString(conversation.name),
+              phoneNumbers: participants.map((value) => ({ value })),
+            },
+          })),
+        );
+        messagePageToken = data?.nextPageToken ?? null;
+        conversationMessagePages += 1;
+        messagePagesFetched += 1;
+      } while (messagePageToken && conversationMessagePages < 3);
+    }
 
     let insertedOrUpdated = 0;
     let analyzed = 0;
@@ -281,36 +346,64 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (syncLog?.id) {
+    if (syncLogId) {
       await supabase
         .from("quo_sync_logs")
         .update({
           status: "completed",
           details: {
             createdAfter: since,
+            conversationsFetched: conversationsToSync.length,
             fetched: allMessages.length,
-            pagesFetched,
+            conversationPagesFetched: pagesFetched,
+            messagePagesFetched,
             insertedOrUpdated,
             analyzed,
             skipped,
           },
         })
-        .eq("id", syncLog.id);
+        .eq("id", syncLogId);
     }
 
     return jsonResponse({
       success: true,
+      conversations_fetched: conversationsToSync.length,
       fetched: allMessages.length,
-      pages_fetched: pagesFetched,
+      conversation_pages_fetched: pagesFetched,
+      message_pages_fetched: messagePagesFetched,
       inserted_or_updated: insertedOrUpdated,
       queued_analysis: analyzed,
       skipped,
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown reconcile error";
+
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceRoleKey = Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (supabaseUrl && serviceRoleKey) {
+        const supabase = createClient(supabaseUrl, serviceRoleKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+        await supabase
+          .from("quo_sync_logs")
+          .update({
+            status: "failed",
+            details: { error: errorMessage },
+          })
+          .eq("status", "running")
+          .eq("sync_type", "reconcile")
+          .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+      }
+    } catch (logError) {
+      console.error("Failed to mark Quo reconcile sync failed:", logError);
+    }
+
+    console.error("quo-reconcile-sync error:", errorMessage);
     return jsonResponse(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown reconcile error",
+        error: errorMessage,
       },
       400,
     );

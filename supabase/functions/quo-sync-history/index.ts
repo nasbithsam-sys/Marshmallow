@@ -64,15 +64,14 @@ serve(async (req) => {
         throw new Error("Missing QUO_API_KEY");
     }
 
-    // Mock API Base URL (OpenPhone / Quo typically uses api.openphone.com/v1 or similar)
-    const API_BASE = Deno.env.get('QUO_API_BASE_URL') ?? "https://api.quo.com/v1";
+    const API_BASE = Deno.env.get('QUO_API_BASE_URL') ?? "https://api.openphone.com/v1";
 
     // Construct query
     const params = new URLSearchParams();
     if (createdAfter) params.append('createdAfter', createdAfter);
     if (createdBefore) params.append('createdBefore', createdBefore);
     if (phoneNumberId) params.append('phoneNumberId', phoneNumberId);
-    params.append('limit', limit.toString());
+    params.append('maxResults', limit.toString());
 
     // NOTE: Replace with actual Quo/OpenPhone endpoint
     const response = await fetch(`${API_BASE}/messages?${params.toString()}`, {
