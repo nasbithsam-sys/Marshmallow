@@ -46,8 +46,64 @@ export const DOC_SECTIONS: DocSection[] = [
     ],
   },
   {
+    id: "nav-permissions",
+    title: "3. Tab Permissions (Navigation Access)",
+    blocks: [
+      { type: "p", text: "Sidebar tab visibility is a two-layer system: a hard-coded role default, plus per-user overrides stored in the navigation_permissions table. Admin bypasses every check and always sees every tab. The check runs through canAccessNavItem(role, navItem, permissions) in src/lib/access.ts." },
+      {
+        type: "table",
+        headers: ["Nav key", "Page", "Default access"],
+        rows: [
+          ["leads", "All Leads", "Admin, CS, Processor, OPR"],
+          ["schedule", "Schedule", "Admin, CS, Processor"],
+          ["cancellation_requests", "Lead Cancellation Requests", "Admin, Processor"],
+          ["payment_requests", "Paid Approval Pending", "Admin only (hard-locked, cannot be granted)"],
+          ["quo_monitor", "Quo AI Assistant", "Admin only (hard-locked, cannot be granted)"],
+          ["analytics", "Analytics", "Admin only by default"],
+          ["areas", "Area Insights", "Admin only by default"],
+          ["activity_logs", "Activity Logs", "Admin only by default"],
+          ["settings", "Settings", "Admin only by default"],
+        ],
+      },
+      { type: "p", text: "Override rules:" },
+      { type: "bullet", text: "Admin can grant a non-admin user access to Analytics, Area Insights, Activity Logs, Schedule, or Cancellation Requests by inserting an allowed=true row in navigation_permissions for that user + nav_section." },
+      { type: "bullet", text: "Admin can revoke a default-granted tab by inserting an allowed=false row." },
+      { type: "bullet", text: "quo_monitor and payment_requests ignore overrides entirely — they short-circuit to false for anyone who is not Admin." },
+      { type: "bullet", text: "OPR is intentionally locked to leads only; even if an override row exists, the sidebar filters by canAccess() which respects the same rule." },
+      { type: "p", text: "The Documentation tab (Settings > Documentation) is rendered only when isAdmin is true and cannot be granted to non-admins." },
+    ],
+  },
+  {
+    id: "status-visibility",
+    title: "6. Status Visibility & Change Permissions",
+    blocks: [
+      { type: "p", text: "Two independent axes control what a non-admin user can do with statuses:" },
+      { type: "kv", label: "Visibility (read)", value: "Which statuses appear in the user's sidebar \"By Status\" list and in their lead queries. Controlled by role default + lead_status_visibility overrides (per user + status, allowed boolean)." },
+      { type: "kv", label: "Change (write)", value: "Which statuses the user is allowed to transition a lead into. Controlled by the STATUS_CHANGE_ACCESS constant + per-user user_status_change_permissions overrides." },
+      { type: "p", text: "Default visibility by role (getDefaultVisibleStatuses in src/lib/access.ts):" },
+      {
+        type: "table",
+        headers: ["Role", "Visible statuses by default"],
+        rows: [
+          ["Admin", "All 20 statuses (bypasses all checks)."],
+          ["CS", "All 20 statuses."],
+          ["Processor", "All 20 statuses."],
+          ["OPR", "urgent_job and partial_paid only."],
+        ],
+      },
+      { type: "p", text: "The useAllowedStatuses hook combines the role default with lead_status_visibility rows for the current user and returns the effective Set<LeadStatus>. Both the sidebar's \"By Status\" list and the URL ?status= filter honour this set — an OPR who tries to open /leads?status=paid gets the filter dropped." },
+      { type: "p", text: "Change permissions layered on top of visibility (STATUS_CHANGE_ACCESS in src/lib/constants.ts, enforced by RLS + the status transition trigger):" },
+      { type: "kv", label: "Admin", value: "Any status except cancellation_requested and payment_requested (those are workflow outcomes, not manual choices)." },
+      { type: "kv", label: "CS", value: "need_tech, urgent_job, waiting_customer_response, waiting_complete_details, quote_sent_waiting, quote_sent_need_follow_up, needs_quote, needs_reschedule, cancelled, partial_paid." },
+      { type: "kv", label: "Processor", value: "post_visit_quote_sent_waiting, activate_customer, tech_making_quote, waiting_customer_response, scheduled, urgent_job, job_in_progress, payment_pending, job_done, needs_reschedule, cancelled, partial_paid. Cannot set paid directly — must submit a Paid Request." },
+      { type: "kv", label: "OPR", value: "partial_paid only." },
+      { type: "p", text: "Admin can extend a specific user's change permissions by inserting rows in user_status_change_permissions (user + status + allowed). This is additive: it can only grant, not revoke, the role's baseline." },
+      { type: "p", italic: true, text: "Locked terminal state: once a lead is set to paid, no role (including Admin) can change its status again. This is enforced by the trigger, not by UI alone." },
+    ],
+  },
+  {
     id: "statuses",
-    title: "3. Lead Statuses (Complete Reference)",
+    title: "7. Lead Statuses (Complete Reference)",
     blocks: [
       { type: "p", text: "Twenty statuses exist. Each has a semantic color token and a stable machine key. \"Paid\" is strictly locked once set and cannot be modified again." },
       {
@@ -90,7 +146,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "tags",
-    title: "4. CS Tags",
+    title: "6. CS Tags",
     blocks: [
       { type: "p", text: "CS tags are a secondary axis on top of status, used to surface a lead's scheduling state without changing the main status." },
       {
@@ -108,7 +164,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "lead-card",
-    title: "5. Lead Card Anatomy",
+    title: "7. Lead Card Anatomy",
     blocks: [
       { type: "p", text: "The Lead Card is the primary list-view unit. Each card shows:" },
       { type: "bullet", text: "Job ID and status badge (pulsing green dot when status is payment_requested)." },
@@ -123,7 +179,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "detail-panel",
-    title: "6. Lead Detail Panel",
+    title: "8. Lead Detail Panel",
     blocks: [
       { type: "p", text: "Opening a card slides in a 60%-width right panel; the underlying list stays visible on the left and remains scrollable." },
       { type: "bullet", text: "Header: customer name, phone, address, status badge, action row." },
@@ -135,7 +191,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "notes",
-    title: "7. Notes Engine",
+    title: "9. Notes Engine",
     blocks: [
       { type: "p", text: "Notes are threaded by type. Visibility is enforced at query time and in RLS." },
       {
@@ -152,7 +208,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "creation",
-    title: "8. Lead Creation & Editing",
+    title: "10. Lead Creation & Editing",
     blocks: [
       { type: "p", text: "Only Admin and CS can create leads. The Add Lead dialog is a single scrollable form with collapsible sections. Required fields at creation:" },
       { type: "bullet", text: "Customer name" },
@@ -165,7 +221,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "sharing",
-    title: "9. Lead Sharing & Visibility",
+    title: "11. Lead Sharing & Visibility",
     blocks: [
       { type: "p", text: "CS users only see leads they created OR that were explicitly shared with them. Sharing rules:" },
       { type: "bullet", text: "Admin can share any lead with any CS user via the Share dialog on the card/panel." },
@@ -177,7 +233,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "copy",
-    title: "10. Copy Functionality",
+    title: "12. Copy Functionality",
     blocks: [
       { type: "p", text: "Two copy variants exist depending on the lead's Terms field:" },
       { type: "kv", label: "Free Estimate", value: "Service Details, Address, Schedule Requirement. No quote line." },
@@ -187,7 +243,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "notifications",
-    title: "11. Notifications",
+    title: "13. Notifications",
     blocks: [
       { type: "p", text: "The bell icon shows unread notifications. Triggers:" },
       { type: "bullet", text: "Urgent Job status change → notifies Admin + CS." },
@@ -201,7 +257,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "cancellation",
-    title: "12. Cancellation Request Workflow",
+    title: "14. Cancellation Request Workflow",
     blocks: [
       { type: "bullet", text: "CS or Processor opens a lead and submits a Cancellation Request (comment + optional proof image)." },
       { type: "bullet", text: "Lead status flips to cancellation_requested; the previous status is stored on the request row." },
@@ -212,7 +268,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "paid-approval",
-    title: "13. Paid Approval Workflow",
+    title: "15. Paid Approval Workflow",
     blocks: [
       { type: "p", text: "Mirrors the cancellation flow for a Processor-initiated Paid request." },
       { type: "bullet", text: "Processor cannot mark a lead Paid directly. They submit a Paid Request (amount + screenshot + comment)." },
@@ -225,7 +281,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "scheduling",
-    title: "14. Scheduling & Areas",
+    title: "16. Scheduling & Areas",
     blocks: [
       { type: "p", text: "The Schedule page shows the day's booked leads with tech, time window, and address." },
       { type: "p", text: "The Areas page renders a Leaflet map (plain L.map, no react-leaflet) using cached geocoding in localStorage. Marker color reflects lead status; the sidebar breakdown groups by status and area with a cross-tab and ranking list." },
@@ -233,14 +289,14 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "activity",
-    title: "15. Activity Logs & Audit",
+    title: "17. Activity Logs & Audit",
     blocks: [
       { type: "p", text: "activity_logs captures every meaningful action: create, update, status change, note add, share, cancellation request, payment approval, delete. Each row stores user_id, user_name, action, target_type/id, details, timestamp. Deleting a user unassigns their leads and NULLs their user_id on logs and notes to keep history intact." },
     ],
   },
   {
     id: "quo-ai",
-    title: "16. Quo AI Assistant (OpenPhone integration)",
+    title: "18. Quo AI Assistant (OpenPhone integration)",
     blocks: [
       { type: "p", text: "Quo mirrors OpenPhone conversations and layers AI classification, tagging, tasks, and daily briefs. Access is Admin-only (can_access_quo_ai())." },
       { type: "bullet", text: "Ingestion: quo-webhook receives real-time events; quo-reconcile-sync backfills missed webhooks every 10 minutes over a 24-hour window using paginated /v1/conversations + /v1/messages calls." },
@@ -252,7 +308,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "security",
-    title: "17. Security & Authentication",
+    title: "19. Security & Authentication",
     blocks: [
       { type: "bullet", text: "Supabase Auth email/password. New signups create a profile row via handle_new_user()." },
       { type: "bullet", text: "MFA available; the MFAEnroll component walks a user through TOTP setup." },
@@ -264,7 +320,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "data",
-    title: "18. Data Management",
+    title: "20. Data Management",
     blocks: [
       { type: "bullet", text: "Draft auto-save: lead_drafts persists in-progress forms." },
       { type: "bullet", text: "Admin global export: xlsx export across all leads." },
@@ -274,7 +330,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "tech",
-    title: "19. Technical Stack",
+    title: "21. Technical Stack",
     blocks: [
       {
         type: "table",
