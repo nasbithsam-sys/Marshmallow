@@ -842,7 +842,7 @@ export type Database = {
           cancellation_reason: string | null
           city: string | null
           created_at: string | null
-          created_by: string
+          created_by: string | null
           cs_notes: string | null
           cs_tag: string | null
           customer_email: string | null
@@ -887,7 +887,7 @@ export type Database = {
           cancellation_reason?: string | null
           city?: string | null
           created_at?: string | null
-          created_by: string
+          created_by?: string | null
           cs_notes?: string | null
           cs_tag?: string | null
           customer_email?: string | null
@@ -932,7 +932,7 @@ export type Database = {
           cancellation_reason?: string | null
           city?: string | null
           created_at?: string | null
-          created_by?: string
+          created_by?: string | null
           cs_notes?: string | null
           cs_tag?: string | null
           customer_email?: string | null
