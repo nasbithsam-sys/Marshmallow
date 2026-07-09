@@ -5,19 +5,23 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { DollarSign, Upload } from 'lucide-react';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (amount: number, screenshotFile: File | null) => void;
+  onConfirm: (amount: number, screenshotFile: File | null, comment?: string) => void;
   loading?: boolean;
+  mode?: 'direct' | 'request';
 }
 
-export default function PaymentDialog({ open, onOpenChange, onConfirm, loading }: Props) {
+export default function PaymentDialog({ open, onOpenChange, onConfirm, loading, mode = 'direct' }: Props) {
+  const isRequest = mode === 'request';
   const [amount, setAmount] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [comment, setComment] = useState('');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] || null;
@@ -34,10 +38,11 @@ export default function PaymentDialog({ open, onOpenChange, onConfirm, loading }
   const handleConfirm = () => {
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) return;
-    onConfirm(parsedAmount, file);
+    onConfirm(parsedAmount, file, comment.trim() || undefined);
     setAmount('');
     setFile(null);
     setPreview(null);
+    setComment('');
   };
 
   return (
