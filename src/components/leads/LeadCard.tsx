@@ -54,6 +54,7 @@ import {
   createCancellationRequest,
   fetchPendingCancellationRequest,
 } from "@/lib/cancellation-requests";
+import { createPaymentRequest } from "@/lib/payment-requests";
 import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { getAssignableLeadTags } from "@/lib/lead-tags";
@@ -530,67 +531,76 @@ function LeadCard({
       setCancelRequestLoading(false);
     }
   };
-  const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
+  const handlePaymentConfirm = async (amount: number, screenshotFile: File | null, comment?: string) => {
+    if (!user) return;
     setPaymentLoading(true);
-    let screenshotUrl: string | null = null;
-
-    if (screenshotFile) {
-      const optimizedScreenshot = await optimizeImageForUpload(screenshotFile);
-      const ext = optimizedScreenshot.name.split(".").pop();
-      const path = `payments/${lead.id}_${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, optimizedScreenshot);
-
-      if (!uploadError) {
-        screenshotUrl = path;
+    try {
+      if (isProcessor) {
+        // Processor -> send Paid approval request (Admin must approve)
+        await createPaymentRequest({
+          lead,
+          userId: user.id,
+          requesterRole: role,
+          amount,
+          comment,
+          screenshotFile,
+        });
+        toast.success("Paid request sent for Admin approval");
+        setPaymentOpen(false);
+        onRefresh();
+        return;
       }
-    }
 
-    const { error } = await supabase
-      .from("leads")
-      .update({
-        status: "paid" as LeadStatus,
+      // Admin (or any other bypass) -> mark Paid directly
+      let screenshotUrl: string | null = null;
+      if (screenshotFile) {
+        const optimizedScreenshot = await optimizeImageForUpload(screenshotFile);
+        const ext = optimizedScreenshot.name.split(".").pop();
+        const path = `payments/${lead.id}_${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("lead-photos").upload(path, optimizedScreenshot);
+        if (!uploadError) screenshotUrl = path;
+      }
+
+      const { error } = await supabase
+        .from("leads")
+        .update({
+          status: "paid" as LeadStatus,
+          amount,
+          payment_amount: amount,
+          payment_screenshot_url: screenshotUrl,
+          last_edited_by: user?.id,
+          updated_at: new Date().toISOString(),
+          last_edited_at: new Date().toISOString(),
+        })
+        .eq("id", lead.id);
+
+      if (error) {
+        toast.error("Failed to update status");
+        return;
+      }
+
+      await logActivity(user.id, "payment_recorded", "lead", lead.id, {
+        target_name: lead.job_id,
+        customer_name: lead.customer_name,
+        job_id: lead.job_id,
         amount,
-        payment_amount: amount,
-        payment_screenshot_url: screenshotUrl,
-        last_edited_by: user?.id,
-        updated_at: new Date().toISOString(),
-        last_edited_at: new Date().toISOString(),
-      })
-      .eq("id", lead.id);
+        status_from: lead.status,
+        status_to: "paid",
+        changes: {
+          status: { before: lead.status, after: "paid" },
+          payment_amount: { before: lead.payment_amount ?? null, after: amount },
+          payment_screenshot_url: { before: lead.payment_screenshot_url ?? null, after: screenshotUrl ?? null },
+        },
+      });
 
-    setPaymentLoading(false);
-    setPaymentOpen(false);
-
-    if (error) {
-      toast.error("Failed to update status");
-      return;
+      toast.success("Payment recorded & status updated to Paid");
+      setPaymentOpen(false);
+      onRefresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to record payment");
+    } finally {
+      setPaymentLoading(false);
     }
-
-    await logActivity(user!.id, "payment_recorded", "lead", lead.id, {
-      target_name: lead.job_id,
-      customer_name: lead.customer_name,
-      job_id: lead.job_id,
-      amount,
-      status_from: lead.status,
-      status_to: "paid",
-      changes: {
-        status: {
-          before: lead.status,
-          after: "paid",
-        },
-        payment_amount: {
-          before: lead.payment_amount ?? null,
-          after: amount,
-        },
-        payment_screenshot_url: {
-          before: lead.payment_screenshot_url ?? null,
-          after: screenshotUrl ?? null,
-        },
-      },
-    });
-
-    toast.success("Payment recorded & status updated to Paid");
-    onRefresh();
   };
 
   const handleDelete = async () => {
@@ -1107,6 +1117,7 @@ function LeadCard({
           onOpenChange={setPaymentOpen}
           onConfirm={handlePaymentConfirm}
           loading={paymentLoading}
+          mode={isProcessor ? "request" : "direct"}
         />
 
         <CancellationRequestDialog
