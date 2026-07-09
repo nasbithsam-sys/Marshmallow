@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, MessageSquare, Phone, Send } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { normalizePhoneE164, stripPhone } from "@/lib/phone";
 import { fetchQuoChatThread, sendQuoChatMessage, type QuoChatMessage } from "@/lib/quo-chat";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,17 @@ interface QuoPhoneTriggerProps {
   phone?: string | null;
   className?: string;
   children?: ReactNode;
+}
+
+function getPhoneKey(value: string | null | undefined) {
+  const digits = (value ?? "").replace(/\D/g, "");
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+
+function mergeQuoMessages(messages: QuoChatMessage[]) {
+  return Array.from(new Map(messages.map((message) => [message.id, message])).values()).sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+  );
 }
 
 export default function QuoPhoneTrigger({
@@ -44,37 +56,65 @@ export default function QuoPhoneTrigger({
   const [messageDraft, setMessageDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [workspaceNumberLabel, setWorkspaceNumberLabel] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isAdmin = role === "admin";
 
   useEffect(() => {
     if (!isAdmin || !open || !normalizedPhone) return;
 
     let active = true;
-    setLoading(true);
-    setError(null);
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const contactKey = getPhoneKey(normalizedPhone);
 
-    void fetchQuoChatThread(normalizedPhone)
-      .then((response) => {
+    const loadThread = async (showLoading: boolean) => {
+      if (showLoading) setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetchQuoChatThread(normalizedPhone);
         if (!active) return;
-        setMessages(response.messages ?? []);
+        setMessages(mergeQuoMessages(response.messages ?? []));
         setWorkspaceNumberLabel(response.phoneNumber?.name ?? response.phoneNumber?.formattedNumber ?? null);
-      })
-      .catch((fetchError) => {
+      } catch (fetchError) {
         if (!active) return;
         setError(fetchError instanceof Error ? fetchError.message : "Failed to load Quo messages");
         setMessages([]);
         setWorkspaceNumberLabel(null);
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
+      } finally {
+        if (active && showLoading) setLoading(false);
+      }
+    };
+
+    const scheduleLiveRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => void loadThread(false), 450);
+    };
+
+    setMessages([]);
+    void loadThread(true);
+
+    const channel = supabase
+      .channel(`quo-lead-chat-${contactKey || normalizedPhone}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, (payload) => {
+        const row = (payload.new ?? payload.old) as { customer_number?: string | null } | null;
+        if (!row?.customer_number || getPhoneKey(row.customer_number) === contactKey) {
+          scheduleLiveRefresh();
         }
-      });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_messages" }, scheduleLiveRefresh)
+      .subscribe();
 
     return () => {
       active = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
     };
   }, [isAdmin, normalizedPhone, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, open]);
 
   const handleSend = async () => {
     if (!normalizedPhone) {
@@ -89,8 +129,13 @@ export default function QuoPhoneTrigger({
     setError(null);
     try {
       const response = await sendQuoChatMessage(normalizedPhone, content);
-      setMessages((current) => [...current, response.message]);
+      setMessages((current) => mergeQuoMessages([...current, response.message]));
       setMessageDraft("");
+      window.setTimeout(() => {
+        void fetchQuoChatThread(normalizedPhone)
+          .then((thread) => setMessages(mergeQuoMessages(thread.messages ?? [])))
+          .catch(() => undefined);
+      }, 1200);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Failed to send Quo message");
     } finally {
@@ -209,6 +254,7 @@ export default function QuoPhoneTrigger({
                         </div>
                       );
                     })}
+                    <div ref={messagesEndRef} />
                   </div>
                 )}
               </div>

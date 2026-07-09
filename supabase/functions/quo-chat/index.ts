@@ -17,6 +17,7 @@ type JsonObject = Record<string, unknown>;
 type QuoChatRequest = {
   action?: string;
   participant?: string;
+  content?: string;
 };
 
 type QuoPhoneNumber = {
@@ -177,7 +178,7 @@ async function getAllPages<T>(
   apiKey: string,
   basePath: string,
   query: URLSearchParams,
-  maxPages = 5,
+  maxPages = 20,
 ): Promise<T[]> {
   const allItems: T[] = [];
   let pageToken: string | null = null;
@@ -289,13 +290,12 @@ Deno.serve(async (req) => {
 
     const action = typeof body.action === "string" ? body.action : "get_thread";
 
-    if (action !== "get_thread") {
+    if (action !== "get_thread" && action !== "send_message") {
       return jsonResponse(
         {
-          error:
-            "Only get_thread is enabled. Sending messages is disabled for this integration step.",
+          error: "Unsupported Quo chat action.",
         },
-        403,
+        400,
       );
     }
 
@@ -334,7 +334,7 @@ Deno.serve(async (req) => {
       quoApiKey,
       "/conversations",
       conversationsQuery,
-      3,
+      20,
     );
 
     const matchingConversation =
@@ -347,6 +347,38 @@ Deno.serve(async (req) => {
         (phoneNumber) => phoneNumber.id === matchingConversation?.phoneNumberId,
       ) ?? defaultPhoneNumber;
 
+    if (action === "send_message") {
+      const content = typeof body.content === "string" ? body.content.trim() : "";
+      if (!content) {
+        return jsonResponse({ error: "Message content is required." }, 400);
+      }
+
+      if (content.length > 1600) {
+        return jsonResponse({ error: "Quo messages must be 1600 characters or fewer." }, 400);
+      }
+
+      const sent = await quoFetch<{ data: QuoMessage }>("/messages", quoApiKey, {
+        method: "POST",
+        body: JSON.stringify({
+          content,
+          from: selectedPhoneNumber.id,
+          to: [participant],
+        }),
+      });
+
+      return jsonResponse({
+        success: true,
+        message: sent.data,
+        phoneNumber: {
+          id: selectedPhoneNumber.id,
+          number: selectedPhoneNumber.number,
+          formattedNumber:
+            selectedPhoneNumber.formattedNumber ?? selectedPhoneNumber.number,
+          name: selectedPhoneNumber.name ?? null,
+        },
+      });
+    }
+
     const messagesQuery = new URLSearchParams();
     messagesQuery.set("phoneNumberId", selectedPhoneNumber.id);
     messagesQuery.append("participants", participant);
@@ -356,7 +388,7 @@ Deno.serve(async (req) => {
       quoApiKey,
       "/messages",
       messagesQuery,
-      5,
+      20,
     );
 
     const sortedMessages = messages.sort((a, b) =>

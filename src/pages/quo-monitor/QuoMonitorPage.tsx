@@ -171,6 +171,7 @@ type LooseQuery<T = unknown> = {
   gte: (column: string, value: unknown) => LooseQuery<T>;
   order: (column: string, options?: unknown) => LooseQuery<T>;
   limit: (count: number) => LooseQuery<T>;
+  range: (from: number, to: number) => LooseQuery<T>;
   single: () => DbResult<T>;
   maybeSingle: () => DbResult<T>;
   then: DbCountResult<T>["then"];
@@ -647,14 +648,24 @@ export default function QuoMonitorPage() {
     queryKey: ["quo-ai-messages", selectedConvId],
     queryFn: async () => {
       if (!selectedConvId) return [];
-      const { data, error } = await db
-        .from("quo_messages")
-        .select("id, sender, text, message_time, media")
-        .eq("conversation_id", selectedConvId)
-        .order("message_time", { ascending: true })
-        .limit(100);
-      if (error) throw error;
-      return (data ?? []) as MessageRow[];
+      const allMessages: MessageRow[] = [];
+      const PAGE_SIZE = 1000;
+
+      for (let from = 0; from < 10000; from += PAGE_SIZE) {
+        const { data, error } = await db
+          .from("quo_messages")
+          .select("id, sender, text, message_time, media")
+          .eq("conversation_id", selectedConvId)
+          .order("message_time", { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+
+        const page = (data ?? []) as MessageRow[];
+        allMessages.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+
+      return allMessages;
     },
     enabled: Boolean(selectedConvId),
   });
@@ -1161,12 +1172,44 @@ export default function QuoMonitorPage() {
       if (refreshTimer) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
-      }, 750);
+      }, 250);
+    };
+
+    const upsertLiveConversation = (row: Partial<ConversationRow> | null | undefined) => {
+      if (!row?.id) return;
+      queryClient.setQueryData<ConversationRow[]>(["quo-ai-conversations"], (current) => {
+        if (!current) return current;
+        const existingIndex = current.findIndex((conversation) => conversation.id === row.id);
+        if (existingIndex === -1) {
+          return [{ ...(row as ConversationRow), quo_phone_numbers: null }, ...current];
+        }
+        const next = current.slice();
+        next[existingIndex] = { ...next[existingIndex], ...row } as ConversationRow;
+        return next;
+      });
+    };
+
+    const upsertLiveMessage = (row: Partial<MessageRow> | null | undefined) => {
+      if (!row?.id || !selectedConvId) return;
+      const conversationId = (row as Partial<MessageRow> & { conversation_id?: string | null }).conversation_id;
+      if (conversationId !== selectedConvId) return;
+
+      queryClient.setQueryData<MessageRow[]>(["quo-ai-messages", selectedConvId], (current = []) => {
+        const normalized = row as MessageRow;
+        const existingIndex = current.findIndex((message) => message.id === normalized.id);
+        const next = existingIndex === -1 ? [...current, normalized] : current.map((message) => message.id === normalized.id ? { ...message, ...normalized } : message);
+        return next.sort((left, right) => new Date(left.message_time ?? 0).getTime() - new Date(right.message_time ?? 0).getTime());
+      });
     };
 
     const channel = supabase
       .channel("quo-monitor-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, scheduleConversationRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, (payload) => {
+        if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+          upsertLiveConversation(payload.new as Partial<ConversationRow>);
+        }
+        scheduleConversationRefresh();
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_conversation_states" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_conversation_state" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_lead_links" }, scheduleConversationRefresh)
@@ -1185,7 +1228,12 @@ export default function QuoMonitorPage() {
               : null;
 
         if (changedConversationId && changedConversationId === selectedConvId) {
-          queryClient.invalidateQueries({ queryKey: ["quo-ai-messages", selectedConvId] });
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            upsertLiveMessage(payload.new as Partial<MessageRow>);
+          }
+          if (payload.eventType !== "INSERT") {
+            queryClient.invalidateQueries({ queryKey: ["quo-ai-messages", selectedConvId] });
+          }
         }
 
         scheduleConversationRefresh();

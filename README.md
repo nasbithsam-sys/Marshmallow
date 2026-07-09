@@ -62,7 +62,7 @@ This project is built with:
 
 ## Quo AI Operations
 
-Quo AI processing is event-driven and budget-gated. Webhooks store Quo messages and enqueue small jobs; scheduled Edge Functions should mostly check database state and exit without AI calls when there is no real work.
+Quo AI processing is event-driven, live, and budget-gated. Webhooks store Quo messages and enqueue small jobs; the Quo AI Assistant listens to Supabase Realtime for conversation/message/state changes so new chats appear without a full-screen refresh. Scheduled Edge Functions should mostly check database state and exit without AI calls when there is no real work.
 
 Recommended Supabase Cron cadence:
 
@@ -70,7 +70,7 @@ Recommended Supabase Cron cadence:
 - `ai-reminder-checker`: every 3-5 minutes. Checks due `quo_ai_tasks` and marks due work for review. This is database logic and should not normally call AI.
 - `ai-sweep-conversations`: every 15-30 minutes. Uses SQL/rules first and only enqueues selected conversations needing attention.
 - `ai-daily-brief`: every morning. Builds the management summary from existing state/tasks/cost logs.
-- `quo-reconcile-sync`: every 60 minutes. Reconciles missed Quo data incrementally and only enqueues jobs for new/changed conversations.
+- `quo-reconcile-sync`: safety-net backfill only. Reconciles missed Quo data incrementally and only enqueues jobs for new/changed conversations; it should not be the primary source of new messages in the UI.
 
 Model routing is configured with environment variables, not hard-coded in UI:
 
