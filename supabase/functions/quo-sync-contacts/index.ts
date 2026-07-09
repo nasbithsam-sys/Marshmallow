@@ -18,6 +18,17 @@ type PaginatedContacts = {
   nextPageToken?: string | null;
 };
 
+function extractCronSecret(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === "string" && item.trim().length > 0) ?? null;
+  }
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && typeof (value as Record<string, unknown>).secret === "string") {
+    return String((value as Record<string, unknown>).secret);
+  }
+  return null;
+}
+
 function normalizePhone(value: string | null | undefined): string | null {
   if (!value) return null;
   const digits = value.replace(/\D/g, "");
@@ -41,12 +52,27 @@ async function requireAuth(req: Request, supabase: SupabaseClient) {
   const requestSecret = req.headers.get("x-cron-secret");
   if (cronSecret && requestSecret === cronSecret) return null;
 
+  if (requestSecret) {
+    const { data: setting } = await supabase
+      .from("quo_ai_settings")
+      .select("value")
+      .eq("key", "cron_secret")
+      .maybeSingle();
+    const storedCronSecret = extractCronSecret(setting?.value);
+    if (storedCronSecret && requestSecret === storedCronSecret) return null;
+  }
+
   const authHeader = req.headers.get("Authorization");
+  const serviceRoleKey = Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : null;
+  const apiKey = req.headers.get("apikey");
+
+  if (serviceRoleKey && (bearerToken === serviceRoleKey || apiKey === serviceRoleKey)) return null;
+
   if (!authHeader?.startsWith("Bearer ")) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
-  const token = authHeader.replace("Bearer ", "");
-  const { data: { user }, error } = await supabase.auth.getUser(token);
+  const { data: { user }, error } = await supabase.auth.getUser(bearerToken ?? "");
   if (error || !user) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const { data: roleData } = await supabase
