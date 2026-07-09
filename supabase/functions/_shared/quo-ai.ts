@@ -381,8 +381,8 @@ export function isProcessableQuoWebhookEvent(eventType: string) {
 }
 
 export function shouldEnqueueQuoAiForEvent(eventType: string, message: NormalizedQuoMessage) {
-  if (eventType === "message.received") return true;
-  if (eventType === "message.delivered") return message.sender === "agent";
+  // Tag every message trigger — inbound, outbound, delivered, and call summaries/transcripts.
+  if (eventType.startsWith("message.")) return Boolean(message.text.trim());
   if (eventType === "call.transcript.completed" || eventType === "call.summary.completed") return Boolean(message.text.trim());
   return false;
 }
