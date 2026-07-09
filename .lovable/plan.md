@@ -1,66 +1,59 @@
+## Paid Request Workflow
 
-## The connection problem — what to do now
+Mirrors the existing Lead Cancellation Request pattern so Processors can submit a "mark as Paid" request that Admin must approve before the lead flips to `paid`.
 
-Lovable's OAuth token to your Supabase org is genuinely stuck and I cannot make it refresh from my side. After this many retries, the next step is **Lovable support** — this is a platform-side bug, not something you can fix by clicking reconnect again.
+### Flow
+1. Processor opens a lead and clicks **Request Paid** (visible only for Processor role, and only when lead isn't already `paid` / `cancelled` / has no pending payment request).
+2. A dialog collects: payment amount (required), payment screenshot (required — same rule as direct Paid), and a comment.
+3. Submitting creates a `lead_payment_requests` row (status `pending`), moves the lead status to a new `payment_requested` state, uploads the screenshot to the existing `lead-photos` bucket under `payment-requests/`, and notifies all Admins.
+4. Admin sees pending requests in a new sidebar page **Paid Requests** (badge count, realtime updates) and inside the lead panel via a `PaymentRequestPanel` (identical layout to `CancellationRequestPanel`).
+5. Admin approves → lead becomes `paid` with `payment_amount` + `payment_screenshot_url` copied from the request. Reject → lead reverts to the previous status; Processor sees the review note.
+6. A **green dot** indicator renders on the lead card / status badge whenever the lead has status `payment_requested`, so it's instantly visible in lists.
 
-In the meantime, you can do everything yourself directly in the Supabase dashboard. No code changes required from me to get unblocked.
+### UI touchpoints
+- New `PaymentRequestDialog` (amount + screenshot + comment) — reused by Processor from `LeadCard` and `LeadDetailPanel`.
+- New `PaymentRequestPanel` inside `LeadDetailPanel` — Admin approve/reject with optional note.
+- New page `/lead-payment-requests` (`LeadPaymentRequests.tsx`) listing pending requests, matching the cancellation page.
+- Sidebar entry **Paid Requests** with pending count badge + realtime subscription on `lead_payment_requests`.
+- Green pulsing dot on `LeadCard` header + `StatusBadge` when `status === 'payment_requested'`.
+- Existing direct "mark Paid" action is hidden for Processor (they must go through the request); Admin keeps it.
 
----
+### Technical details
 
-## Part 1 — Create your admin user manually
+**Database migration**
+- Add enum value `payment_requested` to `lead_status`.
+- Extend `LEAD_STATUS_CONFIG` label `"Paid Pending"`, color `status-green`.
+- New table `public.lead_payment_requests`:
+  - `id`, `lead_id` (fk leads, cascade), `previous_status`, `requested_by`, `requested_by_role`,
+    `amount numeric`, `screenshot_path text`, `comment text`,
+    `status` (`pending|approved|rejected`), `reviewed_by`, `reviewed_at`, `review_note`,
+    `created_at`, `updated_at` (with trigger).
+- GRANTs: `SELECT/INSERT/UPDATE` to `authenticated`, `ALL` to `service_role`.
+- RLS:
+  - insert: `requested_by = auth.uid()` AND `has_role(auth.uid(),'processor')`.
+  - select: admin OR processor who created it OR CS with access to lead.
+  - update: admin only (to review); or requester while `status='pending'` (cancel their own).
+- Add `lead_payment_requests` to `supabase_realtime` publication.
+- Update `enforce_lead_tag_role_access` / status transition rules only if needed (Processor can move lead into `payment_requested`; Admin transitions `payment_requested → paid|<previous>`).
 
-Since I can't run the admin edge function or migrations right now, do this in the Supabase dashboard for project `kxiqholnmhkwhdkhtopp`:
+**Client library** — `src/lib/payment-requests.ts`
+- `canCreatePaymentRequest(role)` → `role === 'processor'`.
+- `canReviewPaymentRequest(role, req)` → `role === 'admin' && req.status === 'pending'`.
+- `fetchPendingPaymentRequest(leadId)` mirrors cancellation helper (joins requester profile).
+- `createPaymentRequest({ lead, userId, amount, screenshot, comment })`: uploads screenshot, inserts row, updates lead status to `payment_requested` via `updateLeadById` (sync `updated_at` + `last_edited_at`), inserts admin notifications, calls `logActivity('payment_requested', ...)`.
+- `reviewPaymentRequest({ request, lead, reviewerId, action, reviewNote })`: on approve, `updateLeadById(lead.id,{status:'paid', payment_amount:request.amount, payment_screenshot_url:<signed path>, ...})`; on reject, revert to `request.previous_status`. Logs `payment_approved` / `payment_rejected`.
 
-**Step 1 — Create the auth user**
-- Go to **Authentication → Users → Add user → Create new user**
-- Email: *(you pick)*  e.g. `admin@accboosters.com`
-- Password: *(you pick a strong one, write it down)*
-- ✅ Check **Auto Confirm User**
+**Nav / routing**
+- Add `"payment_requests"` to `ALL_NAV_ITEMS` and `useNavPermissions` defaults for Admin + Processor.
+- Add route in `App.tsx` for `/lead-payment-requests`.
+- Extend `AppSidebar` with a second badge query + realtime channel scoped to `lead_payment_requests`.
 
-**Step 2 — Make them admin (run in SQL Editor)**
+**Green dot**
+- Add small `<span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />` next to `StatusBadge` in `LeadCard` and `LeadDetailPanel` when `lead.status === 'payment_requested'`. Also render inside the sidebar list row.
 
-Replace the email with whatever you used above:
+**Types** — extend `LeadStatus` union, add `LEAD_STATUS_CONFIG.payment_requested`, add `LeadPaymentRequest` interface (parallel to `LeadCancellationRequest`).
 
-```sql
-WITH u AS (
-  SELECT id, email FROM auth.users WHERE email = 'admin@accboosters.com'
-)
-INSERT INTO public.profiles (id, full_name, email)
-SELECT id, 'Admin', email FROM u
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.user_roles (user_id, role)
-SELECT id, 'admin' FROM auth.users WHERE email = 'admin@accboosters.com'
-ON CONFLICT DO NOTHING;
-```
-
-That's it — log in with that email/password and you're admin. No access code needed (admins skip it).
-
----
-
-## Part 2 — Add the new status: **Tech Making Quote**
-
-**Behavior**
-- New status appears in the list, color: purple-ish (distinct from existing)
-- Visible to **everyone** (Admin, Processor, CS)
-- Only **Admin and Processor** can set/change a lead to it
-- CS cannot select it from the dropdown
-
-**Code files I'll edit** (in build mode, after you approve):
-
-1. `src/types/index.ts` — add `'tech_making_quote'` to `LeadStatus` union + `LEAD_STATUS_CONFIG`
-2. `src/lib/constants.ts` — add to `STATUS_LABELS`, `STATUS_COLORS`, `STATUS_DOT_COLORS`, `ALL_LEAD_STATUSES`, and add it to `STATUS_CHANGE_ACCESS.processor` (admin already gets all via `ALL_LEAD_STATUSES`). **Do NOT** add to `customer_service` → that enforces CS can't change to it.
-
-Everyone seeing it is already handled — `getDefaultVisibleStatuses` returns all statuses for any non-`no_role` user, so no extra DB visibility row is needed.
-
-**No database migration needed.** The `leads.status` column is `text`, not an enum, so new status values work without schema changes.
-
----
-
-## What I need from you
-
-1. Reply with the **email** you want for the admin user (and confirm you'll set the password yourself in Supabase dashboard)
-2. Approve this plan → I'll implement Part 2 in build mode
-3. Separately, please contact Lovable support about the stuck Supabase token — mention you've reconnected 100+ times with no effect, org "final 21 april", project ref `kxiqholnmhkwhdkhtopp`
-
-Once support fixes the token, I can do admin user creation, migrations, and everything else from here directly.
+### Constraints respected
+- Timestamps: `updateLeadById` keeps `updated_at` and `last_edited_at` in sync per project rule.
+- "Paid" remains strictly locked once set — approval simply performs the same guarded transition Admin does manually today.
+- Non-admins still fail-closed on access-code checks; no auth surface added.
