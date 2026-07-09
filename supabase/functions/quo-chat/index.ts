@@ -17,6 +17,7 @@ type JsonObject = Record<string, unknown>;
 type QuoChatRequest = {
   action?: string;
   participant?: string;
+  content?: string;
 };
 
 type QuoPhoneNumber = {
@@ -177,7 +178,7 @@ async function getAllPages<T>(
   apiKey: string,
   basePath: string,
   query: URLSearchParams,
-  maxPages = 5,
+  maxPages = 20,
 ): Promise<T[]> {
   const allItems: T[] = [];
   let pageToken: string | null = null;
@@ -289,13 +290,12 @@ Deno.serve(async (req) => {
 
     const action = typeof body.action === "string" ? body.action : "get_thread";
 
-    if (action !== "get_thread") {
+    if (action !== "get_thread" && action !== "send_message") {
       return jsonResponse(
         {
-          error:
-            "Only get_thread is enabled. Sending messages is disabled for this integration step.",
+          error: "Unsupported Quo chat action.",
         },
-        403,
+        400,
       );
     }
 
@@ -334,7 +334,7 @@ Deno.serve(async (req) => {
       quoApiKey,
       "/conversations",
       conversationsQuery,
-      3,
+      20,
     );
 
     const matchingConversation =
@@ -347,6 +347,115 @@ Deno.serve(async (req) => {
         (phoneNumber) => phoneNumber.id === matchingConversation?.phoneNumberId,
       ) ?? defaultPhoneNumber;
 
+    if (action === "send_message") {
+      const content = typeof body.content === "string" ? body.content.trim() : "";
+      if (!content) {
+        return jsonResponse({ error: "Message content is required." }, 400);
+      }
+
+      if (content.length > 1600) {
+        return jsonResponse({ error: "Quo messages must be 1600 characters or fewer." }, 400);
+      }
+
+      const sent = await quoFetch<{ data: QuoMessage }>("/messages", quoApiKey, {
+        method: "POST",
+        body: JSON.stringify({
+          content,
+          from: selectedPhoneNumber.id,
+          to: [participant],
+        }),
+      });
+
+      const sentMessage = sent.data;
+      if (sentMessage?.id && (sentMessage.conversationId || matchingConversation?.id)) {
+        const { data: phoneRow } = await adminClient
+          .from("quo_phone_numbers")
+          .upsert(
+            {
+              quo_phone_number_id: selectedPhoneNumber.id,
+              number: selectedPhoneNumber.formattedNumber ?? selectedPhoneNumber.number,
+              display_number: selectedPhoneNumber.formattedNumber ?? selectedPhoneNumber.number,
+              name: selectedPhoneNumber.name ?? null,
+              label: selectedPhoneNumber.name ?? null,
+              active: true,
+            },
+            { onConflict: "quo_phone_number_id" },
+          )
+          .select("id")
+          .single();
+
+        const conversationId = sentMessage.conversationId ?? matchingConversation?.id;
+        if (!conversationId) {
+          return jsonResponse({ error: "Quo did not return a conversation for the sent message." }, 502);
+        }
+        const messageTime = new Date(sentMessage.createdAt).toISOString();
+        const { data: existingConversation } = await adminClient
+          .from("quo_conversations")
+          .select("linked_lead_id")
+          .eq("quo_conversation_id", conversationId)
+          .maybeSingle();
+
+        const { data: conversationRow } = await adminClient
+          .from("quo_conversations")
+          .upsert(
+            {
+              quo_conversation_id: conversationId,
+              customer_name: matchingConversation?.name ?? null,
+              customer_number: participant,
+              number_id: phoneRow?.id ?? null,
+              linked_lead_id: existingConversation?.linked_lead_id ?? null,
+              last_message_preview: sentMessage.text,
+              last_message_time: messageTime,
+              last_message_at: messageTime,
+              last_agent_message_at: messageTime,
+              direction: "outgoing",
+              status: "active",
+              current_status: "open",
+              raw_payload: sentMessage,
+            },
+            { onConflict: "quo_conversation_id" },
+          )
+          .select("id")
+          .single();
+
+        if (conversationRow?.id) {
+          await adminClient.from("quo_messages").upsert(
+            {
+              quo_message_id: sentMessage.id,
+              conversation_id: conversationRow.id,
+              sender: "agent",
+              direction: "outbound",
+              recipients: sentMessage.to ?? [participant],
+              text: sentMessage.text,
+              media: [],
+              status: sentMessage.status,
+              message_time: messageTime,
+              quo_created_at: messageTime,
+              raw_payload: sentMessage,
+            },
+            { onConflict: "quo_message_id" },
+          );
+
+          await adminClient.from("quo_conversation_flags").upsert(
+            { conversation_id: conversationRow.id },
+            { onConflict: "conversation_id", ignoreDuplicates: true },
+          );
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        message: sentMessage,
+        phoneNumber: {
+          id: selectedPhoneNumber.id,
+          number: selectedPhoneNumber.number,
+          formattedNumber:
+            selectedPhoneNumber.formattedNumber ?? selectedPhoneNumber.number,
+          name: selectedPhoneNumber.name ?? null,
+        },
+      });
+    }
+
     const messagesQuery = new URLSearchParams();
     messagesQuery.set("phoneNumberId", selectedPhoneNumber.id);
     messagesQuery.append("participants", participant);
@@ -356,7 +465,7 @@ Deno.serve(async (req) => {
       quoApiKey,
       "/messages",
       messagesQuery,
-      5,
+      20,
     );
 
     const sortedMessages = messages.sort((a, b) =>
