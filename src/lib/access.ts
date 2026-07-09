@@ -33,6 +33,11 @@ export function canAccessNavItem(
     return false;
   }
 
+  if (navItem === "payment_requests") {
+    // Admin-only page
+    return false;
+  }
+
   if (navItem === "cancellation_requests" && canAccessCancellationRequests(role)) {
     return true;
   }
