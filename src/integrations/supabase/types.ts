@@ -659,6 +659,65 @@ export type Database = {
           },
         ]
       }
+      lead_payment_requests: {
+        Row: {
+          amount: number
+          comment: string | null
+          created_at: string
+          id: string
+          lead_id: string
+          previous_status: string
+          requested_by: string
+          requested_by_role: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          screenshot_path: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          comment?: string | null
+          created_at?: string
+          id?: string
+          lead_id: string
+          previous_status: string
+          requested_by: string
+          requested_by_role: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          screenshot_path?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          comment?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string
+          previous_status?: string
+          requested_by?: string
+          requested_by_role?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          screenshot_path?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_payment_requests_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_payments: {
         Row: {
           amount: number | null
