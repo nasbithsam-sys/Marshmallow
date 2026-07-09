@@ -10,6 +10,7 @@ import {
   Sparkles,
   ChevronRight,
   ClipboardX,
+  DollarSign,
   MessageSquare,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -43,6 +44,7 @@ const navItems = [
   { title: "All Leads", url: "/leads", icon: Users, navKey: "leads" },
   { title: "Quo AI Assistant", url: "/quo-monitor", icon: MessageSquare, navKey: "quo_monitor" },
   { title: "Lead Cancellation Requests", url: "/lead-cancellation-requests", icon: ClipboardX, navKey: "cancellation_requests" },
+  { title: "Paid Approval Pending", url: "/lead-payment-requests", icon: DollarSign, navKey: "payment_requests" },
   { title: "Schedule", url: "/schedule", icon: Calendar, navKey: "schedule" },
   { title: "Analytics", url: "/analytics", icon: BarChart3, navKey: "analytics" },
   { title: "Area Insights", url: "/areas", icon: MapPin, navKey: "areas" },
@@ -73,7 +75,24 @@ export default function AppSidebar() {
       }
       return count || 0;
     },
-    refetchInterval: 15000, // Fallback polling every 15s
+    refetchInterval: 15000,
+  });
+
+  // Fetch pending payment requests count (Admin-only nav item, but query is cheap)
+  const { data: pendingPaymentCount = 0 } = useQuery({
+    queryKey: ["pending-payment-requests-count"],
+    queryFn: async () => {
+      const { count, error } = await (supabase.from as any)("lead_payment_requests")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending");
+      if (error) {
+        console.error("Error fetching pending payment requests count:", error.message);
+        return 0;
+      }
+      return count || 0;
+    },
+    refetchInterval: 15000,
+    enabled: role === "admin",
   });
 
   // Realtime subscription for instant sidebar updates when a cancellation is requested/resolved
@@ -93,6 +112,24 @@ export default function AppSidebar() {
       void supabase.removeChannel(channel);
     };
   }, [queryClient]);
+
+  // Realtime subscription for payment request badge
+  useEffect(() => {
+    if (role !== "admin") return;
+    const channel = supabase
+      .channel("lead-payment-requests-sidebar-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "lead_payment_requests" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["pending-payment-requests-count"] });
+        }
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient, role]);
 
   const visibleItems = navItems.filter((item) => canAccess(item.navKey));
   const visibleStatuses = ALL_LEAD_STATUSES.filter((status) => allowedStatuses.has(status));
