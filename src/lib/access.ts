@@ -3,14 +3,14 @@ import { ALL_LEAD_STATUSES, ALL_NAV_ITEMS, type NavItem } from "@/lib/constants"
 
 const DEFAULT_NAV_ACCESS: Record<AppRole, Set<NavItem>> = {
   admin: new Set(ALL_NAV_ITEMS),
-  processor: new Set(["leads", "schedule", "cancellation_requests", "analytics", "areas", "activity_logs"]),
-  customer_service: new Set(["leads", "schedule", "cancellation_requests"]),
+  processor: new Set(["leads", "schedule", "cancellation_requests"]),
+  customer_service: new Set(["leads", "schedule"]),
   opr: new Set(["leads"]),
   no_role: new Set(),
 };
 
 export const canAccessCancellationRequests = (role: AppRole) =>
-  role === "admin" || role === "processor" || role === "customer_service";
+  role === "admin" || role === "processor";
 
 export function getDefaultNavAccess(role: AppRole): Set<NavItem> {
   return new Set(DEFAULT_NAV_ACCESS[role]);
