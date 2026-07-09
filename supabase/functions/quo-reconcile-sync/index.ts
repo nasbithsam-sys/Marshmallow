@@ -11,6 +11,17 @@ type PaginatedResponse<T> = {
   nextPageToken?: string | null;
 };
 
+function extractCronSecret(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === "string" && item.trim().length > 0) ?? null;
+  }
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && typeof (value as Record<string, unknown>).secret === "string") {
+    return String((value as Record<string, unknown>).secret);
+  }
+  return null;
+}
+
 async function safeJson(response: Response) {
   const text = await response.text();
   if (!text) return null;
@@ -29,16 +40,31 @@ async function authorizeJob(req: Request, supabase: ReturnType<typeof createClie
     return null;
   }
 
+  if (requestSecret) {
+    const { data: setting } = await supabase
+      .from("quo_ai_settings")
+      .select("value")
+      .eq("key", "cron_secret")
+      .maybeSingle();
+    const storedCronSecret = extractCronSecret(setting?.value);
+    if (storedCronSecret && requestSecret === storedCronSecret) return null;
+  }
+
   const authHeader = req.headers.get("Authorization");
+  const serviceRoleKey = Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : null;
+  const apiKey = req.headers.get("apikey");
+
+  if (serviceRoleKey && (bearerToken === serviceRoleKey || apiKey === serviceRoleKey)) return null;
+
   if (!authHeader?.startsWith("Bearer ")) {
     return jsonResponse({ error: "Admin token or valid x-cron-secret required" }, 401);
   }
 
-  const token = authHeader.replace("Bearer ", "");
   const {
     data: { user },
     error: userError,
-  } = await supabase.auth.getUser(token);
+  } = await supabase.auth.getUser(bearerToken ?? "");
 
   if (userError || !user) {
     return jsonResponse({ error: "Unauthorized" }, 401);
@@ -74,7 +100,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey =
       Deno.env.get("SB_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const quoApiKey = Deno.env.get("QUO_API_KEY");
-    const quoBaseUrl = Deno.env.get("QUO_API_BASE_URL") ?? "https://api.quo.com/v1";
+    const quoBaseUrl = Deno.env.get("QUO_API_BASE_URL") ?? "https://api.openphone.com/v1";
     if (!supabaseUrl || !serviceRoleKey || !quoApiKey) {
       return jsonResponse({ error: "Missing Supabase or Quo API configuration." }, 500);
     }
@@ -90,39 +116,52 @@ Deno.serve(async (req) => {
     const since =
       typeof body.createdAfter === "string"
         ? body.createdAfter
-        : new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+        : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const limit = Math.min(Number(body.limit ?? 100), 250);
+    const maxPages = Math.max(1, Math.min(Number(body.maxPages ?? 4), 20));
 
     const { data: syncLog } = await supabase
       .from("quo_sync_logs")
       .insert({
         sync_type: "reconcile",
         status: "running",
-        details: { createdAfter: since, limit },
+        details: { createdAfter: since, limit, maxPages },
       })
       .select("id")
       .single();
 
-    const params = new URLSearchParams();
-    params.set("createdAfter", since);
-    params.set("maxResults", String(limit));
-    if (typeof body.phoneNumberId === "string") params.set("phoneNumberId", body.phoneNumberId);
+    const allMessages: Record<string, unknown>[] = [];
+    let pageToken: string | null | undefined = undefined;
+    let pagesFetched = 0;
 
-    const response = await fetch(`${quoBaseUrl}/messages?${params.toString()}`, {
-      headers: {
-        Authorization: quoApiKey,
-        Accept: "application/json",
-      },
-    });
-    const data = await safeJson(response) as PaginatedResponse<Record<string, unknown>>;
-    if (!response.ok) {
-      throw new Error(`Quo API request failed with status ${response.status}`);
-    }
+    do {
+      const params = new URLSearchParams();
+      params.set("createdAfter", since);
+      params.set("maxResults", String(limit));
+      if (pageToken) params.set("pageToken", pageToken);
+      if (typeof body.phoneNumberId === "string") params.set("phoneNumberId", body.phoneNumberId);
+
+      const response = await fetch(`${quoBaseUrl}/messages?${params.toString()}`, {
+        headers: {
+          Authorization: quoApiKey,
+          Accept: "application/json",
+        },
+      });
+      const data = await safeJson(response) as PaginatedResponse<Record<string, unknown>>;
+      if (!response.ok) {
+        throw new Error(`Quo API request failed with status ${response.status}`);
+      }
+
+      allMessages.push(...(data?.data ?? []));
+      pageToken = data?.nextPageToken ?? null;
+      pagesFetched += 1;
+    } while (pageToken && pagesFetched < maxPages);
 
     let insertedOrUpdated = 0;
     let analyzed = 0;
+    let skipped = 0;
 
-    for (const rawMessage of data?.data ?? []) {
+    for (const rawMessage of allMessages) {
       const rawContact = (rawMessage as Record<string, unknown>).contact;
       const payload = {
         type: "message.reconciled",
@@ -137,7 +176,15 @@ Deno.serve(async (req) => {
         },
       };
 
-      const { message, conversation } = normalizeQuoPayload(payload);
+      let normalized: ReturnType<typeof normalizeQuoPayload>;
+      try {
+        normalized = normalizeQuoPayload(payload);
+      } catch {
+        skipped += 1;
+        continue;
+      }
+
+      const { message, conversation } = normalized;
 
       let phoneNumberRowId: string | null = null;
       if (conversation.phoneNumberId) {
@@ -160,6 +207,12 @@ Deno.serve(async (req) => {
       }
 
       const messageTime = new Date(message.createdAt).toISOString();
+      const { data: existingConversation } = await supabase
+        .from("quo_conversations")
+        .select("linked_lead_id")
+        .eq("quo_conversation_id", conversation.id)
+        .maybeSingle();
+
       const { data: conversationRow, error: conversationError } = await supabase
         .from("quo_conversations")
         .upsert(
@@ -168,6 +221,7 @@ Deno.serve(async (req) => {
             customer_name: conversation.customerName,
             customer_number: conversation.customerNumber,
             number_id: phoneNumberRowId,
+            linked_lead_id: existingConversation?.linked_lead_id ?? null,
             last_message_preview: getQuoMessagePreview(message.text, message.media),
             last_message_time: messageTime,
             last_message_at: messageTime,
@@ -184,6 +238,11 @@ Deno.serve(async (req) => {
         .single();
 
       if (conversationError || !conversationRow) continue;
+
+      await supabase.from("quo_conversation_flags").upsert(
+        { conversation_id: conversationRow.id },
+        { onConflict: "conversation_id", ignoreDuplicates: true },
+      );
 
       const { data: messageRow, error: messageError } = await supabase
         .from("quo_messages")
@@ -229,9 +288,11 @@ Deno.serve(async (req) => {
           status: "completed",
           details: {
             createdAfter: since,
-            fetched: data?.data?.length ?? 0,
+            fetched: allMessages.length,
+            pagesFetched,
             insertedOrUpdated,
             analyzed,
+            skipped,
           },
         })
         .eq("id", syncLog.id);
@@ -239,9 +300,11 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       success: true,
-      fetched: data?.data?.length ?? 0,
+      fetched: allMessages.length,
+      pages_fetched: pagesFetched,
       inserted_or_updated: insertedOrUpdated,
       queued_analysis: analyzed,
+      skipped,
     });
   } catch (error) {
     return jsonResponse(

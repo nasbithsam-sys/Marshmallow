@@ -9,5 +9,8 @@ verify_jwt = false
 [functions.quo-reconcile-sync]
 verify_jwt = false
 
+[functions.quo-sync-contacts]
+verify_jwt = false
+
 [functions.ai-process-quo-jobs]
 verify_jwt = false
