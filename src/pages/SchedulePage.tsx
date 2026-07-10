@@ -97,6 +97,16 @@ export default function SchedulePage() {
     return viewMode === "day" ? [selectedDay] : weekDays;
   }, [hasCustomRange, rangeDays, viewMode, selectedDay, weekDays]);
 
+  const getLeadOwnerName = (lead: Lead) => {
+    const ownerId = lead.assigned_cs || lead.created_by;
+    return (ownerId ? profiles[ownerId] : null) || lead.created_by_name || "Deleted user";
+  };
+
+  const getLeadOwnerColorIndex = (lead: Lead) => {
+    const ownerId = lead.assigned_cs || lead.created_by || lead.created_by_name || lead.id;
+    return Object.keys(profiles).indexOf(ownerId);
+  };
+
   useEffect(() => {
     fetchData();
   }, [weekStart, appliedFromDate, appliedToDate]);
@@ -528,8 +538,7 @@ export default function SchedulePage() {
                             (a.scheduled_time_start || "").localeCompare(b.scheduled_time_start || ""),
                           )
                           .map((lead) => {
-                            const empId = lead.assigned_cs || lead.created_by;
-                            const empName = profiles[empId] || "Unknown";
+                            const empName = getLeadOwnerName(lead);
                             return (
                               <tr
                                 key={lead.id}
@@ -627,9 +636,8 @@ export default function SchedulePage() {
                               const pos = getLeadPosition(lead);
                               if (!pos) return null;
 
-                              const empId = lead.assigned_cs || lead.created_by;
-                              const empName = profiles[empId] || "Unknown";
-                              const empColorIdx = Object.keys(profiles).indexOf(empId);
+                              const empName = getLeadOwnerName(lead);
+                              const empColorIdx = getLeadOwnerColorIndex(lead);
                               const colorClass = EMPLOYEE_COLORS[Math.abs(empColorIdx) % EMPLOYEE_COLORS.length];
                               const leadBlockColor = getBlockColor(lead.status);
 
@@ -761,7 +769,7 @@ export default function SchedulePage() {
                   <div className="flex items-center gap-2 pt-2 text-xs text-muted-foreground/65">
                     <User className="h-3.5 w-3.5" />
                     Created by{" "}
-                    <strong className="text-foreground">{profiles[selectedLead.created_by] || "Unknown"}</strong>
+                    <strong className="text-foreground">{(selectedLead.created_by ? profiles[selectedLead.created_by] : null) || selectedLead.created_by_name || "Deleted user"}</strong>
                   </div>
                 </div>
 
