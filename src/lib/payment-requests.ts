@@ -13,12 +13,14 @@ export interface LeadPaymentRequest {
   lead_id: string;
   previous_status: LeadStatus;
   requested_by: string;
+  requested_by_name?: string | null;
   requested_by_role: AppRole;
   amount: number;
   screenshot_path: string | null;
   comment: string | null;
   status: PaymentRequestStatus;
   reviewed_by: string | null;
+  reviewed_by_name?: string | null;
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
