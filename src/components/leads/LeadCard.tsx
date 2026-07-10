@@ -997,13 +997,13 @@ function LeadCard({
         </div>
 
         <div className="mt-3 px-4">
-          {lead.last_edited_by && (
+          {(lead.last_edited_by || lead.last_edited_by_name) && (
             <div className="rounded-[20px] border border-warning/26 bg-[radial-gradient(circle_at_top_left,hsl(48_100%_84%/0.16),transparent_32%),linear-gradient(180deg,hsl(42_100%_98%/0.88),hsl(40_100%_95%/0.72))] px-3.5 py-2.5 shadow-[0_18px_26px_-22px_rgba(245,158,11,0.18)] dark:border-warning/20 dark:bg-[linear-gradient(180deg,hsl(38_24%_21%/0.94),hsl(36_22%_18%/0.9))]">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-3.5 w-3.5 text-warning/80" />
                 <p className="text-[11px] text-muted-foreground/90">
                   Last edited <span className="font-medium text-foreground">{formatDateTime(lead.updated_at)}</span> by{" "}
-                  <span className="font-semibold text-foreground">{profiles[lead.last_edited_by] || "Unknown"}</span>
+                  <span className="font-semibold text-foreground">{(lead.last_edited_by ? profiles[lead.last_edited_by] : null) || lead.last_edited_by_name || "Unknown"}</span>
                 </p>
               </div>
             </div>
@@ -1013,7 +1013,7 @@ function LeadCard({
         <div className="px-4 pt-3">
           <div className="crm-lead-card-inner rounded-[18px] px-3 py-2 shadow-[0_16px_24px_-22px_rgba(59,130,246,0.14)] dark:shadow-none">
             <p className="text-[10px] text-muted-foreground/80">
-              Created by <span className="font-semibold text-foreground">{profiles[lead.created_by] || "Unknown"}</span>{" "}
+              Created by <span className="font-semibold text-foreground">{(lead.created_by ? profiles[lead.created_by] : null) || lead.created_by_name || "Deleted user"}</span>{" "}
               · {formatDate(lead.created_at)}
             </p>
           </div>

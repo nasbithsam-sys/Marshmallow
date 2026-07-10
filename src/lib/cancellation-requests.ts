@@ -52,6 +52,7 @@ export async function fetchPendingCancellationRequest(leadId: string): Promise<L
   if (error || !data) return null;
 
   const request = data as unknown as LeadCancellationRequest;
+  const snapshotName = (data as { requested_by_name?: string | null }).requested_by_name || null;
 
   if (request.requested_by) {
     const { data: profile } = await supabase
@@ -60,7 +61,9 @@ export async function fetchPendingCancellationRequest(leadId: string): Promise<L
       .eq("id", request.requested_by)
       .maybeSingle();
 
-    request.requester_name = (profile as { full_name?: string } | null)?.full_name || null;
+    request.requester_name = (profile as { full_name?: string } | null)?.full_name || snapshotName;
+  } else {
+    request.requester_name = snapshotName;
   }
 
   return request;

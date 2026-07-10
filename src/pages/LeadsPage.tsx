@@ -400,8 +400,8 @@ export default function LeadsPage() {
       "CS Notes": noteSummaryByLead[l.id]?.cs || "",
       "Processor Notes": noteSummaryByLead[l.id]?.processor || "",
       "Payment Amount": l.payment_amount != null ? l.payment_amount : "",
-      "Created By": profiles[l.created_by] || l.created_by,
-      "Last Edited By": l.last_edited_by ? profiles[l.last_edited_by] || l.last_edited_by : "",
+      "Created By": (l.created_by ? profiles[l.created_by] || l.created_by : null) || l.created_by_name || "Deleted user",
+      "Last Edited By": (l.last_edited_by ? profiles[l.last_edited_by] || l.last_edited_by : null) || l.last_edited_by_name || "",
       "Created At": new Date(l.created_at).toLocaleString(),
       "Updated At": l.updated_at ? new Date(l.updated_at).toLocaleString() : "",
     }));

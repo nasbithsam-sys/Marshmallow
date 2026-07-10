@@ -149,7 +149,7 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
       ];
 
       const csvRows = rawLeads.map((lead) => {
-        const creatorName = profiles[lead.created_by] || `User (${lead.created_by?.slice(0, 8)})`;
+        const creatorName = (lead.created_by ? profiles[lead.created_by] || `User (${lead.created_by.slice(0, 8)})` : null) || lead.created_by_name || "Deleted user";
         const dateStr = lead.created_at
           ? format(new Date(lead.created_at), "yyyy-MM-dd HH:mm:ss")
           : "";
@@ -211,14 +211,14 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
 
     // Process leads
     rawLeads.forEach((lead) => {
-      const creatorId = lead.created_by;
+      const creatorId = lead.created_by || `deleted:${lead.created_by_name || "unknown"}`;
       const isExtension = lead.reference_name === "Chrome Extension";
 
       if (!statsMap[creatorId]) {
         // Fallback for users not in profiles
         statsMap[creatorId] = {
           userId: creatorId,
-          fullName: profiles[creatorId] || `User (${creatorId.slice(0, 8)})`,
+          fullName: (lead.created_by ? profiles[lead.created_by] || `User (${lead.created_by.slice(0, 8)})` : null) || lead.created_by_name || "Deleted user",
           extensionCount: 0,
           crmCount: 0,
           totalCount: 0,

@@ -872,15 +872,17 @@ export default function LeadDetailPage() {
       general_notes: originalLead?.general_notes || null,
       cs_notes: originalLead?.cs_notes || null,
       processor_notes: originalLead?.processor_notes || null,
-      created_by: originalLead?.created_by || user?.id || "",
+      created_by: originalLead?.created_by || user?.id || null,
+      created_by_name: originalLead?.created_by_name || profile?.full_name || user?.email || null,
       created_at: originalLead?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      last_edited_by: user?.id || originalLead?.last_edited_by || "",
+      last_edited_by: user?.id || originalLead?.last_edited_by || null,
+      last_edited_by_name: profile?.full_name || user?.email || originalLead?.last_edited_by_name || null,
       payment_screenshot_url: form.payment_screenshot_url || null,
       amount: form.amount ? parseFloat(form.amount) : null,
       payment_amount: form.amount ? parseFloat(form.amount) : null,
     } as Lead;
-  }, [originalLead, form, isNew, leadId, jobId, user]);
+  }, [originalLead, form, isNew, leadId, jobId, user, profile]);
 
   const newPhotoUrls = useMemo(() => newPhotos.map((p) => URL.createObjectURL(p)), [newPhotos]);
 
