@@ -527,15 +527,19 @@ export default function QuoMonitorPage() {
         const { data, error } = await db
           .from("quo_conversations")
           .select(`
-            *,
-            quo_phone_numbers (*),
-            ai_lead_links (id, lead_id, match_type, confidence, leads (id, job_id, customer_name, status))
+            id, quo_conversation_id, customer_name, customer_number,
+            last_message_preview, last_message_time, last_message_at,
+            last_customer_message_at, last_agent_message_at,
+            current_ai_section, current_priority, linked_lead_id,
+            ai_tags, rolling_ai_summary, last_ai_analyzed_at, raw_payload,
+            quo_phone_numbers ( id, quo_phone_number_id, name, label, number, display_number )
           `)
           // Exclude conversations with no customer number (internal/system events)
           .not("customer_number", "is", null)
           .neq("customer_number", "")
           .order("last_message_at", { ascending: false, nullsFirst: false })
           .range(from, from + PAGE_SIZE - 1);
+
         if (error) throw error;
         return (data ?? []) as ConversationRow[];
       };
