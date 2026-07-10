@@ -467,6 +467,7 @@ export default function QuoMonitorPage() {
   const queryClient = useQueryClient();
   const { user, role } = useAuth();
   const tableNumberScrollerRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLTableRowElement | null>(null);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [sectionFilter, setSectionFilter] = useState<(typeof sectionFilters)[number]>("all");
