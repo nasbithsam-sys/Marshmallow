@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowUp,
@@ -467,6 +467,7 @@ export default function QuoMonitorPage() {
   const queryClient = useQueryClient();
   const { user, role } = useAuth();
   const tableNumberScrollerRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLTableRowElement | null>(null);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [sectionFilter, setSectionFilter] = useState<(typeof sectionFilters)[number]>("all");
@@ -514,69 +515,67 @@ export default function QuoMonitorPage() {
   const db = supabase as unknown as LooseSupabase;
   const isAdmin = role === "admin";
 
-  const conversationsQuery = useQuery({
+  // Server-side pagination: first 200 rows load immediately, more pages
+  // fetch as the user scrolls the table (see IntersectionObserver sentinel
+  // in the table body below).
+  const CONVERSATIONS_PAGE_SIZE = 200;
+
+  const conversationsQuery = useInfiniteQuery({
     queryKey: ["quo-ai-conversations"],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const from = (pageParam as number) * CONVERSATIONS_PAGE_SIZE;
+      const { data, error } = await db
+        .from("quo_conversations")
+        .select(`
+          id, quo_conversation_id, customer_name, customer_number,
+          last_message_preview, last_message_time, last_message_at,
+          last_customer_message_at, last_agent_message_at,
+          current_ai_section, current_priority, linked_lead_id,
+          ai_tags, rolling_ai_summary, last_ai_analyzed_at, raw_payload,
+          quo_phone_numbers ( id, quo_phone_number_id, name, label, number, display_number )
+        `)
+        .not("customer_number", "is", null)
+        .neq("customer_number", "")
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .range(from, from + CONVERSATIONS_PAGE_SIZE - 1);
+      if (error) throw error;
+      return (data ?? []) as ConversationRow[];
+    },
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === CONVERSATIONS_PAGE_SIZE ? allPages.length : undefined,
+    staleTime: 30_000,
+  });
+
+  // Ops-state table is small (<1k rows); fetch once, merge in memo below.
+  const opsStatesQuery = useQuery({
+    queryKey: ["quo-ai-ops-states"],
     queryFn: async () => {
-      // NOTE: we intentionally do NOT join quo_messages here. Loading every
-      // message text for every conversation is what made this endpoint average
-      // 700ms+. Message-text search is handled by messageSearchQuery below,
-      // which only runs when the user actually types a query.
-      const PAGE_SIZE = 1000;
-
-      const fetchConversationsPage = async (from: number) => {
-        const { data, error } = await db
-          .from("quo_conversations")
-          .select(`
-            id, quo_conversation_id, customer_name, customer_number,
-            last_message_preview, last_message_time, last_message_at,
-            last_customer_message_at, last_agent_message_at,
-            current_ai_section, current_priority, linked_lead_id,
-            ai_tags, rolling_ai_summary, last_ai_analyzed_at, raw_payload,
-            quo_phone_numbers ( id, quo_phone_number_id, name, label, number, display_number )
-          `)
-          // Exclude conversations with no customer number (internal/system events)
-          .not("customer_number", "is", null)
-          .neq("customer_number", "")
-          .order("last_message_at", { ascending: false, nullsFirst: false })
-          .range(from, from + PAGE_SIZE - 1);
-
-        if (error) throw error;
-        return (data ?? []) as ConversationRow[];
-      };
-
-      // First page + ops-states fetched in parallel — the ops-state table is
-      // small (<1k rows) so we grab all of it in a single request instead of
-      // running one IN() query per 100-conversation chunk.
-      const [firstPage, opsStatesResp] = await Promise.all([
-        fetchConversationsPage(0),
-        db
-          .from("quo_ai_conversation_state")
-          .select("conversation_id, waiting_on, urgency_level, confidence, risk_level, requires_human_review, human_review_reason, last_ai_checked_at"),
-      ]);
-
-      if ((opsStatesResp as { error: DbError }).error) {
-        throw (opsStatesResp as { error: DbError }).error;
-      }
-
-      const rows: ConversationRow[] = [...firstPage];
-      if (firstPage.length === PAGE_SIZE) {
-        for (let from = PAGE_SIZE; from < 20000; from += PAGE_SIZE) {
-          const page = await fetchConversationsPage(from);
-          rows.push(...page);
-          if (page.length < PAGE_SIZE) break;
-        }
-      }
-
-      const opsStates = ((opsStatesResp as { data: QuoOpsState[] | null }).data ?? []) as QuoOpsState[];
-      const opsByConversation = new Map(opsStates.map((state) => [state.conversation_id, state]));
-
-      return rows.map((row) => ({
-        ...row,
-        quo_ai_conversation_state: opsByConversation.get(row.id) ?? null,
-      }));
+      const { data, error } = await db
+        .from("quo_ai_conversation_state")
+        .select("conversation_id, waiting_on, urgency_level, confidence, risk_level, requires_human_review, human_review_reason, last_ai_checked_at");
+      if (error) throw error;
+      return (data ?? []) as QuoOpsState[];
     },
     staleTime: 30_000,
   });
+
+  // Auto-fetch next page when the sentinel row scrolls into view.
+  useEffect(() => {
+    const node = loadMoreSentinelRef.current;
+    if (!node) return;
+    if (!conversationsQuery.hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting) && !conversationsQuery.isFetchingNextPage) {
+          conversationsQuery.fetchNextPage();
+        }
+      },
+      { rootMargin: "400px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [conversationsQuery.hasNextPage, conversationsQuery.isFetchingNextPage, conversationsQuery.fetchNextPage, conversationsQuery.data]);
 
 
   // Fetch all registered Quo phone numbers so we can detect internal conversations
@@ -767,7 +766,15 @@ export default function QuoMonitorPage() {
 
   const messageSearchHits = messageSearchQuery.data ?? null;
 
-  const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
+  const conversations = useMemo(() => {
+    const pages = conversationsQuery.data?.pages ?? [];
+    const flat = pages.flat();
+    const opsByConversation = new Map((opsStatesQuery.data ?? []).map((state) => [state.conversation_id, state]));
+    return flat.map((row) => ({
+      ...row,
+      quo_ai_conversation_state: opsByConversation.get(row.id) ?? row.quo_ai_conversation_state ?? null,
+    }));
+  }, [conversationsQuery.data, opsStatesQuery.data]);
   const numberPreferences = useMemo(() => numberPreferencesQuery.data ?? [], [numberPreferencesQuery.data]);
   const preferenceByNumberId = useMemo(
     () => new Map(numberPreferences.map((preference) => [preference.phone_number_id, preference])),
@@ -1203,15 +1210,21 @@ export default function QuoMonitorPage() {
 
     const upsertLiveConversation = (row: Partial<ConversationRow> | null | undefined) => {
       if (!row?.id) return;
-      queryClient.setQueryData<ConversationRow[]>(["quo-ai-conversations"], (current) => {
+      type InfShape = { pages: ConversationRow[][]; pageParams: unknown[] };
+      queryClient.setQueryData<InfShape>(["quo-ai-conversations"], (current) => {
         if (!current) return current;
-        const existingIndex = current.findIndex((conversation) => conversation.id === row.id);
-        if (existingIndex === -1) {
-          return [{ ...(row as ConversationRow), quo_phone_numbers: null }, ...current];
+        const pages = current.pages.map((p) => p.slice());
+        for (let i = 0; i < pages.length; i += 1) {
+          const idx = pages[i].findIndex((c) => c.id === row.id);
+          if (idx !== -1) {
+            pages[i][idx] = { ...pages[i][idx], ...row } as ConversationRow;
+            return { ...current, pages };
+          }
         }
-        const next = current.slice();
-        next[existingIndex] = { ...next[existingIndex], ...row } as ConversationRow;
-        return next;
+        // New conversation — prepend to the first page.
+        if (pages.length === 0) pages.push([]);
+        pages[0] = [{ ...(row as ConversationRow), quo_phone_numbers: null }, ...pages[0]];
+        return { ...current, pages };
       });
     };
 
@@ -2048,6 +2061,13 @@ export default function QuoMonitorPage() {
             </tr>
           );
         })
+      )}
+      {conversationsQuery.hasNextPage && (
+        <tr ref={loadMoreSentinelRef}>
+          <td colSpan={10} className="px-4 py-6 text-center text-xs text-slate-500">
+            {conversationsQuery.isFetchingNextPage ? "Loading more chats…" : "Scroll to load more"}
+          </td>
+        </tr>
       )}
     </tbody>
   </table>
