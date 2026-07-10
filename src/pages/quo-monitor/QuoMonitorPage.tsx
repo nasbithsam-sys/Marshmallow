@@ -575,7 +575,7 @@ export default function QuoMonitorPage() {
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [conversationsQuery.hasNextPage, conversationsQuery.isFetchingNextPage, conversationsQuery.fetchNextPage, conversations.length]);
+  }, [conversationsQuery.hasNextPage, conversationsQuery.isFetchingNextPage, conversationsQuery.fetchNextPage, conversationsQuery.data]);
 
 
   // Fetch all registered Quo phone numbers so we can detect internal conversations
