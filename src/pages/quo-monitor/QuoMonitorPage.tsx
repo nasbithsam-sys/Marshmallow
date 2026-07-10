@@ -575,7 +575,10 @@ export default function QuoMonitorPage() {
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [conversationsQuery.hasNextPage, conversationsQuery.isFetchingNextPage, conversationsQuery.fetchNextPage, conversationsQuery.data]);
+    // Only re-observe when pagination state flips — depending on `data` or the
+    // (referentially unstable) `fetchNextPage` rebuilds the observer on every
+    // page load and leaves a short window where the sentinel is un-observed.
+  }, [conversationsQuery.hasNextPage, conversationsQuery.isFetchingNextPage]);
 
 
   // Fetch all registered Quo phone numbers so we can detect internal conversations
