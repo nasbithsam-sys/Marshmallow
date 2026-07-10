@@ -585,7 +585,9 @@ export default function QuoMonitorPage() {
       if (error) throw error;
       return (data ?? []) as Array<{ number: string | null; display_number: string | null; quo_phone_number_id: string | null }>;
     },
+    staleTime: 5 * 60_000,
   });
+
 
   // Build a set of last-10-digit normalized Quo phone numbers for fast lookups
   // Uses last-10-digit matching, consistent with how the rest of the codebase normalizes Quo numbers
