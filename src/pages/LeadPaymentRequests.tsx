@@ -55,7 +55,7 @@ export default function LeadPaymentRequests() {
 
       const reqs = (rows ?? []) as unknown as LeadPaymentRequest[];
       const leadIds = reqs.map((r) => r.lead_id);
-      const requesterIds = reqs.map((r) => r.requested_by).filter(Boolean);
+      const requesterIds = reqs.map((r) => r.requested_by).filter(Boolean) as string[];
 
       const [{ data: leads }, { data: profiles }] = await Promise.all([
         leadIds.length ? supabase.from("leads").select("*").in("id", leadIds) : Promise.resolve({ data: [] }),

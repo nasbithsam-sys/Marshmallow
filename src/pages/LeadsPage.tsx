@@ -296,7 +296,9 @@ export default function LeadsPage() {
             if (mapItem) {
               const requestCopy = { ...req } as any;
               if (requestCopy.requested_by) {
-                requestCopy.requester_name = profiles[requestCopy.requested_by] || null;
+                requestCopy.requester_name = profiles[requestCopy.requested_by] || requestCopy.requested_by_name || null;
+              } else {
+                requestCopy.requester_name = requestCopy.requested_by_name || null;
               }
               mapItem.pendingCancellationRequest = requestCopy;
             }
