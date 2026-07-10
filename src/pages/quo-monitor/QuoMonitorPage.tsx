@@ -560,6 +560,23 @@ export default function QuoMonitorPage() {
     staleTime: 30_000,
   });
 
+  // Auto-fetch next page when the sentinel row scrolls into view.
+  useEffect(() => {
+    const node = loadMoreSentinelRef.current;
+    if (!node) return;
+    if (!conversationsQuery.hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting) && !conversationsQuery.isFetchingNextPage) {
+          conversationsQuery.fetchNextPage();
+        }
+      },
+      { rootMargin: "400px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [conversationsQuery.hasNextPage, conversationsQuery.isFetchingNextPage, conversationsQuery.fetchNextPage, conversations.length]);
+
 
   // Fetch all registered Quo phone numbers so we can detect internal conversations
   const phoneNumbersQuery = useQuery({
