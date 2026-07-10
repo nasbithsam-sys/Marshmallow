@@ -36,7 +36,7 @@ export default function LeadCancellationRequests() {
       if (error) throw error;
       const rows = (requestRows ?? []) as unknown as LeadCancellationRequest[];
       const leadIds = rows.map((row) => row.lead_id);
-      const requesterIds = rows.map((row) => row.requested_by).filter(Boolean);
+      const requesterIds = rows.map((row) => row.requested_by).filter(Boolean) as string[];
 
       const [{ data: leads }, { data: profiles }] = await Promise.all([
         leadIds.length ? supabase.from("leads").select("*").in("id", leadIds) : Promise.resolve({ data: [] }),
