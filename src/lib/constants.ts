@@ -145,7 +145,7 @@ export function compareLeadDisplayPriority(
 }
 
 const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
-  admin: [...ALL_LEAD_STATUSES],
+  admin: ALL_LEAD_STATUSES.filter((s) => s !== "payment_requested" && s !== "cancellation_requested"),
   customer_service: [
     "need_tech",
     "urgent_job",
