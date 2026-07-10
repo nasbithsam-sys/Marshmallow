@@ -748,7 +748,15 @@ export default function QuoMonitorPage() {
 
   const messageSearchHits = messageSearchQuery.data ?? null;
 
-  const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
+  const conversations = useMemo(() => {
+    const pages = conversationsQuery.data?.pages ?? [];
+    const flat = pages.flat();
+    const opsByConversation = new Map((opsStatesQuery.data ?? []).map((state) => [state.conversation_id, state]));
+    return flat.map((row) => ({
+      ...row,
+      quo_ai_conversation_state: opsByConversation.get(row.id) ?? row.quo_ai_conversation_state ?? null,
+    }));
+  }, [conversationsQuery.data, opsStatesQuery.data]);
   const numberPreferences = useMemo(() => numberPreferencesQuery.data ?? [], [numberPreferencesQuery.data]);
   const preferenceByNumberId = useMemo(
     () => new Map(numberPreferences.map((preference) => [preference.phone_number_id, preference])),
