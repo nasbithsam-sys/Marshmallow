@@ -43,7 +43,8 @@ interface LeadNoteExportRow {
   lead_id: string;
   note_type: "general" | "cs" | "processor";
   content: string;
-  user_id: string;
+  user_id: string | null;
+  user_name?: string | null;
   created_at: string | null;
 }
 
@@ -340,7 +341,7 @@ export default function LeadsPage() {
         const chunk = leadIds.slice(i, i + chunkSize);
         const { data: chunkRows, error } = await supabase
           .from("lead_notes")
-          .select("lead_id, note_type, content, user_id, created_at")
+          .select("lead_id, note_type, content, user_id, user_name, created_at")
           .in("lead_id", chunk)
           .order("created_at", { ascending: true });
 
@@ -359,7 +360,7 @@ export default function LeadsPage() {
           noteSummaryByLead[note.lead_id] = { general: "", cs: "", processor: "" };
         }
 
-        const authorName = profiles[note.user_id] || "Unknown";
+        const authorName = (note.user_id ? profiles[note.user_id] : null) || note.user_name || "Unknown";
         const timestamp = note.created_at ? new Date(note.created_at).toLocaleString() : "";
         const line = timestamp ? `[${timestamp}] ${authorName}: ${note.content}` : `${authorName}: ${note.content}`;
 

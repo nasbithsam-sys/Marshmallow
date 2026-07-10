@@ -49,7 +49,7 @@ const LeadUpdatesSection = ({ leadId }: Props) => {
   });
 
   const getInitials = (name: string) =>
-    name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    (name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
   return (
     <div className="space-y-4">
@@ -87,11 +87,11 @@ const LeadUpdatesSection = ({ leadId }: Props) => {
         {updates.map((u) => (
           <div key={u.id} className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0 mt-0.5">
-              {getInitials(u.author_name)}
+              {getInitials(u.author_name || 'Deleted user')}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">{u.author_name}</span>
+                <span className="font-medium text-foreground">{u.author_name || 'Deleted user'}</span>
                 <span className="px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-medium uppercase tracking-wider">
                   {u.author_role.replace('_', ' ')}
                 </span>

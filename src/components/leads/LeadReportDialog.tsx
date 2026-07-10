@@ -268,7 +268,7 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
         customerName: lead.customer_name,
         customerPhone: lead.customer_phone,
         createdAt: lead.created_at,
-        createdByName: profiles[lead.created_by] || `User (${lead.created_by.slice(0, 8)})`,
+        createdByName: (lead.created_by ? profiles[lead.created_by] : null) || lead.created_by_name || "Deleted user",
         status: lead.status,
       }))
       .slice(0, 20); // Top 20 for audit
