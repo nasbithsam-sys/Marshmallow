@@ -516,6 +516,7 @@ function LeadCard({
         await createCancellationRequest({
           lead,
           userId: user.id,
+          userName: profile?.full_name || user.email || "Unknown user",
           requesterRole: role,
           comment,
           proof,
@@ -541,6 +542,7 @@ function LeadCard({
         await createPaymentRequest({
           lead,
           userId: user.id,
+          userName: profile?.full_name || user.email || "Unknown user",
           requesterRole: role,
           amount,
           comment,

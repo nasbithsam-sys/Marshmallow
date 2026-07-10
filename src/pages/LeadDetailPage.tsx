@@ -750,6 +750,7 @@ export default function LeadDetailPage() {
       await createCancellationRequest({
         lead: originalLead,
         userId: user.id,
+        userName: profile?.full_name || user.email || "Unknown user",
         requesterRole: role,
         comment,
         proof,
@@ -827,6 +828,7 @@ export default function LeadDetailPage() {
         request: pendingCancellationRequest,
         lead: originalLead,
         reviewerId: user.id,
+        reviewerName: profile?.full_name || user.email || "Unknown user",
         reviewerRole: role,
         action,
       });

@@ -21,7 +21,7 @@ const roleLabel: Record<string, string> = {
 };
 
 export default function LeadCancellationRequests() {
-  const { role, user } = useAuth();
+  const { role, user, profile } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: requests = [], isLoading } = useQuery<RequestWithLead[]>({
@@ -36,7 +36,7 @@ export default function LeadCancellationRequests() {
       if (error) throw error;
       const rows = (requestRows ?? []) as unknown as LeadCancellationRequest[];
       const leadIds = rows.map((row) => row.lead_id);
-      const requesterIds = rows.map((row) => row.requested_by);
+      const requesterIds = rows.map((row) => row.requested_by).filter(Boolean);
 
       const [{ data: leads }, { data: profiles }] = await Promise.all([
         leadIds.length ? supabase.from("leads").select("*").in("id", leadIds) : Promise.resolve({ data: [] }),
@@ -49,7 +49,7 @@ export default function LeadCancellationRequests() {
       return rows.map((request) => ({
         ...request,
         lead: leadById.get(request.lead_id) ?? null,
-        requester_name: requesterById.get(request.requested_by) ?? null,
+        requester_name: (request.requested_by ? requesterById.get(request.requested_by) : null) ?? request.requested_by_name ?? null,
       }));
     },
   });
@@ -61,6 +61,7 @@ export default function LeadCancellationRequests() {
         request,
         lead: request.lead,
         reviewerId: user.id,
+        reviewerName: profile?.full_name || user.email || "Unknown user",
         reviewerRole: role,
         action,
       });

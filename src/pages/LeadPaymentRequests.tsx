@@ -41,7 +41,7 @@ function ScreenshotPreview({ path }: { path: string }) {
 }
 
 export default function LeadPaymentRequests() {
-  const { role, user } = useAuth();
+  const { role, user, profile } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: requests = [], isLoading } = useQuery<Row[]>({
@@ -55,7 +55,7 @@ export default function LeadPaymentRequests() {
 
       const reqs = (rows ?? []) as unknown as LeadPaymentRequest[];
       const leadIds = reqs.map((r) => r.lead_id);
-      const requesterIds = reqs.map((r) => r.requested_by);
+      const requesterIds = reqs.map((r) => r.requested_by).filter(Boolean);
 
       const [{ data: leads }, { data: profiles }] = await Promise.all([
         leadIds.length ? supabase.from("leads").select("*").in("id", leadIds) : Promise.resolve({ data: [] }),
@@ -69,7 +69,7 @@ export default function LeadPaymentRequests() {
       return reqs.map((r) => ({
         ...r,
         lead: leadMap.get(r.lead_id) ?? null,
-        requester_name: profMap.get(r.requested_by) ?? null,
+        requester_name: (r.requested_by ? profMap.get(r.requested_by) : null) ?? r.requested_by_name ?? null,
       }));
     },
   });
@@ -95,6 +95,7 @@ export default function LeadPaymentRequests() {
         request: row,
         lead: row.lead,
         reviewerId: user.id,
+        reviewerName: profile?.full_name || user.email || "Unknown user",
         reviewerRole: role,
         action,
       });

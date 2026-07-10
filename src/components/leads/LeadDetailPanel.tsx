@@ -286,6 +286,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       await createCancellationRequest({
         lead,
         userId: user.id,
+        userName: profile?.full_name || user.email || "Unknown user",
         requesterRole: role,
         comment,
         proof,
@@ -370,6 +371,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         request: pendingCancellationRequest as LeadCancellationRequest,
         lead,
         reviewerId: user.id,
+        reviewerName: profile?.full_name || user.email || "Unknown user",
         reviewerRole: role,
         action,
       });
