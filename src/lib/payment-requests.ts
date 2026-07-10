@@ -44,7 +44,7 @@ type ReviewArgs = {
   reviewNote?: string | null;
 };
 
-const table = () => (supabase.from as unknown as (t: string) => ReturnType<typeof supabase.from>)("lead_payment_requests");
+const table = () => (supabase.from as unknown as (t: string) => any)("lead_payment_requests");
 
 export const canCreatePaymentRequest = (role?: AppRole | null) => role === "processor";
 

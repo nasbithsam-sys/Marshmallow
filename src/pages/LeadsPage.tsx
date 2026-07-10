@@ -95,7 +95,7 @@ export default function LeadsPage() {
     const { data, error } = await supabase.from("profiles_public" as never).select("id, full_name") as { data: { id: string; full_name: string | null }[] | null; error: unknown };
 
     if (error) {
-      toast.error(error.message);
+      toast.error((error as { message?: string })?.message ?? "Failed to load users");
       return;
     }
 
