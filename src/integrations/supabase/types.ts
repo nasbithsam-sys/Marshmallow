@@ -45,7 +45,22 @@ export type Database = {
           user_id?: string | null
           user_name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "activity_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_audit_logs: {
         Row: {
@@ -528,11 +543,13 @@ export type Database = {
           previous_status: string
           proof: string | null
           proof_image_path: string | null
-          requested_by: string
+          requested_by: string | null
+          requested_by_name: string | null
           requested_by_role: string
           review_note: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          reviewed_by_name: string | null
           status: string
           updated_at: string
         }
@@ -544,11 +561,13 @@ export type Database = {
           previous_status: string
           proof?: string | null
           proof_image_path?: string | null
-          requested_by: string
+          requested_by?: string | null
+          requested_by_name?: string | null
           requested_by_role: string
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          reviewed_by_name?: string | null
           status?: string
           updated_at?: string
         }
@@ -560,11 +579,13 @@ export type Database = {
           previous_status?: string
           proof?: string | null
           proof_image_path?: string | null
-          requested_by?: string
+          requested_by?: string | null
+          requested_by_name?: string | null
           requested_by_role?: string
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          reviewed_by_name?: string | null
           status?: string
           updated_at?: string
         }
@@ -645,7 +666,8 @@ export type Database = {
           id: string
           lead_id: string
           note_type: string
-          user_id: string
+          user_id: string | null
+          user_name: string | null
         }
         Insert: {
           content: string
@@ -653,7 +675,8 @@ export type Database = {
           id?: string
           lead_id: string
           note_type: string
-          user_id: string
+          user_id?: string | null
+          user_name?: string | null
         }
         Update: {
           content?: string
@@ -661,7 +684,8 @@ export type Database = {
           id?: string
           lead_id?: string
           note_type?: string
-          user_id?: string
+          user_id?: string | null
+          user_name?: string | null
         }
         Relationships: [
           {
@@ -669,6 +693,20 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
         ]
@@ -681,11 +719,13 @@ export type Database = {
           id: string
           lead_id: string
           previous_status: string
-          requested_by: string
+          requested_by: string | null
+          requested_by_name: string | null
           requested_by_role: string
           review_note: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          reviewed_by_name: string | null
           screenshot_path: string | null
           status: string
           updated_at: string
@@ -697,11 +737,13 @@ export type Database = {
           id?: string
           lead_id: string
           previous_status: string
-          requested_by: string
+          requested_by?: string | null
+          requested_by_name?: string | null
           requested_by_role: string
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          reviewed_by_name?: string | null
           screenshot_path?: string | null
           status?: string
           updated_at?: string
@@ -713,11 +755,13 @@ export type Database = {
           id?: string
           lead_id?: string
           previous_status?: string
-          requested_by?: string
+          requested_by?: string | null
+          requested_by_name?: string | null
           requested_by_role?: string
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          reviewed_by_name?: string | null
           screenshot_path?: string | null
           status?: string
           updated_at?: string
@@ -730,6 +774,34 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lead_payment_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_payment_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_payment_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_payment_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       lead_payments: {
@@ -737,6 +809,7 @@ export type Database = {
           amount: number | null
           created_at: string | null
           created_by: string | null
+          created_by_name: string | null
           id: string
           lead_id: string
           screenshot_url: string | null
@@ -745,6 +818,7 @@ export type Database = {
           amount?: number | null
           created_at?: string | null
           created_by?: string | null
+          created_by_name?: string | null
           id?: string
           lead_id: string
           screenshot_url?: string | null
@@ -753,11 +827,26 @@ export type Database = {
           amount?: number | null
           created_at?: string | null
           created_by?: string | null
+          created_by_name?: string | null
           id?: string
           lead_id?: string
           screenshot_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "lead_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lead_payments_lead_id_fkey"
             columns: ["lead_id"]
@@ -774,6 +863,7 @@ export type Database = {
           lead_id: string
           photo_url: string
           uploaded_by: string | null
+          uploaded_by_name: string | null
         }
         Insert: {
           created_at?: string | null
@@ -781,6 +871,7 @@ export type Database = {
           lead_id: string
           photo_url: string
           uploaded_by?: string | null
+          uploaded_by_name?: string | null
         }
         Update: {
           created_at?: string | null
@@ -788,6 +879,7 @@ export type Database = {
           lead_id?: string
           photo_url?: string
           uploaded_by?: string | null
+          uploaded_by_name?: string | null
         }
         Relationships: [
           {
@@ -795,6 +887,20 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_photos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_photos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
         ]
@@ -878,7 +984,7 @@ export type Database = {
       }
       lead_updates: {
         Row: {
-          author_id: string
+          author_id: string | null
           author_name: string
           author_role: string
           content: string
@@ -887,7 +993,7 @@ export type Database = {
           lead_id: string
         }
         Insert: {
-          author_id: string
+          author_id?: string | null
           author_name: string
           author_role: string
           content: string
@@ -896,7 +1002,7 @@ export type Database = {
           lead_id: string
         }
         Update: {
-          author_id?: string
+          author_id?: string | null
           author_name?: string
           author_role?: string
           content?: string
@@ -905,6 +1011,20 @@ export type Database = {
           lead_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lead_updates_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_updates_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lead_updates_lead_id_fkey"
             columns: ["lead_id"]
@@ -923,6 +1043,7 @@ export type Database = {
           city: string | null
           created_at: string | null
           created_by: string | null
+          created_by_name: string | null
           cs_notes: string | null
           cs_tag: string | null
           customer_email: string | null
@@ -939,6 +1060,7 @@ export type Database = {
           labor_amount: number | null
           last_edited_at: string | null
           last_edited_by: string | null
+          last_edited_by_name: string | null
           material_amount: number | null
           number_name: string | null
           payment_amount: number | null
@@ -968,6 +1090,7 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           created_by?: string | null
+          created_by_name?: string | null
           cs_notes?: string | null
           cs_tag?: string | null
           customer_email?: string | null
@@ -984,6 +1107,7 @@ export type Database = {
           labor_amount?: number | null
           last_edited_at?: string | null
           last_edited_by?: string | null
+          last_edited_by_name?: string | null
           material_amount?: number | null
           number_name?: string | null
           payment_amount?: number | null
@@ -1013,6 +1137,7 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           created_by?: string | null
+          created_by_name?: string | null
           cs_notes?: string | null
           cs_tag?: string | null
           customer_email?: string | null
@@ -1029,6 +1154,7 @@ export type Database = {
           labor_amount?: number | null
           last_edited_at?: string | null
           last_edited_by?: string | null
+          last_edited_by_name?: string | null
           material_amount?: number | null
           number_name?: string | null
           payment_amount?: number | null
@@ -1050,7 +1176,50 @@ export type Database = {
           updated_at?: string | null
           zip_code?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "leads_assigned_cs_fkey"
+            columns: ["assigned_cs"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_assigned_cs_fkey"
+            columns: ["assigned_cs"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_last_edited_by_fkey"
+            columns: ["last_edited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_last_edited_by_fkey"
+            columns: ["last_edited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       navigation_permissions: {
         Row: {
