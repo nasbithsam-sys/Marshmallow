@@ -631,7 +631,7 @@ export default function QuoMonitorPage() {
         status: string | null;
       }>;
     },
-    staleTime: 15_000,
+    staleTime: 60_000,
   });
 
   const leadByPhoneKey = useMemo(() => {
