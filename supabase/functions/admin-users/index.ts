@@ -251,10 +251,36 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "You cannot delete your own account while signed in." }, 400);
       }
 
-      // 1. Delete the actual auth account first. This revokes login access and prevents
-      // orphaned auth accounts if database cleanups fail. If the account is already gone,
-      // we ignore the error (case-insensitively) and clean up database tables just in case.
-      const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(user_id);
+      const { data: profileBeforeDelete } = await adminClient
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", user_id)
+        .maybeSingle();
+
+      const deletedName = String(profileBeforeDelete?.full_name || profileBeforeDelete?.email || "Deleted user")
+        .replace(/\s*\(deleted\)$/i, "")
+        .trim();
+
+      const displayName = `${deletedName || "Deleted user"} (deleted)`;
+
+      const preDeleteCleanupResults = await Promise.all([
+        adminClient.from("user_roles").delete().eq("user_id", user_id),
+        adminClient.from("navigation_permissions").delete().eq("user_id", user_id),
+        adminClient.from("status_permissions").delete().eq("user_id", user_id),
+        adminClient.from("notifications").delete().eq("user_id", user_id),
+        adminClient.from("user_access_codes").delete().eq("user_id", user_id),
+        adminClient.from("lead_shares").delete().or(`shared_with_user_id.eq.${user_id},shared_by.eq.${user_id}`),
+        adminClient.from("profiles").update({ full_name: displayName }).eq("id", user_id),
+      ]);
+
+      const preDeleteCleanupError = preDeleteCleanupResults.find((result) => result.error)?.error;
+      if (preDeleteCleanupError) {
+        return jsonResponse({ error: preDeleteCleanupError.message }, 400);
+      }
+
+      // Soft-delete the auth account so foreign-keyed CRM history remains attached to
+      // the preserved profile record, while login access is revoked by Supabase Auth.
+      const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(user_id, true);
 
       const authDeleteMessage = getErrorMessage(authDeleteError);
 
@@ -270,15 +296,14 @@ Deno.serve(async (req) => {
         );
       }
 
-      // 2. Run cleanup deletes for related tables to ensure no residual records are left.
-      // Because foreign keys are configured with CASCADE, these may already be deleted.
+      // Keep CRM history intact. Only remove permission/access records that should not
+      // remain active for a deleted user.
       const cleanupTables = [
         "user_roles",
         "navigation_permissions",
         "status_permissions",
         "notifications",
         "user_access_codes",
-        "profiles",
       ];
 
       const cleanupResults = await Promise.all([
@@ -287,7 +312,6 @@ Deno.serve(async (req) => {
         adminClient.from("status_permissions").delete().eq("user_id", user_id),
         adminClient.from("notifications").delete().eq("user_id", user_id),
         adminClient.from("user_access_codes").delete().eq("user_id", user_id),
-        adminClient.from("profiles").delete().eq("id", user_id),
       ]);
 
       const cleanupErrors = cleanupResults
