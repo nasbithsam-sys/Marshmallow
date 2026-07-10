@@ -1192,15 +1192,21 @@ export default function QuoMonitorPage() {
 
     const upsertLiveConversation = (row: Partial<ConversationRow> | null | undefined) => {
       if (!row?.id) return;
-      queryClient.setQueryData<ConversationRow[]>(["quo-ai-conversations"], (current) => {
+      type InfShape = { pages: ConversationRow[][]; pageParams: unknown[] };
+      queryClient.setQueryData<InfShape>(["quo-ai-conversations"], (current) => {
         if (!current) return current;
-        const existingIndex = current.findIndex((conversation) => conversation.id === row.id);
-        if (existingIndex === -1) {
-          return [{ ...(row as ConversationRow), quo_phone_numbers: null }, ...current];
+        const pages = current.pages.map((p) => p.slice());
+        for (let i = 0; i < pages.length; i += 1) {
+          const idx = pages[i].findIndex((c) => c.id === row.id);
+          if (idx !== -1) {
+            pages[i][idx] = { ...pages[i][idx], ...row } as ConversationRow;
+            return { ...current, pages };
+          }
         }
-        const next = current.slice();
-        next[existingIndex] = { ...next[existingIndex], ...row } as ConversationRow;
-        return next;
+        // New conversation — prepend to the first page.
+        if (pages.length === 0) pages.push([]);
+        pages[0] = [{ ...(row as ConversationRow), quo_phone_numbers: null }, ...pages[0]];
+        return { ...current, pages };
       });
     };
 
