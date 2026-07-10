@@ -12,7 +12,7 @@ export interface LeadPaymentRequest {
   id: string;
   lead_id: string;
   previous_status: LeadStatus;
-  requested_by: string;
+  requested_by: string | null;
   requested_by_name?: string | null;
   requested_by_role: AppRole;
   amount: number;
