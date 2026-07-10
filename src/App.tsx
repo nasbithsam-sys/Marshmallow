@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/layout/AppLayout";
 import Login from "@/pages/Login";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Lazy-load heavy routes so the initial bundle stays small and the CRM feels snappy.
 const LeadsPage = lazy(() => import("@/pages/LeadsPage"));
@@ -87,7 +88,11 @@ function PageRoute({ navItem, children }: { navItem: string; children: ReactNode
     return <Navigate to="/leads" replace />;
   }
 
-  return <Suspense fallback={<PageFallback />}>{children}</Suspense>;
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<PageFallback />}>{children}</Suspense>
+    </ErrorBoundary>
+  );
 }
 
 const App = () => (
