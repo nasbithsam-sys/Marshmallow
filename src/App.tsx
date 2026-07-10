@@ -88,7 +88,11 @@ function PageRoute({ navItem, children }: { navItem: string; children: ReactNode
     return <Navigate to="/leads" replace />;
   }
 
-  return <Suspense fallback={<PageFallback />}>{children}</Suspense>;
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<PageFallback />}>{children}</Suspense>
+    </ErrorBoundary>
+  );
 }
 
 const App = () => (
