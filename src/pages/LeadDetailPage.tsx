@@ -477,6 +477,7 @@ export default function LeadDetailPage() {
         payment_amount: amount,
         payment_screenshot_url: screenshotUrl,
         last_edited_by: user.id,
+        last_edited_by_name: profile?.full_name || user.email || "Unknown user",
         updated_at: new Date().toISOString(),
         last_edited_at: new Date().toISOString(),
       });
@@ -793,6 +794,7 @@ export default function LeadDetailPage() {
           cancellation_reason: reason,
           cs_tag: null,
           last_edited_by: user.id,
+          last_edited_by_name: profile?.full_name || user.email || "Unknown user",
           updated_at: new Date().toISOString(),
           last_edited_at: new Date().toISOString(),
         });

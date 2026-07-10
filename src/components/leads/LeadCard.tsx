@@ -111,7 +111,7 @@ function LeadCard({
   initialPendingCancellationRequest,
 }: LeadCardProps) {
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
   const [changingStatus, setChangingStatus] = useState(false);
   const [csOpen, setCsOpen] = useState(false);
   const [processorOpen, setProcessorOpen] = useState(false);
@@ -428,6 +428,7 @@ function LeadCard({
     const statusUpdate: Record<string, unknown> = {
       status: newStatus as LeadStatus,
       last_edited_by: user?.id,
+      last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
       updated_at: new Date().toISOString(),
       last_edited_at: new Date().toISOString(),
     };
@@ -569,6 +570,7 @@ function LeadCard({
           payment_amount: amount,
           payment_screenshot_url: screenshotUrl,
           last_edited_by: user?.id,
+          last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
           updated_at: new Date().toISOString(),
           last_edited_at: new Date().toISOString(),
         })
@@ -634,6 +636,7 @@ function LeadCard({
       .update({
         cs_tag: newTag,
         last_edited_by: user?.id,
+        last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
         updated_at: new Date().toISOString(),
         last_edited_at: new Date().toISOString(),
       } as never)

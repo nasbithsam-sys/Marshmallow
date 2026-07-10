@@ -9,6 +9,7 @@ export const CANCELLATION_REQUEST_STATUS: LeadStatus = "cancellation_requested";
 type CreateCancellationRequestArgs = {
   lead: Lead;
   userId: string;
+  userName?: string | null;
   requesterRole: AppRole;
   comment: string;
   proof?: string | null;
@@ -19,6 +20,7 @@ type ReviewCancellationRequestArgs = {
   request: LeadCancellationRequest;
   lead: Lead;
   reviewerId: string;
+  reviewerName?: string | null;
   reviewerRole: AppRole;
   action: "approved" | "rejected";
   reviewNote?: string | null;
@@ -72,6 +74,7 @@ export async function fetchPendingCancellationRequest(leadId: string): Promise<L
 export async function createCancellationRequest({
   lead,
   userId,
+  userName,
   requesterRole,
   comment,
   proof,
@@ -109,6 +112,7 @@ export async function createCancellationRequest({
       lead_id: lead.id,
       previous_status: lead.status,
       requested_by: userId,
+      requested_by_name: userName || null,
       requested_by_role: requesterRole,
       comment: cleanComment,
       proof: cleanProof,
@@ -124,6 +128,7 @@ export async function createCancellationRequest({
       status: CANCELLATION_REQUEST_STATUS,
       cs_tag: null,
       last_edited_by: userId,
+      last_edited_by_name: userName || null,
       updated_at: new Date().toISOString(),
       last_edited_at: new Date().toISOString(),
     });
@@ -169,6 +174,7 @@ export async function reviewCancellationRequest({
   request,
   lead,
   reviewerId,
+  reviewerName,
   reviewerRole,
   action,
   reviewNote,
@@ -182,6 +188,7 @@ export async function reviewCancellationRequest({
     .update({
       status: action,
       reviewed_by: reviewerId,
+      reviewed_by_name: reviewerName || null,
       reviewed_at: now,
       review_note: reviewNote?.trim() || null,
     } as never)
@@ -203,6 +210,7 @@ export async function reviewCancellationRequest({
         cancellation_reason: reason || null,
         cs_tag: null,
         last_edited_by: reviewerId,
+        last_edited_by_name: reviewerName || null,
         updated_at: now,
         last_edited_at: now,
       });
@@ -213,6 +221,7 @@ export async function reviewCancellationRequest({
       .update({
         status: fallbackStatus as LeadStatus,
         last_edited_by: reviewerId,
+        last_edited_by_name: reviewerName || null,
         updated_at: now,
         last_edited_at: now,
       } as never)

@@ -333,6 +333,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           cancellation_reason: reason,
           cs_tag: null,
           last_edited_by: user.id,
+          last_edited_by_name: profile?.full_name || user.email || "Unknown user",
           updated_at: new Date().toISOString(),
           last_edited_at: new Date().toISOString(),
         } as never)
