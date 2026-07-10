@@ -264,13 +264,23 @@ Deno.serve(async (req) => {
       const displayName = `${deletedName || "Deleted user"} (deleted)`;
 
       const preDeleteCleanupResults = await Promise.all([
+        adminClient.from("leads").update({ created_by_name: displayName }).eq("created_by", user_id).is("created_by_name", null),
+        adminClient.from("leads").update({ last_edited_by_name: displayName }).eq("last_edited_by", user_id).is("last_edited_by_name", null),
+        adminClient.from("lead_notes").update({ user_name: displayName }).eq("user_id", user_id).is("user_name", null),
+        adminClient.from("lead_updates").update({ author_name: displayName }).eq("author_id", user_id),
+        adminClient.from("activity_logs").update({ user_name: displayName }).eq("user_id", user_id),
+        adminClient.from("lead_photos").update({ uploaded_by_name: displayName }).eq("uploaded_by", user_id).is("uploaded_by_name", null),
+        adminClient.from("lead_payments").update({ created_by_name: displayName }).eq("created_by", user_id).is("created_by_name", null),
+        adminClient.from("lead_payment_requests").update({ requested_by_name: displayName }).eq("requested_by", user_id).is("requested_by_name", null),
+        adminClient.from("lead_payment_requests").update({ reviewed_by_name: displayName }).eq("reviewed_by", user_id).is("reviewed_by_name", null),
+        adminClient.from("lead_cancellation_requests").update({ requested_by_name: displayName }).eq("requested_by", user_id).is("requested_by_name", null),
+        adminClient.from("lead_cancellation_requests").update({ reviewed_by_name: displayName }).eq("reviewed_by", user_id).is("reviewed_by_name", null),
         adminClient.from("user_roles").delete().eq("user_id", user_id),
         adminClient.from("navigation_permissions").delete().eq("user_id", user_id),
         adminClient.from("status_permissions").delete().eq("user_id", user_id),
         adminClient.from("notifications").delete().eq("user_id", user_id),
         adminClient.from("user_access_codes").delete().eq("user_id", user_id),
         adminClient.from("lead_shares").delete().or(`shared_with_user_id.eq.${user_id},shared_by.eq.${user_id}`),
-        adminClient.from("profiles").update({ full_name: displayName }).eq("id", user_id),
       ]);
 
       const preDeleteCleanupError = preDeleteCleanupResults.find((result) => result.error)?.error;
@@ -278,9 +288,9 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: preDeleteCleanupError.message }, 400);
       }
 
-      // Soft-delete the auth account so foreign-keyed CRM history remains attached to
-      // the preserved profile record, while login access is revoked by Supabase Auth.
-      const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(user_id, true);
+      // Hard-delete the auth account. Database constraints clear user links and the
+      // delete trigger preserves display-name snapshots on historical CRM rows.
+      const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(user_id);
 
       const authDeleteMessage = getErrorMessage(authDeleteError);
 
@@ -297,13 +307,15 @@ Deno.serve(async (req) => {
       }
 
       // Keep CRM history intact. Only remove permission/access records that should not
-      // remain active for a deleted user.
+      // remain active for a deleted user. If the auth user was already gone, also remove
+      // any leftover CRM profile so the user no longer exists in CRM user lists.
       const cleanupTables = [
         "user_roles",
         "navigation_permissions",
         "status_permissions",
         "notifications",
         "user_access_codes",
+        "profiles",
       ];
 
       const cleanupResults = await Promise.all([
@@ -312,6 +324,7 @@ Deno.serve(async (req) => {
         adminClient.from("status_permissions").delete().eq("user_id", user_id),
         adminClient.from("notifications").delete().eq("user_id", user_id),
         adminClient.from("user_access_codes").delete().eq("user_id", user_id),
+        adminClient.from("profiles").delete().eq("id", user_id),
       ]);
 
       const cleanupErrors = cleanupResults

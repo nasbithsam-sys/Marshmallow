@@ -132,7 +132,7 @@ const SectionHeader = ({
 );
 
 const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) => {
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [shouldResetOnClose, setShouldResetOnClose] = useState(true);
 
@@ -246,6 +246,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
     setLoading(true);
 
     const jobId = generateJobId();
+    const currentUserName = profile?.full_name || user.email || "Unknown user";
 
     let scheduled_time_start: string | null = null;
     let scheduled_time_end: string | null = null;
@@ -269,6 +270,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
       scheduled_time_start,
       scheduled_time_end,
       created_by: user.id,
+      created_by_name: currentUserName,
       assigned_cs: isCS ? user.id : null,
 
       quote: form.quote || null,
@@ -306,18 +308,20 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
             lead_id: data.id,
             photo_url: path,
             uploaded_by: user.id,
+            uploaded_by_name: currentUserName,
           });
         }
       }
 
-      const noteInserts: { lead_id: string; user_id: string; note_type: string; content: string }[] = [];
+      const noteInserts: { lead_id: string; user_id: string; user_name: string; note_type: string; content: string }[] = [];
       if (!isProcessor && form.cs_notes.trim()) {
-        noteInserts.push({ lead_id: data.id, user_id: user.id, note_type: "cs", content: form.cs_notes.trim() });
+        noteInserts.push({ lead_id: data.id, user_id: user.id, user_name: currentUserName, note_type: "cs", content: form.cs_notes.trim() });
       }
       if (!isCS && form.processor_notes.trim()) {
         noteInserts.push({
           lead_id: data.id,
           user_id: user.id,
+          user_name: currentUserName,
           note_type: "processor",
           content: form.processor_notes.trim(),
         });
@@ -326,6 +330,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
         noteInserts.push({
           lead_id: data.id,
           user_id: user.id,
+          user_name: currentUserName,
           note_type: "general",
           content: form.general_notes.trim(),
         });

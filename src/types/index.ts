@@ -86,9 +86,11 @@ export interface Lead {
   cs_notes: string | null;
   processor_notes: string | null;
   general_notes: string | null;
-  created_by: string;
+  created_by: string | null;
   assigned_cs: string | null;
   last_edited_by: string | null;
+  created_by_name?: string | null;
+  last_edited_by_name?: string | null;
   last_edited_at: string | null;
   created_at: string;
   updated_at: string;
@@ -127,12 +129,14 @@ export interface LeadCancellationRequest {
   lead_id: string;
   previous_status: LeadStatus;
   requested_by: string;
+  requested_by_name?: string | null;
   requested_by_role: AppRole;
   comment: string;
   proof: string | null;
   proof_image_path?: string | null;
   status: CancellationRequestStatus;
   reviewed_by: string | null;
+  reviewed_by_name?: string | null;
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
@@ -143,7 +147,7 @@ export interface LeadCancellationRequest {
 export interface LeadUpdate {
   id: string;
   lead_id: string;
-  author_id: string;
+  author_id: string | null;
   author_name: string;
   author_role: AppRole;
   content: string;
@@ -152,7 +156,7 @@ export interface LeadUpdate {
 
 export interface ActivityLog {
   id: string;
-  user_id: string;
+  user_id: string | null;
   user_name: string;
   action: string;
   target_type: string;

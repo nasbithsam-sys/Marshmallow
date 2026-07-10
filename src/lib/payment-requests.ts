@@ -13,12 +13,14 @@ export interface LeadPaymentRequest {
   lead_id: string;
   previous_status: LeadStatus;
   requested_by: string;
+  requested_by_name?: string | null;
   requested_by_role: AppRole;
   amount: number;
   screenshot_path: string | null;
   comment: string | null;
   status: PaymentRequestStatus;
   reviewed_by: string | null;
+  reviewed_by_name?: string | null;
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
@@ -29,6 +31,7 @@ export interface LeadPaymentRequest {
 type CreateArgs = {
   lead: Lead;
   userId: string;
+  userName?: string | null;
   requesterRole: AppRole;
   amount: number;
   comment?: string | null;
@@ -39,6 +42,7 @@ type ReviewArgs = {
   request: LeadPaymentRequest;
   lead: Lead;
   reviewerId: string;
+  reviewerName?: string | null;
   reviewerRole: AppRole;
   action: "approved" | "rejected";
   reviewNote?: string | null;
@@ -64,6 +68,7 @@ export async function fetchPendingPaymentRequest(leadId: string): Promise<LeadPa
 
   if (error || !data) return null;
   const request = data as unknown as LeadPaymentRequest;
+  const snapshotName = (data as { requested_by_name?: string | null }).requested_by_name || null;
 
   if (request.requested_by) {
     const { data: profile } = await supabase
@@ -71,7 +76,9 @@ export async function fetchPendingPaymentRequest(leadId: string): Promise<LeadPa
       .select("full_name")
       .eq("id", request.requested_by)
       .maybeSingle();
-    request.requester_name = (profile as { full_name?: string } | null)?.full_name || null;
+    request.requester_name = (profile as { full_name?: string } | null)?.full_name || snapshotName;
+  } else {
+    request.requester_name = snapshotName;
   }
 
   return request;
@@ -80,6 +87,7 @@ export async function fetchPendingPaymentRequest(leadId: string): Promise<LeadPa
 export async function createPaymentRequest({
   lead,
   userId,
+  userName,
   requesterRole,
   amount,
   comment,
@@ -111,6 +119,7 @@ export async function createPaymentRequest({
       lead_id: lead.id,
       previous_status: lead.status,
       requested_by: userId,
+      requested_by_name: userName || null,
       requested_by_role: requesterRole,
       amount,
       screenshot_path: screenshotPath,
@@ -126,6 +135,7 @@ export async function createPaymentRequest({
     status: PAYMENT_REQUEST_STATUS,
     cs_tag: null,
     last_edited_by: userId,
+    last_edited_by_name: userName || null,
     updated_at: new Date().toISOString(),
     last_edited_at: new Date().toISOString(),
   });
@@ -167,6 +177,7 @@ export async function reviewPaymentRequest({
   request,
   lead,
   reviewerId,
+  reviewerName,
   reviewerRole,
   action,
   reviewNote,
@@ -194,6 +205,7 @@ export async function reviewPaymentRequest({
       payment_screenshot_url: request.screenshot_path,
       cs_tag: null,
       last_edited_by: reviewerId,
+      last_edited_by_name: reviewerName || null,
       updated_at: now,
       last_edited_at: now,
     });
@@ -201,6 +213,7 @@ export async function reviewPaymentRequest({
     await updateLeadById(lead.id, {
       status: request.previous_status,
       last_edited_by: reviewerId,
+      last_edited_by_name: reviewerName || null,
       updated_at: now,
       last_edited_at: now,
     });

@@ -119,7 +119,7 @@ const SectionHeader = ({
 export default function LeadDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
 
   const isNew = id === "new";
   const isCS = role === "customer_service";
@@ -208,16 +208,22 @@ export default function LeadDetailPage() {
     "glass-panel rounded-[24px] border border-border/60 px-4 py-4 text-left transition-all duration-200 hover:border-primary/18 hover:shadow-[0_22px_40px_-28px_rgba(59,130,246,0.14)] dark:shadow-none";
 
   const fetchProfilesAndMeta = async (lead: Lead) => {
-    const { data: creator } = await supabase.from("profiles_public" as never).select("full_name").eq("id", lead.created_by).single();
-    setCreatedBy((creator as { full_name?: string } | null)?.full_name || "Unknown");
+    if (lead.created_by) {
+      const { data: creator } = await supabase.from("profiles_public" as never).select("full_name").eq("id", lead.created_by).maybeSingle();
+      setCreatedBy((creator as { full_name?: string } | null)?.full_name || lead.created_by_name || "Unknown");
+    } else {
+      setCreatedBy(lead.created_by_name || "Unknown");
+    }
 
     if (lead.last_edited_by) {
       const { data: editor } = await supabase
         .from("profiles_public" as never)
         .select("full_name")
         .eq("id", lead.last_edited_by)
-        .single();
-      setLastEditedBy((editor as { full_name?: string } | null)?.full_name || "Unknown");
+        .maybeSingle();
+      setLastEditedBy((editor as { full_name?: string } | null)?.full_name || lead.last_edited_by_name || "Unknown");
+    } else if (lead.last_edited_by_name) {
+      setLastEditedBy(lead.last_edited_by_name);
     } else {
       setLastEditedBy("");
     }
@@ -471,6 +477,7 @@ export default function LeadDetailPage() {
         payment_amount: amount,
         payment_screenshot_url: screenshotUrl,
         last_edited_by: user.id,
+        last_edited_by_name: profile?.full_name || user.email || "Unknown user",
         updated_at: new Date().toISOString(),
         last_edited_at: new Date().toISOString(),
       });
@@ -493,6 +500,7 @@ export default function LeadDetailPage() {
   };
 
   const uploadNewPhotos = async (currentLeadId: string) => {
+    const currentUserName = profile?.full_name || user?.email || "Unknown user";
     for (const photo of newPhotos) {
       const optimizedPhoto = await optimizeImageForUpload(photo);
       const ext = optimizedPhoto.name.split(".").pop();
@@ -505,6 +513,7 @@ export default function LeadDetailPage() {
           lead_id: currentLeadId,
           photo_url: path,
           uploaded_by: user!.id,
+          uploaded_by_name: currentUserName,
         });
       }
     }
@@ -516,12 +525,14 @@ export default function LeadDetailPage() {
   const insertInitialNotes = async (currentLeadId: string) => {
     if (!user) return;
 
-    const noteInserts: { lead_id: string; user_id: string; note_type: "cs" | "processor" | "general"; content: string }[] = [];
+    const currentUserName = profile?.full_name || user.email || "Unknown user";
+    const noteInserts: { lead_id: string; user_id: string; user_name: string; note_type: "cs" | "processor" | "general"; content: string }[] = [];
 
     if (!isProcessor && form.cs_notes.trim()) {
       noteInserts.push({
         lead_id: currentLeadId,
         user_id: user.id,
+        user_name: currentUserName,
         note_type: "cs",
         content: form.cs_notes.trim(),
       });
@@ -531,6 +542,7 @@ export default function LeadDetailPage() {
       noteInserts.push({
         lead_id: currentLeadId,
         user_id: user.id,
+        user_name: currentUserName,
         note_type: "processor",
         content: form.processor_notes.trim(),
       });
@@ -540,6 +552,7 @@ export default function LeadDetailPage() {
       noteInserts.push({
         lead_id: currentLeadId,
         user_id: user.id,
+        user_name: currentUserName,
         note_type: "general",
         content: form.general_notes.trim(),
       });
@@ -583,6 +596,7 @@ export default function LeadDetailPage() {
     }
 
     setSaving(true);
+    const currentUserName = profile?.full_name || user.email || "Unknown user";
 
     let scheduled_time_start: string | null = null;
     let scheduled_time_end: string | null = null;
@@ -644,6 +658,7 @@ export default function LeadDetailPage() {
           : (originalLead?.for_us_amount ?? null),
 
       last_edited_by: user.id,
+      last_edited_by_name: currentUserName,
       updated_at: new Date().toISOString(),
       last_edited_at: new Date().toISOString(),
     };
@@ -658,6 +673,7 @@ export default function LeadDetailPage() {
           ...payload,
           job_id: jobId || generateJobId(),
           created_by: user.id,
+          created_by_name: currentUserName,
           assigned_cs: isCS ? user.id : null,
         };
 
@@ -734,6 +750,7 @@ export default function LeadDetailPage() {
       await createCancellationRequest({
         lead: originalLead,
         userId: user.id,
+        userName: profile?.full_name || user.email || "Unknown user",
         requesterRole: role,
         comment,
         proof,
@@ -778,6 +795,7 @@ export default function LeadDetailPage() {
           cancellation_reason: reason,
           cs_tag: null,
           last_edited_by: user.id,
+          last_edited_by_name: profile?.full_name || user.email || "Unknown user",
           updated_at: new Date().toISOString(),
           last_edited_at: new Date().toISOString(),
         });
@@ -810,6 +828,7 @@ export default function LeadDetailPage() {
         request: pendingCancellationRequest,
         lead: originalLead,
         reviewerId: user.id,
+        reviewerName: profile?.full_name || user.email || "Unknown user",
         reviewerRole: role,
         action,
       });
@@ -857,15 +876,17 @@ export default function LeadDetailPage() {
       general_notes: originalLead?.general_notes || null,
       cs_notes: originalLead?.cs_notes || null,
       processor_notes: originalLead?.processor_notes || null,
-      created_by: originalLead?.created_by || user?.id || "",
+      created_by: originalLead?.created_by || user?.id || null,
+      created_by_name: originalLead?.created_by_name || profile?.full_name || user?.email || null,
       created_at: originalLead?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      last_edited_by: user?.id || originalLead?.last_edited_by || "",
+      last_edited_by: user?.id || originalLead?.last_edited_by || null,
+      last_edited_by_name: profile?.full_name || user?.email || originalLead?.last_edited_by_name || null,
       payment_screenshot_url: form.payment_screenshot_url || null,
       amount: form.amount ? parseFloat(form.amount) : null,
       payment_amount: form.amount ? parseFloat(form.amount) : null,
     } as Lead;
-  }, [originalLead, form, isNew, leadId, jobId, user]);
+  }, [originalLead, form, isNew, leadId, jobId, user, profile]);
 
   const newPhotoUrls = useMemo(() => newPhotos.map((p) => URL.createObjectURL(p)), [newPhotos]);
 

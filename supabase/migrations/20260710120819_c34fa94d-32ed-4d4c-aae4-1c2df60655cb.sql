@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.enqueue_quo_ai_job(uuid, uuid, text, text, integer) TO authenticated;

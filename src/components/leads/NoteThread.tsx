@@ -11,7 +11,8 @@ import { toast } from "sonner";
 interface LeadNote {
   id: string;
   lead_id: string;
-  user_id: string;
+  user_id: string | null;
+  user_name?: string | null;
   note_type: string;
   content: string;
   created_at: string;
@@ -26,7 +27,7 @@ interface Props {
 }
 
 export default function NoteThread({ leadId, noteType, label, profiles = {}, onNotesChanged }: Props) {
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [resolvedProfiles, setResolvedProfiles] = useState<Record<string, string>>({});
   const [newNote, setNewNote] = useState("");
@@ -75,7 +76,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
   const profilesKey = JSON.stringify(profiles);
 
   useEffect(() => {
-    const missingUserIds = Array.from(new Set(notes.map((note) => note.user_id))).filter((userId) => !profiles[userId]);
+    const missingUserIds = Array.from(new Set(notes.map((note) => note.user_id).filter(Boolean) as string[])).filter((userId) => !profiles[userId]);
 
     if (missingUserIds.length === 0) {
       setResolvedProfiles({});
@@ -114,6 +115,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
     const { error } = await supabase.from("lead_notes").insert({
       lead_id: leadId,
       user_id: user.id,
+      user_name: profile?.full_name || user.email || "Unknown user",
       note_type: noteType,
       content: newNote.trim(),
     });
@@ -166,12 +168,12 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
     return note.user_id === user?.id;
   };
 
-  const getInitials = (userId: string) => {
-    const name = profiles[userId] || resolvedProfiles[userId] || "?";
+  const getInitials = (note: LeadNote) => {
+    const name = (note.user_id ? profiles[note.user_id] || resolvedProfiles[note.user_id] : null) || note.user_name || "?";
     return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  const getName = (userId: string) => profiles[userId] || resolvedProfiles[userId] || "Unknown";
+  const getName = (note: LeadNote) => (note.user_id ? profiles[note.user_id] || resolvedProfiles[note.user_id] : null) || note.user_name || "Unknown";
 
   if (!canViewThread) return null;
 
@@ -199,13 +201,13 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
               >
                 <Avatar className="h-6 w-6 shrink-0">
                   <AvatarFallback className={`text-[8px] font-bold ${isMe ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                    {getInitials(note.user_id)}
+                    {getInitials(note)}
                   </AvatarFallback>
                 </Avatar>
                 <div className={`max-w-[75%] space-y-0.5 ${isMe ? "items-end text-right" : ""}`}>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-medium text-foreground">
-                      {getName(note.user_id)}
+                      {getName(note)}
                     </span>
                     <span className="text-[9px] text-muted-foreground/40">
                       {new Date(note.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}

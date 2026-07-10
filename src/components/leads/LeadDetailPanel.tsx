@@ -134,7 +134,7 @@ const StatusDropdownFiltered = ({
 };
 
 const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
   const queryClient = useQueryClient();
 
   const [saved, setSaved] = useState(false);
@@ -166,18 +166,18 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
   const { data: lastEditorName } = useQuery({
     queryKey: ["lead-last-editor", lead?.last_edited_by],
-    enabled: !!lead?.last_edited_by,
+    enabled: !!lead?.last_edited_by || !!lead?.last_edited_by_name,
     queryFn: async () => {
-      if (!lead?.last_edited_by) return null;
+      if (!lead?.last_edited_by) return lead?.last_edited_by_name || null;
 
       const { data, error } = await supabase
         .from("profiles_public" as never)
         .select("full_name")
         .eq("id", lead.last_edited_by)
-        .single();
+        .maybeSingle();
 
-      if (error) return null;
-      return (data as { full_name?: string } | null)?.full_name || null;
+      if (error) return lead.last_edited_by_name || null;
+      return (data as { full_name?: string } | null)?.full_name || lead.last_edited_by_name || null;
     },
   });
 
@@ -286,6 +286,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       await createCancellationRequest({
         lead,
         userId: user.id,
+        userName: profile?.full_name || user.email || "Unknown user",
         requesterRole: role,
         comment,
         proof,
@@ -333,6 +334,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
           cancellation_reason: reason,
           cs_tag: null,
           last_edited_by: user.id,
+          last_edited_by_name: profile?.full_name || user.email || "Unknown user",
           updated_at: new Date().toISOString(),
           last_edited_at: new Date().toISOString(),
         } as never)
@@ -369,6 +371,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         request: pendingCancellationRequest as LeadCancellationRequest,
         lead,
         reviewerId: user.id,
+        reviewerName: profile?.full_name || user.email || "Unknown user",
         reviewerRole: role,
         action,
       });
@@ -385,6 +388,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
   const handlePaymentConfirm = async (amount: number, screenshotFile: File | null) => {
     setPaymentLoading(true);
+    const currentUserName = profile?.full_name || user?.email || "Unknown user";
     let screenshotUrl: string | null = null;
 
     if (screenshotFile) {
@@ -413,6 +417,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         payment_amount: amount,
         payment_screenshot_url: screenshotUrl,
         last_edited_by: user?.id,
+        last_edited_by_name: currentUserName,
         last_edited_at: new Date().toISOString(),
       })
       .eq("id", leadId);
@@ -495,6 +500,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         scheduled_time_start: form.scheduled_time_start,
         scheduled_time_end: form.scheduled_time_end,
         last_edited_by: user.id,
+        last_edited_by_name: profile?.full_name || user.email || "Unknown user",
         last_edited_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         number_name: form.number_name,
