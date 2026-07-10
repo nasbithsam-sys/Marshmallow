@@ -521,57 +521,59 @@ export default function QuoMonitorPage() {
       // message text for every conversation is what made this endpoint average
       // 700ms+. Message-text search is handled by messageSearchQuery below,
       // which only runs when the user actually types a query.
-      const rows: ConversationRow[] = [];
       const PAGE_SIZE = 1000;
 
-      for (let from = 0; from < 20000; from += PAGE_SIZE) {
+      const fetchConversationsPage = async (from: number) => {
         const { data, error } = await db
           .from("quo_conversations")
           .select(`
             *,
             quo_phone_numbers (*),
-            ai_conversation_states (*),
-            ai_reminders (*),
-            ai_lead_links (*, leads (id, job_id, customer_name, status))
+            ai_lead_links (id, lead_id, match_type, confidence, leads (id, job_id, customer_name, status))
           `)
           // Exclude conversations with no customer number (internal/system events)
           .not("customer_number", "is", null)
           .neq("customer_number", "")
           .order("last_message_at", { ascending: false, nullsFirst: false })
           .range(from, from + PAGE_SIZE - 1);
-
         if (error) throw error;
-        const page = (data ?? []) as ConversationRow[];
-        rows.push(...page);
-        if (page.length < PAGE_SIZE) break;
-      }
+        return (data ?? []) as ConversationRow[];
+      };
 
-      const ids = rows.map((row) => row.id);
-      if (ids.length === 0) return rows;
-
-      // Batch IN() query in chunks to keep the URL under PostgREST's length limit.
-      const CHUNK = 100;
-      const allOpsStates: QuoOpsState[] = [];
-      for (let i = 0; i < ids.length; i += CHUNK) {
-        const chunk = ids.slice(i, i + CHUNK);
-        const { data: opsStates, error: opsError } = await db
+      // First page + ops-states fetched in parallel — the ops-state table is
+      // small (<1k rows) so we grab all of it in a single request instead of
+      // running one IN() query per 100-conversation chunk.
+      const [firstPage, opsStatesResp] = await Promise.all([
+        fetchConversationsPage(0),
+        db
           .from("quo_ai_conversation_state")
-          .select("conversation_id, waiting_on, urgency_level, confidence, risk_level, requires_human_review, human_review_reason, last_ai_checked_at")
-          .in("conversation_id", chunk);
-        if (opsError) throw opsError;
-        if (opsStates) allOpsStates.push(...(opsStates as QuoOpsState[]));
+          .select("conversation_id, waiting_on, urgency_level, confidence, risk_level, requires_human_review, human_review_reason, last_ai_checked_at"),
+      ]);
+
+      if ((opsStatesResp as { error: DbError }).error) {
+        throw (opsStatesResp as { error: DbError }).error;
       }
 
-      const opsByConversation = new Map(
-        allOpsStates.map((state) => [state.conversation_id, state]),
-      );
+      const rows: ConversationRow[] = [...firstPage];
+      if (firstPage.length === PAGE_SIZE) {
+        for (let from = PAGE_SIZE; from < 20000; from += PAGE_SIZE) {
+          const page = await fetchConversationsPage(from);
+          rows.push(...page);
+          if (page.length < PAGE_SIZE) break;
+        }
+      }
+
+      const opsStates = ((opsStatesResp as { data: QuoOpsState[] | null }).data ?? []) as QuoOpsState[];
+      const opsByConversation = new Map(opsStates.map((state) => [state.conversation_id, state]));
 
       return rows.map((row) => ({
         ...row,
         quo_ai_conversation_state: opsByConversation.get(row.id) ?? null,
       }));
     },
+    staleTime: 30_000,
   });
+
 
   // Fetch all registered Quo phone numbers so we can detect internal conversations
   const phoneNumbersQuery = useQuery({
@@ -583,7 +585,9 @@ export default function QuoMonitorPage() {
       if (error) throw error;
       return (data ?? []) as Array<{ number: string | null; display_number: string | null; quo_phone_number_id: string | null }>;
     },
+    staleTime: 5 * 60_000,
   });
+
 
   // Build a set of last-10-digit normalized Quo phone numbers for fast lookups
   // Uses last-10-digit matching, consistent with how the rest of the codebase normalizes Quo numbers
