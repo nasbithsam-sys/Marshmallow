@@ -13,6 +13,23 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function getErrorMessage(error: unknown) {
+  if (!error) return "Unknown error";
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (typeof error === "object") {
+    const candidate = error as Record<string, unknown>;
+    return String(
+      candidate.message ??
+        candidate.error_description ??
+        candidate.error ??
+        candidate.msg ??
+        JSON.stringify(candidate),
+    );
+  }
+  return String(error);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -230,18 +247,24 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "user_id is required" }, 400);
       }
 
+      if (user_id === callerId) {
+        return jsonResponse({ error: "You cannot delete your own account while signed in." }, 400);
+      }
+
       // 1. Delete the actual auth account first. This revokes login access and prevents
       // orphaned auth accounts if database cleanups fail. If the account is already gone,
       // we ignore the error (case-insensitively) and clean up database tables just in case.
       const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(user_id);
 
-      if (authDeleteError && !authDeleteError.message.toLowerCase().includes("user not found")) {
-        console.error("auth.admin.deleteUser failed:", authDeleteError.message);
+      const authDeleteMessage = getErrorMessage(authDeleteError);
+
+      if (authDeleteError && !authDeleteMessage.toLowerCase().includes("user not found")) {
+        console.error("auth.admin.deleteUser failed:", authDeleteMessage);
         return jsonResponse(
           {
             error:
               "The auth account could not be deleted: " +
-              authDeleteError.message,
+              authDeleteMessage,
           },
           400,
         );
