@@ -2062,6 +2062,13 @@ export default function QuoMonitorPage() {
           );
         })
       )}
+      {conversationsQuery.hasNextPage && (
+        <tr ref={loadMoreSentinelRef}>
+          <td colSpan={10} className="px-4 py-6 text-center text-xs text-slate-500">
+            {conversationsQuery.isFetchingNextPage ? "Loading more chats…" : "Scroll to load more"}
+          </td>
+        </tr>
+      )}
     </tbody>
   </table>
 </div>
