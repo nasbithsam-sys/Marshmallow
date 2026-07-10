@@ -60,7 +60,7 @@ export default function LeadPaymentRequests() {
       const [{ data: leads }, { data: profiles }] = await Promise.all([
         leadIds.length ? supabase.from("leads").select("*").in("id", leadIds) : Promise.resolve({ data: [] }),
         requesterIds.length
-          ? supabase.from("profiles").select("id, full_name").in("id", requesterIds)
+          ? supabase.from("profiles_public" as never).select("id, full_name").in("id", requesterIds)
           : Promise.resolve({ data: [] }),
       ]);
       const leadMap = new Map(((leads ?? []) as Lead[]).map((l) => [l.id, l]));

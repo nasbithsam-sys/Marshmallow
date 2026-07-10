@@ -67,11 +67,11 @@ export async function fetchPendingPaymentRequest(leadId: string): Promise<LeadPa
 
   if (request.requested_by) {
     const { data: profile } = await supabase
-      .from("profiles")
+      .from("profiles_public" as never)
       .select("full_name")
       .eq("id", request.requested_by)
       .maybeSingle();
-    request.requester_name = profile?.full_name || null;
+    request.requester_name = (profile as { full_name?: string } | null)?.full_name || null;
   }
 
   return request;

@@ -186,7 +186,7 @@ export async function logActivity(
   let resolvedName = userName || "";
 
   if (!resolvedName) {
-    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", userId).single();
+    const { data: profile } = await supabase.from("profiles_public" as never).select("full_name").eq("id", userId).single() as { data: { full_name?: string } | null };
 
     resolvedName = profile?.full_name || "Unknown user";
   }

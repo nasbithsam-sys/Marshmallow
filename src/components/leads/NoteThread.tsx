@@ -85,7 +85,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
     let cancelled = false;
 
     const fetchProfileNames = async () => {
-      const { data } = await supabase.from("profiles").select("id, full_name").in("id", missingUserIds);
+      const { data } = await supabase.from("profiles_public" as never).select("id, full_name").in("id", missingUserIds) as { data: { id: string; full_name: string | null }[] | null };
 
       if (!cancelled && data) {
         const nextProfiles = Object.fromEntries(

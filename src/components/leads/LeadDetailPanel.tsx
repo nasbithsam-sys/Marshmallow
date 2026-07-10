@@ -171,13 +171,13 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       if (!lead?.last_edited_by) return null;
 
       const { data, error } = await supabase
-        .from("profiles")
+        .from("profiles_public" as never)
         .select("full_name")
         .eq("id", lead.last_edited_by)
         .single();
 
       if (error) return null;
-      return data?.full_name || null;
+      return (data as { full_name?: string } | null)?.full_name || null;
     },
   });
 

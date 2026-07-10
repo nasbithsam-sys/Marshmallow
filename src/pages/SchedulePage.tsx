@@ -124,7 +124,7 @@ export default function SchedulePage() {
         .not("scheduled_date", "is", null)
         .gte("scheduled_date", startStr)
         .lte("scheduled_date", endStr),
-      supabase.from("profiles").select("id, full_name"),
+      supabase.from("profiles_public" as never).select("id, full_name"),
     ]);
 
     if (leadsRes.data) setLeads(leadsRes.data as Lead[]);
