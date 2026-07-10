@@ -61,7 +61,7 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
     if (!open) return;
 
     const fetchProfiles = async () => {
-      const { data, error } = await supabase.from("profiles").select("id, full_name");
+      const { data, error } = await supabase.from("profiles_public" as never).select("id, full_name") as { data: { id: string; full_name: string | null }[] | null; error: unknown };
       if (error) {
         console.error("Error fetching profiles:", error);
         return;

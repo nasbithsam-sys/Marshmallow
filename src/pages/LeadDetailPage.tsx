@@ -208,16 +208,16 @@ export default function LeadDetailPage() {
     "glass-panel rounded-[24px] border border-border/60 px-4 py-4 text-left transition-all duration-200 hover:border-primary/18 hover:shadow-[0_22px_40px_-28px_rgba(59,130,246,0.14)] dark:shadow-none";
 
   const fetchProfilesAndMeta = async (lead: Lead) => {
-    const { data: creator } = await supabase.from("profiles").select("full_name").eq("id", lead.created_by).single();
-    setCreatedBy(creator?.full_name || "Unknown");
+    const { data: creator } = await supabase.from("profiles_public" as never).select("full_name").eq("id", lead.created_by).single();
+    setCreatedBy((creator as { full_name?: string } | null)?.full_name || "Unknown");
 
     if (lead.last_edited_by) {
       const { data: editor } = await supabase
-        .from("profiles")
+        .from("profiles_public" as never)
         .select("full_name")
         .eq("id", lead.last_edited_by)
         .single();
-      setLastEditedBy(editor?.full_name || "Unknown");
+      setLastEditedBy((editor as { full_name?: string } | null)?.full_name || "Unknown");
     } else {
       setLastEditedBy("");
     }

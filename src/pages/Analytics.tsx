@@ -41,10 +41,10 @@ const Analytics = () => {
     queryKey: ["analytics-profiles"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("profiles")
+        .from("profiles_public" as never)
         .select("id, full_name");
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as { id: string; full_name: string | null }[];
     },
   });
 
