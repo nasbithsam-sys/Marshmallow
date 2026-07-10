@@ -145,26 +145,7 @@ export function compareLeadDisplayPriority(
 }
 
 const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
-  admin: [
-    "waiting_complete_details",
-    "urgent_job",
-    "quote_sent_waiting",
-    "post_visit_quote_sent_waiting",
-    "activate_customer",
-    "quote_sent_need_follow_up",
-    "needs_quote",
-    "tech_making_quote",
-    "waiting_customer_response",
-    "need_tech",
-    "scheduled",
-    "job_in_progress",
-    "needs_reschedule",
-    "job_done",
-    "payment_pending",
-    "cancelled",
-    "paid",
-    "partial_paid",
-  ],
+  admin: [...ALL_LEAD_STATUSES],
   customer_service: [
     "need_tech",
     "urgent_job",

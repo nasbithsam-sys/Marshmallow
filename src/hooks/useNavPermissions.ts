@@ -1,27 +1,11 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { canAccessNavItem } from '@/lib/access';
 
+/**
+ * Thin wrapper around AuthContext for nav-permission checks. AuthContext already
+ * loads `navigation_permissions` once per session, so re-querying here would
+ * duplicate work and risk drift when Settings mutates permissions.
+ */
 export const useNavPermissions = () => {
-  const { user, role } = useAuth();
-
-  const { data: permissions = [] } = useQuery({
-    queryKey: ['nav-permissions', user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data } = await supabase
-        .from('navigation_permissions')
-        .select('*')
-        .eq('user_id', user.id);
-      return data ?? [];
-    },
-    enabled: !!user,
-  });
-
-  const canAccess = (section: string): boolean => {
-    return canAccessNavItem(role, section, permissions as any);
-  };
-
+  const { permissions, canAccess } = useAuth();
   return { canAccess, permissions };
 };
