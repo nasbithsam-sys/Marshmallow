@@ -178,7 +178,7 @@ async function getBudgetStatus(supabase: SupabaseClient) {
   today.setUTCHours(0, 0, 0, 0);
   const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
 
-  const [{ count: dailyCalls }, { data: monthlyRows }] = await Promise.all([
+  const [{ count: dailyCalls }, { data: dailyRows }, { data: monthlyRows }] = await Promise.all([
     supabase
       .from("quo_ai_cost_logs")
       .select("id", { count: "exact", head: true })
@@ -186,20 +186,28 @@ async function getBudgetStatus(supabase: SupabaseClient) {
     supabase
       .from("quo_ai_cost_logs")
       .select("estimated_cost")
+      .gte("created_at", today.toISOString()),
+    supabase
+      .from("quo_ai_cost_logs")
+      .select("estimated_cost")
       .gte("created_at", monthStart.toISOString()),
   ]);
 
-  const monthlySpend = (monthlyRows ?? []).reduce(
-    (sum: number, row: { estimated_cost?: number | string | null }) => sum + Number(row.estimated_cost ?? 0),
-    0,
-  );
+  const sumCost = (rows: Array<{ estimated_cost?: number | string | null }> | null) =>
+    (rows ?? []).reduce((sum, row) => sum + Number(row.estimated_cost ?? 0), 0);
+
+  const monthlySpend = sumCost(monthlyRows as any);
+  const dailySpend = sumCost(dailyRows as any);
   const dailyCallLimit = envNumber("AI_DAILY_CALL_LIMIT", 500);
-  const dailyLimitReached = (dailyCalls ?? 0) >= dailyCallLimit;
+  const dailyHardCapUsd = envNumber("AI_DAILY_HARD_CAP_USD", 2);
+  const dailyLimitReached =
+    (dailyCalls ?? 0) >= dailyCallLimit || (dailyHardCapUsd > 0 && dailySpend >= dailyHardCapUsd);
   const mode = dailyLimitReached ? "stopped" : getBudgetMode(monthlySpend);
 
   return {
     mode,
     dailyCalls: dailyCalls ?? 0,
+    dailySpend,
     monthlySpend,
   };
 }
