@@ -515,10 +515,62 @@ export default function QuoMonitorPage() {
   const db = supabase as unknown as LooseSupabase;
   const isAdmin = role === "admin";
 
-  // Server-side pagination with automatic history hydration. The first large
-  // page loads immediately, then remaining pages are pulled in so older chats
-  // are available to date/search/number filters.
+  // Server-side pagination. First page loads immediately for fast render;
+  // remaining pages are pulled lazily via the scroll sentinel, OR eagerly
+  // when a filter/search is active so older chats become findable without
+  // manual scrolling. This keeps initial load light on Supabase.
   const CONVERSATIONS_PAGE_SIZE = 300;
+
+  const conversationsQuery = useInfiniteQuery({
+    queryKey: ["quo-ai-conversations"],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const from = (pageParam as number) * CONVERSATIONS_PAGE_SIZE;
+      const { data, error } = await db
+        .from("quo_conversations")
+        .select(`
+          id, quo_conversation_id, customer_name, customer_number,
+          last_message_preview, last_message_time, last_message_at,
+          last_customer_message_at, last_agent_message_at,
+          current_ai_section, current_priority, linked_lead_id,
+          ai_tags, rolling_ai_summary, last_ai_analyzed_at, raw_payload,
+          quo_phone_numbers ( id, quo_phone_number_id, name, label, number, display_number )
+        `)
+        .not("customer_number", "is", null)
+        .neq("customer_number", "")
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .range(from, from + CONVERSATIONS_PAGE_SIZE - 1);
+      if (error) throw error;
+      return (data ?? []) as ConversationRow[];
+    },
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === CONVERSATIONS_PAGE_SIZE ? allPages.length : undefined,
+    staleTime: 30_000,
+  });
+
+  // Only hydrate the full history when the user is actually filtering or
+  // searching — otherwise scrolling handles it. This avoids hammering
+  // Supabase (and the AI assistant that shares its budget) on every visit.
+  const hasActiveFilter =
+    search.trim() !== "" ||
+    sectionFilter !== "all" ||
+    confidenceFilter !== "all" ||
+    dateFilter !== "all" ||
+    linkedFilter !== "all" ||
+    tagFilter.trim() !== "";
+
+  useEffect(() => {
+    if (!hasActiveFilter) return;
+    if (conversationsQuery.hasNextPage && !conversationsQuery.isFetchingNextPage) {
+      conversationsQuery.fetchNextPage();
+    }
+  }, [
+    hasActiveFilter,
+    conversationsQuery.data?.pages.length,
+    conversationsQuery.hasNextPage,
+    conversationsQuery.isFetchingNextPage,
+    conversationsQuery.fetchNextPage,
+  ]);
 
   // Ops-state table is small (<1k rows); fetch once, merge in memo below.
   const opsStatesQuery = useQuery({
