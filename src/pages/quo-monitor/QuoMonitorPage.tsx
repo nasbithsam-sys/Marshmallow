@@ -984,9 +984,6 @@ export default function QuoMonitorPage() {
   const numberSummaries = useMemo(() => {
     const counts = new Map<string, { label: string; emoji: string; count: number; latest: string | null; urgent: number; hidden: boolean; sort: number }>();
 
-  const numberSummaries = useMemo(() => {
-    const counts = new Map<string, { label: string; emoji: string; count: number; latest: string | null; urgent: number; hidden: boolean; sort: number }>();
-
     // Accurate total-count per number, from the lightweight full-history query.
     const totalCountsById = new Map<string, number>();
     (numberCountsQuery.data ?? []).forEach((row) => {
