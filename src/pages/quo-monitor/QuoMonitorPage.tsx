@@ -515,9 +515,9 @@ export default function QuoMonitorPage() {
   const db = supabase as unknown as LooseSupabase;
   const isAdmin = role === "admin";
 
-  // Server-side pagination: first 200 rows load immediately, more pages
-  // fetch as the user scrolls the table (see IntersectionObserver sentinel
-  // in the table body below).
+  // Server-side pagination with automatic history hydration. The first large
+  // page loads immediately, then remaining pages are pulled in so older chats
+  // are available to date/search/number filters.
   const CONVERSATIONS_PAGE_SIZE = 1000;
 
   const conversationsQuery = useInfiniteQuery({
