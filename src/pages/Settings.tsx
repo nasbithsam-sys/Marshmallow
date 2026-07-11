@@ -765,7 +765,7 @@ const Settings = () => {
                 <span
                   className={cn(
                     "rounded-full border px-2.5 py-1 text-[10px] font-semibold capitalize",
-                    roleColors[u.role] || roleColors.no_role,
+                    roleColors[u.role] || DEFAULT_ROLE_COLOR,
                   )}
                 >
                   {u.role.replace("_", " ")}
