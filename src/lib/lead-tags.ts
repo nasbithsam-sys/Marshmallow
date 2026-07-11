@@ -5,13 +5,13 @@ const TAGS_BY_ROLE: Record<AppRole, CsTag[]> = {
   customer_service: ["ready_to_schedule", "confirmation_sent", "waiting_schedule_confirmation", "booked"],
   processor: ["ready_to_schedule", "waiting_schedule_confirmation"],
   opr: [],
-  no_role: [],
 };
 
-export function getAssignableLeadTags(role: AppRole): CsTag[] {
+export function getAssignableLeadTags(role: AppRole | null | undefined): CsTag[] {
+  if (!role) return [];
   return TAGS_BY_ROLE[role] ?? [];
 }
 
-export function canAssignLeadTag(role: AppRole, tag: CsTag): boolean {
+export function canAssignLeadTag(role: AppRole | null | undefined, tag: CsTag): boolean {
   return getAssignableLeadTags(role).includes(tag);
 }

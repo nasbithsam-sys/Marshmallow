@@ -55,26 +55,27 @@ const NAV_SECTION_LABELS: Record<string, string> = {
   cancellation_requests: "Lead Cancellation Requests",
 };
 
-const roleColors: Record<string, string> = {
+const roleColors: Record<AppRole, string> = {
   admin: "bg-primary/8 text-primary border-primary/10",
   processor: "bg-[hsl(var(--success)/0.08)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.1)]",
   customer_service: "bg-[hsl(var(--warning)/0.08)] text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.1)]",
   opr: "bg-[hsl(var(--destructive)/0.08)] text-[hsl(var(--destructive))] border-[hsl(var(--destructive)/0.12)]",
-  no_role: "bg-muted/70 text-muted-foreground border-border/60",
 };
+
+const DEFAULT_ROLE_COLOR = "bg-muted/70 text-muted-foreground border-border/60";
+
+const VALID_ROLES: AppRole[] = ["admin", "processor", "customer_service", "opr"];
 
 const formatRoleLabel = (role?: string | null) => {
-  if (!role) return "No Role";
+  if (!role) return "";
   return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 };
-
-type ManagedRole = AppRole | "no_role";
 
 interface SettingsUser {
   id: string;
   email: string | null;
   full_name: string | null;
-  role: ManagedRole;
+  role: AppRole;
 }
 
 interface AccessCodeRow {
@@ -171,14 +172,22 @@ const Settings = () => {
     queryFn: async () => {
       const { data: profiles } = await supabase.from("profiles").select("id, email, full_name");
       const { data: roles } = await supabase.from("user_roles").select("user_id, role");
-      const roleByUserId = new Map((roles ?? []).map((row) => [row.user_id, row.role as ManagedRole]));
+      const roleByUserId = new Map((roles ?? []).map((row) => [row.user_id, row.role as AppRole]));
 
-      return (profiles ?? []).map((profile) => ({
-        id: profile.id,
-        email: profile.email,
-        full_name: profile.full_name,
-        role: roleByUserId.get(profile.id) ?? "no_role",
-      }));
+      // Only show profiles that have a valid role. Profiles without a role are
+      // considered incomplete or leftover from a deletion and must not appear.
+      return (profiles ?? [])
+        .map((profile) => {
+          const assignedRole = roleByUserId.get(profile.id);
+          if (!assignedRole || !VALID_ROLES.includes(assignedRole)) return null;
+          return {
+            id: profile.id,
+            email: profile.email,
+            full_name: profile.full_name,
+            role: assignedRole,
+          } as SettingsUser;
+        })
+        .filter((entry): entry is SettingsUser => entry !== null);
     },
   });
 
@@ -323,7 +332,7 @@ const Settings = () => {
   const updateRole = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
       const existingUser = getUserById(userId);
-      const previousRole = existingUser?.role ?? "no_role";
+      const previousRole = existingUser?.role ?? null;
 
       const { data: existing } = await supabase.from("user_roles").select("id").eq("user_id", userId).single();
 
@@ -581,7 +590,7 @@ const Settings = () => {
       return override;
     }
 
-    if (!targetUser || targetUser.role === "no_role") {
+    if (!targetUser) {
       return false;
     }
 
@@ -598,7 +607,7 @@ const Settings = () => {
       return userOverride;
     }
 
-    if (!targetUser || targetUser.role === "admin" || targetUser.role === "no_role") {
+    if (!targetUser || targetUser.role === "admin") {
       return true;
     }
 
@@ -617,10 +626,6 @@ const Settings = () => {
   const enabledNavPermissions = useMemo(
     () =>
       nonAdminUsers.reduce((count, targetUser) => {
-        if (targetUser.role === "no_role") {
-          return count;
-        }
-
         const defaultAccess = getDefaultNavAccess(targetUser.role);
         return (
           count +
@@ -642,10 +647,6 @@ const Settings = () => {
           const userOverride = statusVisibilityByUserAndStatus.get(`${targetUser.id}:${status}`);
           if (typeof userOverride === "boolean") {
             return !userOverride;
-          }
-
-          if (targetUser.role === "no_role") {
-            return false;
           }
 
           return !(statusVisibilityByRoleAndStatus.get(`${targetUser.role}:${status}`) ?? true);
@@ -764,7 +765,7 @@ const Settings = () => {
                 <span
                   className={cn(
                     "rounded-full border px-2.5 py-1 text-[10px] font-semibold capitalize",
-                    roleColors[u.role] || roleColors.no_role,
+                    roleColors[u.role] || DEFAULT_ROLE_COLOR,
                   )}
                 >
                   {u.role.replace("_", " ")}

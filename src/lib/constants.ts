@@ -173,14 +173,14 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "cancelled",
     "partial_paid",
   ],
-  no_role: [],
   opr: [
     "partial_paid",
   ],
 };
 
 export function getChangeableStatuses(role?: string | null): LeadStatus[] {
-  return STATUS_CHANGE_ACCESS[(role as AppRole) || "no_role"] ?? [];
+  if (!role) return [];
+  return STATUS_CHANGE_ACCESS[role as AppRole] ?? [];
 }
 
 export function canChangeStatus(role: string | null | undefined, status: LeadStatus): boolean {

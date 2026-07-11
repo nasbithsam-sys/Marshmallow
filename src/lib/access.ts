@@ -6,10 +6,9 @@ const DEFAULT_NAV_ACCESS: Record<AppRole, Set<NavItem>> = {
   processor: new Set(["leads", "schedule", "cancellation_requests"]),
   customer_service: new Set(["leads", "schedule"]),
   opr: new Set(["leads"]),
-  no_role: new Set(),
 };
 
-export const canAccessCancellationRequests = (role: AppRole) =>
+export const canAccessCancellationRequests = (role: AppRole | null | undefined) =>
   role === "admin" || role === "processor";
 
 export function getDefaultNavAccess(role: AppRole): Set<NavItem> {
@@ -17,10 +16,14 @@ export function getDefaultNavAccess(role: AppRole): Set<NavItem> {
 }
 
 export function canAccessNavItem(
-  role: AppRole,
+  role: AppRole | null | undefined,
   navItem: string,
   permissions: NavigationPermission[] = [],
 ): boolean {
+  if (!role) {
+    return false;
+  }
+
   if (!ALL_NAV_ITEMS.includes(navItem as NavItem)) {
     return false;
   }
@@ -50,8 +53,8 @@ export function canAccessNavItem(
   return getDefaultNavAccess(role).has(navItem as NavItem);
 }
 
-export function getDefaultVisibleStatuses(role: AppRole): Set<LeadStatus> {
-  if (role === "no_role") {
+export function getDefaultVisibleStatuses(role: AppRole | null | undefined): Set<LeadStatus> {
+  if (!role) {
     return new Set();
   }
   if (role === "opr") {
