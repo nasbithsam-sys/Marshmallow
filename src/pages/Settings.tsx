@@ -55,26 +55,27 @@ const NAV_SECTION_LABELS: Record<string, string> = {
   cancellation_requests: "Lead Cancellation Requests",
 };
 
-const roleColors: Record<string, string> = {
+const roleColors: Record<AppRole, string> = {
   admin: "bg-primary/8 text-primary border-primary/10",
   processor: "bg-[hsl(var(--success)/0.08)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.1)]",
   customer_service: "bg-[hsl(var(--warning)/0.08)] text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.1)]",
   opr: "bg-[hsl(var(--destructive)/0.08)] text-[hsl(var(--destructive))] border-[hsl(var(--destructive)/0.12)]",
-  no_role: "bg-muted/70 text-muted-foreground border-border/60",
 };
+
+const DEFAULT_ROLE_COLOR = "bg-muted/70 text-muted-foreground border-border/60";
+
+const VALID_ROLES: AppRole[] = ["admin", "processor", "customer_service", "opr"];
 
 const formatRoleLabel = (role?: string | null) => {
-  if (!role) return "No Role";
+  if (!role) return "";
   return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 };
-
-type ManagedRole = AppRole | "no_role";
 
 interface SettingsUser {
   id: string;
   email: string | null;
   full_name: string | null;
-  role: ManagedRole;
+  role: AppRole;
 }
 
 interface AccessCodeRow {
