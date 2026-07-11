@@ -515,10 +515,11 @@ export default function QuoMonitorPage() {
   const db = supabase as unknown as LooseSupabase;
   const isAdmin = role === "admin";
 
-  // Server-side pagination with automatic history hydration. The first large
-  // page loads immediately, then remaining pages are pulled in so older chats
-  // are available to date/search/number filters.
-  const CONVERSATIONS_PAGE_SIZE = 1000;
+  // Server-side pagination. First page loads immediately for fast render;
+  // remaining pages are pulled lazily via the scroll sentinel, OR eagerly
+  // when a filter/search is active so older chats become findable without
+  // manual scrolling. This keeps initial load light on Supabase.
+  const CONVERSATIONS_PAGE_SIZE = 300;
 
   const conversationsQuery = useInfiniteQuery({
     queryKey: ["quo-ai-conversations"],
@@ -547,14 +548,24 @@ export default function QuoMonitorPage() {
     staleTime: 30_000,
   });
 
-  // The monitor needs the full conversation history for date/search/number
-  // filters. Loading only the first page made the table look like older chats
-  // were gone because the first page is dominated by the newest day.
+  // Only hydrate the full history when the user is actually filtering or
+  // searching — otherwise scrolling handles it. This avoids hammering
+  // Supabase (and the AI assistant that shares its budget) on every visit.
+  const hasActiveFilter =
+    search.trim() !== "" ||
+    sectionFilter !== "all" ||
+    confidenceFilter !== "all" ||
+    dateFilter !== "all" ||
+    linkedFilter !== "all" ||
+    tagFilter.trim() !== "";
+
   useEffect(() => {
+    if (!hasActiveFilter) return;
     if (conversationsQuery.hasNextPage && !conversationsQuery.isFetchingNextPage) {
       conversationsQuery.fetchNextPage();
     }
   }, [
+    hasActiveFilter,
     conversationsQuery.data?.pages.length,
     conversationsQuery.hasNextPage,
     conversationsQuery.isFetchingNextPage,
