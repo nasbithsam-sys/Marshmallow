@@ -591,14 +591,9 @@ export default function QuoMonitorPage() {
   const numberCountsQuery = useQuery({
     queryKey: ["quo-ai-conversations-number-counts"],
     queryFn: async () => {
-      const { data, error } = await db
-        .from("quo_conversations")
-        .select("id, quo_phone_numbers ( id )")
-        .not("customer_number", "is", null)
-        .neq("customer_number", "")
-        .limit(20000);
+      const { data, error } = await (db as any).rpc("quo_conversation_counts_by_number");
       if (error) throw error;
-      return (data ?? []) as Array<{ id: string; quo_phone_numbers: { id: string } | null }>;
+      return (data ?? []) as Array<{ phone_number_id: string | null; total: number }>;
     },
     staleTime: 5 * 60_000,
   });
