@@ -984,6 +984,16 @@ export default function QuoMonitorPage() {
   const numberSummaries = useMemo(() => {
     const counts = new Map<string, { label: string; emoji: string; count: number; latest: string | null; urgent: number; hidden: boolean; sort: number }>();
 
+  const numberSummaries = useMemo(() => {
+    const counts = new Map<string, { label: string; emoji: string; count: number; latest: string | null; urgent: number; hidden: boolean; sort: number }>();
+
+    // Accurate total-count per number, from the lightweight full-history query.
+    const totalCountsById = new Map<string, number>();
+    (numberCountsQuery.data ?? []).forEach((row) => {
+      const id = row.quo_phone_numbers?.id ?? "unknown";
+      totalCountsById.set(id, (totalCountsById.get(id) ?? 0) + 1);
+    });
+
     conversations.forEach((conversation) => {
       const number = conversation.quo_phone_numbers;
       const id = number?.id ?? "unknown";
@@ -1008,6 +1018,26 @@ export default function QuoMonitorPage() {
       counts.set(id, existing);
     });
 
+    // Ensure numbers that exist in the full history but haven't loaded into
+    // the paginated table yet still appear with the correct count.
+    totalCountsById.forEach((total, id) => {
+      const existing = counts.get(id);
+      if (existing) {
+        existing.count = total;
+      } else {
+        const preference = id !== "unknown" ? preferenceByNumberId.get(id) : null;
+        counts.set(id, {
+          label: id === "unknown" ? "Other / Web" : (preference?.label ?? preference?.name ?? "Unknown number"),
+          emoji: id === "unknown" ? "🌐" : getPreferredQuoNumberEmoji(preference),
+          count: total,
+          latest: null,
+          urgent: 0,
+          hidden: Boolean(preference?.hidden),
+          sort: id === "unknown" ? 9998 : (preference?.sort_order ?? 9999),
+        });
+      }
+    });
+
     return Array.from(counts.entries()).sort(([, left], [, right]) => {
       if (left.hidden !== right.hidden) return Number(left.hidden) - Number(right.hidden);
       if (left.sort !== right.sort) return left.sort - right.sort;
@@ -1015,7 +1045,7 @@ export default function QuoMonitorPage() {
       const rightTime = right.latest ? new Date(right.latest).getTime() : 0;
       return rightTime - leftTime;
     });
-  }, [conversations, preferenceByNumberId]);
+  }, [conversations, preferenceByNumberId, numberCountsQuery.data]);
   const tagSummaries = useMemo(() => {
     const counts = new Map<string, number>();
 
