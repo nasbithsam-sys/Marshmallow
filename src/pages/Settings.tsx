@@ -332,7 +332,7 @@ const Settings = () => {
   const updateRole = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
       const existingUser = getUserById(userId);
-      const previousRole = existingUser?.role ?? "no_role";
+      const previousRole = existingUser?.role ?? null;
 
       const { data: existing } = await supabase.from("user_roles").select("id").eq("user_id", userId).single();
 
