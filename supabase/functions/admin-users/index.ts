@@ -202,6 +202,17 @@ Deno.serve(async (req) => {
     if (action === "create_user") {
       const { email, password, full_name, role, access_code } = body;
 
+      const VALID_ROLES = ["admin", "processor", "customer_service", "opr"] as const;
+      if (!role || !VALID_ROLES.includes(role)) {
+        return jsonResponse(
+          {
+            error:
+              "A valid role is required. Choose Admin, Processor, Customer Service, or OPR.",
+          },
+          400,
+        );
+      }
+
       const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
         password,
@@ -216,11 +227,48 @@ Deno.serve(async (req) => {
 
       const userId = newUser.user.id;
 
-      await adminClient.from("profiles").insert({ id: userId, full_name, email });
-      await adminClient.from("user_roles").insert({ user_id: userId, role: role || "no_role" });
+      // Provision the profile + role together. If any of the required rows
+      // cannot be created we roll back the newly-created auth account so we
+      // never leave a half-provisioned user that could sign in without a role.
+      const rollback = async (reason: string) => {
+        console.error("Rolling back new auth user after create_user failure:", reason);
+        await adminClient.from("user_access_codes").delete().eq("user_id", userId);
+        await adminClient.from("user_roles").delete().eq("user_id", userId);
+        await adminClient.from("profiles").delete().eq("id", userId);
+        try {
+          await adminClient.auth.admin.deleteUser(userId);
+        } catch (err) {
+          console.error("Rollback deleteUser failed:", getErrorMessage(err));
+        }
+      };
+
+      const { error: profileError } = await adminClient
+        .from("profiles")
+        .insert({ id: userId, full_name, email });
+      if (profileError) {
+        await rollback(profileError.message);
+        return jsonResponse({ error: "Failed to create profile: " + profileError.message }, 400);
+      }
+
+      const { error: roleError } = await adminClient
+        .from("user_roles")
+        .insert({ user_id: userId, role });
+      if (roleError) {
+        await rollback(roleError.message);
+        return jsonResponse({ error: "Failed to assign role: " + roleError.message }, 400);
+      }
 
       if (role !== "admin" && access_code) {
-        await adminClient.from("user_access_codes").insert({ user_id: userId, code: access_code });
+        const { error: codeError } = await adminClient
+          .from("user_access_codes")
+          .insert({ user_id: userId, code: access_code });
+        if (codeError) {
+          await rollback(codeError.message);
+          return jsonResponse(
+            { error: "Failed to save access code: " + codeError.message },
+            400,
+          );
+        }
       }
 
       return jsonResponse({ success: true, user_id: userId });
