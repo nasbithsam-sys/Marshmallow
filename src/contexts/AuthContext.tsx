@@ -110,31 +110,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadPendingFromStorage(nextSession);
   };
 
+  const VALID_ROLES: AppRole[] = ["admin", "processor", "customer_service", "opr"];
+
+  const forceSignOutOrphan = async () => {
+    // The signed-in account no longer has a profile or a valid role. Clear
+    // every trace of authentication and let the app redirect to /login.
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn("Failed to sign out orphan session", err);
+    }
+    window.localStorage.removeItem(VERIFIED_USER_KEY);
+    window.localStorage.removeItem(PENDING_AUTH_KEY);
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+    setRole(null);
+    setPermissions([]);
+    setProfileLoaded(true);
+    setFullyAuthenticated(false);
+    setPendingStep("none");
+    setPendingUserId(null);
+    setPendingMfaFactorId(null);
+  };
+
   const fetchUserData = async (userId: string) => {
     const [profileRes, roleRes, permRes] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", userId).single(),
-      supabase.from("user_roles").select("role").eq("user_id", userId).single(),
+      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
       supabase.from("navigation_permissions").select("*").eq("user_id", userId),
     ]);
 
-    if (profileRes.data) {
-      setProfile(profileRes.data as Profile);
-    } else {
-      setProfile(null);
+    const loadedProfile = profileRes.data as Profile | null;
+    const loadedRoleRaw = roleRes.data?.role as string | undefined;
+    const loadedRole = VALID_ROLES.includes(loadedRoleRaw as AppRole) ? (loadedRoleRaw as AppRole) : null;
+
+    // If the profile or a valid role is missing, the account was deleted or
+    // never fully provisioned. Force the session out immediately.
+    if (!loadedProfile || !loadedRole) {
+      await forceSignOutOrphan();
+      return;
     }
 
-    if (roleRes.data) {
-      setRole(roleRes.data.role as AppRole);
-    } else {
-      setRole("no_role");
-    }
-
-    if (permRes.data) {
-      setPermissions(permRes.data as NavigationPermission[]);
-    } else {
-      setPermissions([]);
-    }
-
+    setProfile(loadedProfile);
+    setRole(loadedRole);
+    setPermissions((permRes.data ?? []) as NavigationPermission[]);
     setProfileLoaded(true);
   };
 
