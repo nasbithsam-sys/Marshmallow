@@ -172,14 +172,22 @@ const Settings = () => {
     queryFn: async () => {
       const { data: profiles } = await supabase.from("profiles").select("id, email, full_name");
       const { data: roles } = await supabase.from("user_roles").select("user_id, role");
-      const roleByUserId = new Map((roles ?? []).map((row) => [row.user_id, row.role as ManagedRole]));
+      const roleByUserId = new Map((roles ?? []).map((row) => [row.user_id, row.role as AppRole]));
 
-      return (profiles ?? []).map((profile) => ({
-        id: profile.id,
-        email: profile.email,
-        full_name: profile.full_name,
-        role: roleByUserId.get(profile.id) ?? "no_role",
-      }));
+      // Only show profiles that have a valid role. Profiles without a role are
+      // considered incomplete or leftover from a deletion and must not appear.
+      return (profiles ?? [])
+        .map((profile) => {
+          const assignedRole = roleByUserId.get(profile.id);
+          if (!assignedRole || !VALID_ROLES.includes(assignedRole)) return null;
+          return {
+            id: profile.id,
+            email: profile.email,
+            full_name: profile.full_name,
+            role: assignedRole,
+          } as SettingsUser;
+        })
+        .filter((entry): entry is SettingsUser => entry !== null);
     },
   });
 
