@@ -242,9 +242,11 @@ Deno.serve(async (req) => {
         }
       };
 
+      // Use upsert because an Auth trigger (handle_new_user) may have already
+      // inserted the profile row for this user id.
       const { error: profileError } = await adminClient
         .from("profiles")
-        .insert({ id: userId, full_name, email });
+        .upsert({ id: userId, full_name, email }, { onConflict: "id" });
       if (profileError) {
         await rollback(profileError.message);
         return jsonResponse({ error: "Failed to create profile: " + profileError.message }, 400);
@@ -252,7 +254,7 @@ Deno.serve(async (req) => {
 
       const { error: roleError } = await adminClient
         .from("user_roles")
-        .insert({ user_id: userId, role });
+        .upsert({ user_id: userId, role }, { onConflict: "user_id,role" });
       if (roleError) {
         await rollback(roleError.message);
         return jsonResponse({ error: "Failed to assign role: " + roleError.message }, 400);
