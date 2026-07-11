@@ -19,7 +19,7 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
-  role: AppRole;
+  role: AppRole | null;
   permissions: NavigationPermission[];
   loading: boolean;
   profileLoaded: boolean;
