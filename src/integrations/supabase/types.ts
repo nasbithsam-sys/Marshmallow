@@ -2421,6 +2421,13 @@ export type Database = {
             }
             Returns: boolean
           }
+      quo_conversation_counts_by_number: {
+        Args: never
+        Returns: {
+          phone_number_id: string
+          total: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "processor" | "customer_service" | "opr"
