@@ -1024,7 +1024,7 @@ export default function QuoMonitorPage() {
       } else {
         const preference = id !== "unknown" ? preferenceByNumberId.get(id) : null;
         counts.set(id, {
-          label: id === "unknown" ? "Other / Web" : (preference?.label ?? preference?.name ?? "Unknown number"),
+          label: id === "unknown" ? "Other / Web" : "Unknown number",
           emoji: id === "unknown" ? "🌐" : getPreferredQuoNumberEmoji(preference),
           count: total,
           latest: null,
