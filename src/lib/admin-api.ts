@@ -6,9 +6,26 @@ async function callAdminFunction(body: Record<string, unknown>) {
   });
 
   if (error) {
-    // Parse the error for user-friendly messages
-    const msg = error.message || '';
-    
+    // supabase-js FunctionsHttpError attaches the raw Response on error.context.
+    // Read it so we surface the real backend error instead of "non-2xx status code".
+    let backendMessage: string | null = null;
+    const ctx = (error as unknown as { context?: Response }).context;
+    if (ctx && typeof ctx.json === 'function') {
+      try {
+        const parsed = await ctx.clone().json();
+        backendMessage = parsed?.error || parsed?.message || null;
+      } catch {
+        try {
+          backendMessage = await ctx.clone().text();
+        } catch {
+          backendMessage = null;
+        }
+      }
+    }
+
+    const msg = backendMessage || error.message || '';
+    console.error('admin-users function error:', msg, error);
+
     if (msg.includes('NOT_FOUND') || msg.includes('not found') || msg.includes('Failed to fetch')) {
       throw new Error('Admin backend is not deployed. Please redeploy the edge function from Supabase dashboard.');
     }
@@ -21,7 +38,6 @@ async function callAdminFunction(body: Record<string, unknown>) {
     throw new Error(msg || 'Admin action failed');
   }
 
-  // supabase.functions.invoke returns parsed data directly
   if (data?.error) {
     throw new Error(data.error);
   }
