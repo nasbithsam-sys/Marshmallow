@@ -585,6 +585,24 @@ export default function QuoMonitorPage() {
     staleTime: 30_000,
   });
 
+  // Lightweight full-history query: only phone-number FK per conversation.
+  // Used to compute accurate per-number counts without loading full rows.
+  // Cached for 5 minutes so it doesn't re-run on every render.
+  const numberCountsQuery = useQuery({
+    queryKey: ["quo-ai-conversations-number-counts"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("quo_conversations")
+        .select("id, quo_phone_numbers ( id )")
+        .not("customer_number", "is", null)
+        .neq("customer_number", "")
+        .limit(20000);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; quo_phone_numbers: { id: string } | null }>;
+    },
+    staleTime: 5 * 60_000,
+  });
+
   // Auto-fetch next page when the sentinel row scrolls into view.
   useEffect(() => {
     const node = loadMoreSentinelRef.current;
@@ -966,6 +984,16 @@ export default function QuoMonitorPage() {
   const numberSummaries = useMemo(() => {
     const counts = new Map<string, { label: string; emoji: string; count: number; latest: string | null; urgent: number; hidden: boolean; sort: number }>();
 
+  const numberSummaries = useMemo(() => {
+    const counts = new Map<string, { label: string; emoji: string; count: number; latest: string | null; urgent: number; hidden: boolean; sort: number }>();
+
+    // Accurate total-count per number, from the lightweight full-history query.
+    const totalCountsById = new Map<string, number>();
+    (numberCountsQuery.data ?? []).forEach((row) => {
+      const id = row.quo_phone_numbers?.id ?? "unknown";
+      totalCountsById.set(id, (totalCountsById.get(id) ?? 0) + 1);
+    });
+
     conversations.forEach((conversation) => {
       const number = conversation.quo_phone_numbers;
       const id = number?.id ?? "unknown";
@@ -990,6 +1018,26 @@ export default function QuoMonitorPage() {
       counts.set(id, existing);
     });
 
+    // Ensure numbers that exist in the full history but haven't loaded into
+    // the paginated table yet still appear with the correct count.
+    totalCountsById.forEach((total, id) => {
+      const existing = counts.get(id);
+      if (existing) {
+        existing.count = total;
+      } else {
+        const preference = id !== "unknown" ? preferenceByNumberId.get(id) : null;
+        counts.set(id, {
+          label: id === "unknown" ? "Other / Web" : (preference?.label ?? preference?.name ?? "Unknown number"),
+          emoji: id === "unknown" ? "🌐" : getPreferredQuoNumberEmoji(preference),
+          count: total,
+          latest: null,
+          urgent: 0,
+          hidden: Boolean(preference?.hidden),
+          sort: id === "unknown" ? 9998 : (preference?.sort_order ?? 9999),
+        });
+      }
+    });
+
     return Array.from(counts.entries()).sort(([, left], [, right]) => {
       if (left.hidden !== right.hidden) return Number(left.hidden) - Number(right.hidden);
       if (left.sort !== right.sort) return left.sort - right.sort;
@@ -997,7 +1045,7 @@ export default function QuoMonitorPage() {
       const rightTime = right.latest ? new Date(right.latest).getTime() : 0;
       return rightTime - leftTime;
     });
-  }, [conversations, preferenceByNumberId]);
+  }, [conversations, preferenceByNumberId, numberCountsQuery.data]);
   const tagSummaries = useMemo(() => {
     const counts = new Map<string, number>();
 
