@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
 
       const { error: roleError } = await adminClient
         .from("user_roles")
-        .insert({ user_id: userId, role });
+        .upsert({ user_id: userId, role }, { onConflict: "user_id,role" });
       if (roleError) {
         await rollback(roleError.message);
         return jsonResponse({ error: "Failed to assign role: " + roleError.message }, 400);
