@@ -102,8 +102,10 @@ function chooseModel(kind: "fast" | "main" | "risk") {
 
 function usesMaxCompletionTokens(model: string) {
   const normalized = model.trim().toLowerCase();
-  const modernFamilies = ["o1", "o3", "o4", "gpt-5", "gpt-5.4", "gpt-5.5"];
-  return modernFamilies.some((family) => normalized === family || normalized.startsWith(`${family}-`));
+  // All modern OpenAI models accept (and reasoning models REQUIRE) max_completion_tokens.
+  // Prefer it for anything gpt-4o / gpt-4.1 / gpt-5 / o-series; fall back to max_tokens only for legacy.
+  const modernFamilies = ["o1", "o3", "o4", "gpt-4o", "gpt-4.1", "gpt-5"];
+  return modernFamilies.some((family) => normalized === family || normalized.startsWith(`${family}-`) || normalized.startsWith(`${family}.`));
 }
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number) {
