@@ -984,9 +984,6 @@ export default function QuoMonitorPage() {
   const numberSummaries = useMemo(() => {
     const counts = new Map<string, { label: string; emoji: string; count: number; latest: string | null; urgent: number; hidden: boolean; sort: number }>();
 
-  const numberSummaries = useMemo(() => {
-    const counts = new Map<string, { label: string; emoji: string; count: number; latest: string | null; urgent: number; hidden: boolean; sort: number }>();
-
     // Accurate total-count per number, from the lightweight full-history query.
     const totalCountsById = new Map<string, number>();
     (numberCountsQuery.data ?? []).forEach((row) => {
@@ -1027,7 +1024,7 @@ export default function QuoMonitorPage() {
       } else {
         const preference = id !== "unknown" ? preferenceByNumberId.get(id) : null;
         counts.set(id, {
-          label: id === "unknown" ? "Other / Web" : (preference?.label ?? preference?.name ?? "Unknown number"),
+          label: id === "unknown" ? "Other / Web" : "Unknown number",
           emoji: id === "unknown" ? "🌐" : getPreferredQuoNumberEmoji(preference),
           count: total,
           latest: null,
