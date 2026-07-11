@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
     // Preserve any previously-set linked_lead_id so re-upserts don't wipe manual/AI links.
     const { data: existingConversation } = await supabase
       .from("quo_conversations")
-      .select("linked_lead_id")
+      .select("linked_lead_id, last_message_at")
       .eq("quo_conversation_id", conversation.id)
       .maybeSingle();
 
@@ -273,27 +273,35 @@ Deno.serve(async (req) => {
       existingLead?.id ?? existingConversation?.linked_lead_id ?? null;
 
     const messageTime = new Date(message.createdAt).toISOString();
+    const existingLastAt = existingConversation?.last_message_at
+      ? new Date(existingConversation.last_message_at).getTime()
+      : 0;
+    const isNewer = new Date(messageTime).getTime() >= existingLastAt;
+
+    const conversationUpsert: Record<string, unknown> = {
+      quo_conversation_id: conversation.id,
+      customer_name: conversation.customerName,
+      customer_number: conversation.customerNumber,
+      number_id: phoneNumberRowId,
+      linked_lead_id: preservedLinkedLeadId,
+      status: "active",
+      current_status: "open",
+      raw_payload: payload,
+    };
+
+    // Only overwrite "last message" fields when this event is actually the newest one seen.
+    if (isNewer) {
+      conversationUpsert.last_message_preview = getQuoMessagePreview(message.text, message.media);
+      conversationUpsert.last_message_time = messageTime;
+      conversationUpsert.last_message_at = messageTime;
+      conversationUpsert.direction = message.direction === "inbound" ? "incoming" : "outgoing";
+      if (message.sender === "customer") conversationUpsert.last_customer_message_at = messageTime;
+      if (message.sender === "agent") conversationUpsert.last_agent_message_at = messageTime;
+    }
+
     const { data: conversationRow, error: conversationError } = await supabase
       .from("quo_conversations")
-      .upsert(
-        {
-          quo_conversation_id: conversation.id,
-          customer_name: conversation.customerName,
-          customer_number: conversation.customerNumber,
-          number_id: phoneNumberRowId,
-          linked_lead_id: preservedLinkedLeadId,
-          last_message_preview: getQuoMessagePreview(message.text, message.media),
-          last_message_time: messageTime,
-          last_message_at: messageTime,
-          last_customer_message_at: message.sender === "customer" ? messageTime : undefined,
-          last_agent_message_at: message.sender === "agent" ? messageTime : undefined,
-          direction: message.direction === "inbound" ? "incoming" : "outgoing",
-          status: "active",
-          current_status: "open",
-          raw_payload: payload,
-        },
-        { onConflict: "quo_conversation_id" },
-      )
+      .upsert(conversationUpsert, { onConflict: "quo_conversation_id" })
       .select("id, linked_lead_id")
       .single();
 
