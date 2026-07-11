@@ -518,7 +518,7 @@ export default function QuoMonitorPage() {
   // Server-side pagination: first 200 rows load immediately, more pages
   // fetch as the user scrolls the table (see IntersectionObserver sentinel
   // in the table body below).
-  const CONVERSATIONS_PAGE_SIZE = 200;
+  const CONVERSATIONS_PAGE_SIZE = 1000;
 
   const conversationsQuery = useInfiniteQuery({
     queryKey: ["quo-ai-conversations"],
@@ -546,6 +546,20 @@ export default function QuoMonitorPage() {
       lastPage.length === CONVERSATIONS_PAGE_SIZE ? allPages.length : undefined,
     staleTime: 30_000,
   });
+
+  // The monitor needs the full conversation history for date/search/number
+  // filters. Loading only the first page made the table look like older chats
+  // were gone because the first page is dominated by the newest day.
+  useEffect(() => {
+    if (conversationsQuery.hasNextPage && !conversationsQuery.isFetchingNextPage) {
+      conversationsQuery.fetchNextPage();
+    }
+  }, [
+    conversationsQuery.data?.pages.length,
+    conversationsQuery.hasNextPage,
+    conversationsQuery.isFetchingNextPage,
+    conversationsQuery.fetchNextPage,
+  ]);
 
   // Ops-state table is small (<1k rows); fetch once, merge in memo below.
   const opsStatesQuery = useQuery({
