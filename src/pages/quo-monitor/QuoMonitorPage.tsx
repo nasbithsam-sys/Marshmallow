@@ -982,8 +982,8 @@ export default function QuoMonitorPage() {
     // Accurate total-count per number, from the lightweight full-history query.
     const totalCountsById = new Map<string, number>();
     (numberCountsQuery.data ?? []).forEach((row) => {
-      const id = row.quo_phone_numbers?.id ?? "unknown";
-      totalCountsById.set(id, (totalCountsById.get(id) ?? 0) + 1);
+      const id = row.phone_number_id ?? "unknown";
+      totalCountsById.set(id, (totalCountsById.get(id) ?? 0) + Number(row.total ?? 0));
     });
 
     conversations.forEach((conversation) => {
