@@ -1001,7 +1001,7 @@ export default function QuoMonitorPage() {
         sort: id === "unknown" ? 9998 : (preference?.sort_order ?? 9999),
       };
       const lastActivity = conversation.last_message_at ?? conversation.last_message_time;
-      existing.count += 1;
+      // NOTE: do NOT increment count here — count comes from the RPC total below.
       existing.urgent += getPriority(conversation) === "urgent" ? 1 : 0;
       existing.latest =
         !existing.latest || (lastActivity && new Date(lastActivity).getTime() > new Date(existing.latest).getTime())
@@ -1010,8 +1010,7 @@ export default function QuoMonitorPage() {
       counts.set(id, existing);
     });
 
-    // Ensure numbers that exist in the full history but haven't loaded into
-    // the paginated table yet still appear with the correct count.
+    // Authoritative per-number totals from the aggregate RPC.
     totalCountsById.forEach((total, id) => {
       const existing = counts.get(id);
       if (existing) {
@@ -1029,6 +1028,13 @@ export default function QuoMonitorPage() {
         });
       }
     });
+
+    // If the RPC hasn't returned yet, fall back to loaded-row count so we don't show 0.
+    if (totalCountsById.size === 0) {
+      counts.forEach((entry, id) => {
+        entry.count = conversations.filter((c) => (c.quo_phone_numbers?.id ?? "unknown") === id).length;
+      });
+    }
 
     return Array.from(counts.entries()).sort(([, left], [, right]) => {
       if (left.hidden !== right.hidden) return Number(left.hidden) - Number(right.hidden);
