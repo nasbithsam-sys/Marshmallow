@@ -696,11 +696,23 @@ async function createBudgetReviewTask(
   });
 }
 
+async function reapStaleJobs(supabase: SupabaseClient) {
+  // Release jobs stuck in `running` (worker crash / timeout) so they can be retried.
+  const staleCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
+  await supabase
+    .from("quo_ai_jobs")
+    .update({ status: "pending", locked_at: null, locked_by: null, run_after: new Date().toISOString() })
+    .eq("status", "running")
+    .lt("locked_at", staleCutoff);
+}
+
 async function processPendingJobs(supabase: SupabaseClient, body: Record<string, unknown>) {
   const batchSize = clampBatchSize(body.batch_size);
   const requestedJobIds = parseJobIds(body.job_ids);
   const forceAi = body.force_ai === true || requestedJobIds.length > 0;
   const workerId = crypto.randomUUID();
+
+  await reapStaleJobs(supabase);
 
   let jobsQuery = supabase
     .from("quo_ai_jobs")
