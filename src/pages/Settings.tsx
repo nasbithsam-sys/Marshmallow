@@ -590,7 +590,7 @@ const Settings = () => {
       return override;
     }
 
-    if (!targetUser || targetUser.role === "no_role") {
+    if (!targetUser) {
       return false;
     }
 
@@ -607,7 +607,7 @@ const Settings = () => {
       return userOverride;
     }
 
-    if (!targetUser || targetUser.role === "admin" || targetUser.role === "no_role") {
+    if (!targetUser || targetUser.role === "admin") {
       return true;
     }
 
@@ -626,10 +626,6 @@ const Settings = () => {
   const enabledNavPermissions = useMemo(
     () =>
       nonAdminUsers.reduce((count, targetUser) => {
-        if (targetUser.role === "no_role") {
-          return count;
-        }
-
         const defaultAccess = getDefaultNavAccess(targetUser.role);
         return (
           count +
@@ -651,10 +647,6 @@ const Settings = () => {
           const userOverride = statusVisibilityByUserAndStatus.get(`${targetUser.id}:${status}`);
           if (typeof userOverride === "boolean") {
             return !userOverride;
-          }
-
-          if (targetUser.role === "no_role") {
-            return false;
           }
 
           return !(statusVisibilityByRoleAndStatus.get(`${targetUser.role}:${status}`) ?? true);
