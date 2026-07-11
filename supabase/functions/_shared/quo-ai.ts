@@ -235,10 +235,13 @@ export function validateQuoAiOpsCaseOutput(
   if (!isJsonObject(data.customer_situation)) {
     if (typeof data.customer_situation === "string" && data.customer_situation.trim()) {
       data.customer_situation = { description: data.customer_situation.trim() };
+    } else if (Array.isArray(data.customer_situation)) {
+      data.customer_situation = { items: data.customer_situation };
     } else if (data.customer_situation == null) {
       data.customer_situation = {};
     } else {
-      return { ok: false, error: "customer_situation must be an object." };
+      // Last-resort coercion: wrap primitive so validation never blocks tag saving.
+      data.customer_situation = { value: String(data.customer_situation) };
     }
   }
   if (!allowedOpsWaitingOn.has(String(data.waiting_on))) return { ok: false, error: "Invalid waiting_on." };

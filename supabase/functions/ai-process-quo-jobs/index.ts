@@ -102,8 +102,10 @@ function chooseModel(kind: "fast" | "main" | "risk") {
 
 function usesMaxCompletionTokens(model: string) {
   const normalized = model.trim().toLowerCase();
-  const modernFamilies = ["o1", "o3", "o4", "gpt-5", "gpt-5.4", "gpt-5.5"];
-  return modernFamilies.some((family) => normalized === family || normalized.startsWith(`${family}-`));
+  // All modern OpenAI models accept (and reasoning models REQUIRE) max_completion_tokens.
+  // Prefer it for anything gpt-4o / gpt-4.1 / gpt-5 / o-series; fall back to max_tokens only for legacy.
+  const modernFamilies = ["o1", "o3", "o4", "gpt-4o", "gpt-4.1", "gpt-5"];
+  return modernFamilies.some((family) => normalized === family || normalized.startsWith(`${family}-`) || normalized.startsWith(`${family}.`));
 }
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number) {
@@ -372,12 +374,13 @@ function buildCasePrompt(context: Awaited<ReturnType<typeof loadContext>>, jobTy
           "Complaints, angry customers, cancellation risk, payment issues, uncertain scheduling, conflicting evidence, and customer-loss risk require human review.",
           "Prefer rule-based no-op if nothing meaningful changed.",
           "Tasks must be internal staff instructions, never automatic customer messages.",
-          "Create one primary plain-English customer situation tag that staff can scan in a table.",
-          "For tagging, prioritize the latest 3 to 5 messages together, not only the final message.",
-          "If the latest 3 to 5 messages are too short, emoji-only, media-only, or ambiguous, use the broader recent message context before deciding.",
+          "ALWAYS emit exactly one primary situation tag in `tags[0]` describing what is happening RIGHT NOW, derived from the last 3-5 messages. Never leave tags empty. Never return 'needs human review' as the tag.",
+          "ALSO set `current_status` to a short staff-scannable label (e.g. 'waiting_customer_response', 'quote_sent_waiting', 'job_scheduled', 'reschedule_needed', 'payment_follow_up', 'customer_ghosted', 'complaint', 'spam_or_marketing').",
+          "Read the latest 3 to 5 messages together to infer the situation; if those messages are short, emoji-only, media-only, or ambiguous, expand to earlier messages until the situation is clear.",
           "If messages contain media without text, treat it as pictures/videos sent and infer cautiously from surrounding messages.",
-          "Home repair workflow examples: Customer Waiting For Quote, We Need Pictures For Quote, Quote Sent Waiting Customer, Customer Ghosted, Spam Or Marketing Call, Customer Found Other Tech, Customer Fixed Issue, Customer Cancelled Job, Waiting Customer Response, Job Scheduled, Reschedule Needed, Payment Follow Up, Complaint Or Manager Review.",
-          "Tags must describe the current situation, not just intent. Use short staff-friendly wording.",
+          "Home repair workflow examples for the primary tag: Customer Waiting For Quote, We Need Pictures For Quote, Quote Sent Waiting Customer, Customer Ghosted, Spam Or Marketing Call, Customer Found Other Tech, Customer Fixed Issue, Customer Cancelled Job, Waiting Customer Response, Job Scheduled, Reschedule Needed, Payment Follow Up, Complaint Or Manager Review.",
+          "Tags must describe the current situation, not just intent. Use short staff-friendly wording (2-5 words, Title Case).",
+          "`customer_situation` MUST be a JSON object (not a string, not an array). Include short keys like { summary, last_customer_message, last_staff_message, awaiting }.",
         ],
         required_json_schema: {
           case_summary: "short persistent case summary",
@@ -694,11 +697,23 @@ async function createBudgetReviewTask(
   });
 }
 
+async function reapStaleJobs(supabase: SupabaseClient) {
+  // Release jobs stuck in `running` (worker crash / timeout) so they can be retried.
+  const staleCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
+  await supabase
+    .from("quo_ai_jobs")
+    .update({ status: "pending", locked_at: null, locked_by: null, run_after: new Date().toISOString() })
+    .eq("status", "running")
+    .lt("locked_at", staleCutoff);
+}
+
 async function processPendingJobs(supabase: SupabaseClient, body: Record<string, unknown>) {
   const batchSize = clampBatchSize(body.batch_size);
   const requestedJobIds = parseJobIds(body.job_ids);
   const forceAi = body.force_ai === true || requestedJobIds.length > 0;
   const workerId = crypto.randomUUID();
+
+  await reapStaleJobs(supabase);
 
   let jobsQuery = supabase
     .from("quo_ai_jobs")
