@@ -189,7 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }, 0);
       } else {
         setProfile(null);
-        setRole("no_role");
+        setRole(null);
         setPermissions([]);
         setProfileLoaded(false);
       }
@@ -206,7 +206,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         void fetchUserData(initialSession.user.id);
       } else {
         setProfile(null);
-        setRole("no_role");
+        setRole(null);
         setPermissions([]);
         setProfileLoaded(true);
       }
@@ -254,7 +254,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
     setUser(null);
     setProfile(null);
-    setRole("no_role");
+    setRole(null);
     setPermissions([]);
     setProfileLoaded(false);
     window.localStorage.removeItem(VERIFIED_USER_KEY);

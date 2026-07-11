@@ -33,7 +33,7 @@ export default function UrgentLeadPopup() {
   const baselineRef = useRef<string>(getOrInitBaseline());
 
   // Every role gets urgent popups
-  const eligible = Boolean(role) && role !== "no_role";
+  const eligible = Boolean(role);
 
   const fetchUrgent = useCallback(async () => {
     if (!user || !eligible) return;
