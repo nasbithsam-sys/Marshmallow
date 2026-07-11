@@ -585,6 +585,24 @@ export default function QuoMonitorPage() {
     staleTime: 30_000,
   });
 
+  // Lightweight full-history query: only phone-number FK per conversation.
+  // Used to compute accurate per-number counts without loading full rows.
+  // Cached for 5 minutes so it doesn't re-run on every render.
+  const numberCountsQuery = useQuery({
+    queryKey: ["quo-ai-conversations-number-counts"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("quo_conversations")
+        .select("id, quo_phone_numbers ( id )")
+        .not("customer_number", "is", null)
+        .neq("customer_number", "")
+        .limit(20000);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; quo_phone_numbers: { id: string } | null }>;
+    },
+    staleTime: 5 * 60_000,
+  });
+
   // Auto-fetch next page when the sentinel row scrolls into view.
   useEffect(() => {
     const node = loadMoreSentinelRef.current;
