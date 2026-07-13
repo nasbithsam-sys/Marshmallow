@@ -5,7 +5,7 @@ import {
   ScrollText,
   Calendar,
   LogOut,
-  Wrench,
+  Contact,
   MapPin,
   Sparkles,
   ChevronRight,
@@ -164,7 +164,7 @@ export default function AppSidebar() {
                 transition={{ type: "spring", stiffness: 280, damping: 18 }}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-[hsl(230,94%,66%)] to-[hsl(260,92%,70%)] text-primary-foreground shadow-[0_14px_32px_-12px_hsl(var(--primary)/0.65)] ring-1 ring-white/18"
               >
-              <Wrench className="h-4.5 w-4.5" />
+              <Contact className="h-4.5 w-4.5" />
             </motion.div>
 
             {!collapsed && (
