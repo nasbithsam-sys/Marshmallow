@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   CalendarDays,
@@ -191,6 +192,28 @@ type ManualAiRunResult = {
   budget_mode?: string;
   remaining: number;
 };
+
+type AiDiagnosticsStats = {
+  totalChats: number;
+  missingTags: number;
+  neverAnalyzed: number;
+  analyzedWithoutTags: number;
+  pendingJobs: number;
+  runningJobs: number;
+  failedJobs: number;
+  dailySpend: number;
+  dailyCalls: number;
+  dailyCapUsd: number;
+  dailyCapReached: boolean;
+};
+
+type AiIssue = {
+  label: string;
+  detail: string;
+  className: string;
+};
+
+const AI_DAILY_SPEND_CAP_USD = 2;
 
 const sectionFilters = ["all", ...QUO_AI_SECTIONS] as const;
 const priorityClasses: Record<string, string> = {
@@ -390,6 +413,51 @@ function getConversationTags(conversation: ConversationRow) {
     .filter((tag) => tag && tag !== "Needs Human Review")
     .filter((tag, index, all) => all.indexOf(tag) === index);
   return tags;
+}
+
+function getAiIssue(conversation: ConversationRow, diagnostics?: AiDiagnosticsStats | null): AiIssue | null {
+  if (getConversationTags(conversation).length > 0) return null;
+
+  const analyzedAt = getAiAnalyzedAt(conversation);
+
+  if (diagnostics?.dailyCapReached) {
+    return {
+      label: "Daily cap reached",
+      detail: `AI tagging is paused because today's estimated AI spend reached the $${diagnostics.dailyCapUsd.toFixed(2)} daily cap.`,
+      className: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    };
+  }
+
+  if (diagnostics && diagnostics.failedJobs > 0 && !analyzedAt) {
+    return {
+      label: "AI job failed",
+      detail: `${diagnostics.failedJobs} AI job${diagnostics.failedJobs === 1 ? "" : "s"} failed recently. Run AI tags again or check the function logs for the exact model/error response.`,
+      className: "border-rose-500/35 bg-rose-500/10 text-rose-200",
+    };
+  }
+
+  if (!analyzedAt && diagnostics && diagnostics.pendingJobs + diagnostics.runningJobs > 0) {
+    const activeJobs = diagnostics.pendingJobs + diagnostics.runningJobs;
+    return {
+      label: "Queued for AI",
+      detail: `${activeJobs} AI job${activeJobs === 1 ? "" : "s"} are waiting or running. This chat has no saved AI result yet.`,
+      className: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
+    };
+  }
+
+  if (!analyzedAt) {
+    return {
+      label: "Not analyzed yet",
+      detail: "No AI state or tag has been saved for this chat yet. It needs to be queued by a new message, sweep, or manual Run AI tags action.",
+      className: "border-slate-600 bg-slate-900 text-slate-300",
+    };
+  }
+
+  return {
+    label: "Analyzed, no tag",
+    detail: "AI has checked this chat, but no usable scenario tag was saved on the conversation.",
+    className: "border-orange-500/30 bg-orange-500/10 text-orange-200",
+  };
 }
 
 function summarizeMedia(media: unknown[] | null | undefined) {
