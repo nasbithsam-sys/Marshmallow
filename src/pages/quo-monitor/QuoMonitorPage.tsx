@@ -2097,6 +2097,7 @@ export default function QuoMonitorPage() {
           const showSourceNumber = tableNumberIds.length !== 1;
           const pinned = pinnedConversationIds.has(conversation.id);
           const rowTags = getConversationTags(conversation);
+          const aiIssue = getAiIssue(conversation, aiDiagnostics);
           const lastMessage = getConversationPreview(conversation);
           const rowMessages =
             selectedConvId === conversation.id
@@ -2164,7 +2165,33 @@ export default function QuoMonitorPage() {
               </td>
               <td className="px-3 py-3">
                 {rowTags.length === 0 ? (
-                  <span className="text-xs font-medium text-slate-500">AI pending</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(event) => event.stopPropagation()}
+                        className={`inline-flex max-w-[220px] items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${aiIssue?.className ?? "border-slate-600 bg-slate-900 text-slate-300"}`}
+                      >
+                        <span className="truncate">{aiIssue?.label ?? "AI status unknown"}</span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      className="w-72 border-border bg-popover p-3 text-popover-foreground dark:border-slate-700 dark:bg-[#15161c] dark:text-slate-100"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                        AI issue
+                      </div>
+                      <div className="text-sm font-semibold text-slate-100">{aiIssue?.label ?? "AI status unknown"}</div>
+                      <div className="mt-2 text-xs leading-5 text-slate-400">
+                        {aiIssue?.detail ?? "Diagnostics are still loading for this chat."}
+                      </div>
+                      <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2 text-xs text-slate-400">
+                        Last AI check: <span className="text-slate-200">{getAiAnalyzedAt(conversation) ? formatDate(getAiAnalyzedAt(conversation)) : "Never"}</span>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 ) : (
                   <Popover>
                     <PopoverTrigger asChild>
