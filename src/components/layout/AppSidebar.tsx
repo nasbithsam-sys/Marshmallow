@@ -178,10 +178,6 @@ export default function AppSidebar() {
                   <span className="truncate text-sm font-bold tracking-tight text-sidebar-accent-foreground">
                     Lead CRM
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/60">
-                    <Sparkles className="h-2.5 w-2.5" />
-                    Pro
-                  </span>
                 </div>
 
                 <span className="mt-0.5 block text-[10px] font-medium capitalize tracking-[0.16em] text-sidebar-foreground/38">
