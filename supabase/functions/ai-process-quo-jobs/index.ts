@@ -409,7 +409,7 @@ function buildCasePrompt(context: Awaited<ReturnType<typeof loadContext>>, jobTy
           schedule_status: "none | requested | tentative | unconfirmed | confirmed | reschedule_needed | unknown",
           quote_status: "none | needed | sent | accepted | rejected | follow_up_due | unknown",
           payment_status: "none | pending | paid | dispute | unknown",
-          tags: [{ tag: "primary current situation tag in plain English", confidence: 0.9, reason: "string", evidence: [] }],
+          tags: [{ tag: "3-5 word Title Case scenario tag invented from the last 3-4 messages of THIS chat; must be specific, not a generic label", confidence: 0.9, reason: "cite which recent messages you used", evidence: [] }],
           tasks: [{
             task_type: "missed_reply|hot_lead_follow_up|quote_follow_up|schedule_confirmation|complaint_follow_up|payment_follow_up|ghosting_follow_up|manager_escalation|other",
             title: "string",
