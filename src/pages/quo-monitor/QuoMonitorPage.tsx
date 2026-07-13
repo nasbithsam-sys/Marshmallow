@@ -1346,8 +1346,10 @@ export default function QuoMonitorPage() {
 
       // Invoke processor with force_ai=true — this bypasses run_after so ALL pending
       // jobs (including debounced ones) are processed immediately
+      // wait_for_completion=true is required — otherwise the function returns 202 immediately
+      // and processes jobs in the background, so we'd never see the tagged/processed counts.
       const { data, error } = await supabase.functions.invoke<Omit<ManualAiRunResult, "queued" | "remaining">>("ai-process-quo-jobs", {
-        body: { batch_size: 50, force_ai: true },
+        body: { batch_size: 50, force_ai: true, wait_for_completion: true },
       });
       if (error) throw error;
 
