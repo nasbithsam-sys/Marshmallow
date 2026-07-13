@@ -150,27 +150,69 @@ function shouldProcessAiJob({
   return priority === "critical" && isRisky;
 }
 
+const VAGUE_TAG_PHRASES = new Set([
+  "needs human review",
+  "human review",
+  "ai reviewed",
+  "needs reply",
+  "follow up",
+  "follow-up",
+  "waiting",
+  "active",
+  "lead",
+  "update",
+  "general",
+  "other",
+  "unknown",
+  "pending",
+  "review",
+  "customer",
+  "chat",
+  "message",
+]);
+
 function isRealAiTag(value: string) {
   const normalized = value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
-  return normalized.length > 0 && normalized !== "needs human review" && normalized !== "human review";
+  if (!normalized) return false;
+  if (VAGUE_TAG_PHRASES.has(normalized)) return false;
+  // Require at least 2 words to force scenario-descriptive tags.
+  if (normalized.split(" ").length < 2) return false;
+  return true;
 }
 
 function buildFallbackTag(output: QuoAiOpsCaseOutput) {
-  if (output.waiting_on === "staff" || output.waiting_on === "manager") return "Customer Needs Reply";
-  if (output.schedule_status === "requested" || output.schedule_status === "tentative" || output.schedule_status === "unconfirmed") return "Scheduling Needed";
-  if (output.schedule_status === "confirmed") return "Job Scheduled";
-  if (output.schedule_status === "reschedule_needed") return "Reschedule Needed";
-  if (output.quote_status === "needed") return "Needs Quote";
-  if (output.quote_status === "sent" || output.quote_status === "follow_up_due") return "Quote Sent Waiting Customer";
-  if (output.payment_status === "pending" || output.payment_status === "dispute") return "Payment Follow Up";
-  if (output.risk_level === "high" || output.risk_level === "critical") return "Manager Review";
+  // Prefer a specific scenario snippet derived from the case summary so fallback tags
+  // still describe THIS conversation instead of a generic bucket.
+  const summary = (output.case_summary ?? "").trim();
+  if (summary) {
+    const words = summary
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .slice(0, 5);
+    const phrase = words
+      .map((word) => (word ? `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}` : ""))
+      .join(" ")
+      .trim();
+    if (phrase && phrase.split(" ").length >= 2) return phrase;
+  }
+
+  if (output.waiting_on === "staff" || output.waiting_on === "manager") return "Customer Awaiting Staff Reply";
+  if (output.schedule_status === "requested" || output.schedule_status === "tentative" || output.schedule_status === "unconfirmed") return "Scheduling Visit Details";
+  if (output.schedule_status === "confirmed") return "Visit Scheduled Confirmed";
+  if (output.schedule_status === "reschedule_needed") return "Customer Rescheduling Visit";
+  if (output.quote_status === "needed") return "Preparing New Quote";
+  if (output.quote_status === "sent" || output.quote_status === "follow_up_due") return "Quote Sent Awaiting Reply";
+  if (output.payment_status === "pending" || output.payment_status === "dispute") return "Payment Follow Up Needed";
+  if (output.risk_level === "high" || output.risk_level === "critical") return "Manager Attention Needed";
   if (output.waiting_on === "customer") return "Waiting Customer Response";
-  return output.current_status ? toStaffTag(output.current_status) : "AI Reviewed";
+  return output.current_status ? toStaffTag(output.current_status) : "Situation Unclear Review";
 }
 
 function toStaffTag(value: string) {
   const words = value.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().split(" ");
-  return words.map((word) => word ? `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}` : "").join(" ").trim() || "AI Reviewed";
+  return words.map((word) => word ? `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}` : "").join(" ").trim() || "Situation Unclear Review";
 }
 
 async function getBudgetStatus(supabase: SupabaseClient) {
