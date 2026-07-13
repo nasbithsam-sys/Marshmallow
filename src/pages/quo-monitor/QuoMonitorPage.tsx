@@ -2333,7 +2333,7 @@ export default function QuoMonitorPage() {
                 <div className="space-y-1">
                   <div className="text-xs text-slate-300">{Math.round(confidence * 100)}% confidence</div>
                   <div className="text-xs text-slate-500">
-                    {getAiAnalyzedAt(conversation) ? `AI ${formatShortDate(getAiAnalyzedAt(conversation))}` : "AI pending"}
+                    {getAiAnalyzedAt(conversation) ? `AI ${formatShortDate(getAiAnalyzedAt(conversation))}` : aiIssue?.label ?? "Not analyzed yet"}
                   </div>
                 </div>
               </td>
