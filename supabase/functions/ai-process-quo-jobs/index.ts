@@ -150,27 +150,69 @@ function shouldProcessAiJob({
   return priority === "critical" && isRisky;
 }
 
+const VAGUE_TAG_PHRASES = new Set([
+  "needs human review",
+  "human review",
+  "ai reviewed",
+  "needs reply",
+  "follow up",
+  "follow-up",
+  "waiting",
+  "active",
+  "lead",
+  "update",
+  "general",
+  "other",
+  "unknown",
+  "pending",
+  "review",
+  "customer",
+  "chat",
+  "message",
+]);
+
 function isRealAiTag(value: string) {
   const normalized = value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
-  return normalized.length > 0 && normalized !== "needs human review" && normalized !== "human review";
+  if (!normalized) return false;
+  if (VAGUE_TAG_PHRASES.has(normalized)) return false;
+  // Require at least 2 words to force scenario-descriptive tags.
+  if (normalized.split(" ").length < 2) return false;
+  return true;
 }
 
 function buildFallbackTag(output: QuoAiOpsCaseOutput) {
-  if (output.waiting_on === "staff" || output.waiting_on === "manager") return "Customer Needs Reply";
-  if (output.schedule_status === "requested" || output.schedule_status === "tentative" || output.schedule_status === "unconfirmed") return "Scheduling Needed";
-  if (output.schedule_status === "confirmed") return "Job Scheduled";
-  if (output.schedule_status === "reschedule_needed") return "Reschedule Needed";
-  if (output.quote_status === "needed") return "Needs Quote";
-  if (output.quote_status === "sent" || output.quote_status === "follow_up_due") return "Quote Sent Waiting Customer";
-  if (output.payment_status === "pending" || output.payment_status === "dispute") return "Payment Follow Up";
-  if (output.risk_level === "high" || output.risk_level === "critical") return "Manager Review";
+  // Prefer a specific scenario snippet derived from the case summary so fallback tags
+  // still describe THIS conversation instead of a generic bucket.
+  const summary = (output.case_summary ?? "").trim();
+  if (summary) {
+    const words = summary
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .slice(0, 5);
+    const phrase = words
+      .map((word) => (word ? `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}` : ""))
+      .join(" ")
+      .trim();
+    if (phrase && phrase.split(" ").length >= 2) return phrase;
+  }
+
+  if (output.waiting_on === "staff" || output.waiting_on === "manager") return "Customer Awaiting Staff Reply";
+  if (output.schedule_status === "requested" || output.schedule_status === "tentative" || output.schedule_status === "unconfirmed") return "Scheduling Visit Details";
+  if (output.schedule_status === "confirmed") return "Visit Scheduled Confirmed";
+  if (output.schedule_status === "reschedule_needed") return "Customer Rescheduling Visit";
+  if (output.quote_status === "needed") return "Preparing New Quote";
+  if (output.quote_status === "sent" || output.quote_status === "follow_up_due") return "Quote Sent Awaiting Reply";
+  if (output.payment_status === "pending" || output.payment_status === "dispute") return "Payment Follow Up Needed";
+  if (output.risk_level === "high" || output.risk_level === "critical") return "Manager Attention Needed";
   if (output.waiting_on === "customer") return "Waiting Customer Response";
-  return output.current_status ? toStaffTag(output.current_status) : "AI Reviewed";
+  return output.current_status ? toStaffTag(output.current_status) : "Situation Unclear Review";
 }
 
 function toStaffTag(value: string) {
   const words = value.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().split(" ");
-  return words.map((word) => word ? `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}` : "").join(" ").trim() || "AI Reviewed";
+  return words.map((word) => word ? `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}` : "").join(" ").trim() || "Situation Unclear Review";
 }
 
 async function getBudgetStatus(supabase: SupabaseClient) {
@@ -382,12 +424,12 @@ function buildCasePrompt(context: Awaited<ReturnType<typeof loadContext>>, jobTy
           "Complaints, angry customers, cancellation risk, payment issues, uncertain scheduling, conflicting evidence, and customer-loss risk require human review.",
           "Prefer rule-based no-op if nothing meaningful changed.",
           "Tasks must be internal staff instructions, never automatic customer messages.",
-          "ALWAYS emit exactly one primary situation tag in `tags[0]` describing what is happening RIGHT NOW, derived from the last 3-5 messages. Never leave tags empty. Never return 'needs human review' as the tag.",
-          "ALSO set `current_status` to a short staff-scannable label (e.g. 'waiting_customer_response', 'quote_sent_waiting', 'job_scheduled', 'reschedule_needed', 'payment_follow_up', 'customer_ghosted', 'complaint', 'spam_or_marketing').",
-          "Read the latest 3 to 5 messages together to infer the situation; if those messages are short, emoji-only, media-only, or ambiguous, expand to earlier messages until the situation is clear.",
-          "If messages contain media without text, treat it as pictures/videos sent and infer cautiously from surrounding messages.",
-          "Home repair workflow examples for the primary tag: Customer Waiting For Quote, We Need Pictures For Quote, Quote Sent Waiting Customer, Customer Ghosted, Spam Or Marketing Call, Customer Found Other Tech, Customer Fixed Issue, Customer Cancelled Job, Waiting Customer Response, Job Scheduled, Reschedule Needed, Payment Follow Up, Complaint Or Manager Review.",
-          "Tags must describe the current situation, not just intent. Use short staff-friendly wording (2-5 words, Title Case).",
+          "ALWAYS emit exactly one primary situation tag in `tags[0]` that DESCRIBES THE SPECIFIC SCENARIO happening in this chat right now — NOT a generic fixed label. Never leave tags empty. Never return 'needs human review', 'AI Reviewed', or similar filler as the tag.",
+          "To build the tag, first read the LAST 3-4 messages carefully to understand what is actually going on (who said what, what was asked, what was answered, what is still open). If those 3-4 messages are short, emoji-only, media-only, ambiguous, or lack context, KEEP READING earlier messages until the scenario is clear. Do not guess.",
+          "The tag MUST be 3-5 words in Title Case, plain English, and specific to THIS conversation's scenario — for example capture the service, blocker, or what someone is waiting on (e.g. 'Waiting AC Quote Approval', 'Sent Pictures Awaiting Estimate', 'Rescheduling Water Heater Visit', 'Complaint About Late Tech', 'Customer Chose Other Company', 'Confirming Tomorrow 2PM Visit'). Do NOT pick from a fixed list; INVENT the phrase from the actual last messages.",
+          "Never emit vague tags like 'Needs Reply', 'Follow Up', 'Waiting', 'Lead', 'Active', 'AI Reviewed', 'Update', 'General', 'Other', or a single generic word — those are rejected. The tag must name the concrete situation.",
+          "ALSO set `current_status` to a short staff-scannable snake_case label consistent with the tag.",
+          "If messages contain media without text, treat it as pictures/videos sent and reflect that in the tag when relevant (e.g. 'Customer Sent Damage Photos').",
           "`customer_situation` MUST be a JSON object (not a string, not an array). Include short keys like { summary, last_customer_message, last_staff_message, awaiting }.",
         ],
         required_json_schema: {
@@ -409,7 +451,7 @@ function buildCasePrompt(context: Awaited<ReturnType<typeof loadContext>>, jobTy
           schedule_status: "none | requested | tentative | unconfirmed | confirmed | reschedule_needed | unknown",
           quote_status: "none | needed | sent | accepted | rejected | follow_up_due | unknown",
           payment_status: "none | pending | paid | dispute | unknown",
-          tags: [{ tag: "primary current situation tag in plain English", confidence: 0.9, reason: "string", evidence: [] }],
+          tags: [{ tag: "3-5 word Title Case scenario tag invented from the last 3-4 messages of THIS chat; must be specific, not a generic label", confidence: 0.9, reason: "cite which recent messages you used", evidence: [] }],
           tasks: [{
             task_type: "missed_reply|hot_lead_follow_up|quote_follow_up|schedule_confirmation|complaint_follow_up|payment_follow_up|ghosting_follow_up|manager_escalation|other",
             title: "string",
