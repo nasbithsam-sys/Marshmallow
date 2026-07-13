@@ -1596,11 +1596,76 @@ export default function QuoMonitorPage() {
           {manualAiRunMutation.isPending ? "Running AI..." : `Run AI tags (${Math.min(manualAiCandidates.length, 50)})`}
         </Button>
       )}
+      {isAdmin && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              size="sm"
+              variant="outline"
+              className={`border-slate-700 bg-transparent hover:bg-slate-800 ${
+                aiDiagnostics?.dailyCapReached || (aiDiagnostics?.failedJobs ?? 0) > 0
+                  ? "text-amber-200"
+                  : "text-slate-200"
+              }`}
+            >
+              <AlertTriangle className="mr-2 h-4 w-4" />
+              AI issues: {aiDiagnosticsSummary}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[360px] border-slate-800 bg-slate-950 p-0 text-slate-100" align="end">
+            <div className="border-b border-slate-800 px-4 py-3">
+              <div className="text-sm font-semibold">AI diagnostics</div>
+              <div className="text-xs text-slate-400">Current reason chats can show without AI tags.</div>
+            </div>
+            {aiDiagnostics ? (
+              <div className="space-y-3 p-4 text-sm">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2">
+                    <div className="text-slate-500">Missing tags</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-100">{aiDiagnostics.missingTags}</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2">
+                    <div className="text-slate-500">Never analyzed</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-100">{aiDiagnostics.neverAnalyzed}</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2">
+                    <div className="text-slate-500">Analyzed/no tag</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-100">{aiDiagnostics.analyzedWithoutTags}</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2">
+                    <div className="text-slate-500">Pending/running</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-100">{aiDiagnostics.pendingJobs + aiDiagnostics.runningJobs}</div>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900 p-3 text-xs leading-5 text-slate-300">
+                  <div>Failed jobs: <span className="font-semibold text-slate-100">{aiDiagnostics.failedJobs}</span></div>
+                  <div>Daily AI spend: <span className="font-semibold text-slate-100">${aiDiagnostics.dailySpend.toFixed(4)}</span> / ${aiDiagnostics.dailyCapUsd.toFixed(2)}</div>
+                  <div>Daily AI calls: <span className="font-semibold text-slate-100">{aiDiagnostics.dailyCalls}</span></div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                  onClick={() => aiDiagnosticsQuery.refetch()}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Recheck AI diagnostics
+                </Button>
+              </div>
+            ) : (
+              <div className="p-4 text-sm text-slate-400">Checking AI diagnostics…</div>
+            )}
+          </PopoverContent>
+        </Popover>
+      )}
       <Button
         size="sm"
         variant="outline"
         className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
-        onClick={() => queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] })}
+        onClick={() => {
+          queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+          queryClient.invalidateQueries({ queryKey: ["quo-ai-diagnostics"] });
+        }}
       >
         <RefreshCw className="mr-2 h-4 w-4" />
         Refresh
