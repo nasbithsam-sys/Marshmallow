@@ -840,6 +840,77 @@ export default function QuoMonitorPage() {
     enabled: isAdmin,
   });
 
+  const aiDiagnosticsQuery = useQuery({
+    queryKey: ["quo-ai-diagnostics"],
+    queryFn: async (): Promise<AiDiagnosticsStats> => {
+      const countJobStatus = async (status: string) => {
+        const { count, error } = await (db
+          .from("quo_ai_jobs")
+          .select("id", { count: "exact", head: true }) as any)
+          .eq("status", status);
+        if (error) throw error;
+        return Number(count ?? 0);
+      };
+
+      const conversationRows: Array<{ id: string; ai_tags: string[] | null; last_ai_analyzed_at: string | null }> = [];
+      const PAGE_SIZE = 1000;
+      for (let from = 0; from < 10000; from += PAGE_SIZE) {
+        const { data, error } = await db
+          .from("quo_conversations")
+          .select("id, ai_tags, last_ai_analyzed_at")
+          .not("customer_number", "is", null)
+          .neq("customer_number", "")
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+
+        const page = (data ?? []) as Array<{ id: string; ai_tags: string[] | null; last_ai_analyzed_at: string | null }>;
+        conversationRows.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dailyCostRows: Array<{ estimated_cost: number | string | null }> = [];
+      for (let from = 0; from < 10000; from += PAGE_SIZE) {
+        const { data, error } = await db
+          .from("quo_ai_cost_logs")
+          .select("estimated_cost")
+          .gte("created_at", today.toISOString())
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+
+        const page = (data ?? []) as Array<{ estimated_cost: number | string | null }>;
+        dailyCostRows.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+
+      const missingTags = conversationRows.filter((row) => !row.ai_tags || row.ai_tags.length === 0).length;
+      const neverAnalyzed = conversationRows.filter((row) => !row.last_ai_analyzed_at).length;
+      const dailySpend = dailyCostRows.reduce((sum, row) => sum + Number(row.estimated_cost ?? 0), 0);
+      const [pendingJobs, runningJobs, failedJobs] = await Promise.all([
+        countJobStatus("pending"),
+        countJobStatus("running"),
+        countJobStatus("failed"),
+      ]);
+
+      return {
+        totalChats: conversationRows.length,
+        missingTags,
+        neverAnalyzed,
+        analyzedWithoutTags: Math.max(missingTags - neverAnalyzed, 0),
+        pendingJobs,
+        runningJobs,
+        failedJobs,
+        dailySpend,
+        dailyCalls: dailyCostRows.length,
+        dailyCapUsd: AI_DAILY_SPEND_CAP_USD,
+        dailyCapReached: dailySpend >= AI_DAILY_SPEND_CAP_USD,
+      };
+    },
+    enabled: isAdmin,
+    staleTime: 30_000,
+  });
+
   // Server-side full-text search over quo_messages. Only runs when the user
   // is actively searching, so the main list stays fast.
   const messageSearchQuery = useQuery({
