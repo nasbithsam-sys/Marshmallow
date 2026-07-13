@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   CalendarDays,
@@ -191,6 +192,28 @@ type ManualAiRunResult = {
   budget_mode?: string;
   remaining: number;
 };
+
+type AiDiagnosticsStats = {
+  totalChats: number;
+  missingTags: number;
+  neverAnalyzed: number;
+  analyzedWithoutTags: number;
+  pendingJobs: number;
+  runningJobs: number;
+  failedJobs: number;
+  dailySpend: number;
+  dailyCalls: number;
+  dailyCapUsd: number;
+  dailyCapReached: boolean;
+};
+
+type AiIssue = {
+  label: string;
+  detail: string;
+  className: string;
+};
+
+const AI_DAILY_SPEND_CAP_USD = 2;
 
 const sectionFilters = ["all", ...QUO_AI_SECTIONS] as const;
 const priorityClasses: Record<string, string> = {
@@ -390,6 +413,51 @@ function getConversationTags(conversation: ConversationRow) {
     .filter((tag) => tag && tag !== "Needs Human Review")
     .filter((tag, index, all) => all.indexOf(tag) === index);
   return tags;
+}
+
+function getAiIssue(conversation: ConversationRow, diagnostics?: AiDiagnosticsStats | null): AiIssue | null {
+  if (getConversationTags(conversation).length > 0) return null;
+
+  const analyzedAt = getAiAnalyzedAt(conversation);
+
+  if (diagnostics?.dailyCapReached) {
+    return {
+      label: "Daily cap reached",
+      detail: `AI tagging is paused because today's estimated AI spend reached the $${diagnostics.dailyCapUsd.toFixed(2)} daily cap.`,
+      className: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    };
+  }
+
+  if (diagnostics && diagnostics.failedJobs > 0 && !analyzedAt) {
+    return {
+      label: "AI job failed",
+      detail: `${diagnostics.failedJobs} AI job${diagnostics.failedJobs === 1 ? "" : "s"} failed recently. Run AI tags again or check the function logs for the exact model/error response.`,
+      className: "border-rose-500/35 bg-rose-500/10 text-rose-200",
+    };
+  }
+
+  if (!analyzedAt && diagnostics && diagnostics.pendingJobs + diagnostics.runningJobs > 0) {
+    const activeJobs = diagnostics.pendingJobs + diagnostics.runningJobs;
+    return {
+      label: "Queued for AI",
+      detail: `${activeJobs} AI job${activeJobs === 1 ? "" : "s"} are waiting or running. This chat has no saved AI result yet.`,
+      className: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
+    };
+  }
+
+  if (!analyzedAt) {
+    return {
+      label: "Not analyzed yet",
+      detail: "No AI state or tag has been saved for this chat yet. It needs to be queued by a new message, sweep, or manual Run AI tags action.",
+      className: "border-slate-600 bg-slate-900 text-slate-300",
+    };
+  }
+
+  return {
+    label: "Analyzed, no tag",
+    detail: "AI has checked this chat, but no usable scenario tag was saved on the conversation.",
+    className: "border-orange-500/30 bg-orange-500/10 text-orange-200",
+  };
 }
 
 function summarizeMedia(media: unknown[] | null | undefined) {
@@ -770,6 +838,77 @@ export default function QuoMonitorPage() {
       return (data ?? []) as PinnedConversation[];
     },
     enabled: isAdmin,
+  });
+
+  const aiDiagnosticsQuery = useQuery({
+    queryKey: ["quo-ai-diagnostics"],
+    queryFn: async (): Promise<AiDiagnosticsStats> => {
+      const countJobStatus = async (status: string) => {
+        const { count, error } = await (db
+          .from("quo_ai_jobs")
+          .select("id", { count: "exact", head: true }) as any)
+          .eq("status", status);
+        if (error) throw error;
+        return Number(count ?? 0);
+      };
+
+      const conversationRows: Array<{ id: string; ai_tags: string[] | null; last_ai_analyzed_at: string | null }> = [];
+      const PAGE_SIZE = 1000;
+      for (let from = 0; from < 10000; from += PAGE_SIZE) {
+        const { data, error } = await db
+          .from("quo_conversations")
+          .select("id, ai_tags, last_ai_analyzed_at")
+          .not("customer_number", "is", null)
+          .neq("customer_number", "")
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+
+        const page = (data ?? []) as Array<{ id: string; ai_tags: string[] | null; last_ai_analyzed_at: string | null }>;
+        conversationRows.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const dailyCostRows: Array<{ estimated_cost: number | string | null }> = [];
+      for (let from = 0; from < 10000; from += PAGE_SIZE) {
+        const { data, error } = await db
+          .from("quo_ai_cost_logs")
+          .select("estimated_cost")
+          .gte("created_at", today.toISOString())
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+
+        const page = (data ?? []) as Array<{ estimated_cost: number | string | null }>;
+        dailyCostRows.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+
+      const missingTags = conversationRows.filter((row) => !row.ai_tags || row.ai_tags.length === 0).length;
+      const neverAnalyzed = conversationRows.filter((row) => !row.last_ai_analyzed_at).length;
+      const dailySpend = dailyCostRows.reduce((sum, row) => sum + Number(row.estimated_cost ?? 0), 0);
+      const [pendingJobs, runningJobs, failedJobs] = await Promise.all([
+        countJobStatus("pending"),
+        countJobStatus("running"),
+        countJobStatus("failed"),
+      ]);
+
+      return {
+        totalChats: conversationRows.length,
+        missingTags,
+        neverAnalyzed,
+        analyzedWithoutTags: Math.max(missingTags - neverAnalyzed, 0),
+        pendingJobs,
+        runningJobs,
+        failedJobs,
+        dailySpend,
+        dailyCalls: dailyCostRows.length,
+        dailyCapUsd: AI_DAILY_SPEND_CAP_USD,
+        dailyCapReached: dailySpend >= AI_DAILY_SPEND_CAP_USD,
+      };
+    },
+    enabled: isAdmin,
+    staleTime: 30_000,
   });
 
   // Server-side full-text search over quo_messages. Only runs when the user
@@ -1169,6 +1308,18 @@ export default function QuoMonitorPage() {
     () => numberSummaries.filter(([, item]) => !item.hidden),
     [numberSummaries],
   );
+  const aiDiagnostics = aiDiagnosticsQuery.data ?? null;
+  const aiDiagnosticsSummary = aiDiagnostics
+    ? aiDiagnostics.dailyCapReached
+      ? "Daily cap reached"
+      : aiDiagnostics.failedJobs > 0
+        ? `${aiDiagnostics.failedJobs} failed`
+        : aiDiagnostics.pendingJobs + aiDiagnostics.runningJobs > 0
+          ? `${aiDiagnostics.pendingJobs + aiDiagnostics.runningJobs} queued/running`
+          : `${aiDiagnostics.missingTags} missing tags`
+    : aiDiagnosticsQuery.isLoading
+      ? "Checking"
+      : "Unavailable";
 
   const manualAiRunMutation = useMutation({
     mutationFn: async (): Promise<ManualAiRunResult> => {
@@ -1229,6 +1380,7 @@ export default function QuoMonitorPage() {
         );
       }
       queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-diagnostics"] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to run AI tagging test"),
   });
@@ -1325,6 +1477,12 @@ export default function QuoMonitorPage() {
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_conversation_states" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_conversation_state" }, scheduleConversationRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_jobs" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["quo-ai-diagnostics"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_cost_logs" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["quo-ai-diagnostics"] });
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_lead_links" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
         queryClient.invalidateQueries({ queryKey: ["quo-monitor-lead-phones"] });
@@ -1444,11 +1602,76 @@ export default function QuoMonitorPage() {
           {manualAiRunMutation.isPending ? "Running AI..." : `Run AI tags (${Math.min(manualAiCandidates.length, 50)})`}
         </Button>
       )}
+      {isAdmin && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              size="sm"
+              variant="outline"
+              className={`border-slate-700 bg-transparent hover:bg-slate-800 ${
+                aiDiagnostics?.dailyCapReached || (aiDiagnostics?.failedJobs ?? 0) > 0
+                  ? "text-amber-200"
+                  : "text-slate-200"
+              }`}
+            >
+              <AlertTriangle className="mr-2 h-4 w-4" />
+              AI issues: {aiDiagnosticsSummary}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[360px] border-slate-800 bg-slate-950 p-0 text-slate-100" align="end">
+            <div className="border-b border-slate-800 px-4 py-3">
+              <div className="text-sm font-semibold">AI diagnostics</div>
+              <div className="text-xs text-slate-400">Current reason chats can show without AI tags.</div>
+            </div>
+            {aiDiagnostics ? (
+              <div className="space-y-3 p-4 text-sm">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2">
+                    <div className="text-slate-500">Missing tags</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-100">{aiDiagnostics.missingTags}</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2">
+                    <div className="text-slate-500">Never analyzed</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-100">{aiDiagnostics.neverAnalyzed}</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2">
+                    <div className="text-slate-500">Analyzed/no tag</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-100">{aiDiagnostics.analyzedWithoutTags}</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2">
+                    <div className="text-slate-500">Pending/running</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-100">{aiDiagnostics.pendingJobs + aiDiagnostics.runningJobs}</div>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900 p-3 text-xs leading-5 text-slate-300">
+                  <div>Failed jobs: <span className="font-semibold text-slate-100">{aiDiagnostics.failedJobs}</span></div>
+                  <div>Daily AI spend: <span className="font-semibold text-slate-100">${aiDiagnostics.dailySpend.toFixed(4)}</span> / ${aiDiagnostics.dailyCapUsd.toFixed(2)}</div>
+                  <div>Daily AI calls: <span className="font-semibold text-slate-100">{aiDiagnostics.dailyCalls}</span></div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+                  onClick={() => aiDiagnosticsQuery.refetch()}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Recheck AI diagnostics
+                </Button>
+              </div>
+            ) : (
+              <div className="p-4 text-sm text-slate-400">Checking AI diagnostics…</div>
+            )}
+          </PopoverContent>
+        </Popover>
+      )}
       <Button
         size="sm"
         variant="outline"
         className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
-        onClick={() => queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] })}
+        onClick={() => {
+          queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+          queryClient.invalidateQueries({ queryKey: ["quo-ai-diagnostics"] });
+        }}
       >
         <RefreshCw className="mr-2 h-4 w-4" />
         Refresh
@@ -1880,6 +2103,7 @@ export default function QuoMonitorPage() {
           const showSourceNumber = tableNumberIds.length !== 1;
           const pinned = pinnedConversationIds.has(conversation.id);
           const rowTags = getConversationTags(conversation);
+          const aiIssue = getAiIssue(conversation, aiDiagnostics);
           const lastMessage = getConversationPreview(conversation);
           const rowMessages =
             selectedConvId === conversation.id
@@ -1947,7 +2171,33 @@ export default function QuoMonitorPage() {
               </td>
               <td className="px-3 py-3">
                 {rowTags.length === 0 ? (
-                  <span className="text-xs font-medium text-slate-500">AI pending</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(event) => event.stopPropagation()}
+                        className={`inline-flex max-w-[220px] items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${aiIssue?.className ?? "border-slate-600 bg-slate-900 text-slate-300"}`}
+                      >
+                        <span className="truncate">{aiIssue?.label ?? "AI status unknown"}</span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      className="w-72 border-border bg-popover p-3 text-popover-foreground dark:border-slate-700 dark:bg-[#15161c] dark:text-slate-100"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                        AI issue
+                      </div>
+                      <div className="text-sm font-semibold text-slate-100">{aiIssue?.label ?? "AI status unknown"}</div>
+                      <div className="mt-2 text-xs leading-5 text-slate-400">
+                        {aiIssue?.detail ?? "Diagnostics are still loading for this chat."}
+                      </div>
+                      <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2 text-xs text-slate-400">
+                        Last AI check: <span className="text-slate-200">{getAiAnalyzedAt(conversation) ? formatDate(getAiAnalyzedAt(conversation)) : "Never"}</span>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 ) : (
                   <Popover>
                     <PopoverTrigger asChild>
@@ -2083,7 +2333,7 @@ export default function QuoMonitorPage() {
                 <div className="space-y-1">
                   <div className="text-xs text-slate-300">{Math.round(confidence * 100)}% confidence</div>
                   <div className="text-xs text-slate-500">
-                    {getAiAnalyzedAt(conversation) ? `AI ${formatShortDate(getAiAnalyzedAt(conversation))}` : "AI pending"}
+                    {getAiAnalyzedAt(conversation) ? `AI ${formatShortDate(getAiAnalyzedAt(conversation))}` : aiIssue?.label ?? "Not analyzed yet"}
                   </div>
                 </div>
               </td>
