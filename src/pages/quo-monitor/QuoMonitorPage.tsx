@@ -869,7 +869,7 @@ export default function QuoMonitorPage() {
       }
 
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      today.setUTCHours(0, 0, 0, 0);
       const dailyCostRows: Array<{ estimated_cost: number | string | null }> = [];
       for (let from = 0; from < 10000; from += PAGE_SIZE) {
         const { data, error } = await db
@@ -1477,6 +1477,12 @@ export default function QuoMonitorPage() {
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_conversation_states" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_conversation_state" }, scheduleConversationRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_jobs" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["quo-ai-diagnostics"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_cost_logs" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["quo-ai-diagnostics"] });
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_lead_links" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
         queryClient.invalidateQueries({ queryKey: ["quo-monitor-lead-phones"] });
