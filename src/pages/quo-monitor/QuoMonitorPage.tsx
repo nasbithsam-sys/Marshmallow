@@ -1308,6 +1308,18 @@ export default function QuoMonitorPage() {
     () => numberSummaries.filter(([, item]) => !item.hidden),
     [numberSummaries],
   );
+  const aiDiagnostics = aiDiagnosticsQuery.data ?? null;
+  const aiDiagnosticsSummary = aiDiagnostics
+    ? aiDiagnostics.dailyCapReached
+      ? "Daily cap reached"
+      : aiDiagnostics.failedJobs > 0
+        ? `${aiDiagnostics.failedJobs} failed`
+        : aiDiagnostics.pendingJobs + aiDiagnostics.runningJobs > 0
+          ? `${aiDiagnostics.pendingJobs + aiDiagnostics.runningJobs} queued/running`
+          : `${aiDiagnostics.missingTags} missing tags`
+    : aiDiagnosticsQuery.isLoading
+      ? "Checking"
+      : "Unavailable";
 
   const manualAiRunMutation = useMutation({
     mutationFn: async (): Promise<ManualAiRunResult> => {
@@ -1368,6 +1380,7 @@ export default function QuoMonitorPage() {
         );
       }
       queryClient.invalidateQueries({ queryKey: ["quo-ai-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["quo-ai-diagnostics"] });
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to run AI tagging test"),
   });
