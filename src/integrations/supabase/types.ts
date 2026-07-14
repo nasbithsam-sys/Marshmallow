@@ -534,6 +534,77 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_update_receipts: {
+        Row: {
+          acknowledged_at: string
+          id: string
+          notification_id: string
+          user_id: string
+        }
+        Insert: {
+          acknowledged_at?: string
+          id?: string
+          notification_id: string
+          user_id: string
+        }
+        Update: {
+          acknowledged_at?: string
+          id?: string
+          notification_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_update_receipts_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "crm_updates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_updates: {
+        Row: {
+          affected_section: string
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          is_active: boolean
+          priority: string
+          published_at: string
+          target_roles: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          affected_section: string
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          is_active?: boolean
+          priority?: string
+          published_at?: string
+          target_roles: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          affected_section?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_active?: boolean
+          priority?: string
+          published_at?: string
+          target_roles?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       lead_cancellation_requests: {
         Row: {
           comment: string
