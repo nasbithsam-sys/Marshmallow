@@ -53,6 +53,7 @@ export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: stri
   paid: { label: 'Paid', color: 'status-green' },
   partial_paid: { label: 'Partial Paid', color: 'status-green' },
   payment_requested: { label: 'Paid Approval Pending', color: 'status-green' },
+  scammed: { label: 'Scammed', color: 'status-red' },
 };
 
 export interface Profile {
