@@ -155,6 +155,8 @@ const Settings = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showSetPassword, setShowSetPassword] = useState(false);
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState<AppRole>("customer_service");
   const [creating, setCreating] = useState(false);
