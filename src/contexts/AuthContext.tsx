@@ -110,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadPendingFromStorage(nextSession);
   };
 
-  const VALID_ROLES: AppRole[] = ["admin", "processor", "customer_service", "opr"];
+  const VALID_ROLES: AppRole[] = ["admin", "processor", "customer_service", "opr", "cs_admin"];
 
   const forceSignOutOrphan = async () => {
     // The signed-in account no longer has a profile or a valid role. Clear
