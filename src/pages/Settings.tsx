@@ -148,7 +148,7 @@ function TemplateEditor({
   );
 }
 
-const MANAGED_ROLES: AppRole[] = ["customer_service", "processor", "opr"];
+const MANAGED_ROLES: AppRole[] = ["customer_service", "processor", "opr", "cs_admin"];
 
 const Settings = () => {
   const { user, role: currentRole } = useAuth();
