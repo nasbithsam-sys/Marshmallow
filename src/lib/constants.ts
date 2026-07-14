@@ -23,6 +23,7 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   paid: "Paid",
   partial_paid: "Partial Paid",
   payment_requested: "Paid Approval Pending",
+  scammed: "Scammed",
 };
 
 export const STATUS_COLORS: Record<LeadStatus, string> = {
