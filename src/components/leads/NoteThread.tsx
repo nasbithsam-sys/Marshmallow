@@ -38,21 +38,22 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
 
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
+  const isCsAdmin = role === "cs_admin";
   const isProcessor = role === "processor";
 
   const canViewThread = useMemo(() => {
     if (isAdmin) return true;
     if (noteType === "general") return true;
-    if (noteType === "cs") return isCS || isProcessor;
+    if (noteType === "cs") return isCS || isCsAdmin || isProcessor;
     return isProcessor;
-  }, [isAdmin, isCS, isProcessor, noteType]);
+  }, [isAdmin, isCS, isCsAdmin, isProcessor, noteType]);
 
   const canWriteThread = useMemo(() => {
     if (isAdmin) return true;
     if (noteType === "general") return true;
-    if (noteType === "cs") return isCS;
+    if (noteType === "cs") return isCS || isCsAdmin;
     return isProcessor;
-  }, [isAdmin, isCS, isProcessor, noteType]);
+  }, [isAdmin, isCS, isCsAdmin, isProcessor, noteType]);
 
   const fetchNotes = useCallback(async () => {
     if (!canViewThread) {

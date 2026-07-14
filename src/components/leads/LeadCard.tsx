@@ -237,6 +237,7 @@ function LeadCard({
 
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
+  const isCsAdmin = role === "cs_admin";
   const isProcessor = role === "processor";
   const isPaid = lead.status === "paid";
   const isUrgent = lead.status === "urgent_job";
@@ -919,7 +920,7 @@ function LeadCard({
           </div>
         )}
 
-        {(isCS || isProcessor || isAdmin) && lead.status !== "scheduled" && (
+        {(isCS || isCsAdmin || isProcessor || isAdmin) && lead.status !== "scheduled" && (
           <div className="px-4 pt-2">
             <Select
               value={currentTag ?? "__clear__"}
@@ -970,7 +971,7 @@ function LeadCard({
             hasNotes: hasNotes.general,
           })}
 
-          {(isCS || isProcessor || isAdmin) &&
+          {(isCS || isCsAdmin || isProcessor || isAdmin) &&
             renderCollapsible({
               open: csOpen,
               setOpen: setCsOpen,
