@@ -1,4 +1,4 @@
-export type AppRole = 'admin' | 'processor' | 'customer_service' | 'opr';
+export type AppRole = 'admin' | 'processor' | 'customer_service' | 'opr' | 'cs_admin';
 
 export type CsTag = 'confirmation_sent' | 'waiting_schedule_confirmation' | 'booked' | 'ready_to_schedule';
 
