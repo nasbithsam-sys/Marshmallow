@@ -15,10 +15,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { Megaphone, Send, AlertCircle, Circle } from "lucide-react";
+import { Megaphone, Send, AlertCircle, Circle, Trash2 } from "lucide-react";
 import type { AppRole } from "@/types";
 
 const AFFECTED_SECTIONS = [
