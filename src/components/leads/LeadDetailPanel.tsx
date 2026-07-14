@@ -1109,7 +1109,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             <NoteThread leadId={leadId} noteType="cs" label="CS Notes" />
           </motion.div>
 
-          {!isCS && (
+          {!hideProcessorDetails && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
