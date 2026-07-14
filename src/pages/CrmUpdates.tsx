@@ -73,6 +73,8 @@ export default function CrmUpdates() {
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = useState<CrmUpdate | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: history = [], isLoading } = useQuery({
     queryKey: ["crm-updates-history"],
