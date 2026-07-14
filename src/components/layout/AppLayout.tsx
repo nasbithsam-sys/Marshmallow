@@ -2,6 +2,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/layout/AppSidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import UrgentLeadPopup from "@/components/notifications/UrgentLeadPopup";
+import CrmUpdatePopup from "@/components/notifications/CrmUpdatePopup";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Outlet, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +19,7 @@ export default function AppLayout() {
     "/activity-logs": { title: "Activity", subtitle: "Audit recent actions across the workspace." },
     "/quo-monitor": { title: "Quo AI Assistant", subtitle: "Conversation triage, reminders, and review." },
     "/settings": { title: "Settings", subtitle: "Manage users, permissions, and security controls." },
+    "/crm-updates": { title: "CRM Updates", subtitle: "Broadcast one-time live update notifications to selected CRM roles." },
   };
 
   const activeMeta =
@@ -94,6 +96,7 @@ export default function AppLayout() {
           </main>
         </div>
         {!isQuoMonitor && <UrgentLeadPopup />}
+        <CrmUpdatePopup />
       </div>
     </SidebarProvider>
   );
