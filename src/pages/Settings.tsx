@@ -60,11 +60,12 @@ const roleColors: Record<AppRole, string> = {
   processor: "bg-[hsl(var(--success)/0.08)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.1)]",
   customer_service: "bg-[hsl(var(--warning)/0.08)] text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.1)]",
   opr: "bg-[hsl(var(--destructive)/0.08)] text-[hsl(var(--destructive))] border-[hsl(var(--destructive)/0.12)]",
+  cs_admin: "bg-primary/10 text-primary border-primary/20",
 };
 
 const DEFAULT_ROLE_COLOR = "bg-muted/70 text-muted-foreground border-border/60";
 
-const VALID_ROLES: AppRole[] = ["admin", "processor", "customer_service", "opr"];
+const VALID_ROLES: AppRole[] = ["admin", "processor", "customer_service", "opr", "cs_admin"];
 
 const formatRoleLabel = (role?: string | null) => {
   if (!role) return "";
