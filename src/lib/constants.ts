@@ -176,6 +176,7 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "needs_reschedule",
     "cancelled",
     "partial_paid",
+    "scammed",
   ],
   opr: [
     "partial_paid",
