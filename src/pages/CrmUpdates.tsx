@@ -145,6 +145,23 @@ export default function CrmUpdates() {
     queryClient.invalidateQueries({ queryKey: ["crm-updates-history"] });
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase
+      .from("crm_updates" as never)
+      .delete()
+      .eq("id", deleteTarget.id);
+    setDeleting(false);
+    if (error) {
+      toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "CRM update deleted successfully." });
+    setDeleteTarget(null);
+    queryClient.invalidateQueries({ queryKey: ["crm-updates-history"] });
+  };
+
   const sectionLabel = useMemo(
     () => Object.fromEntries(AFFECTED_SECTIONS.map((s) => [s.value, s.label])),
     [],
