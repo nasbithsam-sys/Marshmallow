@@ -21,6 +21,7 @@ const NotFound = lazy(() => import("@/pages/NotFound"));
 const LeadCancellationRequests = lazy(() => import("@/pages/LeadCancellationRequests"));
 const LeadPaymentRequests = lazy(() => import("@/pages/LeadPaymentRequests"));
 const QuoMonitorPage = lazy(() => import("@/pages/quo-monitor/QuoMonitorPage"));
+const CrmUpdates = lazy(() => import("@/pages/CrmUpdates"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -114,6 +115,7 @@ const App = () => (
               <Route path="quo-monitor" element={<PageRoute navItem="quo_monitor"><QuoMonitorPage /></PageRoute>} />
               <Route path="lead-cancellation-requests" element={<PageRoute navItem="cancellation_requests"><LeadCancellationRequests /></PageRoute>} />
               <Route path="lead-payment-requests" element={<PageRoute navItem="payment_requests"><LeadPaymentRequests /></PageRoute>} />
+              <Route path="crm-updates" element={<PageRoute navItem="crm_updates"><CrmUpdates /></PageRoute>} />
               <Route path="settings" element={<PageRoute navItem="settings"><Settings /></PageRoute>} />
             </Route>
             <Route path="*" element={<Suspense fallback={<PageFallback />}><NotFound /></Suspense>} />
