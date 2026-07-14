@@ -15,10 +15,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { Megaphone, Send, AlertCircle, Circle } from "lucide-react";
+import { Megaphone, Send, AlertCircle, Circle, Trash2 } from "lucide-react";
 import type { AppRole } from "@/types";
 
 const AFFECTED_SECTIONS = [
@@ -63,6 +73,8 @@ export default function CrmUpdates() {
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = useState<CrmUpdate | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: history = [], isLoading } = useQuery({
     queryKey: ["crm-updates-history"],
@@ -130,6 +142,23 @@ export default function CrmUpdates() {
       toast({ title: "Failed", description: error.message, variant: "destructive" });
       return;
     }
+    queryClient.invalidateQueries({ queryKey: ["crm-updates-history"] });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase
+      .from("crm_updates" as never)
+      .delete()
+      .eq("id", deleteTarget.id);
+    setDeleting(false);
+    if (error) {
+      toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "CRM update deleted successfully." });
+    setDeleteTarget(null);
     queryClient.invalidateQueries({ queryKey: ["crm-updates-history"] });
   };
 
@@ -350,14 +379,26 @@ export default function CrmUpdates() {
                         </span>
                       </div>
                     </div>
-                    <Button
-                      variant={item.is_active ? "outline" : "default"}
-                      size="sm"
-                      onClick={() => toggleActive(item)}
-                      className="rounded-xl"
-                    >
-                      {item.is_active ? "Disable" : "Enable"}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={item.is_active ? "outline" : "default"}
+                        size="sm"
+                        onClick={() => toggleActive(item)}
+                        className="rounded-xl"
+                      >
+                        {item.is_active ? "Disable" : "Enable"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDeleteTarget(item)}
+                        aria-label="Delete notification"
+                        title="Delete notification"
+                        className="rounded-xl border-destructive/40 bg-destructive/5 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive dark:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -365,6 +406,45 @@ export default function CrmUpdates() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete CRM Update?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  This will permanently delete this notification and its acknowledgement records.
+                  This action cannot be undone.
+                </p>
+                {deleteTarget && (
+                  <p className="rounded-lg border border-border/60 bg-muted/50 px-3 py-2 text-sm font-medium text-foreground">
+                    {deleteTarget.title}
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete Permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
