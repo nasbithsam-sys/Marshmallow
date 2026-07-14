@@ -508,13 +508,13 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         service_details: form.service_details,
         customer_schedule_requirements: form.customer_schedule_requirements,
         reference_name: form.reference_name,
-        tech_name: role !== "customer_service" ? form.tech_name : lead?.tech_name,
-        tech_number: role !== "customer_service" ? form.tech_number : lead?.tech_number,
-        terms: role !== "customer_service" ? form.terms : lead?.terms,
-        labor_amount: role !== "customer_service" ? form.labor_amount : lead?.labor_amount,
-        material_amount: role !== "customer_service" ? form.material_amount : lead?.material_amount,
-        for_you_amount: role !== "customer_service" ? form.for_you_amount : lead?.for_you_amount,
-        for_us_amount: role !== "customer_service" ? form.for_us_amount : lead?.for_us_amount,
+        tech_name: role !== "customer_service" && role !== "cs_admin" ? form.tech_name : lead?.tech_name,
+        tech_number: role !== "customer_service" && role !== "cs_admin" ? form.tech_number : lead?.tech_number,
+        terms: role !== "customer_service" && role !== "cs_admin" ? form.terms : lead?.terms,
+        labor_amount: role !== "customer_service" && role !== "cs_admin" ? form.labor_amount : lead?.labor_amount,
+        material_amount: role !== "customer_service" && role !== "cs_admin" ? form.material_amount : lead?.material_amount,
+        for_you_amount: role !== "customer_service" && role !== "cs_admin" ? form.for_you_amount : lead?.for_you_amount,
+        for_us_amount: role !== "customer_service" && role !== "cs_admin" ? form.for_us_amount : lead?.for_us_amount,
       };
 
       if (form.status === "paid") {
