@@ -787,6 +787,7 @@ const Settings = () => {
                         <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="processor">Processor</SelectItem>
                         <SelectItem value="customer_service">Customer Service</SelectItem>
+                        <SelectItem value="cs_admin">CS Admin</SelectItem>
                         <SelectItem value="opr">OPR (Operator)</SelectItem>
                       </SelectContent>
                     </Select>
