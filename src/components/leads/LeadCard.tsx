@@ -920,7 +920,7 @@ function LeadCard({
           </div>
         )}
 
-        {(isCS || isProcessor || isAdmin) && lead.status !== "scheduled" && (
+        {(isCS || isCsAdmin || isProcessor || isAdmin) && lead.status !== "scheduled" && (
           <div className="px-4 pt-2">
             <Select
               value={currentTag ?? "__clear__"}
