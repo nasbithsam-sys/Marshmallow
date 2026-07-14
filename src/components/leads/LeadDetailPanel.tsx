@@ -595,6 +595,9 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
   const isAdmin = role === "admin";
+  const isCsAdmin = role === "cs_admin";
+  // CS Admin has the same limited view of processor internals as CS users.
+  const hideProcessorDetails = isCS || isCsAdmin;
 
   const labelClass = "text-[12px] font-semibold tracking-[-0.01em] text-foreground/82";
   const fieldClass =
