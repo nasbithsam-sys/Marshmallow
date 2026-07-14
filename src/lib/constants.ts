@@ -95,6 +95,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "paid",
   "partial_paid",
   "payment_requested",
+  "scammed",
 ];
 
 export const ALL_NAV_ITEMS = ["leads", "quo_monitor", "cancellation_requests", "payment_requests", "analytics", "settings", "activity_logs", "schedule", "areas", "crm_updates"] as const;
