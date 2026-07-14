@@ -180,6 +180,22 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
   opr: [
     "partial_paid",
   ],
+  cs_admin: [
+    "need_tech",
+    "urgent_job",
+    "waiting_customer_response",
+    "waiting_complete_details",
+    "quote_sent_waiting",
+    "post_visit_quote_sent_waiting",
+    "activate_customer",
+    "quote_sent_need_follow_up",
+    "needs_quote",
+    "tech_making_quote",
+    "scheduled",
+    "job_in_progress",
+    "needs_reschedule",
+    "payment_pending",
+  ],
 };
 
 export function getChangeableStatuses(role?: string | null): LeadStatus[] {
