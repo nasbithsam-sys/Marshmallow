@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Mail, Lock, ArrowRight, ShieldCheck, Wrench, KeyRound } from "lucide-react";
+import { Mail, Lock, ArrowRight, ShieldCheck, Wrench, KeyRound, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { heroTitle, premiumEase } from "@/lib/motion";
 
