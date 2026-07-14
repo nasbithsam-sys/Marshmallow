@@ -29,6 +29,7 @@ const Login = () => {
   const [accessCodeRequired, setAccessCodeRequired] = useState(false);
   const [accessCodeInput, setAccessCodeInput] = useState("");
   const [accessCodeVerifying, setAccessCodeVerifying] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     setMfaRequired(pendingStep === "mfa");
