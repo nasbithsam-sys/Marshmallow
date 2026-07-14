@@ -540,7 +540,7 @@ export default function LeadDetailPage() {
       });
     }
 
-    if (!isCS && form.processor_notes.trim()) {
+    if (!hideProcessorDetails && form.processor_notes.trim()) {
       noteInserts.push({
         lead_id: currentLeadId,
         user_id: user.id,
