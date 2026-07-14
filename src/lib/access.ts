@@ -6,6 +6,7 @@ const DEFAULT_NAV_ACCESS: Record<AppRole, Set<NavItem>> = {
   processor: new Set(["leads", "schedule", "cancellation_requests"]),
   customer_service: new Set(["leads", "schedule"]),
   opr: new Set(["leads"]),
+  cs_admin: new Set(["leads", "schedule"]),
 };
 
 export const canAccessCancellationRequests = (role: AppRole | null | undefined) =>
@@ -59,6 +60,8 @@ export function canAccessNavItem(
   return getDefaultNavAccess(role).has(navItem as NavItem);
 }
 
+const CS_ADMIN_HIDDEN_STATUSES: LeadStatus[] = ["paid", "partial_paid", "cancelled", "job_done"];
+
 export function getDefaultVisibleStatuses(role: AppRole | null | undefined): Set<LeadStatus> {
   if (!role) {
     return new Set();
@@ -66,6 +69,13 @@ export function getDefaultVisibleStatuses(role: AppRole | null | undefined): Set
   if (role === "opr") {
     return new Set<LeadStatus>(["urgent_job", "partial_paid"]);
   }
-
-  return new Set(ALL_LEAD_STATUSES);
+  if (role === "admin" || role === "processor") {
+    return new Set(ALL_LEAD_STATUSES);
+  }
+  // customer_service and cs_admin never see Scammed by default.
+  const base = new Set<LeadStatus>(ALL_LEAD_STATUSES.filter((s) => s !== "scammed"));
+  if (role === "cs_admin") {
+    for (const s of CS_ADMIN_HIDDEN_STATUSES) base.delete(s);
+  }
+  return base;
 }

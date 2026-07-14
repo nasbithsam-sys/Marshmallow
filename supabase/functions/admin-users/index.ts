@@ -202,12 +202,12 @@ Deno.serve(async (req) => {
     if (action === "create_user") {
       const { email, password, full_name, role, access_code } = body;
 
-      const VALID_ROLES = ["admin", "processor", "customer_service", "opr"] as const;
+      const VALID_ROLES = ["admin", "processor", "customer_service", "opr", "cs_admin"] as const;
       if (!role || !VALID_ROLES.includes(role)) {
         return jsonResponse(
           {
             error:
-              "A valid role is required. Choose Admin, Processor, Customer Service, or OPR.",
+              "A valid role is required. Choose Admin, Processor, Customer Service, CS Admin, or OPR.",
           },
           400,
         );

@@ -1,4 +1,4 @@
-export type AppRole = 'admin' | 'processor' | 'customer_service' | 'opr';
+export type AppRole = 'admin' | 'processor' | 'customer_service' | 'opr' | 'cs_admin';
 
 export type CsTag = 'confirmation_sent' | 'waiting_schedule_confirmation' | 'booked' | 'ready_to_schedule';
 
@@ -29,7 +29,8 @@ export type LeadStatus =
   | 'cancelled'
   | 'paid'
   | 'partial_paid'
-  | 'payment_requested';
+  | 'payment_requested'
+  | 'scammed';
 
 export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: string }> = {
   waiting_complete_details: { label: 'Waiting Complete Details', color: 'status-amber' },
@@ -52,6 +53,7 @@ export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: stri
   paid: { label: 'Paid', color: 'status-green' },
   partial_paid: { label: 'Partial Paid', color: 'status-green' },
   payment_requested: { label: 'Paid Approval Pending', color: 'status-green' },
+  scammed: { label: 'Scammed', color: 'status-red' },
 };
 
 export interface Profile {

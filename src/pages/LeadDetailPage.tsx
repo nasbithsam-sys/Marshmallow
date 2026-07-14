@@ -125,6 +125,8 @@ export default function LeadDetailPage() {
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
   const isAdmin = role === "admin";
+  const isCsAdmin = role === "cs_admin";
+  const hideProcessorDetails = isCS || isCsAdmin;
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -538,7 +540,7 @@ export default function LeadDetailPage() {
       });
     }
 
-    if (!isCS && form.processor_notes.trim()) {
+    if (!hideProcessorDetails && form.processor_notes.trim()) {
       noteInserts.push({
         lead_id: currentLeadId,
         user_id: user.id,
@@ -626,32 +628,32 @@ export default function LeadDetailPage() {
       customer_schedule_requirements: form.customer_schedule_requirements || null,
       reference_name: form.reference_name || null,
       cs_notes: !isProcessor ? form.cs_notes || null : (originalLead?.cs_notes ?? null),
-      processor_notes: !isCS ? form.processor_notes || null : (originalLead?.processor_notes ?? null),
+      processor_notes: !hideProcessorDetails ? form.processor_notes || null : (originalLead?.processor_notes ?? null),
       general_notes: form.general_notes || null,
 
-      tech_name: role !== "customer_service" ? form.tech_name || null : (originalLead?.tech_name ?? null),
-      tech_number: role !== "customer_service" ? form.tech_number || null : (originalLead?.tech_number ?? null),
-      terms: role !== "customer_service" ? form.terms || null : (originalLead?.terms ?? null),
+      tech_name: !hideProcessorDetails ? form.tech_name || null : (originalLead?.tech_name ?? null),
+      tech_number: !hideProcessorDetails ? form.tech_number || null : (originalLead?.tech_number ?? null),
+      terms: !hideProcessorDetails ? form.terms || null : (originalLead?.terms ?? null),
       labor_amount:
-        role !== "customer_service"
+        !hideProcessorDetails
           ? form.labor_amount
             ? parseFloat(form.labor_amount)
             : null
           : (originalLead?.labor_amount ?? null),
       material_amount:
-        role !== "customer_service"
+        !hideProcessorDetails
           ? form.material_amount
             ? parseFloat(form.material_amount)
             : null
           : (originalLead?.material_amount ?? null),
       for_you_amount:
-        role !== "customer_service"
+        !hideProcessorDetails
           ? form.for_you_amount
             ? parseFloat(form.for_you_amount)
             : null
           : (originalLead?.for_you_amount ?? null),
       for_us_amount:
-        role !== "customer_service"
+        !hideProcessorDetails
           ? form.for_us_amount
             ? parseFloat(form.for_us_amount)
             : null
@@ -1255,7 +1257,7 @@ export default function LeadDetailPage() {
             </CollapsibleContent>
           </Collapsible>
 
-          {!isCS && (
+          {!hideProcessorDetails && (
             <Collapsible open={processorOpen} onOpenChange={setProcessorOpen}>
               <CollapsibleTrigger className={collapsibleShellClass}>
                 <SectionHeader

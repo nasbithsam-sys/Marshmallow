@@ -5,6 +5,7 @@ const TAGS_BY_ROLE: Record<AppRole, CsTag[]> = {
   customer_service: ["ready_to_schedule", "confirmation_sent", "waiting_schedule_confirmation", "booked"],
   processor: ["ready_to_schedule", "waiting_schedule_confirmation"],
   opr: [],
+  cs_admin: ["ready_to_schedule", "confirmation_sent", "waiting_schedule_confirmation", "booked"],
 };
 
 export function getAssignableLeadTags(role: AppRole | null | undefined): CsTag[] {

@@ -508,13 +508,13 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         service_details: form.service_details,
         customer_schedule_requirements: form.customer_schedule_requirements,
         reference_name: form.reference_name,
-        tech_name: role !== "customer_service" ? form.tech_name : lead?.tech_name,
-        tech_number: role !== "customer_service" ? form.tech_number : lead?.tech_number,
-        terms: role !== "customer_service" ? form.terms : lead?.terms,
-        labor_amount: role !== "customer_service" ? form.labor_amount : lead?.labor_amount,
-        material_amount: role !== "customer_service" ? form.material_amount : lead?.material_amount,
-        for_you_amount: role !== "customer_service" ? form.for_you_amount : lead?.for_you_amount,
-        for_us_amount: role !== "customer_service" ? form.for_us_amount : lead?.for_us_amount,
+        tech_name: role !== "customer_service" && role !== "cs_admin" ? form.tech_name : lead?.tech_name,
+        tech_number: role !== "customer_service" && role !== "cs_admin" ? form.tech_number : lead?.tech_number,
+        terms: role !== "customer_service" && role !== "cs_admin" ? form.terms : lead?.terms,
+        labor_amount: role !== "customer_service" && role !== "cs_admin" ? form.labor_amount : lead?.labor_amount,
+        material_amount: role !== "customer_service" && role !== "cs_admin" ? form.material_amount : lead?.material_amount,
+        for_you_amount: role !== "customer_service" && role !== "cs_admin" ? form.for_you_amount : lead?.for_you_amount,
+        for_us_amount: role !== "customer_service" && role !== "cs_admin" ? form.for_us_amount : lead?.for_us_amount,
       };
 
       if (form.status === "paid") {
@@ -595,6 +595,9 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
   const isAdmin = role === "admin";
+  const isCsAdmin = role === "cs_admin";
+  // CS Admin has the same limited view of processor internals as CS users.
+  const hideProcessorDetails = isCS || isCsAdmin;
 
   const labelClass = "text-[12px] font-semibold tracking-[-0.01em] text-foreground/82";
   const fieldClass =
@@ -915,7 +918,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </div>
           </motion.div>
 
-          {!isCS && (
+          {!hideProcessorDetails && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1106,7 +1109,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             <NoteThread leadId={leadId} noteType="cs" label="CS Notes" />
           </motion.div>
 
-          {!isCS && (
+          {!hideProcessorDetails && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}

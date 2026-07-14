@@ -23,6 +23,7 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   paid: "Paid",
   partial_paid: "Partial Paid",
   payment_requested: "Paid Approval Pending",
+  scammed: "Scammed",
 };
 
 export const STATUS_COLORS: Record<LeadStatus, string> = {
@@ -46,6 +47,7 @@ export const STATUS_COLORS: Record<LeadStatus, string> = {
   paid: "bg-green-100 text-green-800 border-green-200",
   partial_paid: "bg-emerald-100 text-emerald-800 border-emerald-200",
   payment_requested: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  scammed: "bg-red-100 text-red-800 border-red-200",
 };
 
 export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
@@ -69,6 +71,7 @@ export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
   paid: "bg-green-500",
   partial_paid: "bg-emerald-500",
   payment_requested: "bg-emerald-500",
+  scammed: "bg-red-500",
 };
 
 export const ALL_LEAD_STATUSES: LeadStatus[] = [
@@ -92,6 +95,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "paid",
   "partial_paid",
   "payment_requested",
+  "scammed",
 ];
 
 export const ALL_NAV_ITEMS = ["leads", "quo_monitor", "cancellation_requests", "payment_requests", "analytics", "settings", "activity_logs", "schedule", "areas", "crm_updates"] as const;
@@ -172,9 +176,26 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "needs_reschedule",
     "cancelled",
     "partial_paid",
+    "scammed",
   ],
   opr: [
     "partial_paid",
+  ],
+  cs_admin: [
+    "need_tech",
+    "urgent_job",
+    "waiting_customer_response",
+    "waiting_complete_details",
+    "quote_sent_waiting",
+    "post_visit_quote_sent_waiting",
+    "activate_customer",
+    "quote_sent_need_follow_up",
+    "needs_quote",
+    "tech_making_quote",
+    "scheduled",
+    "job_in_progress",
+    "needs_reschedule",
+    "payment_pending",
   ],
 };
 
