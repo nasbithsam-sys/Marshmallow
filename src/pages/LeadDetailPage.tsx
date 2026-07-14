@@ -1257,7 +1257,7 @@ export default function LeadDetailPage() {
             </CollapsibleContent>
           </Collapsible>
 
-          {!isCS && (
+          {!hideProcessorDetails && (
             <Collapsible open={processorOpen} onOpenChange={setProcessorOpen}>
               <CollapsibleTrigger className={collapsibleShellClass}>
                 <SectionHeader
