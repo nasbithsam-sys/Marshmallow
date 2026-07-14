@@ -125,6 +125,8 @@ export default function LeadDetailPage() {
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
   const isAdmin = role === "admin";
+  const isCsAdmin = role === "cs_admin";
+  const hideProcessorDetails = isCS || isCsAdmin;
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
