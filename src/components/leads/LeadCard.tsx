@@ -237,6 +237,7 @@ function LeadCard({
 
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
+  const isCsAdmin = role === "cs_admin";
   const isProcessor = role === "processor";
   const isPaid = lead.status === "paid";
   const isUrgent = lead.status === "urgent_job";
