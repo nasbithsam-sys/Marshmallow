@@ -29,7 +29,8 @@ export type LeadStatus =
   | 'cancelled'
   | 'paid'
   | 'partial_paid'
-  | 'payment_requested';
+  | 'payment_requested'
+  | 'scammed';
 
 export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: string }> = {
   waiting_complete_details: { label: 'Waiting Complete Details', color: 'status-amber' },
