@@ -971,7 +971,7 @@ function LeadCard({
             hasNotes: hasNotes.general,
           })}
 
-          {(isCS || isProcessor || isAdmin) &&
+          {(isCS || isCsAdmin || isProcessor || isAdmin) &&
             renderCollapsible({
               open: csOpen,
               setOpen: setCsOpen,
