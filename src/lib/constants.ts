@@ -71,6 +71,7 @@ export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
   paid: "bg-green-500",
   partial_paid: "bg-emerald-500",
   payment_requested: "bg-emerald-500",
+  scammed: "bg-red-500",
 };
 
 export const ALL_LEAD_STATUSES: LeadStatus[] = [
