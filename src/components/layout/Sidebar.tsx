@@ -37,7 +37,7 @@ const Sidebar = () => {
         <div className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center">
           <Zap className="h-4 w-4 text-brand-foreground" />
         </div>
-        <h1 className="text-base font-semibold tracking-tight">Lead CRM</h1>
+        <h1 className="text-base font-semibold tracking-tight">Marshmallow</h1>
       </div>
 
       {/* Navigation */}

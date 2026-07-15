@@ -364,7 +364,7 @@ const Login = () => {
           <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center border border-white/10">
             <Wrench className="h-5 w-5 text-white" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-white">Lead CRM</h1>
+          <h1 className="text-xl font-bold tracking-tight text-white">Marshmallow</h1>
         </motion.div>
 
         <div className="relative z-10 space-y-5">
@@ -416,7 +416,7 @@ const Login = () => {
           transition={{ delay: 0.7 }}
           className="relative z-10 text-white/20 text-xs tracking-wide"
         >
-          © 2026 Lead CRM · Built for modern teams
+          © 2026 Marshmallow · Built for modern teams
         </motion.p>
 
         <motion.div
@@ -444,7 +444,7 @@ const Login = () => {
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-[hsl(260,75%,58%)] flex items-center justify-center shadow-brand">
               <Wrench className="h-4 w-4 text-primary-foreground" />
             </div>
-            <h1 className="text-lg font-bold tracking-tight text-foreground">Lead CRM</h1>
+            <h1 className="text-lg font-bold tracking-tight text-foreground">Marshmallow</h1>
           </div>
 
           <div>
