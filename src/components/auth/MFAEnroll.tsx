@@ -37,7 +37,7 @@ export default function MFAEnroll() {
     setEnrolling(true);
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: 'totp',
-      friendlyName: 'Lead CRM Authenticator',
+      friendlyName: 'Marshmallow Authenticator',
     });
     if (error) {
       toast.error(error.message);
