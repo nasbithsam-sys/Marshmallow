@@ -178,7 +178,7 @@ export default function AppSidebar() {
               >
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-bold tracking-tight text-sidebar-accent-foreground">
-                    Lead CRM
+                    Marshmallow
                   </span>
                 </div>
 

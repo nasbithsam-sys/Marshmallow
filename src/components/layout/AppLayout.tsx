@@ -44,7 +44,7 @@ export default function AppLayout() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] font-semibold text-muted-foreground uppercase tracking-[0.14em]">
-                    Lead CRM
+                    Marshmallow
                   </span>
                   <span className="hidden h-1 w-1 rounded-full bg-border/80 sm:block" />
                   <AnimatePresence mode="wait">
