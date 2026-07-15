@@ -13,7 +13,7 @@ export interface DocSection {
   blocks: DocBlock[];
 }
 
-export const DOC_TITLE = "Account Boosters CRM";
+export const DOC_TITLE = "Marshmallow";
 export const DOC_SUBTITLE = "Complete System Documentation";
 export const DOC_VERSION = "Version 1.0 · July 2026";
 
@@ -22,7 +22,7 @@ export const DOC_SECTIONS: DocSection[] = [
     id: "overview",
     title: "1. Overview",
     blocks: [
-      { type: "p", text: "Account Boosters CRM is a lead management system for a home-services operation. It tracks a lead from first contact through quote, scheduling, job execution, and payment. The app is a React 18 + Vite 5 + Tailwind SPA on top of Supabase (Postgres, RLS, Storage, Edge Functions, Realtime)." },
+      { type: "p", text: "Marshmallow is a lead management system for a home-services operation. It tracks a lead from first contact through quote, scheduling, job execution, and payment. The app is a React 18 + Vite 5 + Tailwind SPA on top of Supabase (Postgres, RLS, Storage, Edge Functions, Realtime)." },
       { type: "p", text: "The system is opinionated: statuses, tags, and role permissions are enforced both in UI and at the database layer. Every mutation writes an audit trail, and both updated_at and last_edited_at are always synchronised." },
     ],
   },
