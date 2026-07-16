@@ -111,6 +111,7 @@ export interface Lead {
   terms: 'free_estimate' | 'quoted' | null;
   direction: 'incoming' | 'outgoing' | null;
   cs_tag?: CsTag | null;
+  booked_at?: string | null;
   half_address?: string | null;
   labor_amount: number | null;
   material_amount: number | null;

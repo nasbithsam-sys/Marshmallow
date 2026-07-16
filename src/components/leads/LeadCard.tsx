@@ -58,6 +58,7 @@ import { createPaymentRequest } from "@/lib/payment-requests";
 import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { getAssignableLeadTags } from "@/lib/lead-tags";
+import BookingDateTimeDialog, { formatBookingCompact, isBookingExpired } from "./BookingDateTimeDialog";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useQuoAttention } from "@/hooks/useQuoAttention";
 
@@ -125,6 +126,14 @@ function LeadCard({
     initialPendingCancellationRequest !== undefined ? initialPendingCancellationRequest : null
   );
   const [completeCopied, setCompleteCopied] = useState(false);
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  const [bookingDialogMode, setBookingDialogMode] = useState<"add" | "edit">("add");
+  // Tick every 30s so blinking/expiry state stays fresh without a full refetch.
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
   const [photoPaths, setPhotoPaths] = useState<string[]>([]);
   const [photoOriginals, setPhotoOriginals] = useState<(string | undefined)[]>([]);
   const [resolvedPaymentOriginal, setResolvedPaymentOriginal] = useState<string | null>(null);
@@ -627,6 +636,38 @@ function LeadCard({
     }
   };
 
+  const persistCsTag = async (
+    newTag: CsTag | null,
+    opts: { bookedAt?: string | null } = {},
+  ) => {
+    const patch: Record<string, unknown> = {
+      cs_tag: newTag,
+      last_edited_by: user?.id,
+      last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
+      updated_at: new Date().toISOString(),
+      last_edited_at: new Date().toISOString(),
+    };
+    // Only touch booked_at when the tag transition affects it: on "booked" save
+    // the picked timestamp; on any move away from booked, clear it.
+    if (Object.prototype.hasOwnProperty.call(opts, "bookedAt")) {
+      patch.booked_at = opts.bookedAt;
+    } else if (newTag !== "booked" && lead.cs_tag === "booked") {
+      patch.booked_at = null;
+    }
+
+    const { error } = await supabase
+      .from("leads")
+      .update(patch as never)
+      .eq("id", lead.id);
+    if (error) {
+      toast.error("Failed to update tag");
+      return false;
+    }
+    toast.success(newTag ? `Tag: ${CS_TAG_LABELS[newTag]}` : "Tag cleared");
+    onRefresh();
+    return true;
+  };
+
   const handleCsTagChange = async (value: string) => {
     const newTag = value === "__clear__" ? null : (value as CsTag);
     if (newTag && !assignableTags.includes(newTag)) {
@@ -634,23 +675,40 @@ function LeadCard({
       return;
     }
 
-    const { error } = await supabase
-      .from("leads")
-      .update({
-        cs_tag: newTag,
-        last_edited_by: user?.id,
-        last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
-        updated_at: new Date().toISOString(),
-        last_edited_at: new Date().toISOString(),
-      } as never)
-      .eq("id", lead.id);
-    if (error) {
-      toast.error("Failed to update tag");
+    // Booked tag requires a booking date/time before it's applied.
+    if (newTag === "booked") {
+      setBookingDialogMode("add");
+      setBookingDialogOpen(true);
       return;
     }
-    toast.success(newTag ? `Tag: ${CS_TAG_LABELS[newTag]}` : "Tag cleared");
-    onRefresh();
+
+    await persistCsTag(newTag);
   };
+
+  const handleBookingConfirm = async (iso: string) => {
+    if (bookingDialogMode === "edit") {
+      // Editing an already-booked lead — keep tag, just update booked_at.
+      const { error } = await supabase
+        .from("leads")
+        .update({
+          booked_at: iso,
+          last_edited_by: user?.id,
+          last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
+          updated_at: new Date().toISOString(),
+          last_edited_at: new Date().toISOString(),
+        } as never)
+        .eq("id", lead.id);
+      if (error) {
+        toast.error("Failed to update booking time");
+        return;
+      }
+      toast.success("Booking time updated");
+      onRefresh();
+      return;
+    }
+    await persistCsTag("booked", { bookedAt: iso });
+  };
+
 
   const renderCollapsible = ({
     open,
@@ -777,7 +835,7 @@ function LeadCard({
                     </a>
                   )}
                   {lead.service_type && (
-                    <span className="crm-lead-card-soft inline-block max-w-[180px] truncate rounded-full border border-sky-200/90 px-2.5 py-1 text-[10px] font-semibold text-foreground/84 shadow-[0_16px_28px_-18px_rgba(59,130,246,0.18)] dark:border-sky-400/18 dark:text-foreground/86">
+                    <span className="crm-lead-card-soft inline-block max-w-[180px] truncate rounded-full border border-sky-200/90 bg-sky-500/90 px-2.5 py-1 text-[10px] font-semibold text-white shadow-[0_16px_28px_-18px_rgba(59,130,246,0.18)] dark:border-sky-400/40 dark:bg-sky-500/80 dark:text-white">
                       {lead.service_type}
                     </span>
                   )}
@@ -797,9 +855,29 @@ function LeadCard({
                       {formatDate(lead.created_at)}
                     </span>
                   )}
+                  {lead.cs_tag === "booked" && lead.booked_at && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBookingDialogMode("edit");
+                        setBookingDialogOpen(true);
+                      }}
+                      title={isBookingExpired(lead.booked_at) ? "Booking overdue — click to reschedule" : "Edit booking date/time"}
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                        isBookingExpired(lead.booked_at)
+                          ? "border-rose-500/50 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse"
+                          : "border-emerald-500/40 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                      }`}
+                    >
+                      <CalendarDays className="h-3 w-3" />
+                      {formatBookingCompact(lead.booked_at)}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
+
 
             <div className="flex shrink-0 flex-col items-end gap-1">
               <StatusBadge status={lead.status} size="sm" />
@@ -946,17 +1024,38 @@ function LeadCard({
               </SelectContent>
             </Select>
             {currentTag && (
-              <p
-                className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                  currentTag === "booked"
-                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-200"
-                    : currentTag === "ready_to_schedule"
-                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-400/20 dark:text-indigo-200"
-                      : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
-                }`}
-              >
-                📌 {CS_TAG_LABELS[currentTag]}
-              </p>
+              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                <p
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                    currentTag === "booked"
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-200"
+                      : currentTag === "ready_to_schedule"
+                        ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-400/20 dark:text-indigo-200"
+                        : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
+                  }`}
+                >
+                  📌 {CS_TAG_LABELS[currentTag]}
+                </p>
+                {currentTag === "booked" && lead.booked_at && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setBookingDialogMode("edit");
+                      setBookingDialogOpen(true);
+                    }}
+                    title={isBookingExpired(lead.booked_at) ? "Booking overdue — click to reschedule" : "Edit booking date/time"}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                      isBookingExpired(lead.booked_at)
+                        ? "border-rose-500/50 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse"
+                        : "border-emerald-500/40 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                    }`}
+                  >
+                    <CalendarDays className="h-3 w-3" />
+                    {formatBookingCompact(lead.booked_at)}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -1134,6 +1233,15 @@ function LeadCard({
           mode={isAdmin ? "direct" : "request"}
           requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
         />
+
+        <BookingDateTimeDialog
+          open={bookingDialogOpen}
+          onOpenChange={setBookingDialogOpen}
+          initialValue={bookingDialogMode === "edit" ? lead.booked_at : null}
+          onConfirm={handleBookingConfirm}
+          title={bookingDialogMode === "edit" ? "Edit Booking Date & Time" : "Set Booking Date & Time"}
+        />
+        
         
 
       </Card>
