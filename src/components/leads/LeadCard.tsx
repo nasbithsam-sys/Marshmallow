@@ -636,6 +636,38 @@ function LeadCard({
     }
   };
 
+  const persistCsTag = async (
+    newTag: CsTag | null,
+    opts: { bookedAt?: string | null } = {},
+  ) => {
+    const patch: Record<string, unknown> = {
+      cs_tag: newTag,
+      last_edited_by: user?.id,
+      last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
+      updated_at: new Date().toISOString(),
+      last_edited_at: new Date().toISOString(),
+    };
+    // Only touch booked_at when the tag transition affects it: on "booked" save
+    // the picked timestamp; on any move away from booked, clear it.
+    if (Object.prototype.hasOwnProperty.call(opts, "bookedAt")) {
+      patch.booked_at = opts.bookedAt;
+    } else if (newTag !== "booked" && lead.cs_tag === "booked") {
+      patch.booked_at = null;
+    }
+
+    const { error } = await supabase
+      .from("leads")
+      .update(patch as never)
+      .eq("id", lead.id);
+    if (error) {
+      toast.error("Failed to update tag");
+      return false;
+    }
+    toast.success(newTag ? `Tag: ${CS_TAG_LABELS[newTag]}` : "Tag cleared");
+    onRefresh();
+    return true;
+  };
+
   const handleCsTagChange = async (value: string) => {
     const newTag = value === "__clear__" ? null : (value as CsTag);
     if (newTag && !assignableTags.includes(newTag)) {
@@ -643,23 +675,40 @@ function LeadCard({
       return;
     }
 
-    const { error } = await supabase
-      .from("leads")
-      .update({
-        cs_tag: newTag,
-        last_edited_by: user?.id,
-        last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
-        updated_at: new Date().toISOString(),
-        last_edited_at: new Date().toISOString(),
-      } as never)
-      .eq("id", lead.id);
-    if (error) {
-      toast.error("Failed to update tag");
+    // Booked tag requires a booking date/time before it's applied.
+    if (newTag === "booked") {
+      setBookingDialogMode("add");
+      setBookingDialogOpen(true);
       return;
     }
-    toast.success(newTag ? `Tag: ${CS_TAG_LABELS[newTag]}` : "Tag cleared");
-    onRefresh();
+
+    await persistCsTag(newTag);
   };
+
+  const handleBookingConfirm = async (iso: string) => {
+    if (bookingDialogMode === "edit") {
+      // Editing an already-booked lead — keep tag, just update booked_at.
+      const { error } = await supabase
+        .from("leads")
+        .update({
+          booked_at: iso,
+          last_edited_by: user?.id,
+          last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
+          updated_at: new Date().toISOString(),
+          last_edited_at: new Date().toISOString(),
+        } as never)
+        .eq("id", lead.id);
+      if (error) {
+        toast.error("Failed to update booking time");
+        return;
+      }
+      toast.success("Booking time updated");
+      onRefresh();
+      return;
+    }
+    await persistCsTag("booked", { bookedAt: iso });
+  };
+
 
   const renderCollapsible = ({
     open,
