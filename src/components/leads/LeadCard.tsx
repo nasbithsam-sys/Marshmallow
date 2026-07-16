@@ -126,6 +126,14 @@ function LeadCard({
     initialPendingCancellationRequest !== undefined ? initialPendingCancellationRequest : null
   );
   const [completeCopied, setCompleteCopied] = useState(false);
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  const [bookingDialogMode, setBookingDialogMode] = useState<"add" | "edit">("add");
+  // Tick every 30s so blinking/expiry state stays fresh without a full refetch.
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
   const [photoPaths, setPhotoPaths] = useState<string[]>([]);
   const [photoOriginals, setPhotoOriginals] = useState<(string | undefined)[]>([]);
   const [resolvedPaymentOriginal, setResolvedPaymentOriginal] = useState<string | null>(null);
