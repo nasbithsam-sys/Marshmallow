@@ -835,7 +835,7 @@ function LeadCard({
                     </a>
                   )}
                   {lead.service_type && (
-                    <span className="crm-lead-card-soft inline-block max-w-[180px] truncate rounded-full border border-sky-200/90 px-2.5 py-1 text-[10px] font-semibold text-foreground/84 shadow-[0_16px_28px_-18px_rgba(59,130,246,0.18)] dark:border-sky-400/18 dark:text-foreground/86">
+                    <span className="crm-lead-card-soft inline-block max-w-[180px] truncate rounded-full border border-sky-200/90 bg-sky-500/90 px-2.5 py-1 text-[10px] font-semibold text-white shadow-[0_16px_28px_-18px_rgba(59,130,246,0.18)] dark:border-sky-400/40 dark:bg-sky-500/80 dark:text-white">
                       {lead.service_type}
                     </span>
                   )}
@@ -855,9 +855,29 @@ function LeadCard({
                       {formatDate(lead.created_at)}
                     </span>
                   )}
+                  {lead.cs_tag === "booked" && lead.booked_at && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBookingDialogMode("edit");
+                        setBookingDialogOpen(true);
+                      }}
+                      title={isBookingExpired(lead.booked_at) ? "Booking overdue — click to reschedule" : "Edit booking date/time"}
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                        isBookingExpired(lead.booked_at)
+                          ? "border-rose-500/50 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse"
+                          : "border-emerald-500/40 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                      }`}
+                    >
+                      <CalendarDays className="h-3 w-3" />
+                      {formatBookingCompact(lead.booked_at)}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
+
 
             <div className="flex shrink-0 flex-col items-end gap-1">
               <StatusBadge status={lead.status} size="sm" />
