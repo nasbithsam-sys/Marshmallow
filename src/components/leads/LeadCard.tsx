@@ -58,6 +58,7 @@ import { createPaymentRequest } from "@/lib/payment-requests";
 import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { getAssignableLeadTags } from "@/lib/lead-tags";
+import BookingDateTimeDialog, { formatBookingCompact, isBookingExpired } from "./BookingDateTimeDialog";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useQuoAttention } from "@/hooks/useQuoAttention";
 
