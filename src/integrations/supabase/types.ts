@@ -1110,6 +1110,7 @@ export type Database = {
           address: string | null
           amount: number | null
           assigned_cs: string | null
+          booked_at: string | null
           cancellation_reason: string | null
           city: string | null
           created_at: string | null
@@ -1157,6 +1158,7 @@ export type Database = {
           address?: string | null
           amount?: number | null
           assigned_cs?: string | null
+          booked_at?: string | null
           cancellation_reason?: string | null
           city?: string | null
           created_at?: string | null
@@ -1204,6 +1206,7 @@ export type Database = {
           address?: string | null
           amount?: number | null
           assigned_cs?: string | null
+          booked_at?: string | null
           cancellation_reason?: string | null
           city?: string | null
           created_at?: string | null
