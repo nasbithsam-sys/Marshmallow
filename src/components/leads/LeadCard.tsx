@@ -835,7 +835,7 @@ function LeadCard({
                     </a>
                   )}
                   {lead.service_type && (
-                    <span className="crm-lead-card-soft inline-block max-w-[180px] truncate rounded-full border border-sky-200/90 bg-sky-500/90 px-2.5 py-1 text-[10px] font-semibold text-white shadow-[0_16px_28px_-18px_rgba(59,130,246,0.18)] dark:border-sky-400/40 dark:bg-sky-500/80 dark:text-white">
+                    <span className="crm-lead-card-soft inline-block max-w-[180px] truncate rounded-full border border-sky-200/90 px-2.5 py-1 text-[10px] font-semibold text-foreground/84 shadow-[0_16px_28px_-18px_rgba(59,130,246,0.18)] dark:border-sky-400/18 dark:text-foreground/86">
                       {lead.service_type}
                     </span>
                   )}
@@ -844,7 +844,7 @@ function LeadCard({
                 <div className="mt-1 flex items-center gap-2 flex-wrap">
                   <p className="font-mono text-[10px] text-muted-foreground/70">{lead.job_id}</p>
                   {lead.number_name && (
-                    <span className="inline-flex max-w-[160px] items-center gap-1 truncate rounded-full border border-primary/15 bg-primary/[0.07] px-2 py-0.5 text-[10px] font-semibold text-primary/85">
+                    <span className="inline-flex max-w-[160px] items-center gap-1 truncate rounded-full border border-primary/15 bg-primary/[0.07] px-2 py-0.5 text-[10px] font-semibold text-white">
                       <Phone className="h-3 w-3 shrink-0" />
                       <span className="truncate">{lead.number_name}</span>
                     </span>
