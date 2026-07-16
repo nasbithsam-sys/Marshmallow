@@ -1233,6 +1233,15 @@ function LeadCard({
           mode={isAdmin ? "direct" : "request"}
           requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
         />
+
+        <BookingDateTimeDialog
+          open={bookingDialogOpen}
+          onOpenChange={setBookingDialogOpen}
+          initialValue={bookingDialogMode === "edit" ? lead.booked_at : null}
+          onConfirm={handleBookingConfirm}
+          title={bookingDialogMode === "edit" ? "Edit Booking Date & Time" : "Set Booking Date & Time"}
+        />
+        
         
 
       </Card>
