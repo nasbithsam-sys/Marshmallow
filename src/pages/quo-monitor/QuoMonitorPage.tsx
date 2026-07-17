@@ -1344,24 +1344,37 @@ export default function QuoMonitorPage() {
         });
       }
 
-      // Invoke processor with force_ai=true — this bypasses run_after so ALL pending
-      // jobs (including debounced ones) are processed immediately
-      // wait_for_completion=true is required — otherwise the function returns 202 immediately
-      // and processes jobs in the background, so we'd never see the tagged/processed counts.
-      const { data, error } = await supabase.functions.invoke<Omit<ManualAiRunResult, "queued" | "remaining">>("ai-process-quo-jobs", {
-        body: { batch_size: 50, force_ai: true, wait_for_completion: true },
-      });
-      if (error) throw error;
+      // Process in small chunks to stay under the 150s edge function idle timeout.
+      // Each chunk waits for completion so we can aggregate tag/processed counts.
+      const CHUNK_SIZE = 5;
+      const MAX_CHUNKS = Math.ceil(batch.length / CHUNK_SIZE);
+      const totals = { picked: 0, processed: 0, failed: 0, skipped: 0, tagged: 0, ai_calls: 0 };
+      let budgetMode: string | undefined;
+
+      for (let i = 0; i < MAX_CHUNKS; i++) {
+        const { data, error } = await supabase.functions.invoke<Omit<ManualAiRunResult, "queued" | "remaining">>("ai-process-quo-jobs", {
+          body: { batch_size: CHUNK_SIZE, force_ai: true, wait_for_completion: true },
+        });
+        if (error) throw error;
+        totals.picked += data?.picked ?? 0;
+        totals.processed += data?.processed ?? 0;
+        totals.failed += data?.failed ?? 0;
+        totals.skipped += data?.skipped ?? 0;
+        totals.tagged += data?.tagged ?? 0;
+        totals.ai_calls += data?.ai_calls ?? 0;
+        budgetMode = data?.budget_mode ?? budgetMode;
+        if ((data?.picked ?? 0) === 0) break; // nothing left to process
+      }
 
       return {
         queued: batch.length,
-        picked: data?.picked,
-        processed: data?.processed,
-        failed: data?.failed,
-        skipped: data?.skipped,
-        tagged: data?.tagged,
-        ai_calls: data?.ai_calls,
-        budget_mode: data?.budget_mode,
+        picked: totals.picked,
+        processed: totals.processed,
+        failed: totals.failed,
+        skipped: totals.skipped,
+        tagged: totals.tagged,
+        ai_calls: totals.ai_calls,
+        budget_mode: budgetMode,
         remaining: Math.max(manualAiCandidates.length - batch.length, 0),
       };
     },
