@@ -1839,7 +1839,9 @@ export default function QuoMonitorPage() {
           }`}
         >
           All numbers
-          <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{filteredConversations.length}</span>
+          <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">
+            {visibleNumberSummaries.reduce((sum, [, item]) => sum + (item.count ?? 0), 0)}
+          </span>
         </button>
         {visibleNumberSummaries.map(([id, item]) => (
           <button
