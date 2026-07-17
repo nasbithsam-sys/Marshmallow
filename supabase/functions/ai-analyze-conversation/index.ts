@@ -46,36 +46,12 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number) 
   return inputTokens * pricing.input + outputTokens * pricing.output;
 }
 
-async function budgetAllowsAi(supabase: SupabaseClient) {
-  const dailyLimit = envNumber("AI_DAILY_CALL_LIMIT", 500);
-  const monthlyBudget = envNumber("AI_MONTHLY_HARD_CAP_USD", envNumber("AI_MONTHLY_BUDGET_USD", 200));
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-
-  const [{ count: dailyCount }, { data: monthlyRows }] = await Promise.all([
-    supabase
-      .from("ai_usage_logs")
-      .select("id", { count: "exact", head: true })
-      .eq("skipped", false)
-      .gte("created_at", today.toISOString()),
-    supabase
-      .from("ai_usage_logs")
-      .select("estimated_cost_usd")
-      .eq("skipped", false)
-      .gte("created_at", monthStart.toISOString()),
-  ]);
-
-  const monthlyCost = (monthlyRows ?? []).reduce(
-    (sum: number, row: { estimated_cost_usd?: number | string | null }) =>
-      sum + Number(row.estimated_cost_usd ?? 0),
-    0,
-  );
-
+async function budgetAllowsAi(_supabase: SupabaseClient) {
+  // Spend caps removed — Quo AI is not throttled by daily/monthly budget.
   return {
-    allowed: (dailyCount ?? 0) < dailyLimit && monthlyCost < monthlyBudget,
-    dailyCount: dailyCount ?? 0,
-    monthlyCost,
+    allowed: true,
+    dailyCount: 0,
+    monthlyCost: 0,
   };
 }
 
