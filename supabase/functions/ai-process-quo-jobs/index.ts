@@ -123,13 +123,8 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number) 
   return inputTokens * pricing.input + outputTokens * pricing.output;
 }
 
-function getBudgetMode(monthlySpend: number) {
-  const softCap = envNumber("AI_MONTHLY_SOFT_CAP_USD", 180);
-  const hardCap = envNumber("AI_MONTHLY_HARD_CAP_USD", envNumber("AI_MONTHLY_BUDGET_USD", 200));
-
-  if (monthlySpend >= hardCap) return "stopped" as const;
-  if (monthlySpend >= hardCap * 0.95) return "critical_only" as const;
-  if (monthlySpend >= softCap || monthlySpend >= hardCap * 0.8) return "soft_cap" as const;
+function getBudgetMode(_monthlySpend: number) {
+  // Spend caps removed — Quo AI runs without monthly budget throttling.
   return "normal" as const;
 }
 
