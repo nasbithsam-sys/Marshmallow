@@ -90,14 +90,9 @@ async function authorizeJob(req: Request, supabase: SupabaseClient) {
   return null;
 }
 
-function chooseModel(kind: "fast" | "main" | "risk") {
-  if (kind === "fast") {
-    return Deno.env.get("AI_MODEL_FAST_CLASSIFIER") ?? Deno.env.get("OPENAI_MODEL_CHEAP") ?? "gpt-4o-mini";
-  }
-  if (kind === "risk") {
-    return Deno.env.get("AI_MODEL_RISK_VERIFIER") ?? Deno.env.get("OPENAI_MODEL_REVIEW") ?? "gpt-4o";
-  }
-  return Deno.env.get("AI_MODEL_MAIN_REASONER") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4o-mini";
+function chooseModel(_kind: "fast" | "main" | "risk") {
+  // All Quo AI calls use gpt-5.4-nano only.
+  return "gpt-5.4-nano";
 }
 
 function usesMaxCompletionTokens(model: string) {

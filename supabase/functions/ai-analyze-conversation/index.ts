@@ -133,14 +133,9 @@ function inferRuleDecision(latestMessage: JsonObject, messages: JsonObject[], co
   return null;
 }
 
-function chooseModel(decisionHint: string | null) {
-  if (decisionHint === "risky") {
-    return Deno.env.get("AI_MODEL_RISK_VERIFIER") ?? Deno.env.get("OPENAI_MODEL_REVIEW") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4o";
-  }
-  if (decisionHint === "cheap") {
-    return Deno.env.get("AI_MODEL_FAST_CLASSIFIER") ?? Deno.env.get("OPENAI_MODEL_CHEAP") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4o-mini";
-  }
-  return Deno.env.get("AI_MODEL_MAIN_REASONER") ?? Deno.env.get("OPENAI_MODEL_MAIN") ?? "gpt-4o-mini";
+function chooseModel(_decisionHint: string | null) {
+  // All Quo AI calls use gpt-5.4-nano only.
+  return "gpt-5.4-nano";
 }
 
 function buildPrompt(input: JsonObject) {
