@@ -235,11 +235,8 @@ async function getBudgetStatus(supabase: SupabaseClient) {
 
   const monthlySpend = sumCost(monthlyRows as any);
   const dailySpend = sumCost(dailyRows as any);
-  const dailyCallLimit = envNumber("AI_DAILY_CALL_LIMIT", 500);
-  const dailyHardCapUsd = envNumber("AI_DAILY_HARD_CAP_USD", 2);
-  const dailyLimitReached =
-    (dailyCalls ?? 0) >= dailyCallLimit || (dailyHardCapUsd > 0 && dailySpend >= dailyHardCapUsd);
-  const mode = dailyLimitReached ? "stopped" : getBudgetMode(monthlySpend);
+  // Spend caps removed — no daily call/spend cap is enforced.
+  const mode = getBudgetMode(monthlySpend);
 
   return {
     mode,
