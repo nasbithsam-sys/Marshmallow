@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { isValidLatLng, LatLng } from "@/lib/geo";
-import { resolveZip, lookupZipCentroidSync, preloadZipDataset, ZipCentroid } from "@/lib/zipCentroids";
+import { resolveZipDetailed, lookupZipCentroidSync, preloadZipDataset, ZipCentroid } from "@/lib/zipCentroids";
 import { STATUS_LABELS } from "@/lib/constants";
 import type { LeadStatus } from "@/types";
 
@@ -102,30 +102,61 @@ export default function MapViewPage() {
     const mapped: MappedLead[] = [];
     const unmapped: UrgentLead[] = [];
     const reasons: Record<string, ZipUnmappedReason> = {};
+    const isDev = typeof import.meta !== "undefined" && (import.meta as { env?: { DEV?: boolean } }).env?.DEV;
     for (const l of rows) {
-      const zip = resolveZip({ zip_code: l.zip_code, address: l.address });
-      if (!zip) {
-        const hasAnyDigits = /\d/.test(String(l.zip_code ?? "")) || /\d/.test(String(l.address ?? ""));
-        reasons[l.id] = hasAnyDigits ? "zip_invalid" : "zip_missing";
-        unmapped.push(l);
-        continue;
+      const { zip, source, storedZip, addressZip } = resolveZipDetailed({ zip_code: l.zip_code, address: l.address });
+
+      // Try stored first, then fall back to address ZIP if stored isn't in dataset.
+      let chosen: string | null = null;
+      let centroid: ZipCentroid | null = null;
+      if (zipDatasetReady) {
+        if (storedZip) {
+          const c = lookupZipCentroidSync(storedZip);
+          if (c) { chosen = storedZip; centroid = c; }
+        }
+        if (!centroid && addressZip && addressZip !== storedZip) {
+          const c = lookupZipCentroidSync(addressZip);
+          if (c) { chosen = addressZip; centroid = c; }
+        }
       }
-      const centroid: ZipCentroid | null = zipDatasetReady ? lookupZipCentroidSync(zip) : null;
+
+      if (isDev) {
+        // eslint-disable-next-line no-console
+        console.debug("[MapView zip]", {
+          leadId: l.id,
+          storedZipRaw: l.zip_code ?? null,
+          addressZipExtracted: addressZip,
+          storedZipExtracted: storedZip,
+          normalizedZip: zip,
+          source,
+          datasetMatch: !!centroid,
+          used: chosen,
+        });
+      }
+
       if (!centroid) {
-        reasons[l.id] = "zip_not_found";
+        if (!zip) {
+          // No 5-digit ZIP anywhere. Distinguish "invalid" (digits present but not a valid 5-digit ZIP) from missing.
+          const hasAnyDigits = /\d/.test(String(l.zip_code ?? "")) || /\d/.test(String(l.address ?? ""));
+          reasons[l.id] = hasAnyDigits ? "zip_invalid" : "zip_missing";
+        } else {
+          reasons[l.id] = "zip_not_found";
+        }
         unmapped.push(l);
         continue;
       }
+
       mapped.push({
         ...l,
         coords: { latitude: centroid.latitude, longitude: centroid.longitude },
-        zip,
+        zip: chosen!,
         zipCity: centroid.city,
         zipState: centroid.state,
       });
     }
     return { mappedLeads: mapped, unmappedLeadList: unmapped, unmappedReasons: reasons };
   }, [urgentLeadsQuery.data, zipDatasetReady]);
+
 
   const unmappedLeads = unmappedLeadList.length;
   const pendingCount = zipDatasetReady ? 0 : unmappedLeadList.length;
