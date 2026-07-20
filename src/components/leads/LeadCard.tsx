@@ -168,6 +168,7 @@ function formatScheduleRequirementCompact(text?: string | null): { summary: stri
   return { summary, full: trimmed };
 }
 
+function formatScheduleForCopy(lead: Lead) {
   const date = lead.scheduled_date || "TBD";
   const start = lead.scheduled_time_start || "";
   const end = lead.scheduled_time_end || "";
