@@ -553,7 +553,7 @@ export default function MapViewPage() {
           <Card className="border-border/60">
             <CardContent className="p-3">
               <div className="flex items-center gap-2 mb-3">
-                <Wrench className="h-4 w-4 text-muted-foreground" />
+                <Contact className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-semibold">Technician</span>
               </div>
               {SidePanel}
