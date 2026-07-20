@@ -26,7 +26,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Plus, Shield, Eye, EyeOff, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock, FileText, BookOpen, Megaphone } from "lucide-react";
 import { DocumentationTab } from "@/components/settings/DocumentationTab";
-import CrmUpdates from "@/pages/CrmUpdates";
+const CrmUpdates = lazy(() => import("@/pages/CrmUpdates"));
 import { cn } from "@/lib/utils";
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from "@/lib/constants";
 import { adminApi } from "@/lib/admin-api";
