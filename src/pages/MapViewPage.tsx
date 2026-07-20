@@ -413,10 +413,6 @@ export default function MapViewPage() {
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => setEditTech(selectedTech)}>Edit</Button>
             <Button size="sm" variant="destructive" onClick={() => setDeleteTech(selectedTech)}>Delete</Button>
-            <label className="ml-auto flex items-center gap-1.5 text-xs">
-              <input type="checkbox" checked={onlyInRange} onChange={(e) => setOnlyInRange(e.target.checked)} />
-              Only in range
-            </label>
           </div>
           <div className="border-t pt-2">
             <div className="text-xs font-medium text-muted-foreground mb-1">Urgent leads by distance</div>
