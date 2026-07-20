@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { geocodeAddress, normalizeAddress } from "@/lib/geo";
-import { Loader2, FileSpreadsheet } from "lucide-react";
+import { Loader2, FileSpreadsheet, Download } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -15,20 +15,33 @@ interface Props {
 }
 
 interface Row {
+  rowNumber: number;
   name: string;
   area: string;
   service: string;
+  chat_link: string;
   notes: string;
-  valid: boolean;
-  reason?: string;
+}
+
+interface FailedRow {
+  rowNumber: number;
+  name: string;
+  area: string;
+  reason: string;
 }
 
 function normalizeKey(k: string) {
   return k.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
+function pick(r: Record<string, string>, keys: string[]): string {
+  for (const k of keys) {
+    if (r[k] != null && r[k] !== "") return r[k];
+  }
+  return "";
+}
+
 function parseCsv(text: string): Record<string, string>[] {
-  // Minimal CSV parser: supports quoted fields and commas within quotes.
   const rows: string[][] = [];
   let current: string[] = [];
   let field = "";
@@ -65,11 +78,15 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
   const [rows, setRows] = useState<Row[]>([]);
   const [importing, setImporting] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [failed, setFailed] = useState<FailedRow[]>([]);
+  const [insertedCount, setInsertedCount] = useState<number | null>(null);
 
-  const reset = () => { setRows([]); setFileName(null); };
+  const reset = () => { setRows([]); setFileName(null); setFailed([]); setInsertedCount(null); };
 
   const handleFile = async (file: File) => {
     setFileName(file.name);
+    setFailed([]);
+    setInsertedCount(null);
     const ext = file.name.toLowerCase().split(".").pop();
     let raw: Record<string, string>[] = [];
     try {
@@ -95,84 +112,151 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
       return;
     }
 
-    const parsed: Row[] = raw.map((r) => {
-      const name = (r.name ?? "").trim();
-      const area = (r.area ?? "").trim();
-      const service = (r.service ?? "").trim();
-      const notes = (r.notes ?? "").trim();
-      if (!name || !area) return { name, area, service, notes, valid: false, reason: "Missing Name or Area" };
-      return { name, area, service, notes, valid: true };
-    });
+    const parsed: Row[] = raw.map((r, idx) => ({
+      rowNumber: idx + 2, // +2 accounts for header row + 1-indexed
+      name: (r.name ?? "").trim(),
+      service: (r.service ?? "").trim(),
+      area: (r.area ?? "").trim(),
+      chat_link: pick(r, ["chat_link", "chat", "quo_chat_link", "link"]).trim(),
+      notes: (r.notes ?? "").trim(),
+    }));
     setRows(parsed);
   };
 
-  const validRows = rows.filter((r) => r.valid);
-  const invalidRows = rows.filter((r) => !r.valid);
-
   const handleImport = async () => {
-    if (!validRows.length) return;
+    if (!rows.length) return;
     setImporting(true);
+    setFailed([]);
+    setInsertedCount(null);
     try {
-      // Fetch existing techs to skip duplicates by normalized name+area.
       const { data: existing } = await supabase.from("technicians").select("name, area");
       const seen = new Set(
-        (existing ?? []).map((t) => `${normalizeAddress(t.name)}|${normalizeAddress(t.area)}`),
+        (existing ?? []).map((t) => `${normalizeAddress(t.name ?? "")}|${normalizeAddress(t.area ?? "")}`),
       );
 
-      let inserted = 0;
-      let skipped = invalidRows.length;
+      const failures: FailedRow[] = [];
       const { data: { user } } = await supabase.auth.getUser();
 
-      const toInsert: Array<{ name: string; area: string; service: string | null; notes: string | null; latitude: number | null; longitude: number | null; created_by: string | null }> = [];
-      for (const r of validRows) {
+      type InsertPayload = {
+        row: Row;
+        payload: {
+          name: string;
+          area: string;
+          service: string | null;
+          chat_link: string | null;
+          notes: string | null;
+          latitude: null;
+          longitude: null;
+          created_by: string | null;
+        };
+      };
+      const toInsert: InsertPayload[] = [];
+
+      for (const r of rows) {
+        if (!r.name && !r.area && !r.service && !r.chat_link && !r.notes) {
+          failures.push({ rowNumber: r.rowNumber, name: r.name, area: r.area, reason: "Row is empty" });
+          continue;
+        }
         const key = `${normalizeAddress(r.name)}|${normalizeAddress(r.area)}`;
-        if (seen.has(key)) { skipped++; continue; }
+        if (seen.has(key)) {
+          failures.push({ rowNumber: r.rowNumber, name: r.name, area: r.area, reason: "Duplicate of an existing technician" });
+          continue;
+        }
         seen.add(key);
         toInsert.push({
-          name: r.name,
-          area: r.area,
-          service: r.service || null,
-          notes: r.notes || null,
-          latitude: null,
-          longitude: null,
-          created_by: user?.id ?? null,
+          row: r,
+          payload: {
+            name: r.name,
+            area: r.area,
+            service: r.service || null,
+            chat_link: r.chat_link || null,
+            notes: r.notes || null,
+            latitude: null,
+            longitude: null,
+            created_by: user?.id ?? null,
+          },
         });
       }
 
-      // Insert in chunks of 100 first (fast). Geocoding runs asynchronously afterwards.
+      let inserted = 0;
+      const insertedIds: Array<{ id: string; area: string }> = [];
+
+      // Try bulk insert per chunk; on failure fall back to per-row so we can capture exact failures.
       for (let i = 0; i < toInsert.length; i += 100) {
         const chunk = toInsert.slice(i, i + 100);
-        const { data, error } = await supabase.from("technicians").insert(chunk).select("id, area");
-        if (error) {
-          toast({ title: "Import error", description: error.message, variant: "destructive" });
-          break;
-        }
-        inserted += data?.length ?? 0;
+        const { data, error } = await supabase
+          .from("technicians")
+          .insert(chunk.map((c) => c.payload))
+          .select("id, area");
 
-        // Geocode & backfill coords in the background (no await for the UI)
-        if (data) {
-          (async () => {
-            for (const row of data) {
-              const coords = await geocodeAddress(row.area);
-              if (coords) {
-                await supabase.from("technicians").update({ latitude: coords.latitude, longitude: coords.longitude }).eq("id", row.id);
-              }
-            }
-            onImported?.();
-          })();
+        if (!error && data) {
+          inserted += data.length;
+          data.forEach((d) => insertedIds.push({ id: d.id as string, area: (d.area as string) ?? "" }));
+          continue;
+        }
+
+        for (const c of chunk) {
+          const { data: single, error: singleErr } = await supabase
+            .from("technicians")
+            .insert(c.payload)
+            .select("id, area")
+            .single();
+          if (singleErr || !single) {
+            failures.push({
+              rowNumber: c.row.rowNumber,
+              name: c.row.name,
+              area: c.row.area,
+              reason: singleErr?.message ?? "Insert failed",
+            });
+          } else {
+            inserted++;
+            insertedIds.push({ id: single.id as string, area: (single.area as string) ?? "" });
+          }
         }
       }
 
+      // Background geocoding
+      if (insertedIds.length) {
+        (async () => {
+          for (const row of insertedIds) {
+            if (!row.area) continue;
+            const coords = await geocodeAddress(row.area);
+            if (coords) {
+              await supabase.from("technicians").update({ latitude: coords.latitude, longitude: coords.longitude }).eq("id", row.id);
+            }
+          }
+          onImported?.();
+        })();
+      }
+
+      setInsertedCount(inserted);
+      setFailed(failures);
+
       toast({
         title: "Import complete",
-        description: `${inserted} technicians imported. ${skipped} rows skipped.`,
+        description: `${inserted} imported. ${failures.length} failed.`,
       });
       onImported?.();
-      onOpenChange(false);
-      reset();
     } finally {
       setImporting(false);
     }
+  };
+
+  const downloadFailedCsv = () => {
+    if (!failed.length) return;
+    const headers = ["Row", "Name", "Area", "Reason"];
+    const esc = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
+    const csv = [
+      headers.join(","),
+      ...failed.map((f) => [f.rowNumber, f.name, f.area, f.reason].map((x) => esc(String(x ?? ""))).join(",")),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `technicians-import-failed-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
   };
 
   return (
@@ -181,7 +265,7 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
         <DialogHeader>
           <DialogTitle>Import Technicians</DialogTitle>
           <DialogDescription>
-            Upload a .csv or .xlsx with columns: Name, Area, Service, Notes. Name and Area are required.
+            Upload a .csv or .xlsx with columns: Name, Service, Area, Chat Link, Notes. All fields are optional.
           </DialogDescription>
         </DialogHeader>
 
@@ -202,37 +286,31 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
               <span className="truncate">{fileName}</span>
             </div>
           )}
-          {rows.length > 0 && (
+          {rows.length > 0 && insertedCount === null && (
             <div className="rounded-md border">
               <div className="flex items-center justify-between border-b px-3 py-2 text-xs">
                 <span className="font-medium">Preview</span>
-                <span>
-                  <span className="text-emerald-600 dark:text-emerald-400">{validRows.length} valid</span>
-                  {" · "}
-                  <span className="text-amber-600 dark:text-amber-400">{invalidRows.length} skipped</span>
-                </span>
+                <span className="text-muted-foreground">{rows.length} rows detected</span>
               </div>
               <div className="max-h-64 overflow-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/40 text-left">
                     <tr>
                       <th className="px-3 py-1.5">Name</th>
-                      <th className="px-3 py-1.5">Area</th>
                       <th className="px-3 py-1.5">Service</th>
-                      <th className="px-3 py-1.5">Status</th>
+                      <th className="px-3 py-1.5">Area</th>
+                      <th className="px-3 py-1.5">Chat Link</th>
+                      <th className="px-3 py-1.5">Notes</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.slice(0, 100).map((r, i) => (
                       <tr key={i} className="border-t">
-                        <td className="px-3 py-1.5">{r.name || <em className="text-muted-foreground">missing</em>}</td>
-                        <td className="px-3 py-1.5">{r.area || <em className="text-muted-foreground">missing</em>}</td>
+                        <td className="px-3 py-1.5">{r.name || <span className="text-muted-foreground">—</span>}</td>
                         <td className="px-3 py-1.5">{r.service || <span className="text-muted-foreground">—</span>}</td>
-                        <td className="px-3 py-1.5">
-                          {r.valid
-                            ? <span className="text-emerald-600 dark:text-emerald-400">Valid</span>
-                            : <span className="text-amber-600 dark:text-amber-400">{r.reason}</span>}
-                        </td>
+                        <td className="px-3 py-1.5">{r.area || <span className="text-muted-foreground">—</span>}</td>
+                        <td className="px-3 py-1.5 max-w-[160px] truncate" title={r.chat_link}>{r.chat_link || <span className="text-muted-foreground">—</span>}</td>
+                        <td className="px-3 py-1.5 max-w-[160px] truncate" title={r.notes}>{r.notes || <span className="text-muted-foreground">—</span>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -240,14 +318,66 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
               </div>
             </div>
           )}
+
+          {insertedCount !== null && (
+            <div className="rounded-md border">
+              <div className="flex items-center justify-between border-b px-3 py-2 text-xs">
+                <span className="font-medium">Import Report</span>
+                <span>
+                  <span className="text-emerald-600 dark:text-emerald-400">{insertedCount} imported</span>
+                  {" · "}
+                  <span className="text-amber-600 dark:text-amber-400">{failed.length} failed</span>
+                </span>
+              </div>
+              {failed.length > 0 ? (
+                <>
+                  <div className="max-h-64 overflow-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/40 text-left">
+                        <tr>
+                          <th className="px-3 py-1.5 w-14">Row</th>
+                          <th className="px-3 py-1.5">Name</th>
+                          <th className="px-3 py-1.5">Area</th>
+                          <th className="px-3 py-1.5">Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {failed.map((f, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="px-3 py-1.5">{f.rowNumber}</td>
+                            <td className="px-3 py-1.5">{f.name || <span className="text-muted-foreground">—</span>}</td>
+                            <td className="px-3 py-1.5">{f.area || <span className="text-muted-foreground">—</span>}</td>
+                            <td className="px-3 py-1.5 text-amber-600 dark:text-amber-400">{f.reason}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="border-t px-3 py-2">
+                    <Button variant="outline" size="sm" onClick={downloadFailedCsv}>
+                      <Download className="mr-1.5 h-3.5 w-3.5" /> Download failed rows (CSV)
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="px-3 py-4 text-center text-xs text-emerald-600 dark:text-emerald-400">
+                  All rows imported successfully.
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={importing}>Cancel</Button>
-          <Button onClick={handleImport} disabled={importing || validRows.length === 0}>
-            {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Import {validRows.length} technicians
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={importing}>
+            {insertedCount !== null ? "Close" : "Cancel"}
           </Button>
+          {insertedCount === null && (
+            <Button onClick={handleImport} disabled={importing || rows.length === 0}>
+              {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Import {rows.length} rows
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
