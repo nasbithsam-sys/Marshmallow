@@ -71,6 +71,36 @@ function cleanPart(v: unknown): string {
   return s;
 }
 
+/** Clean address string: normalize whitespace, commas, and casing artifacts. */
+export function cleanAddressLine(input: string): string {
+  if (!input) return "";
+  let s = String(input);
+  // Insert missing commas between "STREETNAME<space>CITY" patterns is hard;
+  // instead just collapse noise.
+  s = s
+    .replace(/\bnull\b/gi, "")
+    .replace(/\bundefined\b/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/,+/g, ",")
+    .replace(/,\s*,/g, ", ")
+    .replace(/^[\s,]+|[\s,]+$/g, "")
+    .trim();
+  return s;
+}
+
+/** Remove secondary unit designators (APT, UNIT, SUITE, STE, #N) while keeping the street number. */
+export function stripUnit(input: string): string {
+  if (!input) return "";
+  let s = " " + input + " ";
+  // Full-word patterns with optional # and number/letter
+  s = s.replace(/\s(?:APT|APARTMENT|UNIT|SUITE|STE|BLDG|BUILDING|LOT|RM|ROOM|FL|FLOOR|TRLR|TRAILER)\.?\s*#?\s*[A-Z0-9-]+/gi, " ");
+  // Standalone "# 5" or "#5" tokens that are NOT the leading street number
+  // Only strip when preceded by whitespace and something else (not start-of-string)
+  s = s.replace(/(\S)\s+#\s*[A-Z0-9-]+/gi, "$1");
+  return cleanAddressLine(s);
+}
+
 /** Build a prioritized list of geocoding queries from lead-like location fields. */
 export function buildGeocodeQueries(input: {
   address?: string | null;
@@ -78,7 +108,9 @@ export function buildGeocodeQueries(input: {
   state?: string | null;
   zip?: string | null;
 }): string[] {
-  const address = cleanPart(input.address);
+  const rawAddress = cleanPart(input.address);
+  const address = cleanAddressLine(rawAddress);
+  const addressNoUnit = stripUnit(address);
   const city = cleanPart(input.city);
   const state = cleanPart(input.state);
   const zip = cleanPart(input.zip);
@@ -87,11 +119,21 @@ export function buildGeocodeQueries(input: {
     parts.filter(Boolean).join(", ").replace(/,\s*,/g, ", ").trim();
 
   const candidates: string[] = [];
+  // A. Full normalized
   if (address && city && state && zip) candidates.push(join(address, city, state, zip, "USA"));
   if (address && city && state) candidates.push(join(address, city, state, "USA"));
+  // B. Without unit
+  if (addressNoUnit && addressNoUnit !== address && city && state && zip) candidates.push(join(addressNoUnit, city, state, zip, "USA"));
+  if (addressNoUnit && addressNoUnit !== address && city && state) candidates.push(join(addressNoUnit, city, state, "USA"));
   if (address && zip) candidates.push(join(address, zip, "USA"));
+  if (addressNoUnit && addressNoUnit !== address && zip) candidates.push(join(addressNoUnit, zip, "USA"));
+  // D. Street + City + State (no zip)
+  if (addressNoUnit && city && state) candidates.push(join(addressNoUnit, city, state, "USA"));
+  // E. City + State + ZIP
   if (city && state && zip) candidates.push(join(city, state, zip, "USA"));
+  // F. City + State
   if (city && state) candidates.push(join(city, state, "USA"));
+  // G. ZIP only
   if (zip) candidates.push(join(zip, "USA"));
   if (address && !city && !state && !zip) candidates.push(join(address, "USA"));
 
@@ -114,6 +156,76 @@ async function nominatimQuery(query: string): Promise<LatLng | null> {
   if (!data.length) return null;
   const lat = parseFloat(data[0].lat);
   const lng = parseFloat(data[0].lon);
+  if (!isValidLatLng(lat, lng)) return null;
+  return { latitude: lat, longitude: lng };
+}
+
+/** Structured Nominatim query — never combined with free-form q. */
+async function nominatimStructured(input: {
+  street?: string;
+  city?: string;
+  state?: string;
+  postalcode?: string;
+}): Promise<LatLng | null> {
+  const params = new URLSearchParams({ format: "json", limit: "1", country: "United States" });
+  if (input.street) params.set("street", input.street);
+  if (input.city) params.set("city", input.city);
+  if (input.state) params.set("state", input.state);
+  if (input.postalcode) params.set("postalcode", input.postalcode);
+  // Require at least one structured field
+  if (!input.street && !input.city && !input.postalcode) return null;
+  const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`geocode http ${res.status}`);
+  const data: Array<{ lat: string; lon: string }> = await res.json();
+  if (!data.length) return null;
+  const lat = parseFloat(data[0].lat);
+  const lng = parseFloat(data[0].lon);
+  if (!isValidLatLng(lat, lng)) return null;
+  return { latitude: lat, longitude: lng };
+}
+
+/** U.S. Census geocoder — public, no API key. Returns coords or null. */
+async function censusOneLine(query: string): Promise<LatLng | null> {
+  const url =
+    `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress` +
+    `?address=${encodeURIComponent(query)}&benchmark=Public_AR_Current&format=json`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`census http ${res.status}`);
+  const data = await res.json();
+  const matches = data?.result?.addressMatches;
+  if (!Array.isArray(matches) || !matches.length) return null;
+  const c = matches[0]?.coordinates;
+  const lat = Number(c?.y);
+  const lng = Number(c?.x);
+  if (!isValidLatLng(lat, lng)) return null;
+  return { latitude: lat, longitude: lng };
+}
+
+async function censusStructured(input: {
+  street?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+}): Promise<LatLng | null> {
+  if (!input.street) return null;
+  const params = new URLSearchParams({
+    street: input.street,
+    benchmark: "Public_AR_Current",
+    format: "json",
+  });
+  if (input.city) params.set("city", input.city);
+  if (input.state) params.set("state", input.state);
+  if (input.zip) params.set("zip", input.zip);
+  const url = `https://geocoding.geo.census.gov/geocoder/locations/address?${params.toString()}`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`census http ${res.status}`);
+  const data = await res.json();
+  const matches = data?.result?.addressMatches;
+  if (!Array.isArray(matches) || !matches.length) return null;
+  const c = matches[0]?.coordinates;
+  const lat = Number(c?.y);
+  const lng = Number(c?.x);
   if (!isValidLatLng(lat, lng)) return null;
   return { latitude: lat, longitude: lng };
 }
@@ -148,15 +260,52 @@ export async function geocodeAddress(address: string): Promise<LatLng | null> {
   }
 }
 
-export type GeocodeFailReason = "no_result" | "request_failed" | "no_input";
+export type GeocodeFailReason =
+  | "no_result"
+  | "nominatim_no_result"
+  | "census_no_result"
+  | "request_failed"
+  | "no_input";
+
+export type GeocodeProvider = "nominatim_freeform" | "nominatim_structured" | "census_oneline" | "census_structured";
 
 export interface GeocodeAttemptResult {
   coords: LatLng | null;
   query: string | null;
   reason: GeocodeFailReason | null;
+  provider?: GeocodeProvider;
 }
 
-/** Geocode with progressive fallback from the most specific query to the least. */
+/**
+ * Clear negative-cache entries so retries force a fresh provider request.
+ * Successful coordinate entries are preserved.
+ */
+export function clearNegativeCacheFor(input: {
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+}): void {
+  const queries = buildGeocodeQueries(input);
+  if (!queries.length) return;
+  const cache = readCache();
+  let changed = false;
+  for (const q of queries) {
+    const key = normalizeAddress(q);
+    const entry = cache[key];
+    if (entry && "failed" in entry) {
+      delete cache[key];
+      changed = true;
+    }
+  }
+  if (changed) writeCache(cache);
+}
+
+async function pause(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+/** Geocode with progressive fallback across Nominatim (freeform + structured) then Census. */
 export async function geocodeWithFallback(input: {
   address?: string | null;
   city?: string | null;
@@ -166,13 +315,22 @@ export async function geocodeWithFallback(input: {
   const queries = buildGeocodeQueries(input);
   if (!queries.length) return { coords: null, query: null, reason: "no_input" };
 
-  let lastReason: GeocodeFailReason = "no_result";
+  const rawAddress = cleanPart(input.address);
+  const address = cleanAddressLine(rawAddress);
+  const addressNoUnit = stripUnit(address);
+  const city = cleanPart(input.city);
+  const state = cleanPart(input.state);
+  const zip = cleanPart(input.zip);
+
+  let sawRequestFailure = false;
+
+  // --- Phase 1: Nominatim free-form queries (with negative cache) ---
   for (const q of queries) {
     const key = normalizeAddress(q);
     const cache = readCache();
     const hit = cache[key];
     if (hit && !("failed" in hit)) {
-      return { coords: { latitude: hit.lat, longitude: hit.lng }, query: q, reason: null };
+      return { coords: { latitude: hit.lat, longitude: hit.lng }, query: q, reason: null, provider: "nominatim_freeform" };
     }
     if (hit && "failed" in hit && Date.now() - hit.ts < 24 * 3600 * 1000) {
       continue;
@@ -183,17 +341,78 @@ export async function geocodeWithFallback(input: {
         const fresh = readCache();
         fresh[key] = { lat: res.latitude, lng: res.longitude };
         writeCache(fresh);
-        return { coords: res, query: q, reason: null };
+        return { coords: res, query: q, reason: null, provider: "nominatim_freeform" };
       }
       const fresh = readCache();
       fresh[key] = { failed: true, ts: Date.now() };
       writeCache(fresh);
-      lastReason = "no_result";
     } catch {
-      lastReason = "request_failed";
+      sawRequestFailure = true;
     }
-    // pacing between attempts to respect Nominatim's ~1 req/sec policy
-    await new Promise((r) => setTimeout(r, 1100));
+    await pause(1100);
   }
-  return { coords: null, query: null, reason: lastReason };
+
+  // --- Phase 2: Nominatim structured ---
+  try {
+    const streetForStructured = addressNoUnit || address;
+    if (streetForStructured || (city && state) || zip) {
+      const res = await nominatimStructured({
+        street: streetForStructured || undefined,
+        city: city || undefined,
+        state: state || undefined,
+        postalcode: zip || undefined,
+      });
+      if (res) {
+        return {
+          coords: res,
+          query: `structured:${streetForStructured} / ${city} / ${state} / ${zip}`,
+          reason: null,
+          provider: "nominatim_structured",
+        };
+      }
+    }
+  } catch {
+    sawRequestFailure = true;
+  }
+  await pause(1100);
+
+  // --- Phase 3: Census one-line ---
+  const censusOneLineQuery = [addressNoUnit || address, city, state, zip].filter(Boolean).join(", ");
+  if (censusOneLineQuery) {
+    try {
+      const res = await censusOneLine(censusOneLineQuery);
+      if (res) {
+        return { coords: res, query: censusOneLineQuery, reason: null, provider: "census_oneline" };
+      }
+    } catch {
+      sawRequestFailure = true;
+    }
+  }
+
+  // --- Phase 4: Census structured ---
+  if (addressNoUnit || address) {
+    try {
+      const res = await censusStructured({
+        street: addressNoUnit || address,
+        city: city || undefined,
+        state: state || undefined,
+        zip: zip || undefined,
+      });
+      if (res) {
+        return {
+          coords: res,
+          query: `census-structured:${addressNoUnit || address} / ${city} / ${state} / ${zip}`,
+          reason: null,
+          provider: "census_structured",
+        };
+      }
+    } catch {
+      sawRequestFailure = true;
+    }
+  }
+
+  if (sawRequestFailure) {
+    return { coords: null, query: null, reason: "request_failed" };
+  }
+  return { coords: null, query: null, reason: "no_result" };
 }
