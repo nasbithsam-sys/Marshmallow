@@ -518,8 +518,10 @@ export default function MapViewPage() {
                           const reason = unmappedReasons[l.id] ?? "queued";
                           const label =
                             reason === "queued" ? "Waiting to be processed" :
-                            reason === "no_input" ? "Missing location information" :
-                            reason === "no_result" ? "Geocoder returned no result" :
+                            reason === "no_input" ? "Missing usable address" :
+                            reason === "no_result" ? "Address could not be located" :
+                            reason === "nominatim_no_result" ? "Address could not be located" :
+                            reason === "census_no_result" ? "Address could not be located" :
                             reason === "request_failed" ? "Geocoding request failed" :
                             reason === "invalid_existing" ? "Invalid existing coordinates" :
                             "Waiting to be processed";
