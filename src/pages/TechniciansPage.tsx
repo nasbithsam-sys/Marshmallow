@@ -61,8 +61,11 @@ export default function TechniciansPage() {
     Name: t.name ?? "",
     Service: t.service ?? "",
     Area: t.area ?? "",
+    "Chat Link": t.chat_link ?? "",
     Notes: t.notes ?? "",
   }));
+
+  const EXPORT_HEADERS = ["Name", "Service", "Area", "Chat Link", "Notes"];
 
   const download = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -73,14 +76,13 @@ export default function TechniciansPage() {
 
   const exportCsv = () => {
     const data = exportRows();
-    const headers = ["Name", "Service", "Area", "Notes"];
     const esc = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
-    const csv = [headers.join(","), ...data.map((r) => headers.map((h) => esc((r as Record<string, string>)[h] ?? "")).join(","))].join("\n");
+    const csv = [EXPORT_HEADERS.join(","), ...data.map((r) => EXPORT_HEADERS.map((h) => esc((r as Record<string, string>)[h] ?? "")).join(","))].join("\n");
     download(new Blob([csv], { type: "text/csv;charset=utf-8" }), `technicians-${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   const exportXlsx = () => {
-    const ws = XLSX.utils.json_to_sheet(exportRows(), { header: ["Name", "Service", "Area", "Notes"] });
+    const ws = XLSX.utils.json_to_sheet(exportRows(), { header: EXPORT_HEADERS });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Technicians");
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
