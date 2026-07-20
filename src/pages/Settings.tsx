@@ -751,7 +751,11 @@ const Settings = () => {
 
       {activeTab === "documentation" && isAdmin && <DocumentationTab />}
 
-      {activeTab === "crm_updates" && isAdmin && <CrmUpdates />}
+      {activeTab === "crm_updates" && isAdmin && (
+        <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
+          <CrmUpdates />
+        </Suspense>
+      )}
 
       {activeTab === "users" && (
         <div className="grid gap-3">
