@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,7 +26,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Plus, Shield, Eye, EyeOff, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock, FileText, BookOpen, Megaphone } from "lucide-react";
 import { DocumentationTab } from "@/components/settings/DocumentationTab";
-import CrmUpdates from "@/pages/CrmUpdates";
+const CrmUpdates = lazy(() => import("@/pages/CrmUpdates"));
 import { cn } from "@/lib/utils";
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from "@/lib/constants";
 import { adminApi } from "@/lib/admin-api";
@@ -751,7 +751,11 @@ const Settings = () => {
 
       {activeTab === "documentation" && isAdmin && <DocumentationTab />}
 
-      {activeTab === "crm_updates" && isAdmin && <CrmUpdates />}
+      {activeTab === "crm_updates" && isAdmin && (
+        <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
+          <CrmUpdates />
+        </Suspense>
+      )}
 
       {activeTab === "users" && (
         <div className="grid gap-3">
