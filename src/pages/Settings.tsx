@@ -24,8 +24,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Plus, Shield, Eye, EyeOff, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock, FileText, BookOpen } from "lucide-react";
+import { Plus, Shield, Eye, EyeOff, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock, FileText, BookOpen, Megaphone } from "lucide-react";
 import { DocumentationTab } from "@/components/settings/DocumentationTab";
+import CrmUpdates from "@/pages/CrmUpdates";
 import { cn } from "@/lib/utils";
 import { ALL_LEAD_STATUSES, STATUS_LABELS, ALL_NAV_ITEMS } from "@/lib/constants";
 import { adminApi } from "@/lib/admin-api";
@@ -161,7 +162,7 @@ const Settings = () => {
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState<AppRole>("customer_service");
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<"users" | "nav_permissions" | "status_permissions" | "templates" | "security" | "documentation">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "nav_permissions" | "status_permissions" | "templates" | "security" | "documentation" | "crm_updates">("users");
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordUserId, setPasswordUserId] = useState("");
   const [passwordUserName, setPasswordUserName] = useState("");
@@ -728,6 +729,7 @@ const Settings = () => {
             { key: "status_permissions", label: "Status Visibility", icon: Eye },
             { key: "templates", label: "Templates", icon: FileText },
             { key: "security", label: "Security", icon: ShieldCheck },
+            ...(isAdmin ? [{ key: "crm_updates" as const, label: "CRM Updates", icon: Megaphone }] : []),
             ...(isAdmin ? [{ key: "documentation" as const, label: "Documentation", icon: BookOpen }] : []),
           ] as const
         ).map((tab) => (
@@ -748,6 +750,8 @@ const Settings = () => {
       </div>
 
       {activeTab === "documentation" && isAdmin && <DocumentationTab />}
+
+      {activeTab === "crm_updates" && isAdmin && <CrmUpdates />}
 
       {activeTab === "users" && (
         <div className="grid gap-3">
