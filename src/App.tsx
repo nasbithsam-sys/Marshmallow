@@ -22,6 +22,7 @@ const LeadCancellationRequests = lazy(() => import("@/pages/LeadCancellationRequ
 const LeadPaymentRequests = lazy(() => import("@/pages/LeadPaymentRequests"));
 const QuoMonitorPage = lazy(() => import("@/pages/quo-monitor/QuoMonitorPage"));
 const CrmUpdates = lazy(() => import("@/pages/CrmUpdates"));
+const MapViewPage = lazy(() => import("@/pages/MapViewPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
