@@ -1133,6 +1133,8 @@ export type Database = {
           last_edited_at: string | null
           last_edited_by: string | null
           last_edited_by_name: string | null
+          latitude: number | null
+          longitude: number | null
           material_amount: number | null
           number_name: string | null
           payment_amount: number | null
@@ -1181,6 +1183,8 @@ export type Database = {
           last_edited_at?: string | null
           last_edited_by?: string | null
           last_edited_by_name?: string | null
+          latitude?: number | null
+          longitude?: number | null
           material_amount?: number | null
           number_name?: string | null
           payment_amount?: number | null
@@ -1229,6 +1233,8 @@ export type Database = {
           last_edited_at?: string | null
           last_edited_by?: string | null
           last_edited_by_name?: string | null
+          latitude?: number | null
+          longitude?: number | null
           material_amount?: number | null
           number_name?: string | null
           payment_amount?: number | null
@@ -2378,6 +2384,45 @@ export type Database = {
           id?: string
           status?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      technicians: {
+        Row: {
+          area: string
+          created_at: string
+          created_by: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          name: string
+          notes: string | null
+          service: string | null
+          updated_at: string
+        }
+        Insert: {
+          area: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          notes?: string | null
+          service?: string | null
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          notes?: string | null
+          service?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
