@@ -2390,6 +2390,7 @@ export type Database = {
       technicians: {
         Row: {
           area: string
+          chat_link: string | null
           created_at: string
           created_by: string | null
           id: string
@@ -2402,6 +2403,7 @@ export type Database = {
         }
         Insert: {
           area: string
+          chat_link?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
@@ -2414,6 +2416,7 @@ export type Database = {
         }
         Update: {
           area?: string
+          chat_link?: string | null
           created_at?: string
           created_by?: string | null
           id?: string

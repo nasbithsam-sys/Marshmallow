@@ -15,6 +15,7 @@ export interface TechnicianRecord {
   area: string;
   service: string | null;
   notes: string | null;
+  chat_link: string | null;
   latitude: number | null;
   longitude: number | null;
 }
@@ -30,6 +31,7 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
   const [name, setName] = useState("");
   const [area, setArea] = useState("");
   const [service, setService] = useState("");
+  const [chatLink, setChatLink] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -38,6 +40,7 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
       setName(technician?.name ?? "");
       setArea(technician?.area ?? "");
       setService(technician?.service ?? "");
+      setChatLink(technician?.chat_link ?? "");
       setNotes(technician?.notes ?? "");
     }
   }, [open, technician]);
@@ -45,17 +48,12 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
   const handleSubmit = async () => {
     const cleanName = name.trim();
     const cleanArea = area.trim();
-    if (!cleanName || !cleanArea) {
-      toast({ title: "Missing info", description: "Name and Area are required.", variant: "destructive" });
-      return;
-    }
     setSaving(true);
     try {
-      // Geocode area (best-effort; skip if unchanged)
       let latitude = technician?.latitude ?? null;
       let longitude = technician?.longitude ?? null;
       const areaChanged = !technician || technician.area !== cleanArea;
-      if (areaChanged) {
+      if (areaChanged && cleanArea) {
         const coords = await geocodeAddress(cleanArea);
         if (coords) {
           latitude = coords.latitude;
@@ -64,12 +62,16 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
           latitude = null;
           longitude = null;
         }
+      } else if (!cleanArea) {
+        latitude = null;
+        longitude = null;
       }
 
       const payload = {
         name: cleanName,
         area: cleanArea,
         service: service.trim() || null,
+        chat_link: chatLink.trim() || null,
         notes: notes.trim() || null,
         latitude,
         longitude,
@@ -86,10 +88,7 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
       if (error) {
         toast({ title: "Save failed", description: error.message, variant: "destructive" });
       } else {
-        toast({
-          title: technician ? "Technician updated" : "Technician added",
-          description: latitude === null ? "Location could not be mapped — marker will not appear until Area is fixed." : undefined,
-        });
+        toast({ title: technician ? "Technician updated" : "Technician added" });
         onSaved?.();
         onOpenChange(false);
       }
@@ -107,17 +106,21 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div className="space-y-1.5">
-            <Label htmlFor="tech-name">Technician Name *</Label>
+            <Label htmlFor="tech-name">Technician Name</Label>
             <Input id="tech-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. John Smith" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="tech-area">Area *</Label>
+            <Label htmlFor="tech-area">Area</Label>
             <Input id="tech-area" value={area} onChange={(e) => setArea(e.target.value)} placeholder="e.g. Miami, FL or 33101" />
             <p className="text-[11px] text-muted-foreground">City & state, ZIP code, or full address. Used to place the marker.</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="tech-service">Service</Label>
             <Input id="tech-service" value={service} onChange={(e) => setService(e.target.value)} placeholder="e.g. Plumbing" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tech-chat">Quo Chat Link</Label>
+            <Input id="tech-chat" value={chatLink} onChange={(e) => setChatLink(e.target.value)} placeholder="https://app.openphone.com/..." />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="tech-notes">Notes</Label>
