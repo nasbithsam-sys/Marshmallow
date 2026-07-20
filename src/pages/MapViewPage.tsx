@@ -104,6 +104,7 @@ export default function MapViewPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [zipDatasetReady, setZipDatasetReady] = useState(false);
   const [mapVisible, setMapVisible] = useState(false);
+  const [viewMode, setViewMode] = useState<"leads" | "techs" | "both">("both");
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
