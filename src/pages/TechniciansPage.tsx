@@ -147,17 +147,18 @@ export default function TechniciansPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Service</TableHead>
                 <TableHead>Area</TableHead>
+                <TableHead>Chat Link</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {techniciansQuery.isLoading && (
-                <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">Loading…</TableCell></TableRow>
               )}
               {!techniciansQuery.isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-10">
+                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-10">
                     {rows.length === 0 ? "No technicians yet. Add one manually or import from CSV/XLSX." : "No technicians match your search."}
                   </TableCell>
                 </TableRow>
@@ -167,6 +168,21 @@ export default function TechniciansPage() {
                   <TableCell className="font-medium">{t.name}</TableCell>
                   <TableCell>{t.service || <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell className="max-w-[280px] truncate" title={t.area}>{t.area}</TableCell>
+                  <TableCell className="max-w-[220px] truncate">
+                    {t.chat_link ? (
+                      <a
+                        href={t.chat_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                        title={t.chat_link}
+                      >
+                        Open chat
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="max-w-[320px] truncate text-muted-foreground" title={t.notes ?? ""}>{t.notes || <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell className="text-right">
                     <div className="inline-flex gap-1">
