@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Image as ImageIcon,
   CalendarDays,
+  CalendarClock,
   ShieldCheck,
   Copy,
   Check,
@@ -91,6 +92,80 @@ function formatDate(value?: string | null) {
   } catch {
     return value;
   }
+}
+
+function formatScheduleRequirementCompact(text?: string | null): { summary: string; full: string } | null {
+  if (!text) return null;
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+
+  const monthKeys: Record<string, number> = {
+    jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2, apr: 3, april: 3,
+    may: 4, jun: 5, june: 5, jul: 6, july: 6, aug: 7, august: 7,
+    sep: 8, sept: 8, september: 8, oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11,
+  };
+
+  let dateObj: Date | null = null;
+  const iso = lower.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const mn = lower.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:[,\s]+(\d{2,4}))?/);
+  const md = lower.match(/(?<!\d)(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  const nowYear = new Date().getFullYear();
+  if (iso) {
+    dateObj = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  } else if (mn) {
+    const idx = monthKeys[mn[1]];
+    const day = Number(mn[2]);
+    const y = mn[3] ? (mn[3].length === 2 ? 2000 + Number(mn[3]) : Number(mn[3])) : nowYear;
+    if (idx !== undefined && day >= 1 && day <= 31) dateObj = new Date(y, idx, day);
+  } else if (md) {
+    const m = Number(md[1]);
+    const d = Number(md[2]);
+    const y = md[3] ? (md[3].length === 2 ? 2000 + Number(md[3]) : Number(md[3])) : nowYear;
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) dateObj = new Date(y, m - 1, d);
+  }
+  const datePart = dateObj
+    ? dateObj.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : null;
+
+  const fmtHr = (h: string, min?: string, ampm?: string) => {
+    let s = h;
+    if (min && min !== "00") s += `:${min}`;
+    if (ampm) s += ` ${ampm.replace(/\./g, "").toUpperCase()}`;
+    return s;
+  };
+  let timePart: string | null = null;
+  const timeRange = trimmed.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i);
+  const singleTime = trimmed.match(/\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b/i);
+  if (timeRange) {
+    const [, h1, m1, ap1, h2, m2, ap2] = timeRange;
+    timePart = `${fmtHr(h1, m1, ap1 || ap2)}–${fmtHr(h2, m2, ap2)}`;
+  } else if (singleTime) {
+    const [, h, m, ap] = singleTime;
+    timePart = fmtHr(h, m, ap);
+  }
+
+  let flexLabel: string | null = null;
+  const hasFlex = /\bflex(ible)?\b|\banytime\b|\bany time\b|\bwhenever\b|\bopen\b/.test(lower);
+  const hasWeekend = /\bweekend\b/.test(lower);
+  const hasNextWeek = /\bnext\s+week\b/.test(lower);
+  const hasThisWeek = /\bthis\s+week\b/.test(lower);
+  const hasFullWeek = /\ball\s+week\b|\bfull\s+week\b|\bwhole\s+week\b/.test(lower);
+  if (hasWeekend) flexLabel = "Flexible weekend";
+  else if (hasNextWeek) flexLabel = "Flexible next week";
+  else if (hasThisWeek || hasFullWeek) flexLabel = "Flexible this week";
+  else if (hasFlex) flexLabel = "Flexible";
+
+  let summary: string;
+  if (datePart && timePart && !flexLabel) summary = `${datePart}, ${timePart}`;
+  else if (datePart && flexLabel) summary = `${datePart} · ${flexLabel}`;
+  else if (datePart && timePart) summary = `${datePart}, ${timePart}`;
+  else if (datePart) summary = datePart;
+  else if (flexLabel) summary = flexLabel;
+  else if (timePart) summary = timePart;
+  else summary = trimmed.length > 26 ? trimmed.slice(0, 24).trim() + "…" : trimmed;
+
+  return { summary, full: trimmed };
 }
 
 function formatScheduleForCopy(lead: Lead) {
@@ -874,6 +949,20 @@ function LeadCard({
                       {formatBookingCompact(lead.booked_at)}
                     </button>
                   )}
+                  {(() => {
+                    const sched = formatScheduleRequirementCompact(lead.customer_schedule_requirements);
+                    if (!sched) return null;
+                    return (
+                      <span
+                        title={`Schedule Requirement: ${sched.full}`}
+                        className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/12 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:text-sky-300"
+                      >
+                        <CalendarClock className="h-3 w-3" />
+                        <span className="opacity-80">Schedule Requirement:</span>
+                        <span>{sched.summary}</span>
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
