@@ -405,6 +405,23 @@ export default function MapViewPage() {
         <Card className="border-border/60">
           <CardContent className="p-3">
             <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border bg-background p-0.5">
+                {([
+                  { key: "leads", label: "Urgent Leads" },
+                  { key: "techs", label: "Technicians" },
+                  { key: "both", label: "Both" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setViewMode(opt.key)}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      viewMode === opt.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
               <Select value={serviceFilter} onValueChange={setServiceFilter}>
                 <SelectTrigger className="h-8 w-[180px] text-xs">
                   <SelectValue placeholder="All services" />
