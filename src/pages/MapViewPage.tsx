@@ -224,12 +224,18 @@ export default function MapViewPage() {
   }, [urgentLeadsQuery.data, techniciansQuery.data, retryTick]);
 
   const retryUnmapped = () => {
+    // Purge negative-cache entries for every currently-unmapped lead so
+    // providers are contacted again instead of returning cached "no result".
+    for (const l of unmappedLeadList) {
+      clearNegativeCacheFor({ address: l.address, city: l.city, state: l.state, zip: l.zip_code });
+    }
     setProcessedIds(new Set());
     setUnmappedReasons({});
     setRetryTick((t) => t + 1);
   };
 
   const retrySingleLead = async (lead: UrgentLead) => {
+    clearNegativeCacheFor({ address: lead.address, city: lead.city, state: lead.state, zip: lead.zip_code });
     setUnmappedReasons((prev) => ({ ...prev, [lead.id]: "queued" }));
     const result = await geocodeWithFallback({ address: lead.address, city: lead.city, state: lead.state, zip: lead.zip_code });
     if (result.coords) {
