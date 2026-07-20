@@ -729,6 +729,7 @@ const Settings = () => {
             { key: "status_permissions", label: "Status Visibility", icon: Eye },
             { key: "templates", label: "Templates", icon: FileText },
             { key: "security", label: "Security", icon: ShieldCheck },
+            ...(isAdmin ? [{ key: "crm_updates" as const, label: "CRM Updates", icon: Megaphone }] : []),
             ...(isAdmin ? [{ key: "documentation" as const, label: "Documentation", icon: BookOpen }] : []),
           ] as const
         ).map((tab) => (
