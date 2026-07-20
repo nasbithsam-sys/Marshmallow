@@ -526,40 +526,60 @@ export default function MapViewPage() {
         <CardContent className="p-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center rounded-lg border bg-card p-0.5 gap-0.5">
-              {(["both", "urgent", "technicians"] as EntityFilter[]).map((v) => (
+              {(["urgent", "technicians"] as EntityFilter[]).map((v) => (
                 <button
                   key={v}
-                  onClick={() => setEntityFilter(v)}
+                  onClick={() => {
+                    setEntityFilter(v);
+                    if (v === "urgent") setSelectedTechId(null);
+                  }}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
                     entityFilter === v ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {v === "both" ? "Both" : v === "urgent" ? "Urgent Leads" : "Technicians"}
+                  {v === "urgent" ? "Urgent Leads" : "Technicians"}
                 </button>
               ))}
             </div>
-            <Select value={serviceFilter} onValueChange={setServiceFilter}>
-              <SelectTrigger className="h-8 w-[180px] text-xs">
-                <SelectValue placeholder="All services" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All services</SelectItem>
-                {services.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={techSearch}
-                onChange={(e) => setTechSearch(e.target.value)}
-                placeholder="Search technician"
-                className="h-8 w-[200px] pl-7 text-xs"
-              />
-            </div>
+            {entityFilter === "technicians" && (
+              <>
+                <Select value={serviceFilter} onValueChange={setServiceFilter}>
+                  <SelectTrigger className="h-8 w-[180px] text-xs">
+                    <SelectValue placeholder="All services" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All services</SelectItem>
+                    {services.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={techSearch}
+                    onChange={(e) => setTechSearch(e.target.value)}
+                    placeholder="Search technician"
+                    className="h-8 w-[200px] pl-7 text-xs"
+                  />
+                </div>
+              </>
+            )}
             <div className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500 border border-white" /> Urgent Lead</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-blue-500 border border-white" /> Technician</span>
-              {selectedTech && <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border-2 border-blue-500 bg-blue-500/10" /> 50-mile radius</span>}
+              <div className="flex items-center gap-2 pr-3 border-r">
+                <Label htmlFor="map-visible-toggle" className="text-[11px] font-medium text-foreground cursor-pointer">
+                  Map View
+                </Label>
+                <Switch id="map-visible-toggle" checked={mapVisible} onCheckedChange={setMapVisible} />
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{mapVisible ? "On" : "Off"}</span>
+              </div>
+              {entityFilter === "urgent" && (
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500 border border-white" /> Urgent Lead</span>
+              )}
+              {entityFilter === "technicians" && (
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500 border border-white" /> Technician</span>
+              )}
+              {entityFilter === "technicians" && selectedTech && (
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border-2 border-blue-500 bg-blue-500/10" /> {RADIUS_MILES}-mile radius</span>
+              )}
             </div>
           </div>
         </CardContent>
