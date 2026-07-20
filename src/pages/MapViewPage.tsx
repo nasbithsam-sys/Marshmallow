@@ -56,8 +56,6 @@ interface MappedTech extends TechnicianRecord {
   coords: LatLng;
 }
 
-type EntityFilter = "both" | "urgent" | "technicians";
-
 type EntityFilter = "urgent" | "technicians";
 
 function pinSvg(fill: string, stroke: string, size = 32) {
