@@ -112,6 +112,7 @@ const App = () => (
               <Route path="schedule" element={<PageRoute navItem="schedule"><SchedulePage /></PageRoute>} />
               <Route path="analytics" element={<PageRoute navItem="analytics"><Analytics /></PageRoute>} />
               <Route path="areas" element={<PageRoute navItem="areas"><AreasPage /></PageRoute>} />
+              <Route path="map-view" element={<PageRoute navItem="map_view"><MapViewPage /></PageRoute>} />
               <Route path="activity-logs" element={<PageRoute navItem="activity_logs"><ActivityLogs /></PageRoute>} />
               <Route path="quo-monitor" element={<PageRoute navItem="quo_monitor"><QuoMonitorPage /></PageRoute>} />
               <Route path="lead-cancellation-requests" element={<PageRoute navItem="cancellation_requests"><LeadCancellationRequests /></PageRoute>} />
