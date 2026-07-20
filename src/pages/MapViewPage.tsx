@@ -13,6 +13,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { MapPin, Plus, Upload, Search, Loader2, X, Users, Navigation as NavIcon, AlertTriangle, Contact } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { TechnicianDialog, TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { ImportTechniciansDialog } from "@/components/technicians/ImportTechniciansDialog";
 import { haversineMiles, geocodeAddress, isValidLatLng, LatLng } from "@/lib/geo";
@@ -22,7 +24,7 @@ import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { LeadStatus } from "@/types";
 
-const RADIUS_MILES = 50;
+const RADIUS_MILES = 20;
 const RADIUS_METERS = RADIUS_MILES * 1609.344;
 
 interface UrgentLead {
