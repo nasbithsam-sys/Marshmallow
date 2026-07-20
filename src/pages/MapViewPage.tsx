@@ -42,7 +42,13 @@ interface UrgentLead {
 
 interface MappedLead extends UrgentLead {
   coords: LatLng;
+  zip: string;
+  zipCity: string;
+  zipState: string;
+  locationSource: "zip_centroid";
 }
+
+type ZipUnmappedReason = "zip_missing" | "zip_invalid" | "zip_not_found";
 
 interface MappedTech extends TechnicianRecord {
   coords: LatLng;
