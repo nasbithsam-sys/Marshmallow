@@ -96,76 +96,187 @@ function formatDate(value?: string | null) {
 
 function formatScheduleRequirementCompact(text?: string | null): { summary: string; full: string } | null {
   if (!text) return null;
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-  const lower = trimmed.toLowerCase();
+  const full = text.trim();
+  if (!full) return null;
 
-  const monthKeys: Record<string, number> = {
+  const WEEKDAYS: Record<string, string> = {
+    sunday: "Sun", sun: "Sun",
+    monday: "Mon", mon: "Mon",
+    tuesday: "Tue", tue: "Tue", tues: "Tue",
+    wednesday: "Wed", wed: "Wed",
+    thursday: "Thu", thu: "Thu", thur: "Thu", thurs: "Thu",
+    friday: "Fri", fri: "Fri",
+    saturday: "Sat", sat: "Sat",
+  };
+  const MONTHS: Record<string, number> = {
     jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2, apr: 3, april: 3,
     may: 4, jun: 5, june: 5, jul: 6, july: 6, aug: 7, august: 7,
     sep: 8, sept: 8, september: 8, oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11,
   };
+  const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const MONTH_RX = "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
 
-  let dateObj: Date | null = null;
-  const iso = lower.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-  const mn = lower.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:[,\s]+(\d{2,4}))?/);
-  const md = lower.match(/(?<!\d)(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
-  const nowYear = new Date().getFullYear();
-  if (iso) {
-    dateObj = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
-  } else if (mn) {
-    const idx = monthKeys[mn[1]];
-    const day = Number(mn[2]);
-    const y = mn[3] ? (mn[3].length === 2 ? 2000 + Number(mn[3]) : Number(mn[3])) : nowYear;
-    if (idx !== undefined && day >= 1 && day <= 31) dateObj = new Date(y, idx, day);
-  } else if (md) {
-    const m = Number(md[1]);
-    const d = Number(md[2]);
-    const y = md[3] ? (md[3].length === 2 ? 2000 + Number(md[3]) : Number(md[3])) : nowYear;
-    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) dateObj = new Date(y, m - 1, d);
-  }
-  const datePart = dateObj
-    ? dateObj.toLocaleDateString(undefined, { month: "short", day: "numeric" })
-    : null;
+  const nowMonth = new Date().getMonth();
+  const lower = full.toLowerCase();
 
-  const fmtHr = (h: string, min?: string, ampm?: string) => {
-    let s = h;
-    if (min && min !== "00") s += `:${min}`;
-    if (ampm) s += ` ${ampm.replace(/\./g, "").toUpperCase()}`;
+  type PT = { h: number; m: number; ap: "am" | "pm" | null };
+  const parseTimeToken = (str: string): PT | null => {
+    if (/noon/i.test(str)) return { h: 12, m: 0, ap: "pm" };
+    if (/midnight/i.test(str)) return { h: 12, m: 0, ap: "am" };
+    const m = str.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?/i);
+    if (!m) return null;
+    const h = Number(m[1]);
+    if (h > 24) return null;
+    return { h, m: m[2] ? Number(m[2]) : 0, ap: m[3] ? (m[3][0].toLowerCase() === "p" ? "pm" : "am") : null };
+  };
+  const displayHr = (h: number) => (h === 0 ? 12 : h > 12 ? h - 12 : h);
+  const fmtOne = (t: PT, inheritAp: "am" | "pm" | null = null) => {
+    const ap = t.ap ?? inheritAp;
+    let s = String(displayHr(t.h));
+    if (t.m) s += `:${String(t.m).padStart(2, "0")}`;
+    if (ap) s += ` ${ap.toUpperCase()}`;
     return s;
   };
-  let timePart: string | null = null;
-  const timeRange = trimmed.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i);
-  const singleTime = trimmed.match(/\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b/i);
-  if (timeRange) {
-    const [, h1, m1, ap1, h2, m2, ap2] = timeRange;
-    timePart = `${fmtHr(h1, m1, ap1 || ap2)}–${fmtHr(h2, m2, ap2)}`;
-  } else if (singleTime) {
-    const [, h, m, ap] = singleTime;
-    timePart = fmtHr(h, m, ap);
+
+  const findTime = (seg: string): string | null => {
+    const rangeRe = new RegExp(
+      `(?:from\\s+)?(noon|midnight|\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)?)\\s*(?:-|–|—|to)\\s*(noon|midnight|\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)?)`,
+      "i",
+    );
+    const r = seg.match(rangeRe);
+    if (r) {
+      const t1 = parseTimeToken(r[1]);
+      const t2 = parseTimeToken(r[2]);
+      if (t1 && t2) {
+        const ap1 = t1.ap ?? t2.ap;
+        const ap2 = t2.ap ?? ap1;
+        if (ap1 && ap2 && ap1 === ap2) {
+          const h1 = `${displayHr(t1.h)}${t1.m ? `:${String(t1.m).padStart(2, "0")}` : ""}`;
+          const h2 = `${displayHr(t2.h)}${t2.m ? `:${String(t2.m).padStart(2, "0")}` : ""}`;
+          return `${h1}–${h2} ${ap2.toUpperCase()}`;
+        }
+        return `${fmtOne(t1, ap1)}–${fmtOne(t2, ap2)}`;
+      }
+    }
+    const a = seg.match(/\b(after|before|around|by|past)\s+(noon|midnight|\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)/i);
+    if (a) {
+      const t = parseTimeToken(a[2]);
+      if (t) {
+        const ap = t.ap ?? (t.h >= 8 && t.h <= 11 ? "am" : t.h >= 1 && t.h <= 7 ? "pm" : null);
+        return `${a[1].toLowerCase()} ${fmtOne(t, ap)}`;
+      }
+    }
+    const single = seg.match(/\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b|\b(noon|midnight)\b/i);
+    if (single) {
+      const t = parseTimeToken(single[0]);
+      if (t) return fmtOne(t);
+    }
+    if (/\bmorning\b/i.test(seg)) return "Morning";
+    if (/\bafternoon\b/i.test(seg)) return "Afternoon";
+    if (/\bevening\b/i.test(seg)) return "Evening";
+    return null;
+  };
+
+  const findWeekdays = (seg: string): string[] => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    const re = /\b(sunday|sun|monday|mon|tuesday|tues?|wednesday|wed|thursday|thurs?|thu|friday|fri|saturday|sat)\b/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(seg)) !== null) {
+      const w = WEEKDAYS[m[1].toLowerCase()];
+      if (w && !seen.has(w)) { seen.add(w); out.push(w); }
+    }
+    return out;
+  };
+
+  const findDates = (seg: string): { month: number; day: number }[] => {
+    const results: { month: number; day: number }[] = [];
+    const push = (mo: number, d: number) => {
+      if (mo < 0 || mo > 11 || d < 1 || d > 31) return;
+      if (!results.some((r) => r.month === mo && r.day === d)) results.push({ month: mo, day: d });
+    };
+    // "20, 21 July" — grouped days sharing a month
+    const grouped = seg.match(new RegExp(`(\\d{1,2}(?:st|nd|rd|th)?(?:\\s*[,&]\\s*(?:and\\s+)?\\d{1,2}(?:st|nd|rd|th)?)+)\\s+${MONTH_RX}\\b`, "i"));
+    if (grouped) {
+      const mo = MONTHS[grouped[2].toLowerCase()];
+      const days = grouped[1]
+        .split(/[,&]|\band\b/i)
+        .map((s) => Number(s.replace(/\D/g, "")))
+        .filter((d) => d >= 1 && d <= 31);
+      if (mo !== undefined) days.forEach((d) => push(mo, d));
+    }
+    // "21st July"
+    let m: RegExpExecArray | null;
+    const dm = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_RX}\\b`, "gi");
+    while ((m = dm.exec(seg)) !== null) push(MONTHS[m[2].toLowerCase()], Number(m[1]));
+    // "July 21"
+    const md = new RegExp(`\\b${MONTH_RX}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "gi");
+    while ((m = md.exec(seg)) !== null) push(MONTHS[m[1].toLowerCase()], Number(m[2]));
+    // ISO
+    const iso = seg.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+    if (iso) push(Number(iso[2]) - 1, Number(iso[3]));
+    // MM/DD
+    const slash = seg.match(/(?<!\d)(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?(?!\d)/);
+    if (slash) push(Number(slash[1]) - 1, Number(slash[2]));
+    // Bare ordinal day (e.g. "22nd") when no other date found — use current month
+    if (results.length === 0) {
+      const ord = seg.match(/\b(\d{1,2})(st|nd|rd|th)\b/i);
+      if (ord) push(nowMonth, Number(ord[1]));
+    }
+    results.sort((a, b) => a.month - b.month || a.day - b.day);
+    return results;
+  };
+
+  const joinTime = (dayPart: string, time: string | null): string => {
+    if (!time) return dayPart;
+    if (!dayPart) return time;
+    if (/^(after|before|around|by|past)\s/i.test(time)) return `${dayPart} ${time}`;
+    return `${dayPart} · ${time}`;
+  };
+
+  const renderSeg = (seg: string): string => {
+    const weekdays = findWeekdays(seg);
+    const dates = findDates(seg);
+    const time = findTime(seg);
+    const dayStrs: string[] = [];
+    if (dates.length) {
+      for (let i = 0; i < dates.length; i++) {
+        const d = dates[i];
+        const wd = weekdays[i] ?? (weekdays.length === 1 ? weekdays[0] : "");
+        const s = `${MONTH_SHORT[d.month]} ${d.day}`;
+        dayStrs.push(wd ? `${wd} ${s}` : s);
+      }
+    } else {
+      for (const wd of weekdays) dayStrs.push(wd);
+    }
+    return joinTime(dayStrs.join(" / "), time);
+  };
+
+  // Split into options by " or ", " / ", ";"
+  const rawSegs = full.split(/\s+or\s+|\s*\/\s*|\s*;\s*/i).map((s) => s.trim()).filter(Boolean);
+  const segments = rawSegs.length > 1 ? rawSegs : [full];
+
+  let summary = "";
+  if (segments.length === 1) {
+    summary = renderSeg(segments[0]);
+  } else {
+    summary = segments.map(renderSeg).filter(Boolean).join(" / ");
   }
 
-  let flexLabel: string | null = null;
-  const hasFlex = /\bflex(ible)?\b|\banytime\b|\bany time\b|\bwhenever\b|\bopen\b/.test(lower);
-  const hasWeekend = /\bweekend\b/.test(lower);
-  const hasNextWeek = /\bnext\s+week\b/.test(lower);
-  const hasThisWeek = /\bthis\s+week\b/.test(lower);
-  const hasFullWeek = /\ball\s+week\b|\bfull\s+week\b|\bwhole\s+week\b/.test(lower);
-  if (hasWeekend) flexLabel = "Flexible weekend";
-  else if (hasNextWeek) flexLabel = "Flexible next week";
-  else if (hasThisWeek || hasFullWeek) flexLabel = "Flexible this week";
-  else if (hasFlex) flexLabel = "Flexible";
+  if (!summary) {
+    const hasFlex = /\bflex(ible)?\b|\banytime\b|\bany time\b|\bwhenever\b|\bopen\b/.test(lower);
+    const hasWeekend = /\bweekend\b/.test(lower);
+    const hasNextWeek = /\bnext\s+week\b/.test(lower);
+    const hasThisWeek = /\bthis\s+week\b/.test(lower);
+    if (hasWeekend) summary = "Weekend · Flexible";
+    else if (hasNextWeek) summary = "Next week · Flexible";
+    else if (hasThisWeek) summary = "This week · Flexible";
+    else if (hasFlex) summary = "Flexible";
+    else summary = full.length > 32 ? full.slice(0, 30).trim() + "…" : full;
+  }
 
-  let summary: string;
-  if (datePart && timePart && !flexLabel) summary = `${datePart}, ${timePart}`;
-  else if (datePart && flexLabel) summary = `${datePart} · ${flexLabel}`;
-  else if (datePart && timePart) summary = `${datePart}, ${timePart}`;
-  else if (datePart) summary = datePart;
-  else if (flexLabel) summary = flexLabel;
-  else if (timePart) summary = timePart;
-  else summary = trimmed.length > 26 ? trimmed.slice(0, 24).trim() + "…" : trimmed;
-
-  return { summary, full: trimmed };
+  if (summary.length > 64) summary = summary.slice(0, 62).trim() + "…";
+  return { summary, full };
 }
 
 function formatScheduleForCopy(lead: Lead) {
