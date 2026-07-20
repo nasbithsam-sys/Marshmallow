@@ -369,6 +369,15 @@ export default function MapViewPage() {
     }
   }, [selectedTech]);
 
+  // Re-measure map when it becomes visible again (Leaflet needs invalidateSize after unhide).
+  useEffect(() => {
+    if (!mapVisible) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const t = setTimeout(() => map.invalidateSize(), 60);
+    return () => clearTimeout(t);
+  }, [mapVisible]);
+
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["technicians"] });
     qc.invalidateQueries({ queryKey: ["map-urgent-leads"] });
