@@ -15,7 +15,7 @@ import { MapPin, Plus, Upload, Search, Wrench, Loader2, X, Users, Navigation as 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TechnicianDialog, TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { ImportTechniciansDialog } from "@/components/technicians/ImportTechniciansDialog";
-import { haversineMiles, geocodeAddress, geocodeWithFallback, isValidLatLng, buildGeocodeQueries, normalizeAddress, LatLng, GeocodeFailReason } from "@/lib/geo";
+import { haversineMiles, geocodeAddress, geocodeWithFallback, isValidLatLng, buildGeocodeQueries, normalizeAddress, clearNegativeCacheFor, LatLng, GeocodeFailReason } from "@/lib/geo";
 import { STATUS_LABELS } from "@/lib/constants";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
