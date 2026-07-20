@@ -448,35 +448,26 @@ export default function MapViewPage() {
                       </button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[380px] p-0" align="start">
-                      <div className="p-3 border-b flex items-center justify-between">
+                      <div className="p-3 border-b">
                         <div className="text-xs font-semibold">Unmapped urgent leads</div>
-                        <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={retryUnmapped}>
-                          <RefreshCw className="h-3 w-3 mr-1" /> Retry all
-                        </Button>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          Leads without a usable ZIP code cannot be placed on the map.
+                        </div>
                       </div>
                       <ul className="max-h-[360px] overflow-y-auto divide-y">
                         {unmappedLeadList.map((l) => {
-                          const reason = unmappedReasons[l.id] ?? "queued";
+                          const reason = unmappedReasons[l.id];
                           const label =
-                            reason === "queued" ? "Waiting to be processed" :
-                            reason === "no_input" ? "Missing usable address" :
-                            reason === "no_result" ? "Address could not be located" :
-                            reason === "nominatim_no_result" ? "Address could not be located" :
-                            reason === "census_no_result" ? "Address could not be located" :
-                            reason === "request_failed" ? "Geocoding request failed" :
-                            reason === "invalid_existing" ? "Invalid existing coordinates" :
-                            "Waiting to be processed";
+                            reason === "zip_missing" ? "ZIP code missing" :
+                            reason === "zip_invalid" ? "Invalid ZIP code" :
+                            reason === "zip_not_found" ? "ZIP code not found in dataset" :
+                            "ZIP code missing";
                           return (
                             <li key={l.id} className="p-2.5 text-xs">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="font-medium truncate">{l.customer_name || "Unnamed"}</div>
-                                  <div className="text-muted-foreground truncate">{fullAddress(l) || "—"}</div>
-                                  <div className="text-[11px] mt-0.5 text-amber-600 dark:text-amber-400">{label}</div>
-                                </div>
-                                <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => retrySingleLead(l)}>
-                                  Retry
-                                </Button>
+                              <div className="min-w-0">
+                                <div className="font-medium truncate">{l.customer_name || "Unnamed"}</div>
+                                <div className="text-muted-foreground truncate">{fullAddress(l) || "—"}</div>
+                                <div className="text-[11px] mt-0.5 text-amber-600 dark:text-amber-400">{label}</div>
                               </div>
                             </li>
                           );
@@ -487,9 +478,6 @@ export default function MapViewPage() {
                       </ul>
                     </PopoverContent>
                   </Popover>
-                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={retryUnmapped}>
-                    <RefreshCw className="h-3 w-3 mr-1" /> Retry Unmapped
-                  </Button>
                 </>
               )}
               {geocoding && pendingCount === 0 && <Loader2 className="h-3 w-3 animate-spin" />}
