@@ -104,6 +104,7 @@ export default function MapViewPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [zipDatasetReady, setZipDatasetReady] = useState(false);
   const [mapVisible, setMapVisible] = useState(false);
+  const [viewMode, setViewMode] = useState<"leads" | "techs" | "both">("both");
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
@@ -235,6 +236,7 @@ export default function MapViewPage() {
     const layer = techLayer.current;
     if (!layer) return;
     layer.clearLayers();
+    if (viewMode === "leads") return;
     for (const t of filteredTechs) {
       const isSelected = t.id === selectedTechId;
       const m = L.marker([t.coords.latitude, t.coords.longitude], { icon: techMarkerIcon(isSelected) });
@@ -244,13 +246,15 @@ export default function MapViewPage() {
       });
       m.addTo(layer);
     }
-  }, [filteredTechs, selectedTechId, isMobile, mapVisible]);
+  }, [filteredTechs, selectedTechId, isMobile, mapVisible, viewMode]);
+
 
   // Urgent lead markers — all if no tech selected, in-range only when one is selected.
   useEffect(() => {
     const layer = leadLayer.current;
     if (!layer) return;
     layer.clearLayers();
+    if (viewMode === "techs") return;
     const jitter = (id: string, salt: number) => {
       let h = 0;
       for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i) + salt) | 0;
@@ -284,7 +288,7 @@ export default function MapViewPage() {
       });
       m.addTo(layer);
     }
-  }, [mappedLeads, leadsInRange, selectedTech, navigate, mapVisible]);
+  }, [mappedLeads, leadsInRange, selectedTech, navigate, mapVisible, viewMode]);
 
   // Selected-tech radius circle
   useEffect(() => {
@@ -401,6 +405,23 @@ export default function MapViewPage() {
         <Card className="border-border/60">
           <CardContent className="p-3">
             <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border bg-background p-0.5">
+                {([
+                  { key: "leads", label: "Urgent Leads" },
+                  { key: "techs", label: "Technicians" },
+                  { key: "both", label: "Both" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setViewMode(opt.key)}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      viewMode === opt.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
               <Select value={serviceFilter} onValueChange={setServiceFilter}>
                 <SelectTrigger className="h-8 w-[180px] text-xs">
                   <SelectValue placeholder="All services" />
