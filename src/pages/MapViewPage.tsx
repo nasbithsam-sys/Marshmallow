@@ -96,6 +96,10 @@ export default function MapViewPage() {
   const [onlyInRange, setOnlyInRange] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
+  // Reason per unmapped lead id
+  const [unmappedReasons, setUnmappedReasons] = useState<Record<string, GeocodeFailReason | "invalid_existing" | "queued">>({});
+  const [processedIds, setProcessedIds] = useState<Set<string>>(() => new Set());
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
@@ -124,54 +128,141 @@ export default function MapViewPage() {
     staleTime: 60_000,
   });
 
-  // Geocode leads/technicians that don't have coords yet (lightweight, sequential).
+  const leadNeedsGeo = (l: UrgentLead) => !isValidLatLng(l.latitude, l.longitude);
+
+  // Controlled geocoding queue: uses fallback + duplicate-address dedupe;
+  // persists coords back to Supabase; updates markers as they resolve.
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      const leadsNeedGeo = (urgentLeadsQuery.data ?? []).filter((l) => l.latitude == null || l.longitude == null);
-      const techsNeedGeo = (techniciansQuery.data ?? []).filter((t) => t.latitude == null || t.longitude == null);
-      if (!leadsNeedGeo.length && !techsNeedGeo.length) return;
+      const techsNeedGeo = (techniciansQuery.data ?? []).filter((t) => !isValidLatLng(t.latitude, t.longitude));
+      const allLeads = urgentLeadsQuery.data ?? [];
+      const invalidExisting: UrgentLead[] = [];
+      const needsGeo: UrgentLead[] = [];
+      for (const l of allLeads) {
+        if (isValidLatLng(l.latitude, l.longitude)) continue;
+        if (l.latitude != null || l.longitude != null) invalidExisting.push(l);
+        needsGeo.push(l);
+      }
+      // Seed reasons: pending + invalid_existing
+      setUnmappedReasons((prev) => {
+        const next = { ...prev };
+        for (const l of needsGeo) if (!processedIds.has(l.id) && !next[l.id]) next[l.id] = "queued";
+        for (const l of invalidExisting) next[l.id] = "invalid_existing";
+        return next;
+      });
 
+      if (!techsNeedGeo.length && !needsGeo.length) return;
       setGeocoding(true);
+
       for (const t of techsNeedGeo) {
         if (cancelled) break;
         const c = await geocodeAddress(t.area);
-        if (c) {
-          await supabase.from("technicians").update({ latitude: c.latitude, longitude: c.longitude }).eq("id", t.id);
-        }
+        if (c) await supabase.from("technicians").update({ latitude: c.latitude, longitude: c.longitude }).eq("id", t.id);
       }
-      for (const l of leadsNeedGeo) {
+
+      // Dedupe leads by normalized address query set — geocode each address once.
+      const groups = new Map<string, UrgentLead[]>();
+      for (const l of needsGeo) {
+        if (processedIds.has(l.id)) continue;
+        const queries = buildGeocodeQueries({ address: l.address, city: l.city, state: l.state, zip: l.zip_code });
+        const key = queries[0] ? normalizeAddress(queries[0]) : `__no_input__${l.id}`;
+        const arr = groups.get(key) ?? [];
+        arr.push(l);
+        groups.set(key, arr);
+      }
+
+      for (const [, leadsForKey] of groups) {
         if (cancelled) break;
-        const addr = fullAddress(l);
-        if (!addr) continue;
-        const c = await geocodeAddress(addr);
-        if (c) {
-          await supabase.from("leads").update({ latitude: c.latitude, longitude: c.longitude }).eq("id", l.id);
+        const first = leadsForKey[0];
+        const result = await geocodeWithFallback({
+          address: first.address, city: first.city, state: first.state, zip: first.zip_code,
+        });
+        if (cancelled) break;
+        setProcessedIds((prev) => {
+          const s = new Set(prev);
+          for (const l of leadsForKey) s.add(l.id);
+          return s;
+        });
+        if (result.coords) {
+          const { latitude, longitude } = result.coords;
+          // Persist to every matching lead individually (safe, small volume).
+          for (const l of leadsForKey) {
+            const { error } = await supabase.from("leads")
+              .update({ latitude, longitude })
+              .eq("id", l.id);
+            if (error) {
+              setUnmappedReasons((prev) => ({ ...prev, [l.id]: "request_failed" }));
+            }
+          }
+          setUnmappedReasons((prev) => {
+            const next = { ...prev };
+            for (const l of leadsForKey) delete next[l.id];
+            return next;
+          });
+          // Optimistically update React Query cache so markers appear immediately.
+          qc.setQueryData<UrgentLead[]>(["map-urgent-leads"], (old) =>
+            (old ?? []).map((r) => leadsForKey.find((x) => x.id === r.id) ? { ...r, latitude, longitude } : r),
+          );
+        } else {
+          setUnmappedReasons((prev) => {
+            const next = { ...prev };
+            for (const l of leadsForKey) next[l.id] = result.reason ?? "no_result";
+            return next;
+          });
         }
       }
+
       if (!cancelled) {
         setGeocoding(false);
         qc.invalidateQueries({ queryKey: ["technicians"] });
-        qc.invalidateQueries({ queryKey: ["map-urgent-leads"] });
       }
     };
     void run();
     return () => { cancelled = true; };
-  }, [urgentLeadsQuery.data, techniciansQuery.data, qc]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urgentLeadsQuery.data, techniciansQuery.data, retryTick]);
+
+  const retryUnmapped = () => {
+    setProcessedIds(new Set());
+    setUnmappedReasons({});
+    setRetryTick((t) => t + 1);
+  };
+
+  const retrySingleLead = async (lead: UrgentLead) => {
+    setUnmappedReasons((prev) => ({ ...prev, [lead.id]: "queued" }));
+    const result = await geocodeWithFallback({ address: lead.address, city: lead.city, state: lead.state, zip: lead.zip_code });
+    if (result.coords) {
+      const { latitude, longitude } = result.coords;
+      await supabase.from("leads").update({ latitude, longitude }).eq("id", lead.id);
+      qc.setQueryData<UrgentLead[]>(["map-urgent-leads"], (old) =>
+        (old ?? []).map((r) => r.id === lead.id ? { ...r, latitude, longitude } : r),
+      );
+      setUnmappedReasons((prev) => { const n = { ...prev }; delete n[lead.id]; return n; });
+    } else {
+      setUnmappedReasons((prev) => ({ ...prev, [lead.id]: result.reason ?? "no_result" }));
+    }
+  };
 
   const mappedLeads = useMemo<MappedLead[]>(() => {
     const rows = urgentLeadsQuery.data ?? [];
     return rows
-      .filter((l) => l.latitude != null && l.longitude != null)
+      .filter((l) => isValidLatLng(l.latitude, l.longitude))
       .map((l) => ({ ...l, coords: { latitude: l.latitude as number, longitude: l.longitude as number } }));
   }, [urgentLeadsQuery.data]);
 
-  const unmappedLeads = (urgentLeadsQuery.data ?? []).length - mappedLeads.length;
+  const unmappedLeadList = useMemo(() => {
+    const rows = urgentLeadsQuery.data ?? [];
+    return rows.filter((l) => !isValidLatLng(l.latitude, l.longitude));
+  }, [urgentLeadsQuery.data]);
+
+  const unmappedLeads = unmappedLeadList.length;
+  const pendingCount = unmappedLeadList.filter((l) => (unmappedReasons[l.id] ?? "queued") === "queued").length;
 
   const mappedTechs = useMemo<MappedTech[]>(() => {
     const rows = techniciansQuery.data ?? [];
     return rows
-      .filter((t) => t.latitude != null && t.longitude != null)
+      .filter((t) => isValidLatLng(t.latitude, t.longitude))
       .map((t) => ({ ...t, coords: { latitude: t.latitude as number, longitude: t.longitude as number } }));
   }, [techniciansQuery.data]);
 
