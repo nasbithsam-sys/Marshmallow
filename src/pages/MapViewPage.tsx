@@ -13,6 +13,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { MapPin, Plus, Upload, Search, Loader2, X, Users, Navigation as NavIcon, AlertTriangle, Contact } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { TechnicianDialog, TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { ImportTechniciansDialog } from "@/components/technicians/ImportTechniciansDialog";
 import { haversineMiles, geocodeAddress, isValidLatLng, LatLng } from "@/lib/geo";
@@ -22,7 +24,7 @@ import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { LeadStatus } from "@/types";
 
-const RADIUS_MILES = 50;
+const RADIUS_MILES = 20;
 const RADIUS_METERS = RADIUS_MILES * 1609.344;
 
 interface UrgentLead {
@@ -54,14 +56,25 @@ interface MappedTech extends TechnicianRecord {
   coords: LatLng;
 }
 
-type EntityFilter = "both" | "urgent" | "technicians";
+type EntityFilter = "urgent" | "technicians";
+
+function pinSvg(fill: string, stroke: string, size = 32) {
+  // Classic teardrop map pin. Anchor at bottom tip.
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 32" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35))">
+      <path d="M12 0.75 C5.65 0.75 0.75 5.65 0.75 12 C0.75 20.5 12 31.25 12 31.25 C12 31.25 23.25 20.5 23.25 12 C23.25 5.65 18.35 0.75 12 0.75 Z"
+        fill="${fill}" stroke="${stroke}" stroke-width="1.5" stroke-linejoin="round"/>
+      <circle cx="12" cy="12" r="4.25" fill="#ffffff"/>
+    </svg>`;
+}
 
 function leadMarkerIcon() {
   return L.divIcon({
     className: "marshmallow-lead-marker",
-    html: `<div style="width:22px;height:22px;border-radius:50%;background:#ef4444;border:2px solid #fff;box-shadow:0 2px 6px rgba(239,68,68,0.6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700">!</div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+    html: pinSvg("#ef4444", "#ffffff", 32),
+    iconSize: [32, 32],
+    iconAnchor: [16, 31],
+    popupAnchor: [0, -28],
   });
 }
 
@@ -69,9 +82,10 @@ function techMarkerIcon(selected: boolean) {
   const color = selected ? "#2563eb" : "#3b82f6";
   return L.divIcon({
     className: "marshmallow-tech-marker",
-    html: `<div style="width:26px;height:26px;border-radius:8px;background:${color};border:2px solid #fff;box-shadow:0 3px 8px rgba(59,130,246,${selected ? 0.75 : 0.55});display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;transform:rotate(-4deg)">T</div>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
+    html: pinSvg(color, "#ffffff", selected ? 36 : 32),
+    iconSize: [selected ? 36 : 32, selected ? 36 : 32],
+    iconAnchor: [selected ? 18 : 16, selected ? 35 : 31],
+    popupAnchor: [0, -28],
   });
 }
 
@@ -97,13 +111,13 @@ export default function MapViewPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [deleteTech, setDeleteTech] = useState<TechnicianRecord | null>(null);
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
-  const [entityFilter, setEntityFilter] = useState<EntityFilter>("both");
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>("urgent");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [techSearch, setTechSearch] = useState("");
-  const [onlyInRange, setOnlyInRange] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [zipDatasetReady, setZipDatasetReady] = useState(false);
+  const [mapVisible, setMapVisible] = useState(true);
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
@@ -240,13 +254,18 @@ export default function MapViewPage() {
       .sort((a, b) => a.distance - b.distance);
   }, [selectedTech, mappedLeads]);
 
+  // Urgent leads visibility rules:
+  // - Urgent Leads tab: show ALL mapped leads.
+  // - Technicians tab: show NO leads unless a technician is selected; then show only in-range.
   const visibleLeads = useMemo(() => {
-    if (selectedTech && onlyInRange) return leadsInRange;
-    return mappedLeads.map((l) => ({
-      ...l,
-      distance: selectedTech ? haversineMiles(selectedTech.coords, l.coords) : null,
-    }));
-  }, [mappedLeads, selectedTech, onlyInRange, leadsInRange]);
+    if (entityFilter === "urgent") {
+      return mappedLeads.map((l) => ({ ...l, distance: null as number | null }));
+    }
+    if (entityFilter === "technicians" && selectedTech) {
+      return leadsInRange.map((l) => ({ ...l, distance: l.distance as number | null }));
+    }
+    return [] as Array<MappedLead & { distance: number | null }>;
+  }, [mappedLeads, selectedTech, leadsInRange, entityFilter]);
 
   // Init map once
   useEffect(() => {
@@ -350,6 +369,15 @@ export default function MapViewPage() {
     }
   }, [selectedTech]);
 
+  // Re-measure map when it becomes visible again (Leaflet needs invalidateSize after unhide).
+  useEffect(() => {
+    if (!mapVisible) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const t = setTimeout(() => map.invalidateSize(), 60);
+    return () => clearTimeout(t);
+  }, [mapVisible]);
+
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["technicians"] });
     qc.invalidateQueries({ queryKey: ["map-urgent-leads"] });
@@ -394,10 +422,6 @@ export default function MapViewPage() {
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => setEditTech(selectedTech)}>Edit</Button>
             <Button size="sm" variant="destructive" onClick={() => setDeleteTech(selectedTech)}>Delete</Button>
-            <label className="ml-auto flex items-center gap-1.5 text-xs">
-              <input type="checkbox" checked={onlyInRange} onChange={(e) => setOnlyInRange(e.target.checked)} />
-              Only in range
-            </label>
           </div>
           <div className="border-t pt-2">
             <div className="text-xs font-medium text-muted-foreground mb-1">Urgent leads by distance</div>
@@ -511,47 +535,67 @@ export default function MapViewPage() {
         <CardContent className="p-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center rounded-lg border bg-card p-0.5 gap-0.5">
-              {(["both", "urgent", "technicians"] as EntityFilter[]).map((v) => (
+              {(["urgent", "technicians"] as EntityFilter[]).map((v) => (
                 <button
                   key={v}
-                  onClick={() => setEntityFilter(v)}
+                  onClick={() => {
+                    setEntityFilter(v);
+                    if (v === "urgent") setSelectedTechId(null);
+                  }}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
                     entityFilter === v ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {v === "both" ? "Both" : v === "urgent" ? "Urgent Leads" : "Technicians"}
+                  {v === "urgent" ? "Urgent Leads" : "Technicians"}
                 </button>
               ))}
             </div>
-            <Select value={serviceFilter} onValueChange={setServiceFilter}>
-              <SelectTrigger className="h-8 w-[180px] text-xs">
-                <SelectValue placeholder="All services" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All services</SelectItem>
-                {services.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={techSearch}
-                onChange={(e) => setTechSearch(e.target.value)}
-                placeholder="Search technician"
-                className="h-8 w-[200px] pl-7 text-xs"
-              />
-            </div>
+            {entityFilter === "technicians" && (
+              <>
+                <Select value={serviceFilter} onValueChange={setServiceFilter}>
+                  <SelectTrigger className="h-8 w-[180px] text-xs">
+                    <SelectValue placeholder="All services" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All services</SelectItem>
+                    {services.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={techSearch}
+                    onChange={(e) => setTechSearch(e.target.value)}
+                    placeholder="Search technician"
+                    className="h-8 w-[200px] pl-7 text-xs"
+                  />
+                </div>
+              </>
+            )}
             <div className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500 border border-white" /> Urgent Lead</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-blue-500 border border-white" /> Technician</span>
-              {selectedTech && <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border-2 border-blue-500 bg-blue-500/10" /> 50-mile radius</span>}
+              <div className="flex items-center gap-2 pr-3 border-r">
+                <Label htmlFor="map-visible-toggle" className="text-[11px] font-medium text-foreground cursor-pointer">
+                  Map View
+                </Label>
+                <Switch id="map-visible-toggle" checked={mapVisible} onCheckedChange={setMapVisible} />
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{mapVisible ? "On" : "Off"}</span>
+              </div>
+              {entityFilter === "urgent" && (
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500 border border-white" /> Urgent Lead</span>
+              )}
+              {entityFilter === "technicians" && (
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500 border border-white" /> Technician</span>
+              )}
+              {entityFilter === "technicians" && selectedTech && (
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border-2 border-blue-500 bg-blue-500/10" /> {RADIUS_MILES}-mile radius</span>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
-        <Card className="overflow-hidden border-border/60">
+        <Card className={`overflow-hidden border-border/60 ${mapVisible ? "" : "hidden"}`}>
           <div ref={mapEl} className="h-[calc(100vh-260px)] min-h-[420px] w-full" />
         </Card>
 
