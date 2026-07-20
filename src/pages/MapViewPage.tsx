@@ -254,13 +254,18 @@ export default function MapViewPage() {
       .sort((a, b) => a.distance - b.distance);
   }, [selectedTech, mappedLeads]);
 
+  // Urgent leads visibility rules:
+  // - Urgent Leads tab: show ALL mapped leads.
+  // - Technicians tab: show NO leads unless a technician is selected; then show only in-range.
   const visibleLeads = useMemo(() => {
-    if (selectedTech && onlyInRange) return leadsInRange;
-    return mappedLeads.map((l) => ({
-      ...l,
-      distance: selectedTech ? haversineMiles(selectedTech.coords, l.coords) : null,
-    }));
-  }, [mappedLeads, selectedTech, onlyInRange, leadsInRange]);
+    if (entityFilter === "urgent") {
+      return mappedLeads.map((l) => ({ ...l, distance: null as number | null }));
+    }
+    if (entityFilter === "technicians" && selectedTech) {
+      return leadsInRange.map((l) => ({ ...l, distance: l.distance as number | null }));
+    }
+    return [] as Array<MappedLead & { distance: number | null }>;
+  }, [mappedLeads, selectedTech, leadsInRange, entityFilter]);
 
   // Init map once
   useEffect(() => {
