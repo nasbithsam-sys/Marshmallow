@@ -125,7 +125,7 @@ export default function MapViewPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("technicians")
-        .select("id, name, area, service, notes, latitude, longitude")
+        .select("id, name, area, service, notes, chat_link, latitude, longitude")
         .order("name", { ascending: true });
       if (error) throw error;
       return (data ?? []) as TechnicianRecord[];
