@@ -58,12 +58,25 @@ interface MappedTech extends TechnicianRecord {
 
 type EntityFilter = "both" | "urgent" | "technicians";
 
+type EntityFilter = "urgent" | "technicians";
+
+function pinSvg(fill: string, stroke: string, size = 32) {
+  // Classic teardrop map pin. Anchor at bottom tip.
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 32" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35))">
+      <path d="M12 0.75 C5.65 0.75 0.75 5.65 0.75 12 C0.75 20.5 12 31.25 12 31.25 C12 31.25 23.25 20.5 23.25 12 C23.25 5.65 18.35 0.75 12 0.75 Z"
+        fill="${fill}" stroke="${stroke}" stroke-width="1.5" stroke-linejoin="round"/>
+      <circle cx="12" cy="12" r="4.25" fill="#ffffff"/>
+    </svg>`;
+}
+
 function leadMarkerIcon() {
   return L.divIcon({
     className: "marshmallow-lead-marker",
-    html: `<div style="width:22px;height:22px;border-radius:50%;background:#ef4444;border:2px solid #fff;box-shadow:0 2px 6px rgba(239,68,68,0.6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700">!</div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+    html: pinSvg("#ef4444", "#ffffff", 32),
+    iconSize: [32, 32],
+    iconAnchor: [16, 31],
+    popupAnchor: [0, -28],
   });
 }
 
@@ -71,9 +84,10 @@ function techMarkerIcon(selected: boolean) {
   const color = selected ? "#2563eb" : "#3b82f6";
   return L.divIcon({
     className: "marshmallow-tech-marker",
-    html: `<div style="width:26px;height:26px;border-radius:8px;background:${color};border:2px solid #fff;box-shadow:0 3px 8px rgba(59,130,246,${selected ? 0.75 : 0.55});display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;transform:rotate(-4deg)">T</div>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
+    html: pinSvg(color, "#ffffff", selected ? 36 : 32),
+    iconSize: [selected ? 36 : 32, selected ? 36 : 32],
+    iconAnchor: [selected ? 18 : 16, selected ? 35 : 31],
+    popupAnchor: [0, -28],
   });
 }
 
