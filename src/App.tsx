@@ -22,6 +22,7 @@ const LeadCancellationRequests = lazy(() => import("@/pages/LeadCancellationRequ
 const LeadPaymentRequests = lazy(() => import("@/pages/LeadPaymentRequests"));
 const QuoMonitorPage = lazy(() => import("@/pages/quo-monitor/QuoMonitorPage"));
 const CrmUpdates = lazy(() => import("@/pages/CrmUpdates"));
+const MapViewPage = lazy(() => import("@/pages/MapViewPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -111,6 +112,7 @@ const App = () => (
               <Route path="schedule" element={<PageRoute navItem="schedule"><SchedulePage /></PageRoute>} />
               <Route path="analytics" element={<PageRoute navItem="analytics"><Analytics /></PageRoute>} />
               <Route path="areas" element={<PageRoute navItem="areas"><AreasPage /></PageRoute>} />
+              <Route path="map-view" element={<PageRoute navItem="map_view"><MapViewPage /></PageRoute>} />
               <Route path="activity-logs" element={<PageRoute navItem="activity_logs"><ActivityLogs /></PageRoute>} />
               <Route path="quo-monitor" element={<PageRoute navItem="quo_monitor"><QuoMonitorPage /></PageRoute>} />
               <Route path="lead-cancellation-requests" element={<PageRoute navItem="cancellation_requests"><LeadCancellationRequests /></PageRoute>} />
