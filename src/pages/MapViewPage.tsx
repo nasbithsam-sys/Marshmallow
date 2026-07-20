@@ -111,13 +111,13 @@ export default function MapViewPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [deleteTech, setDeleteTech] = useState<TechnicianRecord | null>(null);
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
-  const [entityFilter, setEntityFilter] = useState<EntityFilter>("both");
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>("urgent");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [techSearch, setTechSearch] = useState("");
-  const [onlyInRange, setOnlyInRange] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [zipDatasetReady, setZipDatasetReady] = useState(false);
+  const [mapVisible, setMapVisible] = useState(true);
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
