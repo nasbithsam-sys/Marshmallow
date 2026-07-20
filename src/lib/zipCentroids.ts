@@ -18,7 +18,7 @@ let datasetPromise: Promise<ZipDataset> | null = null;
 async function getDataset(): Promise<ZipDataset> {
   if (!datasetPromise) {
     datasetPromise = import("@/data/usZipCentroids.json").then(
-      (m) => (m.default ?? m) as ZipDataset,
+      (m) => ((m as { default?: unknown }).default ?? m) as unknown as ZipDataset,
     );
   }
   return datasetPromise;
