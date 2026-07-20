@@ -236,6 +236,7 @@ export default function MapViewPage() {
     const layer = techLayer.current;
     if (!layer) return;
     layer.clearLayers();
+    if (viewMode === "leads") return;
     for (const t of filteredTechs) {
       const isSelected = t.id === selectedTechId;
       const m = L.marker([t.coords.latitude, t.coords.longitude], { icon: techMarkerIcon(isSelected) });
@@ -245,7 +246,8 @@ export default function MapViewPage() {
       });
       m.addTo(layer);
     }
-  }, [filteredTechs, selectedTechId, isMobile, mapVisible]);
+  }, [filteredTechs, selectedTechId, isMobile, mapVisible, viewMode]);
+
 
   // Urgent lead markers — all if no tech selected, in-range only when one is selected.
   useEffect(() => {
