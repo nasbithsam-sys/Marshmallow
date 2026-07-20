@@ -949,6 +949,20 @@ function LeadCard({
                       {formatBookingCompact(lead.booked_at)}
                     </button>
                   )}
+                  {(() => {
+                    const sched = formatScheduleRequirementCompact(lead.customer_schedule_requirements);
+                    if (!sched) return null;
+                    return (
+                      <span
+                        title={`Schedule Requirement: ${sched.full}`}
+                        className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/12 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:text-sky-300"
+                      >
+                        <CalendarClock className="h-3 w-3" />
+                        <span className="opacity-80">Schedule Requirement:</span>
+                        <span>{sched.summary}</span>
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
