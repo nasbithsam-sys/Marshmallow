@@ -189,22 +189,54 @@ function formatScheduleRequirementCompact(text?: string | null): { summary: stri
     return out;
   };
 
-  const findDates = (seg: string): { month: number; day: number }[] => {
-    const results: { month: number; day: number }[] = [];
-    const push = (mo: number, d: number) => {
+  type DateEntry = { month: number; day: number; endDay?: number };
+
+  // Strip time expressions so they don't get mis-parsed as dates (e.g. "July 1-3pm" → "July 1")
+  const TIME_RANGE_RX_G = /\b(?:noon|midnight|\d{1,2}(?::\d{2})?)\s*(?:-|–|—|to)\s*(?:noon|midnight|\d{1,2}(?::\d{2})?)\s*(?:a\.?m\.?|p\.?m\.?)?/gi;
+  const TIME_SINGLE_RX_G = /\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)\b|\b(?:noon|midnight)\b/gi;
+  const stripTimes = (s: string) => s.replace(TIME_RANGE_RX_G, " ").replace(TIME_SINGLE_RX_G, " ");
+
+  const findDates = (rawSeg: string): DateEntry[] => {
+    const seg = stripTimes(rawSeg);
+    const results: DateEntry[] = [];
+    const push = (mo: number, d: number, endD?: number) => {
       if (mo < 0 || mo > 11 || d < 1 || d > 31) return;
-      if (!results.some((r) => r.month === mo && r.day === d)) results.push({ month: mo, day: d });
+      if (endD !== undefined && (endD < d || endD > 31)) return;
+      if (endD === undefined && results.some((r) => r.month === mo && r.day === d && r.endDay === undefined)) return;
+      results.push({ month: mo, day: d, endDay: endD });
     };
-    // "20, 21 July" — grouped days sharing a month
-    const grouped = seg.match(new RegExp(`(\\d{1,2}(?:st|nd|rd|th)?(?:\\s*[,&]\\s*(?:and\\s+)?\\d{1,2}(?:st|nd|rd|th)?)+)\\s+${MONTH_RX}\\b`, "i"));
+
+    // Date range: "27th July to 31st July"
+    const rangeA = seg.match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_RX}\\s+(?:to|through|until|–|-)\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_RX}\\b`, "i"));
+    if (rangeA && MONTHS[rangeA[2].toLowerCase()] === MONTHS[rangeA[4].toLowerCase()]) {
+      push(MONTHS[rangeA[2].toLowerCase()], Number(rangeA[1]), Number(rangeA[3]));
+      return results;
+    }
+    // "27th to 31st July"
+    const rangeB = seg.match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:to|through|until|–|-)\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_RX}\\b`, "i"));
+    if (rangeB) {
+      push(MONTHS[rangeB[3].toLowerCase()], Number(rangeB[1]), Number(rangeB[2]));
+      return results;
+    }
+    // "July 27-31" / "July 27 to 31"
+    const rangeC = seg.match(new RegExp(`\\b${MONTH_RX}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s*(?:-|–|to|through|until)\\s*(\\d{1,2})(?:st|nd|rd|th)?\\b`, "i"));
+    if (rangeC) {
+      push(MONTHS[rangeC[1].toLowerCase()], Number(rangeC[2]), Number(rangeC[3]));
+      return results;
+    }
+
+    // Grouped: "21st or 22nd July", "20, 21 July"
+    const grouped = seg.match(new RegExp(`((?:\\d{1,2}(?:st|nd|rd|th)?)(?:\\s*(?:,|&|and|or|\\/)\\s*\\d{1,2}(?:st|nd|rd|th)?)+)\\s+${MONTH_RX}\\b`, "i"));
     if (grouped) {
       const mo = MONTHS[grouped[2].toLowerCase()];
       const days = grouped[1]
-        .split(/[,&]|\band\b/i)
+        .split(/,|&|\band\b|\bor\b|\//i)
         .map((s) => Number(s.replace(/\D/g, "")))
         .filter((d) => d >= 1 && d <= 31);
       if (mo !== undefined) days.forEach((d) => push(mo, d));
+      return results;
     }
+
     // "21st July"
     let m: RegExpExecArray | null;
     const dm = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_RX}\\b`, "gi");
@@ -218,13 +250,18 @@ function formatScheduleRequirementCompact(text?: string | null): { summary: stri
     // MM/DD
     const slash = seg.match(/(?<!\d)(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?(?!\d)/);
     if (slash) push(Number(slash[1]) - 1, Number(slash[2]));
-    // Bare ordinal day (e.g. "22nd") when no other date found — use current month
+    // Bare ordinal — use current month
     if (results.length === 0) {
       const ord = seg.match(/\b(\d{1,2})(st|nd|rd|th)\b/i);
       if (ord) push(nowMonth, Number(ord[1]));
     }
     results.sort((a, b) => a.month - b.month || a.day - b.day);
     return results;
+  };
+
+  const fmtDate = (d: DateEntry) => {
+    const base = `${MONTH_SHORT[d.month]} ${d.day}`;
+    return d.endDay ? `${base}–${d.endDay}` : base;
   };
 
   const joinTime = (dayPart: string, time: string | null): string => {
@@ -234,16 +271,15 @@ function formatScheduleRequirementCompact(text?: string | null): { summary: stri
     return `${dayPart} · ${time}`;
   };
 
-  const renderSeg = (seg: string): string => {
+  const renderSeg = (seg: string, assignedDate?: DateEntry): string => {
     const weekdays = findWeekdays(seg);
-    const dates = findDates(seg);
+    const dates = assignedDate ? [assignedDate] : findDates(seg);
     const time = findTime(seg);
     const dayStrs: string[] = [];
     if (dates.length) {
       for (let i = 0; i < dates.length; i++) {
-        const d = dates[i];
         const wd = weekdays[i] ?? (weekdays.length === 1 ? weekdays[0] : "");
-        const s = `${MONTH_SHORT[d.month]} ${d.day}`;
+        const s = fmtDate(dates[i]);
         dayStrs.push(wd ? `${wd} ${s}` : s);
       }
     } else {
@@ -252,26 +288,63 @@ function formatScheduleRequirementCompact(text?: string | null): { summary: stri
     return joinTime(dayStrs.join(" / "), time);
   };
 
-  // Split into options by " or ", " / ", ";"
-  const rawSegs = full.split(/\s+or\s+|\s*\/\s*|\s*;\s*/i).map((s) => s.trim()).filter(Boolean);
-  const segments = rawSegs.length > 1 ? rawSegs : [full];
+  // Extract trailing parenthetical of dates so weekday-only segments can be paired to them.
+  let workingText = full;
+  let sharedDates: DateEntry[] = [];
+  const parenMatch = full.match(/\(([^)]+)\)\s*$/);
+  if (parenMatch && parenMatch.index !== undefined) {
+    const innerDates = findDates(parenMatch[1]);
+    if (innerDates.length) {
+      sharedDates = innerDates;
+      workingText = full.slice(0, parenMatch.index).trim();
+    }
+  }
+
+  // Split into option segments. Only split on " or " / ";" / " / " when followed by a capitalized token
+  // (avoids breaking "Mon 3/4" style content).
+  const rawSegs = workingText
+    .split(/\s+or\s+|\s*;\s*|\s*\/\s*(?=[A-Z])/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const segments = rawSegs.length > 1 ? rawSegs : [workingText];
 
   let summary = "";
-  if (segments.length === 1) {
+  if (sharedDates.length && sharedDates.length === segments.length) {
+    summary = segments.map((s, i) => renderSeg(s, sharedDates[i])).filter(Boolean).join(" / ");
+  } else if (sharedDates.length === 1 && segments.length >= 1) {
+    const bodies = segments.map((s) => renderSeg(s)).filter(Boolean);
+    const dateStr = fmtDate(sharedDates[0]);
+    const joined = bodies.join(" / ");
+    summary = joined ? (joined.includes(MONTH_SHORT[sharedDates[0].month]) ? joined : `${dateStr} · ${joined}`) : dateStr;
+  } else if (segments.length === 1) {
     summary = renderSeg(segments[0]);
   } else {
-    summary = segments.map(renderSeg).filter(Boolean).join(" / ");
+    summary = segments.map((s) => renderSeg(s)).filter(Boolean).join(" / ");
+  }
+
+  // Preserve flexibility wording when meaningful
+  const anyDay = /\bany\s*day\b/i.test(full);
+  const anyTime = /\bany\s*time\b/i.test(full);
+  const flexible = /\bflex(ible)?\b|\bwhenever\b/i.test(full);
+  let flexTag = "";
+  if (anyDay && anyTime) flexTag = "Any Day & Time";
+  else if (anyDay) flexTag = "Any Day";
+  else if (anyTime) flexTag = "Anytime";
+  else if (flexible) flexTag = "Flexible";
+  if (flexTag) {
+    if (!summary) summary = flexTag;
+    else if (!new RegExp(flexTag.replace(/&/g, "&").replace(/\s+/g, "\\s+"), "i").test(summary)) {
+      summary = `${summary} · ${flexTag}`;
+    }
   }
 
   if (!summary) {
-    const hasFlex = /\bflex(ible)?\b|\banytime\b|\bany time\b|\bwhenever\b|\bopen\b/.test(lower);
     const hasWeekend = /\bweekend\b/.test(lower);
     const hasNextWeek = /\bnext\s+week\b/.test(lower);
     const hasThisWeek = /\bthis\s+week\b/.test(lower);
     if (hasWeekend) summary = "Weekend · Flexible";
     else if (hasNextWeek) summary = "Next week · Flexible";
     else if (hasThisWeek) summary = "This week · Flexible";
-    else if (hasFlex) summary = "Flexible";
     else summary = full.length > 32 ? full.slice(0, 30).trim() + "…" : full;
   }
 
