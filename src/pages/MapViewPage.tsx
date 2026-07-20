@@ -274,19 +274,32 @@ export default function MapViewPage() {
     if (!layer || !map) return;
     layer.clearLayers();
     if (entityFilter === "technicians") return;
+    // Deterministic jitter so multiple leads sharing the same ZIP centroid
+    // don't render as one un-clickable overlapping marker. ~150m spread.
+    const jitter = (id: string, salt: number) => {
+      let h = 0;
+      for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i) + salt) | 0;
+      // pseudo-random in [-1, 1)
+      const r = ((h % 1000) / 500) - 1;
+      return r * 0.0015;
+    };
     for (const l of visibleLeads) {
-      const m = L.marker([l.coords.latitude, l.coords.longitude], { icon: leadMarkerIcon() });
-      const dist = l.distance != null ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${l.distance.toFixed(1)} mi from selected technician</div>` : "";
+      const lat = l.coords.latitude + jitter(l.id, 1);
+      const lng = l.coords.longitude + jitter(l.id, 7);
+      const m = L.marker([lat, lng], { icon: leadMarkerIcon() });
+      const dist = l.distance != null ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${l.distance.toFixed(1)} mi from selected technician (approx.)</div>` : "";
+      const zipCity = [l.zipCity, l.zipState].filter(Boolean).join(", ");
       m.bindPopup(`
-        <div style="min-width:220px;font-family:inherit">
+        <div style="min-width:230px;font-family:inherit">
           <div style="font-weight:600;font-size:13px">${escapeHtml(l.customer_name || "Unnamed")}</div>
           <div style="font-size:11px;color:#6b7280">Job ${escapeHtml(l.job_id ?? "")}</div>
           <div style="margin-top:6px;font-size:12px">${escapeHtml(l.customer_phone || "")}</div>
-          <div style="font-size:12px;color:#6b7280">${escapeHtml(fullAddress(l))}</div>
+          <div style="font-size:12px"><b>ZIP:</b> ${escapeHtml(l.zip)}${zipCity ? ` <span style="color:#6b7280">· ${escapeHtml(zipCity)}</span>` : ""}</div>
           <div style="margin-top:6px;font-size:12px"><b>Service:</b> ${escapeHtml(l.service_type || "—")}</div>
           <div style="font-size:12px"><b>Status:</b> ${escapeHtml(STATUS_LABELS[l.status] ?? l.status)}</div>
           ${dist}
-          <button data-lead-id="${l.id}" class="ml-view-lead" style="margin-top:8px;padding:6px 10px;background:#111827;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">View Lead</button>
+          <div style="margin-top:6px;font-size:10px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:3px 6px;border-radius:4px;display:inline-block">Approximate ZIP area</div>
+          <div><button data-lead-id="${l.id}" class="ml-view-lead" style="margin-top:8px;padding:6px 10px;background:#111827;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">View Lead</button></div>
         </div>
       `);
       m.on("popupopen", () => {
