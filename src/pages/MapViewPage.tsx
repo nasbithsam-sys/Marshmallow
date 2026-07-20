@@ -254,6 +254,7 @@ export default function MapViewPage() {
     const layer = leadLayer.current;
     if (!layer) return;
     layer.clearLayers();
+    if (viewMode === "techs") return;
     const jitter = (id: string, salt: number) => {
       let h = 0;
       for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i) + salt) | 0;
