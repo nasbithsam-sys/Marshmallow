@@ -11,11 +11,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { MapPin, Plus, Upload, Search, Wrench, Loader2, X, Users, Navigation as NavIcon, RefreshCw, AlertTriangle } from "lucide-react";
+import { MapPin, Plus, Upload, Search, Loader2, X, Users, Navigation as NavIcon, AlertTriangle, Contact } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TechnicianDialog, TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { ImportTechniciansDialog } from "@/components/technicians/ImportTechniciansDialog";
-import { haversineMiles, geocodeAddress, geocodeWithFallback, isValidLatLng, buildGeocodeQueries, normalizeAddress, clearNegativeCacheFor, LatLng, GeocodeFailReason } from "@/lib/geo";
+import { haversineMiles, geocodeAddress, isValidLatLng, LatLng } from "@/lib/geo";
+import { resolveZip, lookupZipCentroidSync, preloadZipDataset, ZipCentroid } from "@/lib/zipCentroids";
 import { STATUS_LABELS } from "@/lib/constants";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -41,7 +42,13 @@ interface UrgentLead {
 
 interface MappedLead extends UrgentLead {
   coords: LatLng;
+  zip: string;
+  zipCity: string;
+  zipState: string;
+  locationSource: "zip_centroid";
 }
+
+type ZipUnmappedReason = "zip_missing" | "zip_invalid" | "zip_not_found";
 
 interface MappedTech extends TechnicianRecord {
   coords: LatLng;
@@ -96,10 +103,7 @@ export default function MapViewPage() {
   const [onlyInRange, setOnlyInRange] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [retryTick, setRetryTick] = useState(0);
-  // Reason per unmapped lead id
-  const [unmappedReasons, setUnmappedReasons] = useState<Record<string, GeocodeFailReason | "invalid_existing" | "queued">>({});
-  const [processedIds, setProcessedIds] = useState<Set<string>>(() => new Set());
+  const [zipDatasetReady, setZipDatasetReady] = useState(false);
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
@@ -128,91 +132,27 @@ export default function MapViewPage() {
     staleTime: 60_000,
   });
 
-  const leadNeedsGeo = (l: UrgentLead) => !isValidLatLng(l.latitude, l.longitude);
+  // Load local ZIP centroid dataset once (lazy import keeps it out of main bundle).
+  useEffect(() => {
+    let cancelled = false;
+    preloadZipDataset()
+      .then(() => { if (!cancelled) setZipDatasetReady(true); })
+      .catch(() => { if (!cancelled) setZipDatasetReady(true); });
+    return () => { cancelled = true; };
+  }, []);
 
-  // Controlled geocoding queue: uses fallback + duplicate-address dedupe;
-  // persists coords back to Supabase; updates markers as they resolve.
+  // Geocode ONLY technicians (urgent leads use ZIP centroids — no street geocoding).
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       const techsNeedGeo = (techniciansQuery.data ?? []).filter((t) => !isValidLatLng(t.latitude, t.longitude));
-      const allLeads = urgentLeadsQuery.data ?? [];
-      const invalidExisting: UrgentLead[] = [];
-      const needsGeo: UrgentLead[] = [];
-      for (const l of allLeads) {
-        if (isValidLatLng(l.latitude, l.longitude)) continue;
-        if (l.latitude != null || l.longitude != null) invalidExisting.push(l);
-        needsGeo.push(l);
-      }
-      // Seed reasons: pending + invalid_existing
-      setUnmappedReasons((prev) => {
-        const next = { ...prev };
-        for (const l of needsGeo) if (!processedIds.has(l.id) && !next[l.id]) next[l.id] = "queued";
-        for (const l of invalidExisting) next[l.id] = "invalid_existing";
-        return next;
-      });
-
-      if (!techsNeedGeo.length && !needsGeo.length) return;
+      if (!techsNeedGeo.length) return;
       setGeocoding(true);
-
       for (const t of techsNeedGeo) {
         if (cancelled) break;
         const c = await geocodeAddress(t.area);
         if (c) await supabase.from("technicians").update({ latitude: c.latitude, longitude: c.longitude }).eq("id", t.id);
       }
-
-      // Dedupe leads by normalized address query set — geocode each address once.
-      const groups = new Map<string, UrgentLead[]>();
-      for (const l of needsGeo) {
-        if (processedIds.has(l.id)) continue;
-        const queries = buildGeocodeQueries({ address: l.address, city: l.city, state: l.state, zip: l.zip_code });
-        const key = queries[0] ? normalizeAddress(queries[0]) : `__no_input__${l.id}`;
-        const arr = groups.get(key) ?? [];
-        arr.push(l);
-        groups.set(key, arr);
-      }
-
-      for (const [, leadsForKey] of groups) {
-        if (cancelled) break;
-        const first = leadsForKey[0];
-        const result = await geocodeWithFallback({
-          address: first.address, city: first.city, state: first.state, zip: first.zip_code,
-        });
-        if (cancelled) break;
-        setProcessedIds((prev) => {
-          const s = new Set(prev);
-          for (const l of leadsForKey) s.add(l.id);
-          return s;
-        });
-        if (result.coords) {
-          const { latitude, longitude } = result.coords;
-          // Persist to every matching lead individually (safe, small volume).
-          for (const l of leadsForKey) {
-            const { error } = await supabase.from("leads")
-              .update({ latitude, longitude })
-              .eq("id", l.id);
-            if (error) {
-              setUnmappedReasons((prev) => ({ ...prev, [l.id]: "request_failed" }));
-            }
-          }
-          setUnmappedReasons((prev) => {
-            const next = { ...prev };
-            for (const l of leadsForKey) delete next[l.id];
-            return next;
-          });
-          // Optimistically update React Query cache so markers appear immediately.
-          qc.setQueryData<UrgentLead[]>(["map-urgent-leads"], (old) =>
-            (old ?? []).map((r) => leadsForKey.find((x) => x.id === r.id) ? { ...r, latitude, longitude } : r),
-          );
-        } else {
-          setUnmappedReasons((prev) => {
-            const next = { ...prev };
-            for (const l of leadsForKey) next[l.id] = result.reason ?? "no_result";
-            return next;
-          });
-        }
-      }
-
       if (!cancelled) {
         setGeocoding(false);
         qc.invalidateQueries({ queryKey: ["technicians"] });
@@ -221,49 +161,50 @@ export default function MapViewPage() {
     void run();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urgentLeadsQuery.data, techniciansQuery.data, retryTick]);
+  }, [techniciansQuery.data]);
 
-  const retryUnmapped = () => {
-    // Purge negative-cache entries for every currently-unmapped lead so
-    // providers are contacted again instead of returning cached "no result".
-    for (const l of unmappedLeadList) {
-      clearNegativeCacheFor({ address: l.address, city: l.city, state: l.state, zip: l.zip_code });
-    }
-    setProcessedIds(new Set());
-    setUnmappedReasons({});
-    setRetryTick((t) => t + 1);
-  };
-
-  const retrySingleLead = async (lead: UrgentLead) => {
-    clearNegativeCacheFor({ address: lead.address, city: lead.city, state: lead.state, zip: lead.zip_code });
-    setUnmappedReasons((prev) => ({ ...prev, [lead.id]: "queued" }));
-    const result = await geocodeWithFallback({ address: lead.address, city: lead.city, state: lead.state, zip: lead.zip_code });
-    if (result.coords) {
-      const { latitude, longitude } = result.coords;
-      await supabase.from("leads").update({ latitude, longitude }).eq("id", lead.id);
-      qc.setQueryData<UrgentLead[]>(["map-urgent-leads"], (old) =>
-        (old ?? []).map((r) => r.id === lead.id ? { ...r, latitude, longitude } : r),
-      );
-      setUnmappedReasons((prev) => { const n = { ...prev }; delete n[lead.id]; return n; });
-    } else {
-      setUnmappedReasons((prev) => ({ ...prev, [lead.id]: result.reason ?? "no_result" }));
-    }
-  };
-
-  const mappedLeads = useMemo<MappedLead[]>(() => {
+  // Resolve every urgent lead to (mapped via ZIP centroid) or (unmapped w/ reason).
+  const { mappedLeads, unmappedLeadList, unmappedReasons } = useMemo(() => {
     const rows = urgentLeadsQuery.data ?? [];
-    return rows
-      .filter((l) => isValidLatLng(l.latitude, l.longitude))
-      .map((l) => ({ ...l, coords: { latitude: l.latitude as number, longitude: l.longitude as number } }));
-  }, [urgentLeadsQuery.data]);
+    const mapped: MappedLead[] = [];
+    const unmapped: UrgentLead[] = [];
+    const reasons: Record<string, ZipUnmappedReason> = {};
 
-  const unmappedLeadList = useMemo(() => {
-    const rows = urgentLeadsQuery.data ?? [];
-    return rows.filter((l) => !isValidLatLng(l.latitude, l.longitude));
-  }, [urgentLeadsQuery.data]);
+    for (const l of rows) {
+      const zip = resolveZip({ zip_code: l.zip_code, address: l.address });
+      if (!zip) {
+        // Distinguish "nothing at all" vs "something present but not a 5-digit ZIP".
+        const hasAnyDigits = /\d/.test(String(l.zip_code ?? "")) || /\d/.test(String(l.address ?? ""));
+        reasons[l.id] = hasAnyDigits ? "zip_invalid" : "zip_missing";
+        unmapped.push(l);
+        continue;
+      }
+      const centroid: ZipCentroid | null = zipDatasetReady ? lookupZipCentroidSync(zip) : null;
+      if (!centroid) {
+        if (!zipDatasetReady) {
+          // Dataset still loading — treat as unmapped for now, will re-eval on ready.
+          reasons[l.id] = "zip_not_found";
+        } else {
+          reasons[l.id] = "zip_not_found";
+        }
+        unmapped.push(l);
+        continue;
+      }
+      mapped.push({
+        ...l,
+        coords: { latitude: centroid.latitude, longitude: centroid.longitude },
+        zip,
+        zipCity: centroid.city,
+        zipState: centroid.state,
+        locationSource: "zip_centroid",
+      });
+    }
+    return { mappedLeads: mapped, unmappedLeadList: unmapped, unmappedReasons: reasons };
+  }, [urgentLeadsQuery.data, zipDatasetReady]);
 
   const unmappedLeads = unmappedLeadList.length;
-  const pendingCount = unmappedLeadList.filter((l) => (unmappedReasons[l.id] ?? "queued") === "queued").length;
+  const pendingCount = zipDatasetReady ? 0 : unmappedLeadList.length;
+
 
   const mappedTechs = useMemo<MappedTech[]>(() => {
     const rows = techniciansQuery.data ?? [];
@@ -333,19 +274,32 @@ export default function MapViewPage() {
     if (!layer || !map) return;
     layer.clearLayers();
     if (entityFilter === "technicians") return;
+    // Deterministic jitter so multiple leads sharing the same ZIP centroid
+    // don't render as one un-clickable overlapping marker. ~150m spread.
+    const jitter = (id: string, salt: number) => {
+      let h = 0;
+      for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i) + salt) | 0;
+      // pseudo-random in [-1, 1)
+      const r = ((h % 1000) / 500) - 1;
+      return r * 0.0015;
+    };
     for (const l of visibleLeads) {
-      const m = L.marker([l.coords.latitude, l.coords.longitude], { icon: leadMarkerIcon() });
-      const dist = l.distance != null ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${l.distance.toFixed(1)} mi from selected technician</div>` : "";
+      const lat = l.coords.latitude + jitter(l.id, 1);
+      const lng = l.coords.longitude + jitter(l.id, 7);
+      const m = L.marker([lat, lng], { icon: leadMarkerIcon() });
+      const dist = l.distance != null ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${l.distance.toFixed(1)} mi from selected technician (approx.)</div>` : "";
+      const zipCity = [l.zipCity, l.zipState].filter(Boolean).join(", ");
       m.bindPopup(`
-        <div style="min-width:220px;font-family:inherit">
+        <div style="min-width:230px;font-family:inherit">
           <div style="font-weight:600;font-size:13px">${escapeHtml(l.customer_name || "Unnamed")}</div>
           <div style="font-size:11px;color:#6b7280">Job ${escapeHtml(l.job_id ?? "")}</div>
           <div style="margin-top:6px;font-size:12px">${escapeHtml(l.customer_phone || "")}</div>
-          <div style="font-size:12px;color:#6b7280">${escapeHtml(fullAddress(l))}</div>
+          <div style="font-size:12px"><b>ZIP:</b> ${escapeHtml(l.zip)}${zipCity ? ` <span style="color:#6b7280">· ${escapeHtml(zipCity)}</span>` : ""}</div>
           <div style="margin-top:6px;font-size:12px"><b>Service:</b> ${escapeHtml(l.service_type || "—")}</div>
           <div style="font-size:12px"><b>Status:</b> ${escapeHtml(STATUS_LABELS[l.status] ?? l.status)}</div>
           ${dist}
-          <button data-lead-id="${l.id}" class="ml-view-lead" style="margin-top:8px;padding:6px 10px;background:#111827;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">View Lead</button>
+          <div style="margin-top:6px;font-size:10px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:3px 6px;border-radius:4px;display:inline-block">Approximate ZIP area</div>
+          <div><button data-lead-id="${l.id}" class="ml-view-lead" style="margin-top:8px;padding:6px 10px;background:#111827;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">View Lead</button></div>
         </div>
       `);
       m.on("popupopen", () => {
@@ -507,35 +461,26 @@ export default function MapViewPage() {
                       </button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[380px] p-0" align="start">
-                      <div className="p-3 border-b flex items-center justify-between">
+                      <div className="p-3 border-b">
                         <div className="text-xs font-semibold">Unmapped urgent leads</div>
-                        <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={retryUnmapped}>
-                          <RefreshCw className="h-3 w-3 mr-1" /> Retry all
-                        </Button>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          Leads without a usable ZIP code cannot be placed on the map.
+                        </div>
                       </div>
                       <ul className="max-h-[360px] overflow-y-auto divide-y">
                         {unmappedLeadList.map((l) => {
-                          const reason = unmappedReasons[l.id] ?? "queued";
+                          const reason = unmappedReasons[l.id];
                           const label =
-                            reason === "queued" ? "Waiting to be processed" :
-                            reason === "no_input" ? "Missing usable address" :
-                            reason === "no_result" ? "Address could not be located" :
-                            reason === "nominatim_no_result" ? "Address could not be located" :
-                            reason === "census_no_result" ? "Address could not be located" :
-                            reason === "request_failed" ? "Geocoding request failed" :
-                            reason === "invalid_existing" ? "Invalid existing coordinates" :
-                            "Waiting to be processed";
+                            reason === "zip_missing" ? "ZIP code missing" :
+                            reason === "zip_invalid" ? "Invalid ZIP code" :
+                            reason === "zip_not_found" ? "ZIP code not found in dataset" :
+                            "ZIP code missing";
                           return (
                             <li key={l.id} className="p-2.5 text-xs">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="font-medium truncate">{l.customer_name || "Unnamed"}</div>
-                                  <div className="text-muted-foreground truncate">{fullAddress(l) || "—"}</div>
-                                  <div className="text-[11px] mt-0.5 text-amber-600 dark:text-amber-400">{label}</div>
-                                </div>
-                                <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => retrySingleLead(l)}>
-                                  Retry
-                                </Button>
+                              <div className="min-w-0">
+                                <div className="font-medium truncate">{l.customer_name || "Unnamed"}</div>
+                                <div className="text-muted-foreground truncate">{fullAddress(l) || "—"}</div>
+                                <div className="text-[11px] mt-0.5 text-amber-600 dark:text-amber-400">{label}</div>
                               </div>
                             </li>
                           );
@@ -546,9 +491,6 @@ export default function MapViewPage() {
                       </ul>
                     </PopoverContent>
                   </Popover>
-                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={retryUnmapped}>
-                    <RefreshCw className="h-3 w-3 mr-1" /> Retry Unmapped
-                  </Button>
                 </>
               )}
               {geocoding && pendingCount === 0 && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -624,7 +566,7 @@ export default function MapViewPage() {
           <Card className="border-border/60">
             <CardContent className="p-3">
               <div className="flex items-center gap-2 mb-3">
-                <Wrench className="h-4 w-4 text-muted-foreground" />
+                <Contact className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-semibold">Technician</span>
               </div>
               {SidePanel}
