@@ -15,7 +15,7 @@ import { MapPin, Plus, Upload, Search, Wrench, Loader2, X, Users, Navigation as 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TechnicianDialog, TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { ImportTechniciansDialog } from "@/components/technicians/ImportTechniciansDialog";
-import { haversineMiles, geocodeAddress, geocodeWithFallback, isValidLatLng, buildGeocodeQueries, normalizeAddress, LatLng, GeocodeFailReason } from "@/lib/geo";
+import { haversineMiles, geocodeAddress, geocodeWithFallback, isValidLatLng, buildGeocodeQueries, normalizeAddress, clearNegativeCacheFor, LatLng, GeocodeFailReason } from "@/lib/geo";
 import { STATUS_LABELS } from "@/lib/constants";
 import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -224,12 +224,18 @@ export default function MapViewPage() {
   }, [urgentLeadsQuery.data, techniciansQuery.data, retryTick]);
 
   const retryUnmapped = () => {
+    // Purge negative-cache entries for every currently-unmapped lead so
+    // providers are contacted again instead of returning cached "no result".
+    for (const l of unmappedLeadList) {
+      clearNegativeCacheFor({ address: l.address, city: l.city, state: l.state, zip: l.zip_code });
+    }
     setProcessedIds(new Set());
     setUnmappedReasons({});
     setRetryTick((t) => t + 1);
   };
 
   const retrySingleLead = async (lead: UrgentLead) => {
+    clearNegativeCacheFor({ address: lead.address, city: lead.city, state: lead.state, zip: lead.zip_code });
     setUnmappedReasons((prev) => ({ ...prev, [lead.id]: "queued" }));
     const result = await geocodeWithFallback({ address: lead.address, city: lead.city, state: lead.state, zip: lead.zip_code });
     if (result.coords) {
@@ -512,8 +518,10 @@ export default function MapViewPage() {
                           const reason = unmappedReasons[l.id] ?? "queued";
                           const label =
                             reason === "queued" ? "Waiting to be processed" :
-                            reason === "no_input" ? "Missing location information" :
-                            reason === "no_result" ? "Geocoder returned no result" :
+                            reason === "no_input" ? "Missing usable address" :
+                            reason === "no_result" ? "Address could not be located" :
+                            reason === "nominatim_no_result" ? "Address could not be located" :
+                            reason === "census_no_result" ? "Address could not be located" :
                             reason === "request_failed" ? "Geocoding request failed" :
                             reason === "invalid_existing" ? "Invalid existing coordinates" :
                             "Waiting to be processed";
