@@ -751,6 +751,8 @@ const Settings = () => {
 
       {activeTab === "documentation" && isAdmin && <DocumentationTab />}
 
+      {activeTab === "crm_updates" && isAdmin && <CrmUpdates />}
+
       {activeTab === "users" && (
         <div className="grid gap-3">
           {users.map((u) => (
