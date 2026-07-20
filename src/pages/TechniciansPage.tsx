@@ -132,7 +132,7 @@ export default function TechniciansPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, service, area, notes"
+              placeholder="Search by name, service, area, chat link, notes"
               className="h-8 pl-7 text-xs"
             />
           </div>
