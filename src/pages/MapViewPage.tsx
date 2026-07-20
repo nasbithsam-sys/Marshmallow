@@ -288,7 +288,7 @@ export default function MapViewPage() {
       });
       m.addTo(layer);
     }
-  }, [mappedLeads, leadsInRange, selectedTech, navigate, mapVisible]);
+  }, [mappedLeads, leadsInRange, selectedTech, navigate, mapVisible, viewMode]);
 
   // Selected-tech radius circle
   useEffect(() => {
