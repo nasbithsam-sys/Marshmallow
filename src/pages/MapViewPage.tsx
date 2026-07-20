@@ -586,7 +586,7 @@ export default function MapViewPage() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
-        <Card className="overflow-hidden border-border/60">
+        <Card className={`overflow-hidden border-border/60 ${mapVisible ? "" : "hidden"}`}>
           <div ref={mapEl} className="h-[calc(100vh-260px)] min-h-[420px] w-full" />
         </Card>
 
