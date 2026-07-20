@@ -30,7 +30,7 @@ export default function TechniciansPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("technicians")
-        .select("id, name, area, service, notes, latitude, longitude")
+        .select("id, name, area, service, notes, chat_link, latitude, longitude")
         .order("name", { ascending: true });
       if (error) throw error;
       return (data ?? []) as TechnicianRecord[];
@@ -43,7 +43,7 @@ export default function TechniciansPage() {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((t) =>
-      [t.name, t.service, t.area, t.notes].some((v) => (v ?? "").toLowerCase().includes(q)),
+      [t.name, t.service, t.area, t.notes, t.chat_link].some((v) => (v ?? "").toLowerCase().includes(q)),
     );
   }, [rows, search]);
 
@@ -61,8 +61,11 @@ export default function TechniciansPage() {
     Name: t.name ?? "",
     Service: t.service ?? "",
     Area: t.area ?? "",
+    "Chat Link": t.chat_link ?? "",
     Notes: t.notes ?? "",
   }));
+
+  const EXPORT_HEADERS = ["Name", "Service", "Area", "Chat Link", "Notes"];
 
   const download = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -73,14 +76,13 @@ export default function TechniciansPage() {
 
   const exportCsv = () => {
     const data = exportRows();
-    const headers = ["Name", "Service", "Area", "Notes"];
     const esc = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
-    const csv = [headers.join(","), ...data.map((r) => headers.map((h) => esc((r as Record<string, string>)[h] ?? "")).join(","))].join("\n");
+    const csv = [EXPORT_HEADERS.join(","), ...data.map((r) => EXPORT_HEADERS.map((h) => esc((r as Record<string, string>)[h] ?? "")).join(","))].join("\n");
     download(new Blob([csv], { type: "text/csv;charset=utf-8" }), `technicians-${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   const exportXlsx = () => {
-    const ws = XLSX.utils.json_to_sheet(exportRows(), { header: ["Name", "Service", "Area", "Notes"] });
+    const ws = XLSX.utils.json_to_sheet(exportRows(), { header: EXPORT_HEADERS });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Technicians");
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
@@ -130,7 +132,7 @@ export default function TechniciansPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, service, area, notes"
+              placeholder="Search by name, service, area, chat link, notes"
               className="h-8 pl-7 text-xs"
             />
           </div>
@@ -145,17 +147,18 @@ export default function TechniciansPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Service</TableHead>
                 <TableHead>Area</TableHead>
+                <TableHead>Chat Link</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {techniciansQuery.isLoading && (
-                <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">Loading…</TableCell></TableRow>
               )}
               {!techniciansQuery.isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-10">
+                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-10">
                     {rows.length === 0 ? "No technicians yet. Add one manually or import from CSV/XLSX." : "No technicians match your search."}
                   </TableCell>
                 </TableRow>
@@ -165,6 +168,21 @@ export default function TechniciansPage() {
                   <TableCell className="font-medium">{t.name}</TableCell>
                   <TableCell>{t.service || <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell className="max-w-[280px] truncate" title={t.area}>{t.area}</TableCell>
+                  <TableCell className="max-w-[220px] truncate">
+                    {t.chat_link ? (
+                      <a
+                        href={t.chat_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                        title={t.chat_link}
+                      >
+                        Open chat
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="max-w-[320px] truncate text-muted-foreground" title={t.notes ?? ""}>{t.notes || <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell className="text-right">
                     <div className="inline-flex gap-1">
