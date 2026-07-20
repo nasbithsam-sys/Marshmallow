@@ -43,7 +43,7 @@ export default function TechniciansPage() {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((t) =>
-      [t.name, t.service, t.area, t.notes].some((v) => (v ?? "").toLowerCase().includes(q)),
+      [t.name, t.service, t.area, t.notes, t.chat_link].some((v) => (v ?? "").toLowerCase().includes(q)),
     );
   }, [rows, search]);
 
