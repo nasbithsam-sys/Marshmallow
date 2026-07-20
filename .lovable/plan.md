@@ -1,59 +1,92 @@
-## Paid Request Workflow
+# Map View Feature Plan
 
-Mirrors the existing Lead Cancellation Request pattern so Processors can submit a "mark as Paid" request that Admin must approve before the lead flips to `paid`.
+A new "Map View" section for Admin and Processor users to visualize urgent leads and technicians on an interactive map with 50-mile radius matching.
 
-### Flow
-1. Processor opens a lead and clicks **Request Paid** (visible only for Processor role, and only when lead isn't already `paid` / `cancelled` / has no pending payment request).
-2. A dialog collects: payment amount (required), payment screenshot (required — same rule as direct Paid), and a comment.
-3. Submitting creates a `lead_payment_requests` row (status `pending`), moves the lead status to a new `payment_requested` state, uploads the screenshot to the existing `lead-photos` bucket under `payment-requests/`, and notifies all Admins.
-4. Admin sees pending requests in a new sidebar page **Paid Requests** (badge count, realtime updates) and inside the lead panel via a `PaymentRequestPanel` (identical layout to `CancellationRequestPanel`).
-5. Admin approves → lead becomes `paid` with `payment_amount` + `payment_screenshot_url` copied from the request. Reject → lead reverts to the previous status; Processor sees the review note.
-6. A **green dot** indicator renders on the lead card / status badge whenever the lead has status `payment_requested`, so it's instantly visible in lists.
+## 1. Database
 
-### UI touchpoints
-- New `PaymentRequestDialog` (amount + screenshot + comment) — reused by Processor from `LeadCard` and `LeadDetailPanel`.
-- New `PaymentRequestPanel` inside `LeadDetailPanel` — Admin approve/reject with optional note.
-- New page `/lead-payment-requests` (`LeadPaymentRequests.tsx`) listing pending requests, matching the cancellation page.
-- Sidebar entry **Paid Requests** with pending count badge + realtime subscription on `lead_payment_requests`.
-- Green pulsing dot on `LeadCard` header + `StatusBadge` when `status === 'payment_requested'`.
-- Existing direct "mark Paid" action is hidden for Processor (they must go through the request); Admin keeps it.
+New migration adds a `technicians` table:
 
-### Technical details
+- `id`, `name` (required), `area` (required), `service`, `notes`
+- `latitude`, `longitude` (nullable — geocoded from area)
+- `created_by`, `created_at`, `updated_at`
 
-**Database migration**
-- Add enum value `payment_requested` to `lead_status`.
-- Extend `LEAD_STATUS_CONFIG` label `"Paid Pending"`, color `status-green`.
-- New table `public.lead_payment_requests`:
-  - `id`, `lead_id` (fk leads, cascade), `previous_status`, `requested_by`, `requested_by_role`,
-    `amount numeric`, `screenshot_path text`, `comment text`,
-    `status` (`pending|approved|rejected`), `reviewed_by`, `reviewed_at`, `review_note`,
-    `created_at`, `updated_at` (with trigger).
-- GRANTs: `SELECT/INSERT/UPDATE` to `authenticated`, `ALL` to `service_role`.
-- RLS:
-  - insert: `requested_by = auth.uid()` AND `has_role(auth.uid(),'processor')`.
-  - select: admin OR processor who created it OR CS with access to lead.
-  - update: admin only (to review); or requester while `status='pending'` (cancel their own).
-- Add `lead_payment_requests` to `supabase_realtime` publication.
-- Update `enforce_lead_tag_role_access` / status transition rules only if needed (Processor can move lead into `payment_requested`; Admin transitions `payment_requested → paid|<previous>`).
+Grants + RLS:
+- SELECT/INSERT/UPDATE/DELETE limited to `admin` and `processor` roles via `has_role`
+- `service_role` full access
 
-**Client library** — `src/lib/payment-requests.ts`
-- `canCreatePaymentRequest(role)` → `role === 'processor'`.
-- `canReviewPaymentRequest(role, req)` → `role === 'admin' && req.status === 'pending'`.
-- `fetchPendingPaymentRequest(leadId)` mirrors cancellation helper (joins requester profile).
-- `createPaymentRequest({ lead, userId, amount, screenshot, comment })`: uploads screenshot, inserts row, updates lead status to `payment_requested` via `updateLeadById` (sync `updated_at` + `last_edited_at`), inserts admin notifications, calls `logActivity('payment_requested', ...)`.
-- `reviewPaymentRequest({ request, lead, reviewerId, action, reviewNote })`: on approve, `updateLeadById(lead.id,{status:'paid', payment_amount:request.amount, payment_screenshot_url:<signed path>, ...})`; on reject, revert to `request.previous_status`. Logs `payment_approved` / `payment_rejected`.
+Also add `latitude`, `longitude` nullable columns to `leads` (only used for map caching — existing lead workflow untouched). If already present via prior work, skipped.
 
-**Nav / routing**
-- Add `"payment_requests"` to `ALL_NAV_ITEMS` and `useNavPermissions` defaults for Admin + Processor.
-- Add route in `App.tsx` for `/lead-payment-requests`.
-- Extend `AppSidebar` with a second badge query + realtime channel scoped to `lead_payment_requests`.
+Add `map_view` to `ALL_NAV_ITEMS` (constants.ts) and to default nav access for `admin` and `processor` in `src/lib/access.ts`.
 
-**Green dot**
-- Add small `<span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />` next to `StatusBadge` in `LeadCard` and `LeadDetailPanel` when `lead.status === 'payment_requested'`. Also render inside the sidebar list row.
+## 2. Sidebar entry
 
-**Types** — extend `LeadStatus` union, add `LEAD_STATUS_CONFIG.payment_requested`, add `LeadPaymentRequest` interface (parallel to `LeadCancellationRequest`).
+`src/components/layout/AppSidebar.tsx`: insert new item "Map View" with `Map` icon from lucide, `navKey: "map_view"`, placed right after "Area Insights". Visibility follows the existing `canAccess("map_view")` pattern — defaults set so only admin/processor see it.
 
-### Constraints respected
-- Timestamps: `updateLeadById` keeps `updated_at` and `last_edited_at` in sync per project rule.
-- "Paid" remains strictly locked once set — approval simply performs the same guarded transition Admin does manually today.
-- Non-admins still fail-closed on access-code checks; no auth surface added.
+## 3. Route
+
+`src/App.tsx`: lazy-load `MapViewPage` at `/map-view` inside a `PageRoute navItem="map_view"`.
+
+## 4. Map page — `src/pages/MapViewPage.tsx`
+
+Uses existing Leaflet setup (project already uses plain `L.map` per memory — same approach as `AreasPage`). No new map library.
+
+Layout:
+- Header: title, filter chips (Show: Urgent / Technicians / Both), technician search, service filter, "+ Add Technician", "Import Technicians"
+- Full-width Leaflet map (`h-[calc(100vh-...)]`) with legend overlay (Red = Urgent Lead, Blue = Technician)
+- Side panel (desktop) / bottom sheet (mobile) showing selected technician details + urgent leads in range sorted by distance
+
+Data:
+- Urgent leads: `useQuery` selecting from `leads` where `status = 'urgent_job'`, with existing coords or address string
+- Technicians: `useQuery` from new `technicians` table
+- Geocoding: reuse the existing localStorage geocoding cache pattern from `AreasPage`; only geocode addresses missing coordinates; persist resolved lead coords back to `leads.latitude/longitude` (best-effort, does not modify other lead fields)
+
+Markers:
+- Red divIcon for urgent leads, blue divIcon for technicians
+- Popups with the exact fields spec'd (Customer/Phone/Address/Service/Status/Job ID + View Lead button navigating to `/leads/:id`; Technician: Name/Area/Service/Notes/coverage/in-range count/Edit/Delete)
+- 50-mile radius circle rendered only for the currently selected technician using `L.circle` with `radius = 80467` (meters)
+
+Distance: haversine helper in `src/lib/geo.ts` returning miles.
+
+## 5. Add / Edit / Delete Technician
+
+`src/components/technicians/TechnicianDialog.tsx`:
+- Fields: Name, Area, Service, Notes
+- On save: insert/update row, then geocode Area (Nominatim, same pattern as areas cache) and persist lat/lng
+- React Query invalidation for `["technicians"]`
+- Delete flow uses shadcn `AlertDialog` for confirmation
+
+## 6. CSV / XLSX Import
+
+`src/components/technicians/ImportTechniciansDialog.tsx`:
+- File picker accepting `.csv,.xlsx`
+- Parse using `papaparse` for CSV and `xlsx` for Excel (both already in the project — verify; add via bun if missing)
+- Validate columns Name, Area, Service, Notes; required Name + Area
+- Preview table with valid/invalid counts
+- Confirm → bulk insert (chunks of 100), skip rows whose normalized (name+area) match an existing technician
+- Toast summary: "N imported, M skipped"
+
+## 7. Matching / Filters
+
+- When a technician marker is clicked: compute distance to every urgent lead, filter ≤50 miles, sort ascending, show in side panel with `service_type` vs technician `service` match badge
+- Filter chip "Show only urgent leads within 50 miles" available when a technician is selected
+- Global filters: entity toggle (Urgent / Techs / Both), technician service dropdown, technician text search
+
+## 8. Performance & UX
+
+- Marker rendering: reuse a single `L.layerGroup` per entity type; diff on data change instead of full re-init
+- Coord cache in localStorage keyed by normalized address (existing pattern) so repeated loads never re-geocode
+- Unmapped counts surfaced under the legend: "N urgent leads could not be mapped"
+- Responsive: filter row wraps; side panel becomes bottom Sheet on `useIsMobile`
+
+## 9. Scope guard
+
+No changes to: Leads page, dashboard, Analytics, Area Insights, auth flow, existing roles beyond adding `map_view` access, lead assignment logic, existing reports.
+
+## Technical notes
+
+- Files added: `src/pages/MapViewPage.tsx`, `src/components/technicians/TechnicianDialog.tsx`, `src/components/technicians/ImportTechniciansDialog.tsx`, `src/components/technicians/TechnicianSidePanel.tsx`, `src/lib/geo.ts`, `src/lib/geocode.ts` (extracted cache helpers if not already shared)
+- Files edited: `src/App.tsx`, `src/components/layout/AppSidebar.tsx`, `src/lib/constants.ts` (ALL_NAV_ITEMS), `src/lib/access.ts` (default nav access for admin+processor)
+- Migration: `technicians` table + grants + RLS + `updated_at` trigger; nullable `latitude`/`longitude` on `leads` if not present
+- Deps: verify `papaparse`, `xlsx`, `leaflet` present; install if missing
+
+Ready to implement on approval.
