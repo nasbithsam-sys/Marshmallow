@@ -51,7 +51,7 @@ const navItems = [
   { title: "Analytics", url: "/analytics", icon: BarChart3, navKey: "analytics" },
   { title: "Area Insights", url: "/areas", icon: MapPin, navKey: "areas" },
   { title: "Map View", url: "/map-view", icon: MapIcon, navKey: "map_view" },
-  { title: "Tech View", url: "/tech-view", icon: Contact, navKey: "tech_view" },
+  { title: "Technicians", url: "/technicians", icon: Contact, navKey: "technicians" },
   { title: "Activity Logs", url: "/activity-logs", icon: ScrollText, navKey: "activity_logs" },
   { title: "CRM Updates", url: "/crm-updates", icon: Megaphone, navKey: "crm_updates" },
   { title: "Settings", url: "/settings", icon: Settings, navKey: "settings" },

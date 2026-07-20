@@ -98,7 +98,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "scammed",
 ];
 
-export const ALL_NAV_ITEMS = ["leads", "quo_monitor", "cancellation_requests", "payment_requests", "analytics", "settings", "activity_logs", "schedule", "areas", "map_view", "tech_view", "crm_updates"] as const;
+export const ALL_NAV_ITEMS = ["leads", "quo_monitor", "cancellation_requests", "payment_requests", "analytics", "settings", "activity_logs", "schedule", "areas", "map_view", "technicians", "crm_updates"] as const;
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
