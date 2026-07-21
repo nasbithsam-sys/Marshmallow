@@ -520,6 +520,48 @@ export default function MapViewPage() {
     setShowTechSuggestions(false);
   };
 
+  const performAreaSearch = () => {
+    if (!mapVisible) setMapVisible(true);
+    setAreaQuery(areaSearch);
+    // Compute matches based on current filters + this area query
+    const q = areaSearch.trim().toLowerCase();
+    const techs = mappedTechs.filter((t) => {
+      if (serviceFilter !== "all" && (t.service ?? "") !== serviceFilter) return false;
+      if (!techMatchesState(t, stateFilter)) return false;
+      return !q || techMatchesArea(t, q);
+    });
+    const leads = mappedLeads.filter((l) => {
+      if (!leadMatchesState(l, stateFilter)) return false;
+      return !q || leadMatchesArea(l, q);
+    });
+    const pts: L.LatLngExpression[] = [];
+    if (viewMode !== "leads") techs.forEach((t) => pts.push([t.coords.latitude, t.coords.longitude]));
+    if (viewMode !== "techs") leads.forEach((l) => pts.push([l.coords.latitude, l.coords.longitude]));
+    if (pts.length === 0) {
+      toast("No technicians or customers found in this area");
+      return;
+    }
+    const map = mapRef.current;
+    if (!map) return;
+    setTimeout(() => {
+      const m = mapRef.current;
+      if (!m) return;
+      if (pts.length === 1) {
+        m.flyTo(pts[0] as L.LatLngTuple, 11, { duration: 0.6 });
+      } else {
+        m.fitBounds(L.latLngBounds(pts as L.LatLngTuple[]), { padding: [40, 40], maxZoom: 12 });
+      }
+    }, 60);
+  };
+
+  const resetLocationFilters = () => {
+    setAreaSearch("");
+    setAreaQuery("");
+    setStateFilter("all");
+    const map = mapRef.current;
+    if (map) map.flyTo([39.5, -98.35], 4, { duration: 0.6 });
+  };
+
   useEffect(() => {
     if (!pendingFocusTechId) return;
     const map = mapRef.current;
