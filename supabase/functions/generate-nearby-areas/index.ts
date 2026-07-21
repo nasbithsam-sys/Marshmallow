@@ -171,8 +171,8 @@ Deno.serve(async (req) => {
       const controller = new AbortController();
       const t = setTimeout(() => controller.abort(), 20000);
       try {
-        // 1) full address free-form
-        if (normalizedAddress && (city || state || zip)) {
+        // 1) full address free-form (works when address already contains city/state/zip inline)
+        if (normalizedAddress) {
           const q = [normalizedAddress, city, state, zip].filter(Boolean).join(", ");
           const r = await nominatimFree(q, controller.signal);
           if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "address"; }
