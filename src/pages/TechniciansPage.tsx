@@ -874,6 +874,73 @@ export default function TechniciansPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={bulkDeleteOpen}
+        onOpenChange={(o) => {
+          if (bulkDeleting) return;
+          setBulkDeleteOpen(o);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected technicians?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedCount === 1
+                ? "Are you sure you want to permanently delete this technician? This action cannot be undone."
+                : `Are you sure you want to permanently delete these ${selectedCount.toLocaleString()} technicians? This action cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {selectedCount > 0 && (
+            <div className="max-h-64 overflow-y-auto rounded-md border border-border/60 bg-muted/30 p-2 text-xs">
+              <ul className="space-y-1.5">
+                {sortTechnicians(Array.from(selected.values()))
+                  .slice(0, 10)
+                  .map((t) => {
+                    const meta = [t.service, t.area].filter((v) => v && String(v).trim() !== "").join(" · ");
+                    const phone = t.phone_number && String(t.phone_number).trim() !== "" ? t.phone_number : "No phone number";
+                    return (
+                      <li key={t.id} className="flex flex-col">
+                        <span className="font-medium text-foreground">{t.name || "Unnamed technician"}</span>
+                        <span className="text-muted-foreground">
+                          {phone}
+                          {meta ? ` · ${meta}` : ""}
+                        </span>
+                      </li>
+                    );
+                  })}
+              </ul>
+              {selectedCount > 10 && (
+                <p className="mt-2 text-muted-foreground">
+                  And {(selectedCount - 10).toLocaleString()} more technician{selectedCount - 10 === 1 ? "" : "s"}
+                </p>
+              )}
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleBulkDelete();
+              }}
+              disabled={bulkDeleting || selectedCount === 0}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkDeleting ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : selectedCount === 1 ? (
+                "Delete Technician"
+              ) : (
+                `Delete ${selectedCount.toLocaleString()} Technicians`
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
