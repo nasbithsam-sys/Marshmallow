@@ -155,6 +155,8 @@ function sortTechnicians(list: TechnicianRecord[]): TechnicianRecord[] {
     return (a.id ?? "").localeCompare(b.id ?? "");
   });
 }
+
+export default function TechniciansPage() {
   const qc = useQueryClient();
   const { role } = useAuth();
   const isAdmin = role === "admin";
