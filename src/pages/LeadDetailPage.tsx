@@ -1407,6 +1407,22 @@ export default function LeadDetailPage() {
             </Collapsible>
           )}
 
+          {!hideProcessorDetails && leadId && (
+            <NearbyAreasList
+              leadId={leadId}
+              customerAddress={form.address ?? originalLead?.address ?? null}
+              customerCity={form.city ?? originalLead?.city ?? null}
+              customerState={form.state ?? originalLead?.state ?? null}
+              customerZip={form.zip_code ?? originalLead?.zip_code ?? null}
+              latitude={(originalLead as unknown as { latitude?: number | null } | null)?.latitude ?? null}
+              longitude={(originalLead as unknown as { longitude?: number | null } | null)?.longitude ?? null}
+              savedNearbyAreas={
+                ((originalLead as unknown as { nearby_areas?: unknown } | null)?.nearby_areas as NearbyAreasData | null) ?? null
+              }
+              canManage={isAdmin || isProcessor}
+            />
+          )}
+
           <Collapsible open={scheduleOpen} onOpenChange={setScheduleOpen}>
             <CollapsibleTrigger className={collapsibleShellClass}>
               <SectionHeader
