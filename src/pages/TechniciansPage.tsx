@@ -523,26 +523,34 @@ export default function TechniciansPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[36px]">
+                  <Checkbox
+                    checked={headerCheckboxState}
+                    onCheckedChange={(v) => toggleAllVisible(v === true)}
+                    disabled={rows.length === 0}
+                    aria-label="Select all technicians on this page"
+                  />
+                </TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Phone Number</TableHead>
                 <TableHead>Service</TableHead>
                 <TableHead>Area</TableHead>
                 <TableHead>Chat Link</TableHead>
                 <TableHead>Notes</TableHead>
-                <TableHead className="w-[100px] text-right">Actions</TableHead>
+                <TableHead className="w-[130px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginatedQuery.isPending && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {paginatedQuery.isError && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-sm py-10">
+                  <TableCell colSpan={8} className="text-center text-sm py-10">
                     <div className="flex flex-col items-center gap-2">
                       <span className="text-destructive">
                         {(paginatedQuery.error as Error)?.message ?? "Failed to load technicians."}
@@ -556,7 +564,7 @@ export default function TechniciansPage() {
               )}
               {!paginatedQuery.isPending && !paginatedQuery.isError && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-10">
+                  <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-10">
                     {isSearching
                       ? "No technicians match your search."
                       : "No technicians yet. Add one manually or import from CSV/XLSX."}
@@ -565,8 +573,20 @@ export default function TechniciansPage() {
               )}
               {rows.map((t) => {
                 const tel = toTelHref(t.phone_number);
+                const isSelected = selected.has(t.id);
                 return (
-                  <TableRow key={t.id}>
+                  <TableRow
+                    key={t.id}
+                    data-state={isSelected ? "selected" : undefined}
+                    className={isSelected ? "bg-primary/5 border-l-2 border-l-primary" : undefined}
+                  >
+                    <TableCell className="align-middle">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(v) => toggleRow(t, v === true)}
+                        aria-label={isSelected ? `Deselect ${t.name}` : `Select ${t.name}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{t.name}</TableCell>
                     <TableCell>
                       {t.phone_number && tel ? (
@@ -597,10 +617,19 @@ export default function TechniciansPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => setEditTech(t)} title="Edit">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleCopyOne(t)}
+                          title="Copy technician details"
+                          aria-label={`Copy ${t.name} details`}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setEditTech(t)} title="Edit" aria-label={`Edit ${t.name}`}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" onClick={() => setDeleteTech(t)} title="Delete">
+                        <Button size="icon" variant="ghost" onClick={() => setDeleteTech(t)} title="Delete" aria-label={`Delete ${t.name}`}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
