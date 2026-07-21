@@ -205,12 +205,77 @@ export default function MapViewPage() {
     return Array.from(set).sort();
   }, [techniciansQuery.data]);
 
+  const US_STATES: Record<string, string> = {
+    AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming",DC:"District of Columbia",
+  };
+  const STATE_NAME_TO_CODE: Record<string, string> = Object.fromEntries(
+    Object.entries(US_STATES).map(([code, name]) => [name.toLowerCase(), code]),
+  );
+
+  const extractStateFromText = (s: string | null | undefined): string | null => {
+    if (!s) return null;
+    const txt = s.trim();
+    if (!txt) return null;
+    // Match 2-letter code as whole token
+    const m = txt.match(/\b([A-Z]{2})\b/);
+    if (m && US_STATES[m[1]]) return m[1];
+    const lower = txt.toLowerCase();
+    for (const name in STATE_NAME_TO_CODE) {
+      if (lower.includes(name)) return STATE_NAME_TO_CODE[name];
+    }
+    return null;
+  };
+
+  const availableStates = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of mappedLeads) {
+      const code = (l.state && l.state.length === 2 ? l.state.toUpperCase() : extractStateFromText(l.state)) || extractStateFromText(l.zipState);
+      if (code && US_STATES[code]) set.add(code);
+    }
+    for (const t of mappedTechs) {
+      const code = extractStateFromText(t.area);
+      if (code && US_STATES[code]) set.add(code);
+    }
+    return Array.from(set).sort();
+  }, [mappedLeads, mappedTechs]);
+
+  const techMatchesArea = (t: MappedTech, area: string) => {
+    if (!area) return true;
+    const q = area.trim().toLowerCase();
+    return (t.area ?? "").toLowerCase().includes(q) || (t.name ?? "").toLowerCase().includes(q);
+  };
+  const leadMatchesArea = (l: MappedLead, area: string) => {
+    if (!area) return true;
+    const q = area.trim().toLowerCase();
+    return [l.address, l.city, l.state, l.zip_code, l.zipCity, l.zipState]
+      .some((v) => (v ?? "").toString().toLowerCase().includes(q));
+  };
+  const techMatchesState = (t: MappedTech, code: string) => {
+    if (code === "all") return true;
+    return extractStateFromText(t.area) === code;
+  };
+  const leadMatchesState = (l: MappedLead, code: string) => {
+    if (code === "all") return true;
+    const lc = (l.state && l.state.length === 2 ? l.state.toUpperCase() : extractStateFromText(l.state)) || extractStateFromText(l.zipState);
+    return lc === code;
+  };
+
   const filteredTechs = useMemo(() => {
     return mappedTechs.filter((t) => {
       if (serviceFilter !== "all" && (t.service ?? "") !== serviceFilter) return false;
+      if (!techMatchesState(t, stateFilter)) return false;
+      if (!techMatchesArea(t, areaQuery)) return false;
       return true;
     });
-  }, [mappedTechs, serviceFilter]);
+  }, [mappedTechs, serviceFilter, stateFilter, areaQuery]);
+
+  const filteredLeads = useMemo(() => {
+    return mappedLeads.filter((l) => {
+      if (!leadMatchesState(l, stateFilter)) return false;
+      if (!leadMatchesArea(l, areaQuery)) return false;
+      return true;
+    });
+  }, [mappedLeads, stateFilter, areaQuery]);
 
   const selectedTech = useMemo(
     () => mappedTechs.find((t) => t.id === selectedTechId) ?? null,
@@ -219,11 +284,11 @@ export default function MapViewPage() {
 
   const leadsInRange = useMemo(() => {
     if (!selectedTech) return [] as Array<MappedLead & { distance: number }>;
-    return mappedLeads
+    return filteredLeads
       .map((l) => ({ ...l, distance: haversineMiles(selectedTech.coords, l.coords) }))
       .filter((l) => l.distance <= RADIUS_MILES)
       .sort((a, b) => a.distance - b.distance);
-  }, [selectedTech, mappedLeads]);
+  }, [selectedTech, filteredLeads]);
 
   useEffect(() => {
     if (!mapVisible) return;
