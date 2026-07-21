@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -347,13 +348,15 @@ export default function MapViewPage() {
     if (!q) return [] as MappedLead[];
     return mappedLeads
       .filter((l) => (l.customer_name ?? "").toLowerCase().includes(q))
-      .slice(0, 8);
+      .slice(0, 25);
   }, [customerSearch, mappedLeads]);
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  useEffect(() => { setActiveIndex(0); }, [customerSearch]);
 
   const selectCustomer = (lead: MappedLead) => {
     if (!mapVisible) setMapVisible(true);
     if (viewMode === "techs") setViewMode("both");
-    // If a technician radius filter is hiding this lead, clear the selection
     if (selectedTech) {
       const inRange = leadsInRange.some((l) => l.id === lead.id);
       if (!inRange) setSelectedTechId(null);
@@ -373,7 +376,8 @@ export default function MapViewPage() {
     if (customerMatches.length === 1) {
       selectCustomer(customerMatches[0]);
     } else {
-      setShowSuggestions(true);
+      const target = customerMatches[activeIndex] ?? customerMatches[0];
+      selectCustomer(target);
     }
   };
 
@@ -382,6 +386,97 @@ export default function MapViewPage() {
     setShowSuggestions(false);
     setPendingFocusLeadId(null);
   };
+
+  // Portal-positioned dropdown anchoring
+  const customerInputWrapRef = useRef<HTMLDivElement | null>(null);
+  const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!showSuggestions) return;
+    const update = () => {
+      const el = customerInputWrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setAnchorRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [showSuggestions, customerSearch]);
+
+  const highlightMatch = (name: string, query: string) => {
+    const q = query.trim();
+    if (!q) return name;
+    const lower = name.toLowerCase();
+    const idx = lower.indexOf(q.toLowerCase());
+    if (idx < 0) return name;
+    return (
+      <>
+        {name.slice(0, idx)}
+        <span className="bg-primary/25 text-primary-foreground rounded px-0.5">{name.slice(idx, idx + q.length)}</span>
+        {name.slice(idx + q.length)}
+      </>
+    );
+  };
+
+  const renderSuggestionsDropdown = () => {
+    if (!showSuggestions || !customerSearch.trim() || !anchorRect) return null;
+    const width = Math.max(360, anchorRect.width);
+    return createPortal(
+      <div
+        role="listbox"
+        style={{ position: "fixed", top: anchorRect.top, left: anchorRect.left, width, zIndex: 2000 }}
+        className="rounded-md border bg-popover text-popover-foreground shadow-xl overflow-hidden"
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        {customerMatches.length === 0 ? (
+          <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+            No matching customers found
+          </div>
+        ) : (
+          <ul className="max-h-72 overflow-y-auto py-1 divide-y divide-border">
+            {customerMatches.map((l, i) => {
+              const loc = [l.city, l.state].filter(Boolean).join(", ");
+              const zip = l.zip_code || l.zip;
+              const locLine = [loc, zip].filter(Boolean).join(" ");
+              const isActive = i === activeIndex;
+              return (
+                <li key={l.id} role="option" aria-selected={isActive}>
+                  <button
+                    type="button"
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onClick={() => selectCustomer(l)}
+                    className={`w-full text-left px-3 py-2.5 text-xs transition-colors ${
+                      isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/60"
+                    }`}
+                  >
+                    <div className="font-semibold text-sm text-foreground truncate">
+                      {highlightMatch(l.customer_name || "Unnamed", customerSearch)}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      Job {l.job_id}
+                      {locLine ? ` · ${locLine}` : ""}
+                    </div>
+                    {l.service_type && (
+                      <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
+                        {l.service_type}
+                      </div>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>,
+      document.body,
+    );
+  };
+
+
 
 
   const SidePanel = (
@@ -500,7 +595,7 @@ export default function MapViewPage() {
                   className="h-8 w-[200px] pl-7 text-xs"
                 />
               </div>
-              <div className="relative">
+              <div className="relative" ref={customerInputWrapRef}>
                 <div className="flex items-center gap-1">
                   <div className="relative">
                     <User className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -508,12 +603,27 @@ export default function MapViewPage() {
                       value={customerSearch}
                       onChange={(e) => { setCustomerSearch(e.target.value); setShowSuggestions(true); }}
                       onFocus={() => { if (customerSearch.trim()) setShowSuggestions(true); }}
+                      onBlur={() => { setTimeout(() => setShowSuggestions(false), 150); }}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") { e.preventDefault(); performCustomerSearch(); }
-                        if (e.key === "Escape") setShowSuggestions(false);
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          performCustomerSearch();
+                        } else if (e.key === "Escape") {
+                          setShowSuggestions(false);
+                        } else if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setShowSuggestions(true);
+                          setActiveIndex((i) => Math.min(i + 1, Math.max(0, customerMatches.length - 1)));
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setShowSuggestions(true);
+                          setActiveIndex((i) => Math.max(i - 1, 0));
+                        }
                       }}
                       placeholder="Search customer name"
-                      className="h-8 w-[220px] pl-7 pr-7 text-xs"
+                      className="h-8 w-[240px] pl-7 pr-7 text-xs"
+                      aria-autocomplete="list"
+                      aria-expanded={showSuggestions}
                     />
                     {customerSearch && (
                       <button
@@ -528,33 +638,8 @@ export default function MapViewPage() {
                   </div>
                   <Button size="sm" className="h-8 text-xs" onClick={performCustomerSearch}>Search</Button>
                 </div>
-                {showSuggestions && customerSearch.trim() && customerMatches.length > 0 && (
-                  <div className="absolute z-[1000] mt-1 w-[320px] rounded-md border bg-popover shadow-lg overflow-hidden">
-                    <ul className="max-h-72 overflow-y-auto py-1">
-                      {customerMatches.map((l) => {
-                        const loc = [l.city, l.state].filter(Boolean).join(", ") || l.zip_code || l.zip;
-                        return (
-                          <li key={l.id}>
-                            <button
-                              type="button"
-                              onClick={() => selectCustomer(l)}
-                              className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors"
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-medium truncate">{l.customer_name || "Unnamed"}</span>
-                                <span className="text-[10px] text-muted-foreground shrink-0">Job {l.job_id}</span>
-                              </div>
-                              <div className="text-[11px] text-muted-foreground truncate">
-                                {loc}{l.service_type ? ` · ${l.service_type}` : ""}
-                              </div>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
               </div>
+              {renderSuggestionsDropdown()}
               <div className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500 border border-white" /> Technician</span>
                 <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500 border border-white" /> Urgent Lead</span>
