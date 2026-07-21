@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Download, FileText } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Download, FileText, Database, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import {
   type DocBlock,
 } from "@/lib/documentation-content";
 import { generateDocumentationPdf } from "@/lib/documentation-pdf";
+import { supabase } from "@/integrations/supabase/client";
 
 function Block({ block }: { block: DocBlock }) {
   if (block.type === "p") {
