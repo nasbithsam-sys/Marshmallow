@@ -844,6 +844,42 @@ export default function MapViewPage() {
                   {services.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={stateFilter} onValueChange={setStateFilter}>
+                <SelectTrigger className="h-8 w-[150px] text-xs">
+                  <SelectValue placeholder="All states" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All states</SelectItem>
+                  {availableStates.map((code) => (
+                    <SelectItem key={code} value={code}>{code} · {US_STATES[code]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-1">
+                <div className="relative">
+                  <MapPin className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={areaSearch}
+                    onChange={(e) => setAreaSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); performAreaSearch(); } }}
+                    placeholder="City, ZIP, or area"
+                    className="h-8 w-[200px] pl-7 pr-7 text-xs"
+                    aria-label="Area search"
+                  />
+                  {areaSearch && (
+                    <button
+                      type="button"
+                      onClick={() => { setAreaSearch(""); setAreaQuery(""); }}
+                      aria-label="Clear area search"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={performAreaSearch}>Search Area</Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={resetLocationFilters}>Reset</Button>
+              </div>
               <div className="relative" ref={techInputWrapRef}>
                 <div className="flex items-center gap-1">
                   <div className="relative">
