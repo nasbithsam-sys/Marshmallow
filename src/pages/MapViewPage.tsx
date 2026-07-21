@@ -595,7 +595,7 @@ export default function MapViewPage() {
                   className="h-8 w-[200px] pl-7 text-xs"
                 />
               </div>
-              <div className="relative">
+              <div className="relative" ref={customerInputWrapRef}>
                 <div className="flex items-center gap-1">
                   <div className="relative">
                     <User className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -603,12 +603,27 @@ export default function MapViewPage() {
                       value={customerSearch}
                       onChange={(e) => { setCustomerSearch(e.target.value); setShowSuggestions(true); }}
                       onFocus={() => { if (customerSearch.trim()) setShowSuggestions(true); }}
+                      onBlur={() => { setTimeout(() => setShowSuggestions(false), 150); }}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") { e.preventDefault(); performCustomerSearch(); }
-                        if (e.key === "Escape") setShowSuggestions(false);
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          performCustomerSearch();
+                        } else if (e.key === "Escape") {
+                          setShowSuggestions(false);
+                        } else if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setShowSuggestions(true);
+                          setActiveIndex((i) => Math.min(i + 1, Math.max(0, customerMatches.length - 1)));
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setShowSuggestions(true);
+                          setActiveIndex((i) => Math.max(i - 1, 0));
+                        }
                       }}
                       placeholder="Search customer name"
-                      className="h-8 w-[220px] pl-7 pr-7 text-xs"
+                      className="h-8 w-[240px] pl-7 pr-7 text-xs"
+                      aria-autocomplete="list"
+                      aria-expanded={showSuggestions}
                     />
                     {customerSearch && (
                       <button
@@ -623,33 +638,8 @@ export default function MapViewPage() {
                   </div>
                   <Button size="sm" className="h-8 text-xs" onClick={performCustomerSearch}>Search</Button>
                 </div>
-                {showSuggestions && customerSearch.trim() && customerMatches.length > 0 && (
-                  <div className="absolute z-[1000] mt-1 w-[320px] rounded-md border bg-popover shadow-lg overflow-hidden">
-                    <ul className="max-h-72 overflow-y-auto py-1">
-                      {customerMatches.map((l) => {
-                        const loc = [l.city, l.state].filter(Boolean).join(", ") || l.zip_code || l.zip;
-                        return (
-                          <li key={l.id}>
-                            <button
-                              type="button"
-                              onClick={() => selectCustomer(l)}
-                              className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors"
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-medium truncate">{l.customer_name || "Unnamed"}</span>
-                                <span className="text-[10px] text-muted-foreground shrink-0">Job {l.job_id}</span>
-                              </div>
-                              <div className="text-[11px] text-muted-foreground truncate">
-                                {loc}{l.service_type ? ` · ${l.service_type}` : ""}
-                              </div>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
               </div>
+              {renderSuggestionsDropdown()}
               <div className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500 border border-white" /> Technician</span>
                 <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500 border border-white" /> Urgent Lead</span>
