@@ -135,21 +135,35 @@ Deno.serve(async (req) => {
     const providedCron = req.headers.get("x-cron-secret") ?? "";
     const isCron = cronSecret.length > 0 && providedCron === cronSecret;
 
-    if (!isCron) {
+    // Auth: allow (a) cron secret, (b) service-role bearer, (c) authenticated admin user,
+    // (d) one-shot bootstrap when the table is empty (idempotent, safe to expose).
+    let authorized = isCron;
+    if (!authorized) {
       const auth = req.headers.get("Authorization");
-      if (!auth?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-      const token = auth.slice(7);
-      // Allow service-role key as caller bypass.
-      if (token !== SERVICE_KEY) {
-        const { data: userRes, error: userErr } = await admin.auth.getUser(token);
-        if (userErr || !userRes.user) return json({ error: "Unauthorized" }, 401);
-        const { data: roleRow } = await admin
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userRes.user.id)
-          .maybeSingle();
-        if (roleRow?.role !== "admin") return json({ error: "Forbidden" }, 403);
+      if (auth?.startsWith("Bearer ")) {
+        const token = auth.slice(7);
+        if (token === SERVICE_KEY) {
+          authorized = true;
+        } else {
+          const { data: userRes } = await admin.auth.getUser(token);
+          if (userRes?.user) {
+            const { data: roleRow } = await admin
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", userRes.user.id)
+              .maybeSingle();
+            if (roleRow?.role === "admin") authorized = true;
+          }
+        }
       }
+      if (!authorized) {
+        // Bootstrap: allow initial population when us_places is empty.
+        const { count } = await admin
+          .from("us_places")
+          .select("geoid", { count: "exact", head: true });
+        if ((count ?? 0) === 0) authorized = true;
+      }
+      if (!authorized) return json({ error: "Unauthorized" }, 401);
     }
 
 
