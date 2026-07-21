@@ -424,6 +424,71 @@ export default function TechniciansPage() {
     else toast({ title: "Unable to copy technician data", variant: "destructive" });
   };
 
+  const handleBulkDelete = async () => {
+    if (bulkDeleting) return;
+    const ids = Array.from(selected.keys());
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    const BATCH = 200;
+    const deletedIds: string[] = [];
+    let firstError: string | null = null;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error, data } = await supabase
+          .from("technicians")
+          .delete()
+          .in("id", batch)
+          .select("id");
+        if (error) {
+          firstError = error.message;
+          break;
+        }
+        for (const row of data ?? []) deletedIds.push(row.id as string);
+      }
+    } catch (e) {
+      firstError = e instanceof Error ? e.message : String(e);
+    }
+
+    // Remove successfully deleted from selection
+    if (deletedIds.length > 0) {
+      setSelected((prev) => {
+        const next = new Map(prev);
+        for (const id of deletedIds) next.delete(id);
+        return next;
+      });
+    }
+
+    await invalidateAll();
+    setBulkDeleting(false);
+
+    const total = ids.length;
+    if (firstError && deletedIds.length === 0) {
+      toast({
+        title: "Unable to delete selected technicians",
+        description: firstError,
+        variant: "destructive",
+      });
+      return;
+    }
+    if (firstError && deletedIds.length > 0) {
+      toast({
+        title: `${deletedIds.length} technician${deletedIds.length === 1 ? "" : "s"} deleted, but ${
+          total - deletedIds.length
+        } could not be deleted`,
+        description: firstError,
+        variant: "destructive",
+      });
+      setBulkDeleteOpen(false);
+      return;
+    }
+    setBulkDeleteOpen(false);
+    toast({
+      title: deletedIds.length === 1 ? "1 technician deleted" : `${deletedIds.length} technicians deleted`,
+    });
+  };
+
+
 
   return (
     <div className={`space-y-4 ${selectedCount > 0 ? "pb-28" : ""}`}>
