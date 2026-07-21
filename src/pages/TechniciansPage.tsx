@@ -47,7 +47,18 @@ export default function TechniciansPage() {
     });
   }, [rows, search]);
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["technicians"] });
+  const refresh = async () => {
+    await qc.invalidateQueries({ queryKey: TECHNICIANS_QUERY_KEY });
+    await qc.refetchQueries({ queryKey: TECHNICIANS_QUERY_KEY, type: "active" });
+  };
+  const handleSaved = async (saved: TechnicianRecord) => {
+    qc.setQueryData<TechnicianRecord[]>(TECHNICIANS_QUERY_KEY, (prev) => upsertTechnicianInList(prev, saved));
+    const q = search.trim().toLowerCase();
+    if (q && !(saved.name ?? "").toLowerCase().includes(q) && !phoneDigits(saved.phone_number).includes(phoneDigits(q))) {
+      setSearch("");
+    }
+    await refresh();
+  };
 
   const handleConfirmDelete = async () => {
     if (!deleteTech) return;
