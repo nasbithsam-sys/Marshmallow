@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
@@ -42,6 +43,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Loader2,
+  Copy,
+  X,
 } from "lucide-react";
 
 const PAGE_SIZE_OPTIONS = [100, 200, 500, 1000] as const;
@@ -79,6 +82,80 @@ function buildPageWindow(current: number, total: number): Array<number | "ellips
   return out;
 }
 
+const COPY_COLUMNS = ["Name", "Phone Number", "Service", "Area", "Quo Chat Link", "Notes"] as const;
+
+/** Strip tabs/newlines from a single clipboard cell so one row stays on one TSV line. */
+function sanitizeClipboardCell(value: string | null | undefined): string {
+  if (value == null) return "";
+  return String(value).replace(/[\t\r\n]+/g, " ").trim();
+}
+
+function technicianToClipboardCells(t: TechnicianRecord): string[] {
+  return [
+    sanitizeClipboardCell(t.name),
+    sanitizeClipboardCell(t.phone_number),
+    sanitizeClipboardCell(t.service),
+    sanitizeClipboardCell(t.area),
+    sanitizeClipboardCell(t.chat_link),
+    sanitizeClipboardCell(t.notes),
+  ];
+}
+
+function buildTechniciansTsv(techs: TechnicianRecord[]): string {
+  const header = COPY_COLUMNS.join("\t");
+  const body = techs.map((t) => technicianToClipboardCells(t).join("\t"));
+  return [header, ...body].join("\n");
+}
+
+function buildSingleTechnicianText(t: TechnicianRecord): string {
+  const pairs: Array<[string, string | null | undefined]> = [
+    ["Name", t.name],
+    ["Phone Number", t.phone_number],
+    ["Service", t.service],
+    ["Area", t.area],
+    ["Quo Chat Link", t.chat_link],
+    ["Notes", t.notes],
+  ];
+  return pairs
+    .filter(([, v]) => v != null && String(v).trim() !== "")
+    .map(([k, v]) => `${k}: ${String(v).replace(/\r?\n/g, " ").trim()}`)
+    .join("\n");
+}
+
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall through to legacy path
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function sortTechnicians(list: TechnicianRecord[]): TechnicianRecord[] {
+  return [...list].sort((a, b) => {
+    const nameCmp = (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "base" });
+    if (nameCmp !== 0) return nameCmp;
+    return (a.id ?? "").localeCompare(b.id ?? "");
+  });
+}
+
 export default function TechniciansPage() {
   const qc = useQueryClient();
   const { role } = useAuth();
@@ -92,6 +169,8 @@ export default function TechniciansPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [pageSize, setPageSize] = useState<PageSizeOption>(() => loadInitialPageSize());
   const [currentPage, setCurrentPage] = useState(1);
+  // Selected technicians persisted across pagination/search by id.
+  const [selected, setSelected] = useState<Map<string, TechnicianRecord>>(() => new Map());
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
   // Debounce search input
@@ -164,9 +243,35 @@ export default function TechniciansPage() {
     await qc.invalidateQueries({ queryKey: TECHNICIANS_ROOT_KEY });
   };
 
-  const handleSaved = async (_saved: TechnicianRecord) => {
+  const handleSaved = async (saved: TechnicianRecord) => {
+    // If a currently-selected technician was edited, refresh its cached snapshot
+    // so the copied output uses the latest values.
+    setSelected((prev) => {
+      if (!prev.has(saved.id)) return prev;
+      const next = new Map(prev);
+      next.set(saved.id, saved);
+      return next;
+    });
     await invalidateAll();
   };
+
+  // Keep the selection map in sync with the currently-visible page rows so
+  // edits from other places (or refetches) are reflected in copy output.
+  useEffect(() => {
+    if (!rows.length) return;
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      let changed = false;
+      const next = new Map(prev);
+      for (const r of rows) {
+        if (next.has(r.id) && next.get(r.id) !== r) {
+          next.set(r.id, r);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [rows]);
 
   const handleConfirmDelete = async () => {
     if (!deleteTech) return;
@@ -175,6 +280,13 @@ export default function TechniciansPage() {
       toast({ title: "Delete failed", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Technician deleted" });
+      // Remove the deleted technician from any active selection.
+      setSelected((prev) => {
+        if (!prev.has(deleteTech.id)) return prev;
+        const next = new Map(prev);
+        next.delete(deleteTech.id);
+        return next;
+      });
       // If we're on a page that just became empty, step back one.
       if (rows.length === 1 && currentPage > 1) setCurrentPage((p) => p - 1);
       await invalidateAll();
@@ -253,6 +365,62 @@ export default function TechniciansPage() {
   const disablePrev = currentPage <= 1 || !hasResults;
   const disableNext = currentPage >= totalPages || !hasResults;
 
+  // ---- Selection derivations ----
+  const selectedCount = selected.size;
+  const visibleSelectedCount = useMemo(
+    () => rows.reduce((n, r) => n + (selected.has(r.id) ? 1 : 0), 0),
+    [rows, selected],
+  );
+  const allVisibleSelected = rows.length > 0 && visibleSelectedCount === rows.length;
+  const someVisibleSelected = visibleSelectedCount > 0 && !allVisibleSelected;
+  const headerCheckboxState: boolean | "indeterminate" = allVisibleSelected
+    ? true
+    : someVisibleSelected
+      ? "indeterminate"
+      : false;
+
+  const toggleRow = (t: TechnicianRecord, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (checked) next.set(t.id, t);
+      else next.delete(t.id);
+      return next;
+    });
+  };
+
+  const toggleAllVisible = (checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (checked) for (const r of rows) next.set(r.id, r);
+      else for (const r of rows) next.delete(r.id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelected(new Map());
+
+  const handleCopySelected = async () => {
+    if (selected.size === 0) return;
+    const sorted = sortTechnicians(Array.from(selected.values()));
+    const text = buildTechniciansTsv(sorted);
+    const ok = await copyTextToClipboard(text);
+    if (ok) {
+      toast({
+        title: sorted.length === 1 ? "1 technician copied" : `${sorted.length} technicians copied`,
+      });
+    } else {
+      toast({ title: "Unable to copy technician data", variant: "destructive" });
+    }
+  };
+
+  const handleCopyOne = async (t: TechnicianRecord) => {
+    const text = buildSingleTechnicianText(t);
+    const ok = await copyTextToClipboard(text);
+    if (ok) toast({ title: "Technician copied" });
+    else toast({ title: "Unable to copy technician data", variant: "destructive" });
+  };
+
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -297,44 +465,92 @@ export default function TechniciansPage() {
       </div>
 
       <Card className="border-border/60">
-        <CardContent className="p-3">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, phone, service, area, chat link, notes"
-              className="h-8 pl-7 text-xs"
-            />
+        <CardContent className="p-3 space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, phone, service, area, chat link, notes"
+                className="h-8 pl-7 text-xs"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className="text-xs text-muted-foreground whitespace-nowrap"
+                aria-live="polite"
+              >
+                {selectedCount === 0
+                  ? "No technicians selected"
+                  : selectedCount === 1
+                    ? "1 technician selected"
+                    : `${selectedCount.toLocaleString()} technicians selected`}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCopySelected}
+                disabled={selectedCount === 0}
+                aria-label="Copy selected technicians"
+                title="Copy selected technicians to clipboard"
+              >
+                <Copy className="mr-1.5 h-4 w-4" />
+                {selectedCount > 0
+                  ? `Copy Selected Techs (${selectedCount.toLocaleString()})`
+                  : "Copy Selected Techs"}
+              </Button>
+              {selectedCount > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={clearSelection}
+                  aria-label="Clear technician selection"
+                  title="Clear technician selection"
+                >
+                  <X className="mr-1.5 h-4 w-4" />
+                  Clear Selection
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
+
 
       <Card className="border-border/60">
         <div ref={tableScrollRef} className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[36px]">
+                  <Checkbox
+                    checked={headerCheckboxState}
+                    onCheckedChange={(v) => toggleAllVisible(v === true)}
+                    disabled={rows.length === 0}
+                    aria-label="Select all technicians on this page"
+                  />
+                </TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Phone Number</TableHead>
                 <TableHead>Service</TableHead>
                 <TableHead>Area</TableHead>
                 <TableHead>Chat Link</TableHead>
                 <TableHead>Notes</TableHead>
-                <TableHead className="w-[100px] text-right">Actions</TableHead>
+                <TableHead className="w-[130px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginatedQuery.isPending && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
                     Loading…
                   </TableCell>
                 </TableRow>
               )}
               {paginatedQuery.isError && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-sm py-10">
+                  <TableCell colSpan={8} className="text-center text-sm py-10">
                     <div className="flex flex-col items-center gap-2">
                       <span className="text-destructive">
                         {(paginatedQuery.error as Error)?.message ?? "Failed to load technicians."}
@@ -348,7 +564,7 @@ export default function TechniciansPage() {
               )}
               {!paginatedQuery.isPending && !paginatedQuery.isError && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-10">
+                  <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-10">
                     {isSearching
                       ? "No technicians match your search."
                       : "No technicians yet. Add one manually or import from CSV/XLSX."}
@@ -357,8 +573,20 @@ export default function TechniciansPage() {
               )}
               {rows.map((t) => {
                 const tel = toTelHref(t.phone_number);
+                const isSelected = selected.has(t.id);
                 return (
-                  <TableRow key={t.id}>
+                  <TableRow
+                    key={t.id}
+                    data-state={isSelected ? "selected" : undefined}
+                    className={isSelected ? "bg-primary/5 border-l-2 border-l-primary" : undefined}
+                  >
+                    <TableCell className="align-middle">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(v) => toggleRow(t, v === true)}
+                        aria-label={isSelected ? `Deselect ${t.name}` : `Select ${t.name}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{t.name}</TableCell>
                     <TableCell>
                       {t.phone_number && tel ? (
@@ -389,10 +617,19 @@ export default function TechniciansPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => setEditTech(t)} title="Edit">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleCopyOne(t)}
+                          title="Copy technician details"
+                          aria-label={`Copy ${t.name} details`}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setEditTech(t)} title="Edit" aria-label={`Edit ${t.name}`}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" onClick={() => setDeleteTech(t)} title="Delete">
+                        <Button size="icon" variant="ghost" onClick={() => setDeleteTech(t)} title="Delete" aria-label={`Delete ${t.name}`}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
