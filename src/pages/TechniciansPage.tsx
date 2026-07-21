@@ -584,6 +584,15 @@ export default function TechniciansPage() {
                   </Button>
                   <Button
                     size="sm"
+                    variant="destructive"
+                    onClick={() => setBulkDeleteOpen(true)}
+                    aria-label="Delete selected technicians"
+                    title="Delete selected technicians"
+                  >
+                    <Trash2 className="mr-1.5 h-4 w-4" />
+                    Delete Selected ({selectedCount.toLocaleString()})
+                  <Button
+                    size="sm"
                     variant="ghost"
                     onClick={clearSelection}
                     aria-label="Clear technician selection"
