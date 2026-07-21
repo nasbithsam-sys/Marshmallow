@@ -484,6 +484,26 @@ export default function MapViewPage() {
     };
   }, [showSuggestions, customerSearch]);
 
+  const techInputWrapRef = useRef<HTMLDivElement | null>(null);
+  const [techAnchorRect, setTechAnchorRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!showTechSuggestions) return;
+    const update = () => {
+      const el = techInputWrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setTechAnchorRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [showTechSuggestions, techSearch]);
+
+
   const highlightMatch = (name: string, query: string) => {
     const q = query.trim();
     if (!q) return name;
