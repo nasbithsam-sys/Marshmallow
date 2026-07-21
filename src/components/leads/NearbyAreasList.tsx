@@ -71,7 +71,7 @@ function locationSignature(
   ].join("|");
 }
 
-function normalizeAreas(raw: NearbyArea[] | undefined | null): NearbyArea[] {
+function filterValidAreas(raw: NearbyArea[] | undefined | null): NearbyArea[] {
   if (!Array.isArray(raw)) return [];
   const seen = new Set<string>();
   const cleaned: NearbyArea[] = [];
@@ -79,8 +79,15 @@ function normalizeAreas(raw: NearbyArea[] | undefined | null): NearbyArea[] {
     if (!a || typeof a !== "object") continue;
     const name = (a.name ?? "").trim();
     const st = (a.state_code ?? a.state ?? "").trim();
+    const pop = typeof a.population === "number" && Number.isFinite(a.population) ? a.population : NaN;
+    const dist =
+      typeof a.distance_miles === "number" && Number.isFinite(a.distance_miles)
+        ? a.distance_miles
+        : NaN;
     if (!name || !st) continue;
-    const key = `${a.geoid ?? ""}|${name.toLowerCase()}|${st.toLowerCase()}`;
+    if (!Number.isFinite(pop) || pop <= 0) continue;
+    if (!Number.isFinite(dist) || dist > 50) continue;
+    const key = a.geoid ?? `${name.toLowerCase()}|${st.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
     cleaned.push({
@@ -89,17 +96,13 @@ function normalizeAreas(raw: NearbyArea[] | undefined | null): NearbyArea[] {
       state: st,
       state_code: a.state_code ?? st,
       state_name: a.state_name ?? null,
-      population:
-        typeof a.population === "number" && Number.isFinite(a.population) ? a.population : null,
-      distance_miles:
-        typeof a.distance_miles === "number" && Number.isFinite(a.distance_miles)
-          ? a.distance_miles
-          : null,
+      population: pop,
+      distance_miles: dist,
     });
   }
   cleaned.sort((a, b) => {
-    const pa = a.population ?? -1;
-    const pb = b.population ?? -1;
+    const pa = a.population ?? 0;
+    const pb = b.population ?? 0;
     if (pb !== pa) return pb - pa;
     const da = a.distance_miles ?? Number.POSITIVE_INFINITY;
     const db = b.distance_miles ?? Number.POSITIVE_INFINITY;
@@ -121,14 +124,19 @@ export default function NearbyAreasList({
   canManage,
   onSaved,
 }: Props) {
-  const [data, setData] = useState<NearbyAreasData | null>(savedNearbyAreas ?? null);
+  // Only shown after explicit user action in the current session.
+  const [visible, setVisible] = useState<NearbyAreasData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Reset visible state whenever the lead changes. Do NOT hydrate from saved data.
   useEffect(() => {
-    setData(savedNearbyAreas ?? null);
-  }, [savedNearbyAreas]);
+    setVisible(null);
+    setErrorMsg(null);
+    setLoading(false);
+  }, [leadId]);
 
-  const areas = useMemo(() => normalizeAreas(data?.areas), [data]);
+  const areas = useMemo(() => filterValidAreas(visible?.areas), [visible]);
 
   const hasEnough = useMemo(() => {
     const city = (customerCity ?? "").trim();
@@ -140,7 +148,11 @@ export default function NearbyAreasList({
       typeof longitude === "number" &&
       Number.isFinite(latitude) &&
       Number.isFinite(longitude) &&
-      !(latitude === 0 && longitude === 0);
+      !(latitude === 0 && longitude === 0) &&
+      latitude >= -90 &&
+      latitude <= 90 &&
+      longitude >= -180 &&
+      longitude <= 180;
     return Boolean((city && state) || addr || zip || hasCoords);
   }, [customerAddress, customerCity, customerState, customerZip, latitude, longitude]);
 
@@ -152,52 +164,70 @@ export default function NearbyAreasList({
     latitude,
     longitude,
   );
-  const savedCenter = data?.center_location;
+  const savedCenter = visible?.center_location;
   const savedSourceAddr =
     typeof savedCenter === "string"
       ? savedCenter
-      : savedCenter?.source_address ?? data?.source_address ?? "";
-  const savedSig = data
+      : savedCenter?.source_address ?? visible?.source_address ?? "";
+  const savedSig = visible
     ? locationSignature(savedSourceAddr, null, null, null, null, null)
     : "";
   const isStale =
-    !!data &&
+    !!visible &&
     !!savedSourceAddr &&
     !currentSig.includes((customerCity ?? "").trim().toLowerCase()) &&
     savedSig !== currentSig;
 
-  const generate = async () => {
+  const run = async () => {
     if (loading) return;
+    if (!leadId) {
+      toast.error("Lead is still loading. Please try again in a moment.");
+      return;
+    }
     if (!hasEnough) {
-      toast.error(
-        "Add a valid customer address, city and state, ZIP code, or coordinates before finding nearby areas.",
-      );
+      const msg =
+        "Add a customer address, city and state, ZIP code, or valid coordinates before finding nearby areas.";
+      setErrorMsg(msg);
+      toast.error(msg);
       return;
     }
     setLoading(true);
+    setErrorMsg(null);
     try {
       const { data: resp, error } = await supabase.functions.invoke("generate-nearby-areas", {
         body: { leadId },
       });
       if (error) {
+        const errObj = resp as { error?: string; code?: string; message?: string } | null;
         const message =
-          (resp as { error?: string } | null)?.error ??
+          errObj?.message ??
+          errObj?.error ??
           error.message ??
           "Unable to calculate nearby areas. Please try again.";
+        setErrorMsg(message);
         toast.error(message);
         return;
       }
       const payload = (resp as { nearby_areas?: NearbyAreasData })?.nearby_areas;
       if (!payload) {
-        toast.error("Unable to calculate nearby areas. Please try again.");
+        const msg = "Unable to calculate nearby areas. Please try again.";
+        setErrorMsg(msg);
+        toast.error(msg);
         return;
       }
-      const normalized: NearbyAreasData = { ...payload, areas: normalizeAreas(payload.areas) };
-      setData(normalized);
+      const filtered = filterValidAreas(payload.areas);
+      const normalized: NearbyAreasData = { ...payload, areas: filtered };
+      setVisible(normalized);
       onSaved?.(normalized);
-      toast.success("Nearby areas generated");
+      if (filtered.length === 0) {
+        toast.message("No populated areas with valid data were found within 50 miles.");
+      } else {
+        toast.success("Nearby areas generated");
+      }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Unable to calculate nearby areas.");
+      const msg = e instanceof Error ? e.message : "Unable to calculate nearby areas.";
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -242,6 +272,8 @@ export default function NearbyAreasList({
       ? savedCenter
       : savedCenter?.matched_address || savedCenter?.source_address || "";
 
+  const hasResults = areas.length > 0;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -257,12 +289,12 @@ export default function NearbyAreasList({
           <div>
             <h3 className="text-sm font-semibold text-foreground">Top 5 Nearby Populated Areas</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Five highest-population places within 50 miles of the customer.
+              Find the five highest-population places within 50 miles of this customer.
             </p>
           </div>
         </div>
 
-        {areas.length > 0 && (
+        {hasResults && (
           <div className="flex items-center gap-2 shrink-0">
             <Button
               size="sm"
@@ -277,7 +309,7 @@ export default function NearbyAreasList({
             <Button
               size="sm"
               variant="outline"
-              onClick={generate}
+              onClick={run}
               disabled={loading}
               aria-label="Refresh nearby areas list"
               className="h-8 gap-1.5"
@@ -293,32 +325,37 @@ export default function NearbyAreasList({
         )}
       </div>
 
-      {isStale && data && (
+      {isStale && hasResults && (
         <div
           role="status"
           className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 mb-3"
         >
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          Customer location changed. Refresh the nearby areas list.
+          Customer location changed. Click Refresh to update the nearby areas.
         </div>
       )}
 
-      {!hasEnough && areas.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          Add a valid customer address, city and state, ZIP code, or coordinates before finding
-          nearby areas.
-        </p>
+      {errorMsg && !loading && !hasResults && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive mb-3"
+        >
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+          <span>{errorMsg}</span>
+        </div>
       )}
 
-      {hasEnough && areas.length === 0 && !loading && (
+      {!hasResults && !loading && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            Find the five highest-population places within 50 miles of this customer.
+            {savedNearbyAreas
+              ? "Previous results are saved. Click below to load or refresh."
+              : "Click below to find the top five populated areas near this customer."}
           </p>
           <Button
             size="sm"
-            onClick={generate}
-            disabled={loading}
+            onClick={run}
+            disabled={loading || !hasEnough}
             className="gap-1.5"
             aria-label="Find nearby areas"
           >
@@ -330,16 +367,16 @@ export default function NearbyAreasList({
 
       {loading && (
         <div
-          className="flex items-center gap-2 text-xs text-muted-foreground mb-3"
+          className="flex items-center gap-2 text-xs text-muted-foreground"
           role="status"
           aria-live="polite"
         >
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Finding the top five populated areas within 50 miles...
+          Finding Nearby Areas...
         </div>
       )}
 
-      {areas.length > 0 && (
+      {hasResults && (
         <>
           <ol className="space-y-1.5" aria-label="Top nearby populated areas">
             {areas.map((a, i) => {
@@ -366,9 +403,9 @@ export default function NearbyAreasList({
             })}
           </ol>
           <p className="mt-3 text-[11px] text-muted-foreground">
-            Generated {new Date(data!.generated_at).toLocaleString()}
+            Generated {new Date(visible!.generated_at).toLocaleString()}
             {centerLabel ? <> · Center: {centerLabel}</> : null}
-            {data?.population_vintage ? <> · Population {data.population_vintage}</> : null}
+            {visible?.population_vintage ? <> · Population {visible.population_vintage}</> : null}
           </p>
         </>
       )}
