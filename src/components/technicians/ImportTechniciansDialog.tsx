@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { geocodeAddress, normalizeAddress } from "@/lib/geo";
+import { isLikelyPhone } from "@/lib/phone";
 import { Loader2, FileSpreadsheet, Download } from "lucide-react";
 
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
 interface Row {
   rowNumber: number;
   name: string;
+  phone_number: string;
+  phoneInvalid: boolean;
   area: string;
   service: string;
   chat_link: string;
@@ -30,16 +33,50 @@ interface FailedRow {
   reason: string;
 }
 
-function normalizeKey(k: string) {
-  return k.trim().toLowerCase().replace(/\s+/g, "_");
+// Normalize header for tolerant matching: lowercase, strip harmless punctuation,
+// collapse spaces/underscores/hyphens into a single space.
+function normalizeHeader(k: string) {
+  return k
+    .trim()
+    .toLowerCase()
+    .replace(/[._\-#]+/g, " ")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function pick(r: Record<string, string>, keys: string[]): string {
-  for (const k of keys) {
-    if (r[k] != null && r[k] !== "") return r[k];
-  }
-  return "";
+// Legacy key style used elsewhere (snake_case) — kept for internal object keys.
+function normalizeKey(k: string) {
+  return normalizeHeader(k).replace(/\s+/g, "_");
 }
+
+const PHONE_ALIASES = new Set(
+  [
+    "phone number",
+    "phone",
+    "phone no",
+    "tech phone",
+    "technician phone",
+    "tech number",
+    "tech no",
+    "mobile",
+    "mobile number",
+    "cell",
+    "cell phone",
+    "cell number",
+    "contact",
+    "contact number",
+    "contact phone",
+    "telephone",
+    "tel",
+  ].map(normalizeHeader),
+);
+
+const NAME_ALIASES = new Set(["name", "technician", "technician name", "tech name", "full name"].map(normalizeHeader));
+const AREA_ALIASES = new Set(["area", "location", "city", "region", "coverage area"].map(normalizeHeader));
+const SERVICE_ALIASES = new Set(["service", "services", "trade", "specialty"].map(normalizeHeader));
+const CHAT_ALIASES = new Set(["quo chat link", "chat link", "chat", "link"].map(normalizeHeader));
+const NOTES_ALIASES = new Set(["notes", "note", "comments", "remarks"].map(normalizeHeader));
 
 function parseCsv(text: string): Record<string, string>[] {
   const rows: string[][] = [];
@@ -74,6 +111,42 @@ function parseCsv(text: string): Record<string, string>[] {
   });
 }
 
+// Convert an incoming cell value to a safe phone-number text string.
+// Handles: numeric imports (3055550123), floats (3055550123.0), scientific notation.
+function cellToPhoneText(raw: unknown): string {
+  if (raw == null) return "";
+  if (typeof raw === "number") {
+    if (!isFinite(raw)) return "";
+    // Convert to plain integer string when whole; else drop trailing .0
+    if (Number.isInteger(raw)) return String(raw);
+    const s = raw.toFixed(20).replace(/\.?0+$/, "");
+    return s;
+  }
+  const s = String(raw).trim();
+  if (!s) return "";
+  // Scientific notation like 3.05555e+9 — parse and re-stringify as integer if safe
+  if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n) && Math.abs(n) < 1e16) {
+      return String(Math.round(n));
+    }
+  }
+  // Trailing ".0" from spreadsheet coercion
+  if (/^\d+\.0+$/.test(s)) return s.replace(/\.0+$/, "");
+  return s;
+}
+
+function pickHeaderValue(r: Record<string, string>, aliases: Set<string>): string {
+  for (const key in r) {
+    const norm = key.replace(/_/g, " ");
+    if (aliases.has(norm)) {
+      const v = r[key];
+      if (v != null && v !== "") return v;
+    }
+  }
+  return "";
+}
+
 export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [importing, setImporting] = useState(false);
@@ -95,12 +168,17 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
         raw = parseCsv(text);
       } else if (ext === "xlsx" || ext === "xls") {
         const buf = await file.arrayBuffer();
-        const wb = XLSX.read(buf, { type: "array" });
+        const wb = XLSX.read(buf, { type: "array", raw: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+        // Read as raw values so numeric phone cells arrive as numbers/strings we can normalize.
+        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "", raw: true });
         raw = json.map((r) => {
           const out: Record<string, string> = {};
-          for (const k in r) out[normalizeKey(k)] = String(r[k] ?? "").trim();
+          for (const k in r) {
+            const key = normalizeKey(k);
+            const isPhoneCol = PHONE_ALIASES.has(key.replace(/_/g, " "));
+            out[key] = isPhoneCol ? cellToPhoneText(r[k]) : String(r[k] ?? "").trim();
+          }
           return out;
         });
       } else {
@@ -112,14 +190,20 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
       return;
     }
 
-    const parsed: Row[] = raw.map((r, idx) => ({
-      rowNumber: idx + 2, // +2 accounts for header row + 1-indexed
-      name: (r.name ?? "").trim(),
-      service: (r.service ?? "").trim(),
-      area: (r.area ?? "").trim(),
-      chat_link: pick(r, ["chat_link", "chat", "quo_chat_link", "link"]).trim(),
-      notes: (r.notes ?? "").trim(),
-    }));
+    const parsed: Row[] = raw.map((r, idx) => {
+      const phoneRaw = pickHeaderValue(r, PHONE_ALIASES);
+      const phone = cellToPhoneText(phoneRaw).trim();
+      return {
+        rowNumber: idx + 2,
+        name: pickHeaderValue(r, NAME_ALIASES).trim(),
+        phone_number: phone,
+        phoneInvalid: phone.length > 0 && !isLikelyPhone(phone),
+        service: pickHeaderValue(r, SERVICE_ALIASES).trim(),
+        area: pickHeaderValue(r, AREA_ALIASES).trim(),
+        chat_link: pickHeaderValue(r, CHAT_ALIASES).trim(),
+        notes: pickHeaderValue(r, NOTES_ALIASES).trim(),
+      };
+    });
     setRows(parsed);
   };
 
@@ -129,9 +213,14 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
     setFailed([]);
     setInsertedCount(null);
     try {
-      const { data: existing } = await supabase.from("technicians").select("name, area");
+      const { data: existing } = await supabase.from("technicians").select("name, area, phone_number");
       const seen = new Set(
         (existing ?? []).map((t) => `${normalizeAddress(t.name ?? "")}|${normalizeAddress(t.area ?? "")}`),
+      );
+      const seenPhones = new Set(
+        (existing ?? [])
+          .map((t) => String(t.phone_number ?? "").replace(/\D/g, ""))
+          .filter((d) => d.length >= 7),
       );
 
       const failures: FailedRow[] = [];
@@ -142,6 +231,7 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
         payload: {
           name: string;
           area: string;
+          phone_number: string | null;
           service: string | null;
           chat_link: string | null;
           notes: string | null;
@@ -153,7 +243,7 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
       const toInsert: InsertPayload[] = [];
 
       for (const r of rows) {
-        if (!r.name && !r.area && !r.service && !r.chat_link && !r.notes) {
+        if (!r.name && !r.area && !r.service && !r.chat_link && !r.notes && !r.phone_number) {
           failures.push({ rowNumber: r.rowNumber, name: r.name, area: r.area, reason: "Row is empty" });
           continue;
         }
@@ -162,12 +252,24 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
           failures.push({ rowNumber: r.rowNumber, name: r.name, area: r.area, reason: "Duplicate of an existing technician" });
           continue;
         }
+        // Import the technician; drop invalid phone but keep the record.
+        const validPhone = r.phone_number && !r.phoneInvalid ? r.phone_number : null;
+        if (r.phoneInvalid) {
+          failures.push({ rowNumber: r.rowNumber, name: r.name, area: r.area, reason: `Invalid phone "${r.phone_number}" — imported without phone` });
+        } else if (validPhone) {
+          const digits = validPhone.replace(/\D/g, "");
+          if (digits.length >= 7 && seenPhones.has(digits)) {
+            failures.push({ rowNumber: r.rowNumber, name: r.name, area: r.area, reason: `Phone ${validPhone} already belongs to another technician — imported anyway` });
+          }
+          if (digits.length >= 7) seenPhones.add(digits);
+        }
         seen.add(key);
         toInsert.push({
           row: r,
           payload: {
             name: r.name,
             area: r.area,
+            phone_number: validPhone,
             service: r.service || null,
             chat_link: r.chat_link || null,
             notes: r.notes || null,
@@ -181,7 +283,6 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
       let inserted = 0;
       const insertedIds: Array<{ id: string; area: string }> = [];
 
-      // Try bulk insert per chunk; on failure fall back to per-row so we can capture exact failures.
       for (let i = 0; i < toInsert.length; i += 100) {
         const chunk = toInsert.slice(i, i + 100);
         const { data, error } = await supabase
@@ -215,7 +316,6 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
         }
       }
 
-      // Background geocoding
       if (insertedIds.length) {
         (async () => {
           for (const row of insertedIds) {
@@ -234,7 +334,7 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
 
       toast({
         title: "Import complete",
-        description: `${inserted} imported. ${failures.length} failed.`,
+        description: `${inserted} imported. ${failures.length} issue${failures.length === 1 ? "" : "s"}.`,
       });
       onImported?.();
     } finally {
@@ -261,11 +361,11 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Import Technicians</DialogTitle>
           <DialogDescription>
-            Upload a .csv or .xlsx with columns: Name, Service, Area, Chat Link, Notes. All fields are optional.
+            Upload a .csv or .xlsx with any of these columns: Technician Name, Phone Number, Service, Area, Quo Chat Link, Notes. All fields are optional.
           </DialogDescription>
         </DialogHeader>
 
@@ -297,6 +397,7 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
                   <thead className="bg-muted/40 text-left">
                     <tr>
                       <th className="px-3 py-1.5">Name</th>
+                      <th className="px-3 py-1.5">Phone</th>
                       <th className="px-3 py-1.5">Service</th>
                       <th className="px-3 py-1.5">Area</th>
                       <th className="px-3 py-1.5">Chat Link</th>
@@ -307,6 +408,15 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
                     {rows.slice(0, 100).map((r, i) => (
                       <tr key={i} className="border-t">
                         <td className="px-3 py-1.5">{r.name || <span className="text-muted-foreground">—</span>}</td>
+                        <td className="px-3 py-1.5">
+                          {r.phone_number ? (
+                            <span className={r.phoneInvalid ? "text-amber-600 dark:text-amber-400" : ""} title={r.phoneInvalid ? "Invalid — will import without phone" : undefined}>
+                              {r.phone_number}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
                         <td className="px-3 py-1.5">{r.service || <span className="text-muted-foreground">—</span>}</td>
                         <td className="px-3 py-1.5">{r.area || <span className="text-muted-foreground">—</span>}</td>
                         <td className="px-3 py-1.5 max-w-[160px] truncate" title={r.chat_link}>{r.chat_link || <span className="text-muted-foreground">—</span>}</td>
@@ -326,7 +436,7 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
                 <span>
                   <span className="text-emerald-600 dark:text-emerald-400">{insertedCount} imported</span>
                   {" · "}
-                  <span className="text-amber-600 dark:text-amber-400">{failed.length} failed</span>
+                  <span className="text-amber-600 dark:text-amber-400">{failed.length} issues</span>
                 </span>
               </div>
               {failed.length > 0 ? (
@@ -355,7 +465,7 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
                   </div>
                   <div className="border-t px-3 py-2">
                     <Button variant="outline" size="sm" onClick={downloadFailedCsv}>
-                      <Download className="mr-1.5 h-3.5 w-3.5" /> Download failed rows (CSV)
+                      <Download className="mr-1.5 h-3.5 w-3.5" /> Download issues (CSV)
                     </Button>
                   </div>
                 </>
