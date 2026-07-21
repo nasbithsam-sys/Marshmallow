@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Mail, Lock, ArrowRight, ShieldCheck, Wrench, KeyRound, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { heroTitle, premiumEase } from "@/lib/motion";
-import marshmallowLogo from "@/assets/marshmallow-logo.png";
+import marshmallowLogo from "@/assets/marshmallow-logo.png.asset.json";
 
 const Login = () => {
   const {
