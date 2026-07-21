@@ -169,6 +169,8 @@ export default function TechniciansPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [pageSize, setPageSize] = useState<PageSizeOption>(() => loadInitialPageSize());
   const [currentPage, setCurrentPage] = useState(1);
+  // Selected technicians persisted across pagination/search by id.
+  const [selected, setSelected] = useState<Map<string, TechnicianRecord>>(() => new Map());
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
   // Debounce search input
