@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
@@ -42,6 +43,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Loader2,
+  Copy,
+  X,
 } from "lucide-react";
 
 const PAGE_SIZE_OPTIONS = [100, 200, 500, 1000] as const;
