@@ -254,11 +254,11 @@ export default function MapViewPage() {
   }, [filteredTechs, selectedTechId, isMobile, mapVisible, viewMode]);
 
 
-  // Urgent lead markers — all if no tech selected, in-range only when one is selected.
   useEffect(() => {
     const layer = leadLayer.current;
     if (!layer) return;
     layer.clearLayers();
+    leadMarkerRefs.current.clear();
     if (viewMode === "techs") return;
     const jitter = (id: string, salt: number) => {
       let h = 0;
@@ -292,8 +292,21 @@ export default function MapViewPage() {
         if (el) el.onclick = () => navigate(`/leads/${l.id}`);
       });
       m.addTo(layer);
+      leadMarkerRefs.current.set(l.id, m);
     }
   }, [mappedLeads, leadsInRange, selectedTech, navigate, mapVisible, viewMode]);
+
+  // Handle pending customer focus after markers render
+  useEffect(() => {
+    if (!pendingFocusLeadId) return;
+    const map = mapRef.current;
+    const marker = leadMarkerRefs.current.get(pendingFocusLeadId);
+    if (!map || !marker) return;
+    const latlng = marker.getLatLng();
+    map.flyTo(latlng, 12, { duration: 0.7 });
+    setTimeout(() => marker.openPopup(), 650);
+    setPendingFocusLeadId(null);
+  }, [pendingFocusLeadId, mappedLeads, leadsInRange, viewMode]);
 
   // Selected-tech radius circle
   useEffect(() => {
