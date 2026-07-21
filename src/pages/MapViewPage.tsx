@@ -348,13 +348,15 @@ export default function MapViewPage() {
     if (!q) return [] as MappedLead[];
     return mappedLeads
       .filter((l) => (l.customer_name ?? "").toLowerCase().includes(q))
-      .slice(0, 8);
+      .slice(0, 25);
   }, [customerSearch, mappedLeads]);
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  useEffect(() => { setActiveIndex(0); }, [customerSearch]);
 
   const selectCustomer = (lead: MappedLead) => {
     if (!mapVisible) setMapVisible(true);
     if (viewMode === "techs") setViewMode("both");
-    // If a technician radius filter is hiding this lead, clear the selection
     if (selectedTech) {
       const inRange = leadsInRange.some((l) => l.id === lead.id);
       if (!inRange) setSelectedTechId(null);
@@ -374,7 +376,8 @@ export default function MapViewPage() {
     if (customerMatches.length === 1) {
       selectCustomer(customerMatches[0]);
     } else {
-      setShowSuggestions(true);
+      const target = customerMatches[activeIndex] ?? customerMatches[0];
+      selectCustomer(target);
     }
   };
 
@@ -383,6 +386,97 @@ export default function MapViewPage() {
     setShowSuggestions(false);
     setPendingFocusLeadId(null);
   };
+
+  // Portal-positioned dropdown anchoring
+  const customerInputWrapRef = useRef<HTMLDivElement | null>(null);
+  const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!showSuggestions) return;
+    const update = () => {
+      const el = customerInputWrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setAnchorRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [showSuggestions, customerSearch]);
+
+  const highlightMatch = (name: string, query: string) => {
+    const q = query.trim();
+    if (!q) return name;
+    const lower = name.toLowerCase();
+    const idx = lower.indexOf(q.toLowerCase());
+    if (idx < 0) return name;
+    return (
+      <>
+        {name.slice(0, idx)}
+        <span className="bg-primary/25 text-primary-foreground rounded px-0.5">{name.slice(idx, idx + q.length)}</span>
+        {name.slice(idx + q.length)}
+      </>
+    );
+  };
+
+  const renderSuggestionsDropdown = () => {
+    if (!showSuggestions || !customerSearch.trim() || !anchorRect) return null;
+    const width = Math.max(360, anchorRect.width);
+    return createPortal(
+      <div
+        role="listbox"
+        style={{ position: "fixed", top: anchorRect.top, left: anchorRect.left, width, zIndex: 2000 }}
+        className="rounded-md border bg-popover text-popover-foreground shadow-xl overflow-hidden"
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        {customerMatches.length === 0 ? (
+          <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+            No matching customers found
+          </div>
+        ) : (
+          <ul className="max-h-72 overflow-y-auto py-1 divide-y divide-border">
+            {customerMatches.map((l, i) => {
+              const loc = [l.city, l.state].filter(Boolean).join(", ");
+              const zip = l.zip_code || l.zip;
+              const locLine = [loc, zip].filter(Boolean).join(" ");
+              const isActive = i === activeIndex;
+              return (
+                <li key={l.id} role="option" aria-selected={isActive}>
+                  <button
+                    type="button"
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onClick={() => selectCustomer(l)}
+                    className={`w-full text-left px-3 py-2.5 text-xs transition-colors ${
+                      isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/60"
+                    }`}
+                  >
+                    <div className="font-semibold text-sm text-foreground truncate">
+                      {highlightMatch(l.customer_name || "Unnamed", customerSearch)}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      Job {l.job_id}
+                      {locLine ? ` · ${locLine}` : ""}
+                    </div>
+                    {l.service_type && (
+                      <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
+                        {l.service_type}
+                      </div>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>,
+      document.body,
+    );
+  };
+
+
 
 
   const SidePanel = (
