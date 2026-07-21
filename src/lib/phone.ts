@@ -34,3 +34,55 @@ export function normalizePhoneE164(value: string, defaultCountryCode = "1"): str
 
   return null;
 }
+
+/** Build a safe tel: href from a display phone value. Preserves leading +, strips other non-digits. */
+export function toTelHref(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return null;
+  return `tel:${hasPlus ? "+" : ""}${digits}`;
+}
+
+/** Lightweight validation: at least 6 digits, plus optional +, spaces, parens, dashes, dots, "ext"/"x" for extensions. */
+export function isLikelyPhone(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (!/^[+0-9 ()\-.\u00a0]*(?:\s*(?:ext\.?|x)\s*\d+)?$/i.test(trimmed)) return false;
+  const digits = trimmed.replace(/\D/g, "");
+  return digits.length >= 6 && digits.length <= 20;
+}
+
+/** Digits-only signature for search matching. */
+export function phoneDigits(value: string | null | undefined): string {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+/** Copy to clipboard with a safe fallback for insecure contexts. */
+export async function copyToClipboard(value: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    /* fall through */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
