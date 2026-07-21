@@ -102,9 +102,17 @@ async function fetchGazetteer(): Promise<PlaceRow[]> {
 }
 
 async function fetchAcsPopulations(): Promise<Map<string, number>> {
-  const resp = await fetch(ACS_URL);
-  if (!resp.ok) throw new Error(`ACS fetch failed: ${resp.status}`);
-  const data = (await resp.json()) as string[][];
+  const key = Deno.env.get("CENSUS_API_KEY") ?? "";
+  const url = ACS_URL + (key ? `&key=${encodeURIComponent(key)}` : "");
+  const resp = await fetch(url, { headers: { Accept: "application/json" }, redirect: "follow" });
+  const raw = await resp.text();
+  if (!resp.ok) throw new Error(`ACS fetch failed: ${resp.status} ${raw.slice(0, 200)}`);
+  let data: string[][];
+  try {
+    data = JSON.parse(raw) as string[][];
+  } catch {
+    throw new Error(`ACS returned non-JSON (likely missing/invalid CENSUS_API_KEY): ${raw.slice(0, 200)}`);
+  }
   const header = data.shift();
   if (!header) throw new Error("ACS empty");
   const iPop = header.indexOf("B01003_001E");
