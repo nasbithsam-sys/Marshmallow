@@ -573,6 +573,57 @@ export default function MapViewPage() {
     );
   };
 
+  const renderTechSuggestionsDropdown = () => {
+    if (!showTechSuggestions || !techSearch.trim() || !techAnchorRect) return null;
+    const width = Math.max(360, techAnchorRect.width);
+    return createPortal(
+      <div
+        role="listbox"
+        style={{ position: "fixed", top: techAnchorRect.top, left: techAnchorRect.left, width, zIndex: 2000 }}
+        className="rounded-md border bg-popover text-popover-foreground shadow-xl overflow-hidden"
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        {techMatches.length === 0 ? (
+          <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+            No matching technicians found
+          </div>
+        ) : (
+          <ul className="max-h-72 overflow-y-auto py-1 divide-y divide-border">
+            {techMatches.map((t, i) => {
+              const isActive = i === techActiveIndex;
+              const svcArea = [t.service, t.area].filter(Boolean).join(" · ");
+              return (
+                <li key={t.id} role="option" aria-selected={isActive}>
+                  <button
+                    type="button"
+                    onMouseEnter={() => setTechActiveIndex(i)}
+                    onClick={() => selectTech(t)}
+                    className={`w-full text-left px-3 py-2.5 text-xs transition-colors ${
+                      isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/60"
+                    }`}
+                  >
+                    <div className="font-semibold text-sm text-foreground truncate">
+                      {highlightMatch(t.name || "Unnamed", techSearch)}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      No phone number
+                    </div>
+                    {svcArea && (
+                      <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
+                        {svcArea}
+                      </div>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>,
+      document.body,
+    );
+  };
+
 
 
 
