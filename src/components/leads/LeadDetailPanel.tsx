@@ -29,6 +29,7 @@ import LeadUpdatesSection from "./LeadUpdatesSection";
 import PaymentDialog from "./PaymentDialog";
 import CopyLeadButton from "./CopyLeadButton";
 import NoteThread from "./NoteThread";
+import NearbyAreasList, { type NearbyAreasData } from "./NearbyAreasList";
 import CancellationRequestDialog from "./CancellationRequestDialog";
 import CancellationRequestPanel from "./CancellationRequestPanel";
 import NumberNameCombobox from "./NumberNameCombobox";
