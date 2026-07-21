@@ -280,6 +280,13 @@ export default function TechniciansPage() {
       toast({ title: "Delete failed", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Technician deleted" });
+      // Remove the deleted technician from any active selection.
+      setSelected((prev) => {
+        if (!prev.has(deleteTech.id)) return prev;
+        const next = new Map(prev);
+        next.delete(deleteTech.id);
+        return next;
+      });
       // If we're on a page that just became empty, step back one.
       if (rows.length === 1 && currentPage > 1) setCurrentPage((p) => p - 1);
       await invalidateAll();
