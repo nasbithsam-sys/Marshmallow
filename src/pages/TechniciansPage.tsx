@@ -82,7 +82,79 @@ function buildPageWindow(current: number, total: number): Array<number | "ellips
   return out;
 }
 
-export default function TechniciansPage() {
+const COPY_COLUMNS = ["Name", "Phone Number", "Service", "Area", "Quo Chat Link", "Notes"] as const;
+
+/** Strip tabs/newlines from a single clipboard cell so one row stays on one TSV line. */
+function sanitizeClipboardCell(value: string | null | undefined): string {
+  if (value == null) return "";
+  return String(value).replace(/[\t\r\n]+/g, " ").trim();
+}
+
+function technicianToClipboardCells(t: TechnicianRecord): string[] {
+  return [
+    sanitizeClipboardCell(t.name),
+    sanitizeClipboardCell(t.phone_number),
+    sanitizeClipboardCell(t.service),
+    sanitizeClipboardCell(t.area),
+    sanitizeClipboardCell(t.chat_link),
+    sanitizeClipboardCell(t.notes),
+  ];
+}
+
+function buildTechniciansTsv(techs: TechnicianRecord[]): string {
+  const header = COPY_COLUMNS.join("\t");
+  const body = techs.map((t) => technicianToClipboardCells(t).join("\t"));
+  return [header, ...body].join("\n");
+}
+
+function buildSingleTechnicianText(t: TechnicianRecord): string {
+  const pairs: Array<[string, string | null | undefined]> = [
+    ["Name", t.name],
+    ["Phone Number", t.phone_number],
+    ["Service", t.service],
+    ["Area", t.area],
+    ["Quo Chat Link", t.chat_link],
+    ["Notes", t.notes],
+  ];
+  return pairs
+    .filter(([, v]) => v != null && String(v).trim() !== "")
+    .map(([k, v]) => `${k}: ${String(v).replace(/\r?\n/g, " ").trim()}`)
+    .join("\n");
+}
+
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall through to legacy path
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function sortTechnicians(list: TechnicianRecord[]): TechnicianRecord[] {
+  return [...list].sort((a, b) => {
+    const nameCmp = (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "base" });
+    if (nameCmp !== 0) return nameCmp;
+    return (a.id ?? "").localeCompare(b.id ?? "");
+  });
+}
   const qc = useQueryClient();
   const { role } = useAuth();
   const isAdmin = role === "admin";
