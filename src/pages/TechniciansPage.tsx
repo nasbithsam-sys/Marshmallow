@@ -465,18 +465,58 @@ export default function TechniciansPage() {
       </div>
 
       <Card className="border-border/60">
-        <CardContent className="p-3">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, phone, service, area, chat link, notes"
-              className="h-8 pl-7 text-xs"
-            />
+        <CardContent className="p-3 space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, phone, service, area, chat link, notes"
+                className="h-8 pl-7 text-xs"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className="text-xs text-muted-foreground whitespace-nowrap"
+                aria-live="polite"
+              >
+                {selectedCount === 0
+                  ? "No technicians selected"
+                  : selectedCount === 1
+                    ? "1 technician selected"
+                    : `${selectedCount.toLocaleString()} technicians selected`}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCopySelected}
+                disabled={selectedCount === 0}
+                aria-label="Copy selected technicians"
+                title="Copy selected technicians to clipboard"
+              >
+                <Copy className="mr-1.5 h-4 w-4" />
+                {selectedCount > 0
+                  ? `Copy Selected Techs (${selectedCount.toLocaleString()})`
+                  : "Copy Selected Techs"}
+              </Button>
+              {selectedCount > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={clearSelection}
+                  aria-label="Clear technician selection"
+                  title="Clear technician selection"
+                >
+                  <X className="mr-1.5 h-4 w-4" />
+                  Clear Selection
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
+
 
       <Card className="border-border/60">
         <div ref={tableScrollRef} className="overflow-x-auto">
