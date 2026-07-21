@@ -442,8 +442,8 @@ const Login = () => {
           className="w-full max-w-sm space-y-8 relative z-10"
         >
           <div className="lg:hidden mb-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-[hsl(260,75%,58%)] flex items-center justify-center shadow-brand">
-              <Wrench className="h-4 w-4 text-primary-foreground" />
+            <div className="w-9 h-9 rounded-lg overflow-hidden shadow-brand">
+              <img src={marshmallowLogo.url} alt="Marshmallow" className="w-full h-full object-cover" />
             </div>
             <h1 className="text-lg font-bold tracking-tight text-foreground">Marshmallow</h1>
           </div>
