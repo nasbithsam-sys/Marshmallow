@@ -28,15 +28,8 @@ export default function TechniciansPage() {
   const [search, setSearch] = useState("");
 
   const techniciansQuery = useQuery({
-    queryKey: ["technicians"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("technicians")
-        .select("id, name, area, service, notes, chat_link, phone_number, latitude, longitude")
-        .order("name", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as TechnicianRecord[];
-    },
+    queryKey: TECHNICIANS_QUERY_KEY,
+    queryFn: fetchAllTechnicians,
     staleTime: 60_000,
   });
 
