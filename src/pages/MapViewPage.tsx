@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { MapPin, Search, Loader2, X, Contact } from "lucide-react";
+import { MapPin, Search, Loader2, X, Contact, User } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { TechnicianRecord } from "@/components/technicians/TechnicianDialog";
@@ -19,6 +19,7 @@ import { resolveZip, lookupZipCentroidSync, preloadZipDataset, ZipCentroid } fro
 import { STATUS_LABELS } from "@/lib/constants";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { LeadStatus } from "@/types";
+import { toast } from "sonner";
 
 const RADIUS_MILES = 20;
 const RADIUS_METERS = RADIUS_MILES * 1609.344;
