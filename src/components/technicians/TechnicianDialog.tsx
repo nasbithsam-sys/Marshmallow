@@ -26,7 +26,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   technician?: TechnicianRecord | null;
-  onSaved?: () => void;
+  onSaved?: (saved: TechnicianRecord) => void;
 }
 
 export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Props) {
