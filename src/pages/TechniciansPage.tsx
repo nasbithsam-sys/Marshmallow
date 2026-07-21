@@ -167,6 +167,8 @@ export default function TechniciansPage() {
   const [editTech, setEditTech] = useState<TechnicianRecord | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [deleteTech, setDeleteTech] = useState<TechnicianRecord | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [pageSize, setPageSize] = useState<PageSizeOption>(() => loadInitialPageSize());
