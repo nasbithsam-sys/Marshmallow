@@ -29,9 +29,19 @@ const STATE_ABBR: Record<string, string> = {
   washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY",
 };
 
+const STATE_CODES = new Set(Object.values(STATE_ABBR));
+
+const STREET_SUFFIX_RE =
+  /\b(?:aly|alley|ave|avenue|blvd|boulevard|cir|circle|ct|court|dr|drive|hwy|highway|ln|lane|loop|pkwy|parkway|pl|place|rd|road|st|street|ter|terrace|trl|trail|way)\.?\b/i;
+
 function normalizeStateToken(s: string): string {
   const lower = s.trim().toLowerCase();
   return STATE_ABBR[lower] ?? s.trim().toUpperCase();
+}
+
+function normalizeZipToken(s: string): string {
+  const match = s.match(/\b(?:[A-Z]{2}\s*)?(\d{5})(?:-\d{4})?\b/i);
+  return match?.[1] ?? "";
 }
 
 function normalizeAddress(raw: string): string {
@@ -43,6 +53,57 @@ function normalizeAddress(raw: string): string {
     s = s.replace(re, abbr);
   }
   return s.replace(/^[,\s]+|[,\s]+$/g, "");
+}
+
+function extractZipAndState(raw: string): { zip: string; state: string; matchText: string } {
+  const match = raw.match(/\b([A-Z]{2})?\s*(\d{5})(?:-\d{4})?\b/i);
+  const possibleState = match?.[1]?.toUpperCase() ?? "";
+  return {
+    zip: match?.[2] ?? "",
+    state: STATE_CODES.has(possibleState) ? possibleState : "",
+    matchText: match?.[0] ?? "",
+  };
+}
+
+function inferInlineAddressParts(raw: string): { street: string; city: string; state: string; zip: string } {
+  const normalized = normalizeAddress(raw);
+  const zipInfo = extractZipAndState(normalized);
+  let state = zipInfo.state;
+  let withoutZip = normalized;
+
+  if (zipInfo.matchText) {
+    withoutZip = withoutZip.replace(zipInfo.matchText, " ");
+  }
+
+  if (!state) {
+    const stateAtEnd = withoutZip.match(/(?:^|[\s,])([A-Z]{2})(?:[\s,]*$)/i);
+    const possibleState = stateAtEnd?.[1]?.toUpperCase() ?? "";
+    if (STATE_CODES.has(possibleState)) state = possibleState;
+  }
+
+  if (state) {
+    withoutZip = withoutZip.replace(new RegExp(`(?:^|[\\s,])${state}(?:[\\s,]*$)`, "i"), " ");
+  }
+
+  const locationText = withoutZip.replace(/\s+/g, " ").replace(/^[,\s]+|[,\s]+$/g, "");
+  if (!locationText) return { street: "", city: "", state, zip: zipInfo.zip };
+
+  const commaParts = locationText.split(",").map((p) => p.trim()).filter(Boolean);
+  if (commaParts.length >= 2) {
+    const city = commaParts[commaParts.length - 1];
+    const street = commaParts.slice(0, -1).join(", ");
+    return { street, city, state, zip: zipInfo.zip };
+  }
+
+  const suffixMatch = STREET_SUFFIX_RE.exec(locationText);
+  if (suffixMatch?.index !== undefined) {
+    const suffixEnd = suffixMatch.index + suffixMatch[0].length;
+    const street = locationText.slice(0, suffixEnd).trim();
+    const city = locationText.slice(suffixEnd).trim();
+    return { street, city, state, zip: zipInfo.zip };
+  }
+
+  return { street: "", city: locationText, state, zip: zipInfo.zip };
 }
 
 /** Try to strip a leading business/place name and return {placeName, streetAddress}. */
@@ -99,6 +160,27 @@ async function nominatimStructured(
   return { lat, lng, matched: data[0].display_name ?? "" };
 }
 
+async function zipCentroid(zip: string, signal: AbortSignal) {
+  const cleanZip = normalizeZipToken(zip);
+  if (!cleanZip) return null;
+  const url = `https://api.zippopotam.us/us/${encodeURIComponent(cleanZip)}`;
+  const r = await fetch(url, {
+    signal,
+    headers: { "User-Agent": "MarshmallowCRM/1.0 (nearby-areas)" },
+  });
+  if (!r.ok) return null;
+  const data = (await r.json()) as { places?: Array<{ latitude: string; longitude: string; "place name"?: string; state?: string; "state abbreviation"?: string }> };
+  const place = data.places?.[0];
+  if (!place) return null;
+  const lat = parseFloat(place.latitude);
+  const lng = parseFloat(place.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const matched = [place["place name"], place["state abbreviation"] || place.state, cleanZip]
+    .filter(Boolean)
+    .join(", ");
+  return { lat, lng, matched };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -134,11 +216,14 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (leadErr || !lead) return json({ error: "Lead not found" }, 404);
 
-    const city = normalizeAddress((lead.city ?? "").trim()).replace(/,$/, "").trim();
-    const stateRaw = (lead.state ?? "").trim();
-    const state = stateRaw ? normalizeStateToken(stateRaw) : "";
-    const zip = (lead.zip_code ?? "").trim();
     const addressRaw = (lead.address ?? lead.half_address ?? "").trim();
+    const { placeName, addr } = separateBusinessName(addressRaw);
+    const inferred = inferInlineAddressParts(addr);
+    const city =
+      normalizeAddress((lead.city ?? "").trim()).replace(/,$/, "").trim() || inferred.city;
+    const stateRaw = (lead.state ?? "").trim();
+    const state = stateRaw ? normalizeStateToken(stateRaw) : inferred.state;
+    const zip = normalizeZipToken((lead.zip_code ?? "").trim()) || inferred.zip;
     let lat: number | null =
       typeof lead.latitude === "number" && Number.isFinite(lead.latitude) ? lead.latitude : null;
     let lng: number | null =
@@ -146,9 +231,12 @@ Deno.serve(async (req) => {
     if (lat !== null && (lat < -90 || lat > 90 || (lat === 0 && lng === 0))) lat = null;
     if (lng !== null && (lng < -180 || lng > 180)) lng = null;
 
-    const { placeName, addr } = separateBusinessName(addressRaw);
     const normalizedAddress = normalizeAddress(addr);
-    const parts = [normalizedAddress, city, state, zip].filter(Boolean).join(", ");
+    const streetAddress = inferred.street ? normalizeAddress(inferred.street) : normalizedAddress;
+    const addressHasInlineLocation = Boolean(inferred.zip || inferred.state || inferred.city);
+    const parts = addressHasInlineLocation
+      ? normalizedAddress
+      : [normalizedAddress, city, state, zip].filter(Boolean).join(", ");
     const sourceAddress = parts || (lat !== null && lng !== null ? `${lat},${lng}` : "");
 
     const hasCoords = lat !== null && lng !== null;
@@ -173,19 +261,13 @@ Deno.serve(async (req) => {
       try {
         // 1) full address free-form (works when address already contains city/state/zip inline)
         if (normalizedAddress) {
-          const q = [normalizedAddress, city, state, zip].filter(Boolean).join(", ");
+          const q = addressHasInlineLocation
+            ? normalizedAddress
+            : [normalizedAddress, city, state, zip].filter(Boolean).join(", ");
           const r = await nominatimFree(q, controller.signal);
           if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "address"; }
         }
-        // 2) street + zip
-        if (lat === null && normalizedAddress && zip) {
-          const r = await nominatimStructured(
-            { street: normalizedAddress, postalcode: zip },
-            controller.signal,
-          );
-          if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "street_zip"; }
-        }
-        // 3) city + state + zip
+        // 2) city + state + zip, inferred from single-line addresses like "121 Main St Dallas TX 75201"
         if (lat === null && (city || zip) && state) {
           const r = await nominatimStructured(
             { city, state, postalcode: zip || undefined },
@@ -193,10 +275,22 @@ Deno.serve(async (req) => {
           );
           if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "city_state"; }
         }
-        // 4) ZIP centroid via free-form
+        // 3) ZIP centroid using a dedicated ZIP lookup first, then Nominatim as a secondary fallback
+        if (lat === null && zip) {
+          const r = await zipCentroid(zip, controller.signal);
+          if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "zip_centroid"; }
+        }
         if (lat === null && zip) {
           const r = await nominatimFree(`${zip}, USA`, controller.signal);
           if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "zip_centroid"; }
+        }
+        // 4) street + zip is last because some geocoders over-match street names across ZIP codes.
+        if (lat === null && streetAddress && zip) {
+          const r = await nominatimStructured(
+            { street: streetAddress, postalcode: zip },
+            controller.signal,
+          );
+          if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "street_zip"; }
         }
       } catch {
         // ignore, fall through
