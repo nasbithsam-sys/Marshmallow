@@ -97,6 +97,7 @@ export default function MapViewPage() {
   const leadLayer = useRef<L.LayerGroup | null>(null);
   const techLayer = useRef<L.LayerGroup | null>(null);
   const radiusLayer = useRef<L.Circle | null>(null);
+  const leadMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
 
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
   const [serviceFilter, setServiceFilter] = useState<string>("all");
@@ -106,6 +107,9 @@ export default function MapViewPage() {
   const [zipDatasetReady, setZipDatasetReady] = useState(false);
   const [mapVisible, setMapVisible] = useState(false);
   const [viewMode, setViewMode] = useState<"leads" | "techs" | "both">("both");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [pendingFocusLeadId, setPendingFocusLeadId] = useState<string | null>(null);
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
