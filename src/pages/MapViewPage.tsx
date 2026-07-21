@@ -761,8 +761,9 @@ export default function MapViewPage() {
                       {highlightMatch(t.name || "Unnamed", techSearch)}
                     </div>
                     <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-                      No phone number
+                      {t.phone_number ? t.phone_number : "No phone number"}
                     </div>
+
                     {svcArea && (
                       <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
                         {svcArea}
@@ -787,19 +788,16 @@ export default function MapViewPage() {
       {selectedTech ? (
         <>
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <div className="text-sm font-semibold">{selectedTech.name}</div>
-              <div className="text-xs text-muted-foreground">{selectedTech.area}</div>
-              {selectedTech.service && <div className="text-xs mt-0.5">Service: <span className="font-medium">{selectedTech.service}</span></div>}
-              {selectedTech.notes && <div className="text-xs mt-1 text-muted-foreground line-clamp-3">{selectedTech.notes}</div>}
+            <div className="flex-1 min-w-0">
+              <TechnicianDetailsContent technician={selectedTech} />
             </div>
             <Button size="icon" variant="ghost" onClick={() => setSelectedTechId(null)}><X className="h-4 w-4" /></Button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">Coverage: {RADIUS_MILES} mi</Badge>
-            <Badge>{leadsInRange.length} urgent lead{leadsInRange.length === 1 ? "" : "s"} in range</Badge>
-          </div>
-          <div className="border-t pt-2">
+          <div className="border-t pt-3">
+            <div className="flex flex-wrap gap-2 mb-2">
+              <Badge variant="secondary">Coverage: {RADIUS_MILES} mi</Badge>
+              <Badge>{leadsInRange.length} urgent lead{leadsInRange.length === 1 ? "" : "s"} in range</Badge>
+            </div>
             <div className="text-xs font-medium text-muted-foreground mb-1">Urgent leads by distance</div>
             {leadsInRange.length === 0 ? (
               <div className="text-xs text-muted-foreground">No urgent leads within {RADIUS_MILES} miles.</div>
@@ -835,6 +833,7 @@ export default function MapViewPage() {
       )}
     </div>
   );
+
 
   return (
     <div className="space-y-4">
