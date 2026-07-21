@@ -99,10 +99,14 @@ export default function MapViewPage() {
   const techLayer = useRef<L.LayerGroup | null>(null);
   const radiusLayer = useRef<L.Circle | null>(null);
   const leadMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
+  const techMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
 
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [techSearch, setTechSearch] = useState("");
+  const [showTechSuggestions, setShowTechSuggestions] = useState(false);
+  const [techActiveIndex, setTechActiveIndex] = useState(0);
+  const [pendingFocusTechId, setPendingFocusTechId] = useState<string | null>(null);
   const [geocoding, setGeocoding] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [zipDatasetReady, setZipDatasetReady] = useState(false);
@@ -201,10 +205,9 @@ export default function MapViewPage() {
   const filteredTechs = useMemo(() => {
     return mappedTechs.filter((t) => {
       if (serviceFilter !== "all" && (t.service ?? "") !== serviceFilter) return false;
-      if (techSearch.trim() && !t.name.toLowerCase().includes(techSearch.trim().toLowerCase())) return false;
       return true;
     });
-  }, [mappedTechs, serviceFilter, techSearch]);
+  }, [mappedTechs, serviceFilter]);
 
   const selectedTech = useMemo(
     () => mappedTechs.find((t) => t.id === selectedTechId) ?? null,
@@ -242,15 +245,29 @@ export default function MapViewPage() {
     const layer = techLayer.current;
     if (!layer) return;
     layer.clearLayers();
+    techMarkerRefs.current.clear();
     if (viewMode === "leads") return;
     for (const t of filteredTechs) {
       const isSelected = t.id === selectedTechId;
       const m = L.marker([t.coords.latitude, t.coords.longitude], { icon: techMarkerIcon(isSelected) });
+      const chatBtn = t.chat_link
+        ? `<div><a href="${escapeHtml(t.chat_link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:8px;padding:6px 10px;background:#2563eb;color:#fff;border-radius:6px;font-size:12px;text-decoration:none">Open Chat</a></div>`
+        : "";
+      m.bindPopup(`
+        <div style="min-width:220px;font-family:inherit">
+          <div style="font-weight:600;font-size:13px">${escapeHtml(t.name)}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px">No phone number</div>
+          <div style="margin-top:6px;font-size:12px">${escapeHtml(t.service || "—")} · ${escapeHtml(t.area || "")}</div>
+          ${t.notes ? `<div style="margin-top:6px;font-size:11px;color:#6b7280">${escapeHtml(t.notes)}</div>` : ""}
+          ${chatBtn}
+        </div>
+      `);
       m.on("click", () => {
         setSelectedTechId(t.id);
         if (isMobile) setSheetOpen(true);
       });
       m.addTo(layer);
+      techMarkerRefs.current.set(t.id, m);
     }
   }, [filteredTechs, selectedTechId, isMobile, mapVisible, viewMode]);
 
@@ -387,6 +404,66 @@ export default function MapViewPage() {
     setPendingFocusLeadId(null);
   };
 
+  // Technician search
+  const techMatches = useMemo(() => {
+    const q = techSearch.trim().toLowerCase();
+    if (!q) return [] as MappedTech[];
+    const source = (techniciansQuery.data ?? []).filter((t) => {
+      if (serviceFilter !== "all" && (t.service ?? "") !== serviceFilter) return false;
+      return (t.name ?? "").toLowerCase().includes(q);
+    });
+    // Prefer techs with valid coords first (mappable), then others
+    const mappable = source.filter((t) => isValidLatLng(t.latitude, t.longitude))
+      .map((t) => ({ ...t, coords: { latitude: t.latitude as number, longitude: t.longitude as number } })) as MappedTech[];
+    return mappable.slice(0, 25);
+  }, [techSearch, techniciansQuery.data, serviceFilter]);
+
+  useEffect(() => { setTechActiveIndex(0); }, [techSearch]);
+
+  const selectTech = (tech: MappedTech) => {
+    if (!mapVisible) setMapVisible(true);
+    if (viewMode === "leads") setViewMode("both");
+    setShowTechSuggestions(false);
+    setTechSearch(tech.name || "");
+    setSelectedTechId(tech.id);
+    setPendingFocusTechId(tech.id);
+    if (isMobile) setSheetOpen(true);
+  };
+
+  const performTechSearch = () => {
+    const q = techSearch.trim();
+    if (!q) return;
+    // Exact case-insensitive match wins
+    const exact = techMatches.find((t) => (t.name ?? "").toLowerCase() === q.toLowerCase());
+    if (exact) { selectTech(exact); return; }
+    if (techMatches.length === 0) {
+      toast("No technician found");
+      return;
+    }
+    if (techMatches.length === 1) {
+      selectTech(techMatches[0]);
+    } else {
+      setShowTechSuggestions(true);
+    }
+  };
+
+  const clearTechSearch = () => {
+    setTechSearch("");
+    setShowTechSuggestions(false);
+  };
+
+  useEffect(() => {
+    if (!pendingFocusTechId) return;
+    const map = mapRef.current;
+    const marker = techMarkerRefs.current.get(pendingFocusTechId);
+    if (!map || !marker) return;
+    const ll = marker.getLatLng();
+    map.flyTo(ll, 10, { duration: 0.6 });
+    setTimeout(() => marker.openPopup(), 650);
+    setPendingFocusTechId(null);
+  }, [pendingFocusTechId, filteredTechs, viewMode, mapVisible]);
+
+
   // Portal-positioned dropdown anchoring
   const customerInputWrapRef = useRef<HTMLDivElement | null>(null);
   const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -406,6 +483,26 @@ export default function MapViewPage() {
       window.removeEventListener("scroll", update, true);
     };
   }, [showSuggestions, customerSearch]);
+
+  const techInputWrapRef = useRef<HTMLDivElement | null>(null);
+  const [techAnchorRect, setTechAnchorRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!showTechSuggestions) return;
+    const update = () => {
+      const el = techInputWrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setTechAnchorRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [showTechSuggestions, techSearch]);
+
 
   const highlightMatch = (name: string, query: string) => {
     const q = query.trim();
@@ -463,6 +560,57 @@ export default function MapViewPage() {
                     {l.service_type && (
                       <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
                         {l.service_type}
+                      </div>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>,
+      document.body,
+    );
+  };
+
+  const renderTechSuggestionsDropdown = () => {
+    if (!showTechSuggestions || !techSearch.trim() || !techAnchorRect) return null;
+    const width = Math.max(360, techAnchorRect.width);
+    return createPortal(
+      <div
+        role="listbox"
+        style={{ position: "fixed", top: techAnchorRect.top, left: techAnchorRect.left, width, zIndex: 2000 }}
+        className="rounded-md border bg-popover text-popover-foreground shadow-xl overflow-hidden"
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        {techMatches.length === 0 ? (
+          <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+            No matching technicians found
+          </div>
+        ) : (
+          <ul className="max-h-72 overflow-y-auto py-1 divide-y divide-border">
+            {techMatches.map((t, i) => {
+              const isActive = i === techActiveIndex;
+              const svcArea = [t.service, t.area].filter(Boolean).join(" · ");
+              return (
+                <li key={t.id} role="option" aria-selected={isActive}>
+                  <button
+                    type="button"
+                    onMouseEnter={() => setTechActiveIndex(i)}
+                    onClick={() => selectTech(t)}
+                    className={`w-full text-left px-3 py-2.5 text-xs transition-colors ${
+                      isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/60"
+                    }`}
+                  >
+                    <div className="font-semibold text-sm text-foreground truncate">
+                      {highlightMatch(t.name || "Unnamed", techSearch)}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      No phone number
+                    </div>
+                    {svcArea && (
+                      <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
+                        {svcArea}
                       </div>
                     )}
                   </button>
@@ -586,15 +734,56 @@ export default function MapViewPage() {
                   {services.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  value={techSearch}
-                  onChange={(e) => setTechSearch(e.target.value)}
-                  placeholder="Search technician"
-                  className="h-8 w-[200px] pl-7 text-xs"
-                />
+              <div className="relative" ref={techInputWrapRef}>
+                <div className="flex items-center gap-1">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      value={techSearch}
+                      onChange={(e) => { setTechSearch(e.target.value); setShowTechSuggestions(true); }}
+                      onFocus={() => { if (techSearch.trim()) setShowTechSuggestions(true); }}
+                      onBlur={() => { setTimeout(() => setShowTechSuggestions(false), 150); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (showTechSuggestions && techMatches.length > 0) {
+                            const target = techMatches[techActiveIndex] ?? techMatches[0];
+                            selectTech(target);
+                          } else {
+                            performTechSearch();
+                          }
+                        } else if (e.key === "Escape") {
+                          setShowTechSuggestions(false);
+                        } else if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setShowTechSuggestions(true);
+                          setTechActiveIndex((i) => Math.min(i + 1, Math.max(0, techMatches.length - 1)));
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setShowTechSuggestions(true);
+                          setTechActiveIndex((i) => Math.max(i - 1, 0));
+                        }
+                      }}
+                      placeholder="Search technician"
+                      className="h-8 w-[220px] pl-7 pr-7 text-xs"
+                      aria-autocomplete="list"
+                      aria-expanded={showTechSuggestions}
+                    />
+                    {techSearch && (
+                      <button
+                        type="button"
+                        onClick={clearTechSearch}
+                        aria-label="Clear technician search"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={performTechSearch}>Search</Button>
+                </div>
               </div>
+              {renderTechSuggestionsDropdown()}
               <div className="relative" ref={customerInputWrapRef}>
                 <div className="flex items-center gap-1">
                   <div className="relative">
