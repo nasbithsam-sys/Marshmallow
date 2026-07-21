@@ -591,6 +591,7 @@ export default function TechniciansPage() {
                   >
                     <Trash2 className="mr-1.5 h-4 w-4" />
                     Delete Selected ({selectedCount.toLocaleString()})
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
