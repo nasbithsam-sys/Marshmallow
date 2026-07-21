@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { TechnicianDetailsContent } from "@/components/map/TechnicianDetailsContent";
+import { fetchAllTechnicians, TECHNICIANS_QUERY_KEY } from "@/lib/technicians";
 import { haversineMiles, geocodeAddress, isValidLatLng, LatLng } from "@/lib/geo";
 import { resolveZip, lookupZipCentroidSync, preloadZipDataset, ZipCentroid } from "@/lib/zipCentroids";
 import { STATUS_LABELS } from "@/lib/constants";
@@ -136,15 +137,8 @@ export default function MapViewPage() {
   });
 
   const techniciansQuery = useQuery({
-    queryKey: ["technicians"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("technicians")
-        .select("id, name, area, service, notes, chat_link, phone_number, latitude, longitude")
-        .order("name", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as TechnicianRecord[];
-    },
+    queryKey: TECHNICIANS_QUERY_KEY,
+    queryFn: fetchAllTechnicians,
     staleTime: 60_000,
   });
 

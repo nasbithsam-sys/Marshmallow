@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TechnicianDialog, TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { ImportTechniciansDialog } from "@/components/technicians/ImportTechniciansDialog";
 import { toast } from "@/hooks/use-toast";
+import { fetchAllTechnicians, TECHNICIANS_QUERY_KEY, upsertTechnicianInList } from "@/lib/technicians";
 import { toTelHref, phoneDigits } from "@/lib/phone";
 import { Contact, Plus, Upload, Download, Search, Pencil, Trash2, ChevronDown } from "lucide-react";
 
@@ -27,15 +28,8 @@ export default function TechniciansPage() {
   const [search, setSearch] = useState("");
 
   const techniciansQuery = useQuery({
-    queryKey: ["technicians"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("technicians")
-        .select("id, name, area, service, notes, chat_link, phone_number, latitude, longitude")
-        .order("name", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as TechnicianRecord[];
-    },
+    queryKey: TECHNICIANS_QUERY_KEY,
+    queryFn: fetchAllTechnicians,
     staleTime: 60_000,
   });
 
@@ -53,7 +47,18 @@ export default function TechniciansPage() {
     });
   }, [rows, search]);
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["technicians"] });
+  const refresh = async () => {
+    await qc.invalidateQueries({ queryKey: TECHNICIANS_QUERY_KEY });
+    await qc.refetchQueries({ queryKey: TECHNICIANS_QUERY_KEY, type: "active" });
+  };
+  const handleSaved = async (saved: TechnicianRecord) => {
+    qc.setQueryData<TechnicianRecord[]>(TECHNICIANS_QUERY_KEY, (prev) => upsertTechnicianInList(prev, saved));
+    const q = search.trim().toLowerCase();
+    if (q && !(saved.name ?? "").toLowerCase().includes(q) && !phoneDigits(saved.phone_number).includes(phoneDigits(q))) {
+      setSearch("");
+    }
+    await refresh();
+  };
 
   const handleConfirmDelete = async () => {
     if (!deleteTech) return;
@@ -231,7 +236,7 @@ export default function TechniciansPage() {
         open={addOpen || editTech !== null}
         onOpenChange={(o) => { if (!o) { setAddOpen(false); setEditTech(null); } }}
         technician={editTech}
-        onSaved={refresh}
+        onSaved={handleSaved}
       />
       <ImportTechniciansDialog open={importOpen} onOpenChange={setImportOpen} onImported={refresh} />
 

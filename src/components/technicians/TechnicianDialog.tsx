@@ -26,7 +26,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   technician?: TechnicianRecord | null;
-  onSaved?: () => void;
+  onSaved?: (saved: TechnicianRecord) => void;
 }
 
 export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Props) {
@@ -90,20 +90,30 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
         longitude,
       };
 
-      let error;
+      const SELECT = "id, name, area, service, notes, chat_link, phone_number, latitude, longitude";
+      let saved: TechnicianRecord | null = null;
+      let error: { message: string } | null = null;
       if (technician) {
-        ({ error } = await supabase.from("technicians").update(payload).eq("id", technician.id));
+        const res = await supabase.from("technicians").update(payload).eq("id", technician.id).select(SELECT).single();
+        error = res.error;
+        saved = (res.data as TechnicianRecord | null) ?? null;
       } else {
         const { data: { user } } = await supabase.auth.getUser();
-        ({ error } = await supabase.from("technicians").insert({ ...payload, created_by: user?.id ?? null }));
+        const res = await supabase.from("technicians").insert({ ...payload, created_by: user?.id ?? null }).select(SELECT).single();
+        error = res.error;
+        saved = (res.data as TechnicianRecord | null) ?? null;
       }
 
-      if (error) {
-        toast({ title: "Save failed", description: error.message, variant: "destructive" });
+      if (error || !saved?.id) {
+        toast({ title: "Save failed", description: error?.message ?? "Could not verify the saved technician.", variant: "destructive" });
       } else {
-        toast({ title: technician ? "Technician updated" : "Technician added" });
+        const geoWarn = !!cleanArea && (latitude == null || longitude == null);
+        toast({
+          title: technician ? "Technician updated" : "Technician added",
+          description: geoWarn ? "Saved, but the area could not be located on the map." : undefined,
+        });
         if (!technician) setPhone("");
-        onSaved?.();
+        onSaved?.(saved);
         onOpenChange(false);
       }
     } finally {
