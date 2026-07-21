@@ -1024,6 +1024,22 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </motion.div>
           )}
 
+          {!hideProcessorDetails && (
+            <NearbyAreasList
+              leadId={leadId}
+              customerAddress={form.address ?? lead.address ?? null}
+              customerCity={form.city ?? lead.city ?? null}
+              customerState={form.state ?? lead.state ?? null}
+              customerZip={form.zip_code ?? lead.zip_code ?? null}
+              latitude={(lead as unknown as { latitude?: number | null }).latitude ?? null}
+              longitude={(lead as unknown as { longitude?: number | null }).longitude ?? null}
+              savedNearbyAreas={
+                ((lead as unknown as { nearby_areas?: unknown }).nearby_areas as NearbyAreasData | null) ?? null
+              }
+              canManage={isAdmin || isProcessor}
+            />
+          )}
+
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
