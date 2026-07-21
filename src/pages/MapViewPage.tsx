@@ -99,10 +99,14 @@ export default function MapViewPage() {
   const techLayer = useRef<L.LayerGroup | null>(null);
   const radiusLayer = useRef<L.Circle | null>(null);
   const leadMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
+  const techMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
 
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [techSearch, setTechSearch] = useState("");
+  const [showTechSuggestions, setShowTechSuggestions] = useState(false);
+  const [techActiveIndex, setTechActiveIndex] = useState(0);
+  const [pendingFocusTechId, setPendingFocusTechId] = useState<string | null>(null);
   const [geocoding, setGeocoding] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [zipDatasetReady, setZipDatasetReady] = useState(false);
