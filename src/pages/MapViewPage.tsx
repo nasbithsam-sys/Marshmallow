@@ -342,6 +342,48 @@ export default function MapViewPage() {
     map.flyTo([lead.coords.latitude, lead.coords.longitude], 11, { duration: 0.6 });
   };
 
+  const customerMatches = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return [] as MappedLead[];
+    return mappedLeads
+      .filter((l) => (l.customer_name ?? "").toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [customerSearch, mappedLeads]);
+
+  const selectCustomer = (lead: MappedLead) => {
+    if (!mapVisible) setMapVisible(true);
+    if (viewMode === "techs") setViewMode("both");
+    // If a technician radius filter is hiding this lead, clear the selection
+    if (selectedTech) {
+      const inRange = leadsInRange.some((l) => l.id === lead.id);
+      if (!inRange) setSelectedTechId(null);
+    }
+    setShowSuggestions(false);
+    setCustomerSearch(lead.customer_name || "");
+    setPendingFocusLeadId(lead.id);
+  };
+
+  const performCustomerSearch = () => {
+    const q = customerSearch.trim();
+    if (!q) return;
+    if (customerMatches.length === 0) {
+      toast("No customer found");
+      return;
+    }
+    if (customerMatches.length === 1) {
+      selectCustomer(customerMatches[0]);
+    } else {
+      setShowSuggestions(true);
+    }
+  };
+
+  const clearCustomerSearch = () => {
+    setCustomerSearch("");
+    setShowSuggestions(false);
+    setPendingFocusLeadId(null);
+  };
+
+
   const SidePanel = (
     <div className="space-y-3">
       {selectedTech ? (
