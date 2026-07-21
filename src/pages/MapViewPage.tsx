@@ -15,12 +15,14 @@ import { MapPin, Search, Loader2, X, Contact, User } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { TechnicianRecord } from "@/components/technicians/TechnicianDialog";
+import { TechnicianDetailsContent } from "@/components/map/TechnicianDetailsContent";
 import { haversineMiles, geocodeAddress, isValidLatLng, LatLng } from "@/lib/geo";
 import { resolveZip, lookupZipCentroidSync, preloadZipDataset, ZipCentroid } from "@/lib/zipCentroids";
 import { STATUS_LABELS } from "@/lib/constants";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { LeadStatus } from "@/types";
 import { toast } from "sonner";
+
 
 const RADIUS_MILES = 20;
 const RADIUS_METERS = RADIUS_MILES * 1609.344;
@@ -138,7 +140,7 @@ export default function MapViewPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("technicians")
-        .select("id, name, area, service, notes, chat_link, latitude, longitude")
+        .select("id, name, area, service, notes, chat_link, phone_number, latitude, longitude")
         .order("name", { ascending: true });
       if (error) throw error;
       return (data ?? []) as TechnicianRecord[];
@@ -318,18 +320,60 @@ export default function MapViewPage() {
     for (const t of filteredTechs) {
       const isSelected = t.id === selectedTechId;
       const m = L.marker([t.coords.latitude, t.coords.longitude], { icon: techMarkerIcon(isSelected) });
-      const chatBtn = t.chat_link
-        ? `<div><a href="${escapeHtml(t.chat_link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:8px;padding:6px 10px;background:#2563eb;color:#fff;border-radius:6px;font-size:12px;text-decoration:none">Open Chat</a></div>`
+      const phone = (t.phone_number ?? "").trim();
+      // Attach a permanent tooltip showing the phone number on/next to the marker.
+      if (phone) {
+        m.bindTooltip(escapeHtml(phone), {
+          permanent: true,
+          direction: "right",
+          offset: [8, -12],
+          className: "marshmallow-tech-phone-label",
+          opacity: 1,
+        });
+      }
+      const telHref = phone ? `tel:${phone.startsWith("+") ? "+" : ""}${phone.replace(/\D/g, "")}` : "";
+      const phoneBlock = phone
+        ? `<div style="margin-top:6px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Phone</div>
+             <a href="${escapeHtml(telHref)}" style="font-size:13px;color:#2563eb;font-weight:600;text-decoration:none">${escapeHtml(phone)}</a>
+             <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
+               <a href="${escapeHtml(telHref)}" style="padding:4px 8px;background:#111827;color:#fff;border-radius:6px;font-size:11px;text-decoration:none">Call Tech</a>
+               <button data-copy-phone="${escapeHtml(phone)}" class="ml-copy-phone" style="padding:4px 8px;background:#f3f4f6;color:#111827;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;cursor:pointer">Copy Phone</button>
+             </div>
+           </div>`
+        : `<div style="margin-top:6px;font-size:12px;color:#6b7280">No phone number</div>`;
+      const serviceBlock = t.service
+        ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Service</div><div style="font-size:13px">${escapeHtml(t.service)}</div></div>`
         : "";
-      m.bindPopup(`
-        <div style="min-width:220px;font-family:inherit">
-          <div style="font-weight:600;font-size:13px">${escapeHtml(t.name)}</div>
-          <div style="font-size:11px;color:#6b7280;margin-top:2px">No phone number</div>
-          <div style="margin-top:6px;font-size:12px">${escapeHtml(t.service || "—")} · ${escapeHtml(t.area || "")}</div>
-          ${t.notes ? `<div style="margin-top:6px;font-size:11px;color:#6b7280">${escapeHtml(t.notes)}</div>` : ""}
-          ${chatBtn}
-        </div>
-      `);
+      const areaBlock = t.area
+        ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Area</div><div style="font-size:13px">${escapeHtml(t.area)}</div></div>`
+        : "";
+      const notesBlock = t.notes
+        ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Notes</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word">${escapeHtml(t.notes)}</div></div>`
+        : "";
+      const chatBtn = t.chat_link
+        ? `<div style="margin-top:10px"><a href="${escapeHtml(t.chat_link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 10px;background:#2563eb;color:#fff;border-radius:6px;font-size:12px;text-decoration:none">Open Chat</a></div>`
+        : "";
+      m.bindPopup(
+        `<div style="min-width:280px;max-width:360px;max-height:420px;overflow-y:auto;font-family:inherit">
+          <div style="font-weight:600;font-size:14px">${escapeHtml(t.name)}</div>
+          ${phoneBlock}${serviceBlock}${areaBlock}${notesBlock}${chatBtn}
+        </div>`,
+        { maxWidth: 360, minWidth: 280, maxHeight: 420 },
+      );
+      m.on("popupopen", () => {
+        const btn = document.querySelector<HTMLButtonElement>(`.ml-copy-phone[data-copy-phone="${phone.replace(/"/g, "&quot;")}"]`);
+        if (btn) btn.onclick = async () => {
+          try {
+            if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(phone);
+            else {
+              const ta = document.createElement("textarea");
+              ta.value = phone; ta.style.position = "fixed"; ta.style.opacity = "0";
+              document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+            }
+            toast("Phone number copied");
+          } catch { toast("Failed to copy"); }
+        };
+      });
       m.on("click", () => {
         setSelectedTechId(t.id);
         if (isMobile) setSheetOpen(true);
@@ -338,6 +382,7 @@ export default function MapViewPage() {
       techMarkerRefs.current.set(t.id, m);
     }
   }, [filteredTechs, selectedTechId, isMobile, mapVisible, viewMode]);
+
 
 
   useEffect(() => {
@@ -716,8 +761,9 @@ export default function MapViewPage() {
                       {highlightMatch(t.name || "Unnamed", techSearch)}
                     </div>
                     <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-                      No phone number
+                      {t.phone_number ? t.phone_number : "No phone number"}
                     </div>
+
                     {svcArea && (
                       <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
                         {svcArea}
@@ -742,19 +788,16 @@ export default function MapViewPage() {
       {selectedTech ? (
         <>
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <div className="text-sm font-semibold">{selectedTech.name}</div>
-              <div className="text-xs text-muted-foreground">{selectedTech.area}</div>
-              {selectedTech.service && <div className="text-xs mt-0.5">Service: <span className="font-medium">{selectedTech.service}</span></div>}
-              {selectedTech.notes && <div className="text-xs mt-1 text-muted-foreground line-clamp-3">{selectedTech.notes}</div>}
+            <div className="flex-1 min-w-0">
+              <TechnicianDetailsContent technician={selectedTech} />
             </div>
             <Button size="icon" variant="ghost" onClick={() => setSelectedTechId(null)}><X className="h-4 w-4" /></Button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">Coverage: {RADIUS_MILES} mi</Badge>
-            <Badge>{leadsInRange.length} urgent lead{leadsInRange.length === 1 ? "" : "s"} in range</Badge>
-          </div>
-          <div className="border-t pt-2">
+          <div className="border-t pt-3">
+            <div className="flex flex-wrap gap-2 mb-2">
+              <Badge variant="secondary">Coverage: {RADIUS_MILES} mi</Badge>
+              <Badge>{leadsInRange.length} urgent lead{leadsInRange.length === 1 ? "" : "s"} in range</Badge>
+            </div>
             <div className="text-xs font-medium text-muted-foreground mb-1">Urgent leads by distance</div>
             {leadsInRange.length === 0 ? (
               <div className="text-xs text-muted-foreground">No urgent leads within {RADIUS_MILES} miles.</div>
@@ -790,6 +833,7 @@ export default function MapViewPage() {
       )}
     </div>
   );
+
 
   return (
     <div className="space-y-4">

@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { geocodeAddress } from "@/lib/geo";
+import { isLikelyPhone } from "@/lib/phone";
 import { Loader2 } from "lucide-react";
 
 export interface TechnicianRecord {
@@ -16,6 +17,7 @@ export interface TechnicianRecord {
   service: string | null;
   notes: string | null;
   chat_link: string | null;
+  phone_number: string | null;
   latitude: number | null;
   longitude: number | null;
 }
@@ -29,6 +31,8 @@ interface Props {
 
 export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Props) {
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [area, setArea] = useState("");
   const [service, setService] = useState("");
   const [chatLink, setChatLink] = useState("");
@@ -38,6 +42,8 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
   useEffect(() => {
     if (open) {
       setName(technician?.name ?? "");
+      setPhone(technician?.phone_number ?? "");
+      setPhoneError(null);
       setArea(technician?.area ?? "");
       setService(technician?.service ?? "");
       setChatLink(technician?.chat_link ?? "");
@@ -48,6 +54,12 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
   const handleSubmit = async () => {
     const cleanName = name.trim();
     const cleanArea = area.trim();
+    const cleanPhone = phone.trim();
+    if (cleanPhone && !isLikelyPhone(cleanPhone)) {
+      setPhoneError("Enter a valid phone number");
+      return;
+    }
+    setPhoneError(null);
     setSaving(true);
     try {
       let latitude = technician?.latitude ?? null;
@@ -70,6 +82,7 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
       const payload = {
         name: cleanName,
         area: cleanArea,
+        phone_number: cleanPhone || null,
         service: service.trim() || null,
         chat_link: chatLink.trim() || null,
         notes: notes.trim() || null,
@@ -89,6 +102,7 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
         toast({ title: "Save failed", description: error.message, variant: "destructive" });
       } else {
         toast({ title: technician ? "Technician updated" : "Technician added" });
+        if (!technician) setPhone("");
         onSaved?.();
         onOpenChange(false);
       }
@@ -108,6 +122,19 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
           <div className="space-y-1.5">
             <Label htmlFor="tech-name">Technician Name</Label>
             <Input id="tech-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. John Smith" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tech-phone">Phone Number</Label>
+            <Input
+              id="tech-phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => { setPhone(e.target.value); if (phoneError) setPhoneError(null); }}
+              placeholder="e.g. (305) 555-0123"
+              inputMode="tel"
+              autoComplete="tel"
+            />
+            {phoneError && <p className="text-[11px] text-destructive">{phoneError}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="tech-area">Area</Label>

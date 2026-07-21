@@ -2398,6 +2398,7 @@ export type Database = {
           longitude: number | null
           name: string
           notes: string | null
+          phone_number: string | null
           service: string | null
           updated_at: string
         }
@@ -2411,6 +2412,7 @@ export type Database = {
           longitude?: number | null
           name: string
           notes?: string | null
+          phone_number?: string | null
           service?: string | null
           updated_at?: string
         }
@@ -2424,6 +2426,7 @@ export type Database = {
           longitude?: number | null
           name?: string
           notes?: string | null
+          phone_number?: string | null
           service?: string | null
           updated_at?: string
         }

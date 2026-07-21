@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TechnicianDialog, TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { ImportTechniciansDialog } from "@/components/technicians/ImportTechniciansDialog";
 import { toast } from "@/hooks/use-toast";
+import { toTelHref, phoneDigits } from "@/lib/phone";
 import { Contact, Plus, Upload, Download, Search, Pencil, Trash2, ChevronDown } from "lucide-react";
 
 export default function TechniciansPage() {
@@ -30,7 +31,7 @@ export default function TechniciansPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("technicians")
-        .select("id, name, area, service, notes, chat_link, latitude, longitude")
+        .select("id, name, area, service, notes, chat_link, phone_number, latitude, longitude")
         .order("name", { ascending: true });
       if (error) throw error;
       return (data ?? []) as TechnicianRecord[];
@@ -42,9 +43,14 @@ export default function TechniciansPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter((t) =>
-      [t.name, t.service, t.area, t.notes, t.chat_link].some((v) => (v ?? "").toLowerCase().includes(q)),
-    );
+    const qDigits = phoneDigits(q);
+    return rows.filter((t) => {
+      const text = [t.name, t.service, t.area, t.notes, t.chat_link, t.phone_number]
+        .some((v) => (v ?? "").toString().toLowerCase().includes(q));
+      if (text) return true;
+      if (qDigits.length >= 3 && phoneDigits(t.phone_number).includes(qDigits)) return true;
+      return false;
+    });
   }, [rows, search]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["technicians"] });
@@ -58,14 +64,15 @@ export default function TechniciansPage() {
   };
 
   const exportRows = () => filtered.map((t) => ({
-    Name: t.name ?? "",
+    "Technician Name": t.name ?? "",
+    "Phone Number": t.phone_number ?? "",
     Service: t.service ?? "",
     Area: t.area ?? "",
-    "Chat Link": t.chat_link ?? "",
+    "Quo Chat Link": t.chat_link ?? "",
     Notes: t.notes ?? "",
   }));
 
-  const EXPORT_HEADERS = ["Name", "Service", "Area", "Chat Link", "Notes"];
+  const EXPORT_HEADERS = ["Technician Name", "Phone Number", "Service", "Area", "Quo Chat Link", "Notes"];
 
   const download = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -82,7 +89,15 @@ export default function TechniciansPage() {
   };
 
   const exportXlsx = () => {
-    const ws = XLSX.utils.json_to_sheet(exportRows(), { header: EXPORT_HEADERS });
+    const data = exportRows();
+    const ws = XLSX.utils.json_to_sheet(data, { header: EXPORT_HEADERS });
+    // Force phone column as text to preserve leading zeros / plus signs / avoid scientific notation
+    const phoneColIdx = EXPORT_HEADERS.indexOf("Phone Number");
+    for (let i = 0; i < data.length; i++) {
+      const addr = XLSX.utils.encode_cell({ r: i + 1, c: phoneColIdx });
+      const cell = ws[addr];
+      if (cell) { cell.t = "s"; cell.v = String(cell.v ?? ""); cell.z = "@"; }
+    }
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Technicians");
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
@@ -132,7 +147,7 @@ export default function TechniciansPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, service, area, chat link, notes"
+              placeholder="Search by name, phone, service, area, chat link, notes"
               className="h-8 pl-7 text-xs"
             />
           </div>
@@ -145,6 +160,7 @@ export default function TechniciansPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Phone Number</TableHead>
                 <TableHead>Service</TableHead>
                 <TableHead>Area</TableHead>
                 <TableHead>Chat Link</TableHead>
@@ -154,48 +170,58 @@ export default function TechniciansPage() {
             </TableHeader>
             <TableBody>
               {techniciansQuery.isLoading && (
-                <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">Loading…</TableCell></TableRow>
               )}
               {!techniciansQuery.isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-10">
+                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-10">
                     {rows.length === 0 ? "No technicians yet. Add one manually or import from CSV/XLSX." : "No technicians match your search."}
                   </TableCell>
                 </TableRow>
               )}
-              {filtered.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-medium">{t.name}</TableCell>
-                  <TableCell>{t.service || <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell className="max-w-[280px] truncate" title={t.area}>{t.area}</TableCell>
-                  <TableCell className="max-w-[220px] truncate">
-                    {t.chat_link ? (
-                      <a
-                        href={t.chat_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                        title={t.chat_link}
-                      >
-                        Open chat
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-[320px] truncate text-muted-foreground" title={t.notes ?? ""}>{t.notes || <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="inline-flex gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => setEditTech(t)} title="Edit">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={() => setDeleteTech(t)} title="Delete">
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filtered.map((t) => {
+                const tel = toTelHref(t.phone_number);
+                return (
+                  <TableRow key={t.id}>
+                    <TableCell className="font-medium">{t.name}</TableCell>
+                    <TableCell>
+                      {t.phone_number && tel ? (
+                        <a href={tel} className="text-primary hover:underline">{t.phone_number}</a>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">No phone number</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{t.service || <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="max-w-[280px] truncate" title={t.area}>{t.area}</TableCell>
+                    <TableCell className="max-w-[220px] truncate">
+                      {t.chat_link ? (
+                        <a
+                          href={t.chat_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                          title={t.chat_link}
+                        >
+                          Open chat
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[320px] truncate text-muted-foreground" title={t.notes ?? ""}>{t.notes || <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => setEditTech(t)} title="Edit">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setDeleteTech(t)} title="Delete">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
