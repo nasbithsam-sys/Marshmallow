@@ -131,16 +131,27 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SB_SERVICE_ROLE_KEY")!;
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    const auth = req.headers.get("Authorization");
-    if (!auth?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-    const { data: userRes, error: userErr } = await admin.auth.getUser(auth.slice(7));
-    if (userErr || !userRes.user) return json({ error: "Unauthorized" }, 401);
-    const { data: roleRow } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userRes.user.id)
-      .maybeSingle();
-    if (roleRow?.role !== "admin") return json({ error: "Forbidden" }, 403);
+    const cronSecret = Deno.env.get("FUNCTION_CRON_SECRET") ?? "";
+    const providedCron = req.headers.get("x-cron-secret") ?? "";
+    const isCron = cronSecret.length > 0 && providedCron === cronSecret;
+
+    if (!isCron) {
+      const auth = req.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+      const token = auth.slice(7);
+      // Allow service-role key as caller bypass.
+      if (token !== SERVICE_KEY) {
+        const { data: userRes, error: userErr } = await admin.auth.getUser(token);
+        if (userErr || !userRes.user) return json({ error: "Unauthorized" }, 401);
+        const { data: roleRow } = await admin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userRes.user.id)
+          .maybeSingle();
+        if (roleRow?.role !== "admin") return json({ error: "Forbidden" }, 403);
+      }
+    }
+
 
     const [places, populations] = await Promise.all([fetchGazetteer(), fetchAcsPopulations()]);
 
