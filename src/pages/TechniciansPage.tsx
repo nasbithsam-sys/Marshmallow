@@ -424,7 +424,7 @@ export default function TechniciansPage() {
 
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${selectedCount > 0 ? "pb-28" : ""}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center">
