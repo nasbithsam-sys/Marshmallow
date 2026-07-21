@@ -380,7 +380,7 @@ export default function MapViewPage() {
       m.addTo(layer);
       leadMarkerRefs.current.set(l.id, m);
     }
-  }, [mappedLeads, leadsInRange, selectedTech, navigate, mapVisible, viewMode]);
+  }, [filteredLeads, leadsInRange, selectedTech, navigate, mapVisible, viewMode]);
 
   // Handle pending customer focus after markers render
   useEffect(() => {
