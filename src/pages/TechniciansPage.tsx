@@ -467,42 +467,54 @@ export default function TechniciansPage() {
       </div>
 
       <Card className="border-border/60">
-        <CardContent className="p-3 space-y-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, phone, service, area, chat link, notes"
-                className="h-8 pl-7 text-xs"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className="text-xs text-muted-foreground whitespace-nowrap"
-                aria-live="polite"
+        <CardContent className="p-3">
+          <div className="relative w-full max-w-sm">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, phone, service, area, chat link, notes"
+              className="h-8 pl-7 text-xs"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {selectedCount > 0 && (
+              <motion.div
+                key="tech-selection-bar"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 12 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                role="region"
+                aria-label="Technician selection actions"
+                className="fixed left-1/2 z-[1000] flex max-w-[calc(100vw-32px)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-xl border border-border/60 bg-background/95 px-4 py-2.5 shadow-xl backdrop-blur motion-reduce:transition-none"
+                style={{
+                  bottom: `calc(env(safe-area-inset-bottom, 0px) + 20px)`,
+                }}
               >
-                {selectedCount === 0
-                  ? "No technicians selected"
-                  : selectedCount === 1
+                <span
+                  className="text-xs font-medium text-foreground whitespace-nowrap"
+                  aria-live="polite"
+                >
+                  {selectedCount === 1
                     ? "1 technician selected"
                     : `${selectedCount.toLocaleString()} technicians selected`}
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleCopySelected}
-                disabled={selectedCount === 0}
-                aria-label="Copy selected technicians"
-                title="Copy selected technicians to clipboard"
-              >
-                <Copy className="mr-1.5 h-4 w-4" />
-                {selectedCount > 0
-                  ? `Copy Selected Techs (${selectedCount.toLocaleString()})`
-                  : "Copy Selected Techs"}
-              </Button>
-              {selectedCount > 0 && (
+                </span>
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={handleCopySelected}
+                  aria-label="Copy selected technicians"
+                  title="Copy selected technicians to clipboard"
+                >
+                  <Copy className="mr-1.5 h-4 w-4" />
+                  Copy Selected Techs ({selectedCount.toLocaleString()})
+                </Button>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -513,11 +525,12 @@ export default function TechniciansPage() {
                   <X className="mr-1.5 h-4 w-4" />
                   Clear Selection
                 </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
+
 
 
       <Card className="border-border/60">
