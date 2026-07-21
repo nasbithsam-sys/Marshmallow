@@ -2553,6 +2553,21 @@ export type Database = {
           total: number
         }[]
       }
+      search_technicians: {
+        Args: { _limit: number; _offset: number; _q: string }
+        Returns: {
+          area: string
+          chat_link: string
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          notes: string
+          phone_number: string
+          service: string
+          total_count: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "processor" | "customer_service" | "opr" | "cs_admin"
