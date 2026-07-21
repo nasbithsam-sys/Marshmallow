@@ -198,17 +198,31 @@ export default function NearbyAreasList({
         body: { leadId },
       });
       if (error) {
-        const errObj = resp as { error?: string; code?: string; message?: string } | null;
+        // supabase-js wraps non-2xx as FunctionsHttpError with a Response in `context`.
+        let body: { code?: string; error?: string; message?: string } | null = null;
+        const ctx = (error as unknown as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          try {
+            body = await ctx.clone().json();
+          } catch {
+            try {
+              const txt = await ctx.clone().text();
+              body = { message: txt };
+            } catch {
+              body = null;
+            }
+          }
+        }
         const message =
-          errObj?.message ??
-          errObj?.error ??
+          body?.message ??
+          body?.error ??
           error.message ??
           "Unable to calculate nearby areas. Please try again.";
         setErrorMsg(message);
         toast.error(message);
         return;
       }
-      const payload = (resp as { nearby_areas?: NearbyAreasData })?.nearby_areas;
+      const payload = (resp as { nearby_areas?: NearbyAreasData; message?: string })?.nearby_areas;
       if (!payload) {
         const msg = "Unable to calculate nearby areas. Please try again.";
         setErrorMsg(msg);
@@ -220,7 +234,7 @@ export default function NearbyAreasList({
       setVisible(normalized);
       onSaved?.(normalized);
       if (filtered.length === 0) {
-        toast.message("No populated areas with valid data were found within 50 miles.");
+        toast.message("No populated places were found within 50 miles.");
       } else {
         toast.success("Nearby areas generated");
       }
