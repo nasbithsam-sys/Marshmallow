@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { MapPin, Search, Loader2, X, Contact } from "lucide-react";
+import { MapPin, Search, Loader2, X, Contact, User } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { TechnicianRecord } from "@/components/technicians/TechnicianDialog";
@@ -19,6 +19,7 @@ import { resolveZip, lookupZipCentroidSync, preloadZipDataset, ZipCentroid } fro
 import { STATUS_LABELS } from "@/lib/constants";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { LeadStatus } from "@/types";
+import { toast } from "sonner";
 
 const RADIUS_MILES = 20;
 const RADIUS_METERS = RADIUS_MILES * 1609.344;
@@ -96,6 +97,7 @@ export default function MapViewPage() {
   const leadLayer = useRef<L.LayerGroup | null>(null);
   const techLayer = useRef<L.LayerGroup | null>(null);
   const radiusLayer = useRef<L.Circle | null>(null);
+  const leadMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
 
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
   const [serviceFilter, setServiceFilter] = useState<string>("all");
@@ -105,6 +107,9 @@ export default function MapViewPage() {
   const [zipDatasetReady, setZipDatasetReady] = useState(false);
   const [mapVisible, setMapVisible] = useState(false);
   const [viewMode, setViewMode] = useState<"leads" | "techs" | "both">("both");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [pendingFocusLeadId, setPendingFocusLeadId] = useState<string | null>(null);
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
@@ -249,11 +254,11 @@ export default function MapViewPage() {
   }, [filteredTechs, selectedTechId, isMobile, mapVisible, viewMode]);
 
 
-  // Urgent lead markers — all if no tech selected, in-range only when one is selected.
   useEffect(() => {
     const layer = leadLayer.current;
     if (!layer) return;
     layer.clearLayers();
+    leadMarkerRefs.current.clear();
     if (viewMode === "techs") return;
     const jitter = (id: string, salt: number) => {
       let h = 0;
@@ -287,8 +292,21 @@ export default function MapViewPage() {
         if (el) el.onclick = () => navigate(`/leads/${l.id}`);
       });
       m.addTo(layer);
+      leadMarkerRefs.current.set(l.id, m);
     }
   }, [mappedLeads, leadsInRange, selectedTech, navigate, mapVisible, viewMode]);
+
+  // Handle pending customer focus after markers render
+  useEffect(() => {
+    if (!pendingFocusLeadId) return;
+    const map = mapRef.current;
+    const marker = leadMarkerRefs.current.get(pendingFocusLeadId);
+    if (!map || !marker) return;
+    const latlng = marker.getLatLng();
+    map.flyTo(latlng, 12, { duration: 0.7 });
+    setTimeout(() => marker.openPopup(), 650);
+    setPendingFocusLeadId(null);
+  }, [pendingFocusLeadId, mappedLeads, leadsInRange, viewMode]);
 
   // Selected-tech radius circle
   useEffect(() => {
@@ -323,6 +341,48 @@ export default function MapViewPage() {
     if (!map) return;
     map.flyTo([lead.coords.latitude, lead.coords.longitude], 11, { duration: 0.6 });
   };
+
+  const customerMatches = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return [] as MappedLead[];
+    return mappedLeads
+      .filter((l) => (l.customer_name ?? "").toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [customerSearch, mappedLeads]);
+
+  const selectCustomer = (lead: MappedLead) => {
+    if (!mapVisible) setMapVisible(true);
+    if (viewMode === "techs") setViewMode("both");
+    // If a technician radius filter is hiding this lead, clear the selection
+    if (selectedTech) {
+      const inRange = leadsInRange.some((l) => l.id === lead.id);
+      if (!inRange) setSelectedTechId(null);
+    }
+    setShowSuggestions(false);
+    setCustomerSearch(lead.customer_name || "");
+    setPendingFocusLeadId(lead.id);
+  };
+
+  const performCustomerSearch = () => {
+    const q = customerSearch.trim();
+    if (!q) return;
+    if (customerMatches.length === 0) {
+      toast("No customer found");
+      return;
+    }
+    if (customerMatches.length === 1) {
+      selectCustomer(customerMatches[0]);
+    } else {
+      setShowSuggestions(true);
+    }
+  };
+
+  const clearCustomerSearch = () => {
+    setCustomerSearch("");
+    setShowSuggestions(false);
+    setPendingFocusLeadId(null);
+  };
+
 
   const SidePanel = (
     <div className="space-y-3">
@@ -439,6 +499,61 @@ export default function MapViewPage() {
                   placeholder="Search technician"
                   className="h-8 w-[200px] pl-7 text-xs"
                 />
+              </div>
+              <div className="relative">
+                <div className="flex items-center gap-1">
+                  <div className="relative">
+                    <User className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      value={customerSearch}
+                      onChange={(e) => { setCustomerSearch(e.target.value); setShowSuggestions(true); }}
+                      onFocus={() => { if (customerSearch.trim()) setShowSuggestions(true); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); performCustomerSearch(); }
+                        if (e.key === "Escape") setShowSuggestions(false);
+                      }}
+                      placeholder="Search customer name"
+                      className="h-8 w-[220px] pl-7 pr-7 text-xs"
+                    />
+                    {customerSearch && (
+                      <button
+                        type="button"
+                        onClick={clearCustomerSearch}
+                        aria-label="Clear customer search"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <Button size="sm" className="h-8 text-xs" onClick={performCustomerSearch}>Search</Button>
+                </div>
+                {showSuggestions && customerSearch.trim() && customerMatches.length > 0 && (
+                  <div className="absolute z-[1000] mt-1 w-[320px] rounded-md border bg-popover shadow-lg overflow-hidden">
+                    <ul className="max-h-72 overflow-y-auto py-1">
+                      {customerMatches.map((l) => {
+                        const loc = [l.city, l.state].filter(Boolean).join(", ") || l.zip_code || l.zip;
+                        return (
+                          <li key={l.id}>
+                            <button
+                              type="button"
+                              onClick={() => selectCustomer(l)}
+                              className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium truncate">{l.customer_name || "Unnamed"}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">Job {l.job_id}</span>
+                              </div>
+                              <div className="text-[11px] text-muted-foreground truncate">
+                                {loc}{l.service_type ? ` · ${l.service_type}` : ""}
+                              </div>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
               </div>
               <div className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500 border border-white" /> Technician</span>
