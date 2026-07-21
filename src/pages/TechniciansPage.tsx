@@ -365,6 +365,62 @@ export default function TechniciansPage() {
   const disablePrev = currentPage <= 1 || !hasResults;
   const disableNext = currentPage >= totalPages || !hasResults;
 
+  // ---- Selection derivations ----
+  const selectedCount = selected.size;
+  const visibleSelectedCount = useMemo(
+    () => rows.reduce((n, r) => n + (selected.has(r.id) ? 1 : 0), 0),
+    [rows, selected],
+  );
+  const allVisibleSelected = rows.length > 0 && visibleSelectedCount === rows.length;
+  const someVisibleSelected = visibleSelectedCount > 0 && !allVisibleSelected;
+  const headerCheckboxState: boolean | "indeterminate" = allVisibleSelected
+    ? true
+    : someVisibleSelected
+      ? "indeterminate"
+      : false;
+
+  const toggleRow = (t: TechnicianRecord, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (checked) next.set(t.id, t);
+      else next.delete(t.id);
+      return next;
+    });
+  };
+
+  const toggleAllVisible = (checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (checked) for (const r of rows) next.set(r.id, r);
+      else for (const r of rows) next.delete(r.id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelected(new Map());
+
+  const handleCopySelected = async () => {
+    if (selected.size === 0) return;
+    const sorted = sortTechnicians(Array.from(selected.values()));
+    const text = buildTechniciansTsv(sorted);
+    const ok = await copyTextToClipboard(text);
+    if (ok) {
+      toast({
+        title: sorted.length === 1 ? "1 technician copied" : `${sorted.length} technicians copied`,
+      });
+    } else {
+      toast({ title: "Unable to copy technician data", variant: "destructive" });
+    }
+  };
+
+  const handleCopyOne = async (t: TechnicianRecord) => {
+    const text = buildSingleTechnicianText(t);
+    const ok = await copyTextToClipboard(text);
+    if (ok) toast({ title: "Technician copied" });
+    else toast({ title: "Unable to copy technician data", variant: "destructive" });
+  };
+
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
