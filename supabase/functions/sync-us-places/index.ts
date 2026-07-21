@@ -143,8 +143,7 @@ Deno.serve(async (req) => {
     const providedCron = req.headers.get("x-cron-secret") ?? "";
     const isCron = cronSecret.length > 0 && providedCron === cronSecret;
 
-    // Auth: allow (a) cron secret, (b) service-role bearer, (c) authenticated admin user,
-    // (d) one-shot bootstrap when the table is empty (idempotent, safe to expose).
+    // Auth: cron secret, service-role bearer, or authenticated admin user.
     let authorized = isCron;
     if (!authorized) {
       const auth = req.headers.get("Authorization");
@@ -163,13 +162,6 @@ Deno.serve(async (req) => {
             if (roleRow?.role === "admin") authorized = true;
           }
         }
-      }
-      if (!authorized) {
-        // Bootstrap: allow initial population when us_places is empty.
-        const { count } = await admin
-          .from("us_places")
-          .select("geoid", { count: "exact", head: true });
-        if ((count ?? 0) === 0) authorized = true;
       }
       if (!authorized) return json({ error: "Unauthorized" }, 401);
     }
