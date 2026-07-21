@@ -734,15 +734,56 @@ export default function MapViewPage() {
                   {services.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  value={techSearch}
-                  onChange={(e) => setTechSearch(e.target.value)}
-                  placeholder="Search technician"
-                  className="h-8 w-[200px] pl-7 text-xs"
-                />
+              <div className="relative" ref={techInputWrapRef}>
+                <div className="flex items-center gap-1">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      value={techSearch}
+                      onChange={(e) => { setTechSearch(e.target.value); setShowTechSuggestions(true); }}
+                      onFocus={() => { if (techSearch.trim()) setShowTechSuggestions(true); }}
+                      onBlur={() => { setTimeout(() => setShowTechSuggestions(false), 150); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (showTechSuggestions && techMatches.length > 0) {
+                            const target = techMatches[techActiveIndex] ?? techMatches[0];
+                            selectTech(target);
+                          } else {
+                            performTechSearch();
+                          }
+                        } else if (e.key === "Escape") {
+                          setShowTechSuggestions(false);
+                        } else if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setShowTechSuggestions(true);
+                          setTechActiveIndex((i) => Math.min(i + 1, Math.max(0, techMatches.length - 1)));
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setShowTechSuggestions(true);
+                          setTechActiveIndex((i) => Math.max(i - 1, 0));
+                        }
+                      }}
+                      placeholder="Search technician"
+                      className="h-8 w-[220px] pl-7 pr-7 text-xs"
+                      aria-autocomplete="list"
+                      aria-expanded={showTechSuggestions}
+                    />
+                    {techSearch && (
+                      <button
+                        type="button"
+                        onClick={clearTechSearch}
+                        aria-label="Clear technician search"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={performTechSearch}>Search</Button>
+                </div>
               </div>
+              {renderTechSuggestionsDropdown()}
               <div className="relative" ref={customerInputWrapRef}>
                 <div className="flex items-center gap-1">
                   <div className="relative">
