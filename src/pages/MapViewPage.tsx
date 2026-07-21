@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { TechnicianDetailsContent } from "@/components/map/TechnicianDetailsContent";
+import { fetchAllTechnicians, TECHNICIANS_QUERY_KEY } from "@/lib/technicians";
 import { haversineMiles, geocodeAddress, isValidLatLng, LatLng } from "@/lib/geo";
 import { resolveZip, lookupZipCentroidSync, preloadZipDataset, ZipCentroid } from "@/lib/zipCentroids";
 import { STATUS_LABELS } from "@/lib/constants";
