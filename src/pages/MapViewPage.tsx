@@ -404,6 +404,66 @@ export default function MapViewPage() {
     setPendingFocusLeadId(null);
   };
 
+  // Technician search
+  const techMatches = useMemo(() => {
+    const q = techSearch.trim().toLowerCase();
+    if (!q) return [] as MappedTech[];
+    const source = (techniciansQuery.data ?? []).filter((t) => {
+      if (serviceFilter !== "all" && (t.service ?? "") !== serviceFilter) return false;
+      return (t.name ?? "").toLowerCase().includes(q);
+    });
+    // Prefer techs with valid coords first (mappable), then others
+    const mappable = source.filter((t) => isValidLatLng(t.latitude, t.longitude))
+      .map((t) => ({ ...t, coords: { latitude: t.latitude as number, longitude: t.longitude as number } })) as MappedTech[];
+    return mappable.slice(0, 25);
+  }, [techSearch, techniciansQuery.data, serviceFilter]);
+
+  useEffect(() => { setTechActiveIndex(0); }, [techSearch]);
+
+  const selectTech = (tech: MappedTech) => {
+    if (!mapVisible) setMapVisible(true);
+    if (viewMode === "leads") setViewMode("both");
+    setShowTechSuggestions(false);
+    setTechSearch(tech.name || "");
+    setSelectedTechId(tech.id);
+    setPendingFocusTechId(tech.id);
+    if (isMobile) setSheetOpen(true);
+  };
+
+  const performTechSearch = () => {
+    const q = techSearch.trim();
+    if (!q) return;
+    // Exact case-insensitive match wins
+    const exact = techMatches.find((t) => (t.name ?? "").toLowerCase() === q.toLowerCase());
+    if (exact) { selectTech(exact); return; }
+    if (techMatches.length === 0) {
+      toast("No technician found");
+      return;
+    }
+    if (techMatches.length === 1) {
+      selectTech(techMatches[0]);
+    } else {
+      setShowTechSuggestions(true);
+    }
+  };
+
+  const clearTechSearch = () => {
+    setTechSearch("");
+    setShowTechSuggestions(false);
+  };
+
+  useEffect(() => {
+    if (!pendingFocusTechId) return;
+    const map = mapRef.current;
+    const marker = techMarkerRefs.current.get(pendingFocusTechId);
+    if (!map || !marker) return;
+    const ll = marker.getLatLng();
+    map.flyTo(ll, 10, { duration: 0.6 });
+    setTimeout(() => marker.openPopup(), 650);
+    setPendingFocusTechId(null);
+  }, [pendingFocusTechId, filteredTechs, viewMode, mapVisible]);
+
+
   // Portal-positioned dropdown anchoring
   const customerInputWrapRef = useRef<HTMLDivElement | null>(null);
   const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; width: number } | null>(null);
