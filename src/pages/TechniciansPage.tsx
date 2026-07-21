@@ -1,20 +1,83 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TechnicianDialog, TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { ImportTechniciansDialog } from "@/components/technicians/ImportTechniciansDialog";
 import { toast } from "@/hooks/use-toast";
-import { fetchAllTechnicians, TECHNICIANS_QUERY_KEY, upsertTechnicianInList } from "@/lib/technicians";
-import { toTelHref, phoneDigits } from "@/lib/phone";
-import { Contact, Plus, Upload, Download, Search, Pencil, Trash2, ChevronDown } from "lucide-react";
+import {
+  fetchAllTechnicians,
+  fetchTechniciansPage,
+  TECHNICIANS_ROOT_KEY,
+} from "@/lib/technicians";
+import { toTelHref } from "@/lib/phone";
+import {
+  Contact,
+  Plus,
+  Upload,
+  Download,
+  Search,
+  Pencil,
+  Trash2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2,
+} from "lucide-react";
+
+const PAGE_SIZE_OPTIONS = [100, 200, 500, 1000] as const;
+type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
+const DEFAULT_PAGE_SIZE: PageSizeOption = 200;
+const PAGE_SIZE_STORAGE_KEY = "marshmallow.technicians.pageSize";
+
+function loadInitialPageSize(): PageSizeOption {
+  try {
+    const raw = localStorage.getItem(PAGE_SIZE_STORAGE_KEY);
+    const n = raw ? Number(raw) : NaN;
+    if (PAGE_SIZE_OPTIONS.includes(n as PageSizeOption)) return n as PageSizeOption;
+  } catch {
+    // ignore storage errors
+  }
+  return DEFAULT_PAGE_SIZE;
+}
+
+function buildPageWindow(current: number, total: number): Array<number | "ellipsis-left" | "ellipsis-right"> {
+  if (total <= 1) return total === 1 ? [1] : [];
+  const pages = new Set<number>([1, total, current]);
+  for (let i = 1; i <= 2; i++) {
+    if (current - i >= 1) pages.add(current - i);
+    if (current + i <= total) pages.add(current + i);
+  }
+  const sorted = Array.from(pages).sort((a, b) => a - b);
+  const out: Array<number | "ellipsis-left" | "ellipsis-right"> = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const p = sorted[i];
+    if (i > 0 && p - sorted[i - 1] > 1) {
+      out.push(p < current ? "ellipsis-left" : "ellipsis-right");
+    }
+    out.push(p);
+  }
+  return out;
+}
 
 export default function TechniciansPage() {
   const qc = useQueryClient();
@@ -26,77 +89,150 @@ export default function TechniciansPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [deleteTech, setDeleteTech] = useState<TechnicianRecord | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [pageSize, setPageSize] = useState<PageSizeOption>(() => loadInitialPageSize());
+  const [currentPage, setCurrentPage] = useState(1);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const techniciansQuery = useQuery({
-    queryKey: TECHNICIANS_QUERY_KEY,
-    queryFn: fetchAllTechnicians,
+  // Debounce search input
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [search]);
+
+  // Reset to page 1 whenever search or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, pageSize]);
+
+  // Persist page size
+  useEffect(() => {
+    try {
+      localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(pageSize));
+    } catch {
+      // ignore
+    }
+  }, [pageSize]);
+
+  // Total-only query for the page header (uses the shared full-list cache when available)
+  const totalCountQuery = useQuery({
+    queryKey: [...TECHNICIANS_ROOT_KEY, "count"] as const,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("technicians")
+        .select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return count ?? 0;
+    },
     staleTime: 60_000,
   });
 
-  const rows = techniciansQuery.data ?? [];
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    const qDigits = phoneDigits(q);
-    return rows.filter((t) => {
-      const text = [t.name, t.service, t.area, t.notes, t.chat_link, t.phone_number]
-        .some((v) => (v ?? "").toString().toLowerCase().includes(q));
-      if (text) return true;
-      if (qDigits.length >= 3 && phoneDigits(t.phone_number).includes(qDigits)) return true;
-      return false;
-    });
-  }, [rows, search]);
+  const paginatedQuery = useQuery({
+    queryKey: [
+      ...TECHNICIANS_ROOT_KEY,
+      "paginated",
+      { page: currentPage, pageSize, search: debouncedSearch },
+    ] as const,
+    queryFn: () =>
+      fetchTechniciansPage({ page: currentPage, pageSize, search: debouncedSearch }),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
 
-  const refresh = async () => {
-    await qc.invalidateQueries({ queryKey: TECHNICIANS_QUERY_KEY });
-    await qc.refetchQueries({ queryKey: TECHNICIANS_QUERY_KEY, type: "active" });
-  };
-  const handleSaved = async (saved: TechnicianRecord) => {
-    qc.setQueryData<TechnicianRecord[]>(TECHNICIANS_QUERY_KEY, (prev) => upsertTechnicianInList(prev, saved));
-    const q = search.trim().toLowerCase();
-    if (q && !(saved.name ?? "").toLowerCase().includes(q) && !phoneDigits(saved.phone_number).includes(phoneDigits(q))) {
-      setSearch("");
+  const rows = paginatedQuery.data?.technicians ?? [];
+  const filteredTotal = paginatedQuery.data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
+  const hasResults = filteredTotal > 0;
+
+  // Clamp current page when total shrinks
+  useEffect(() => {
+    if (paginatedQuery.data && currentPage > totalPages) {
+      setCurrentPage(totalPages);
     }
-    await refresh();
+  }, [paginatedQuery.data, currentPage, totalPages]);
+
+  // Scroll table container to top on page/pageSize/search change
+  useEffect(() => {
+    tableScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [currentPage, pageSize, debouncedSearch]);
+
+  const startRecord = hasResults ? (currentPage - 1) * pageSize + 1 : 0;
+  const endRecord = hasResults ? Math.min(currentPage * pageSize, filteredTotal) : 0;
+  const headerTotal = totalCountQuery.data ?? 0;
+
+  const invalidateAll = async () => {
+    await qc.invalidateQueries({ queryKey: TECHNICIANS_ROOT_KEY });
+  };
+
+  const handleSaved = async (_saved: TechnicianRecord) => {
+    await invalidateAll();
   };
 
   const handleConfirmDelete = async () => {
     if (!deleteTech) return;
     const { error } = await supabase.from("technicians").delete().eq("id", deleteTech.id);
-    if (error) toast({ title: "Delete failed", description: error.message, variant: "destructive" });
-    else { toast({ title: "Technician deleted" }); refresh(); }
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Technician deleted" });
+      // If we're on a page that just became empty, step back one.
+      if (rows.length === 1 && currentPage > 1) setCurrentPage((p) => p - 1);
+      await invalidateAll();
+    }
     setDeleteTech(null);
   };
 
-  const exportRows = () => filtered.map((t) => ({
+  const EXPORT_HEADERS = ["Technician Name", "Phone Number", "Service", "Area", "Quo Chat Link", "Notes"];
+  const toExportRow = (t: TechnicianRecord) => ({
     "Technician Name": t.name ?? "",
     "Phone Number": t.phone_number ?? "",
     Service: t.service ?? "",
     Area: t.area ?? "",
     "Quo Chat Link": t.chat_link ?? "",
     Notes: t.notes ?? "",
-  }));
-
-  const EXPORT_HEADERS = ["Technician Name", "Phone Number", "Service", "Area", "Quo Chat Link", "Notes"];
+  });
+  const [exporting, setExporting] = useState(false);
 
   const download = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = filename; a.click();
+    a.href = url;
+    a.download = filename;
+    a.click();
     setTimeout(() => URL.revokeObjectURL(url), 500);
   };
 
-  const exportCsv = () => {
-    const data = exportRows();
+  const getExportRows = async () => {
+    // Export the full dataset (respecting current search when active).
+    setExporting(true);
+    try {
+      const all = await fetchAllTechnicians();
+      const q = debouncedSearch.toLowerCase();
+      const filtered = q
+        ? all.filter((t) =>
+            [t.name, t.service, t.area, t.notes, t.chat_link, t.phone_number]
+              .some((v) => (v ?? "").toString().toLowerCase().includes(q)),
+          )
+        : all;
+      return filtered.map(toExportRow);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportCsv = async () => {
+    const data = await getExportRows();
     const esc = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
-    const csv = [EXPORT_HEADERS.join(","), ...data.map((r) => EXPORT_HEADERS.map((h) => esc((r as Record<string, string>)[h] ?? "")).join(","))].join("\n");
+    const csv = [
+      EXPORT_HEADERS.join(","),
+      ...data.map((r) => EXPORT_HEADERS.map((h) => esc((r as Record<string, string>)[h] ?? "")).join(",")),
+    ].join("\n");
     download(new Blob([csv], { type: "text/csv;charset=utf-8" }), `technicians-${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
-  const exportXlsx = () => {
-    const data = exportRows();
+  const exportXlsx = async () => {
+    const data = await getExportRows();
     const ws = XLSX.utils.json_to_sheet(data, { header: EXPORT_HEADERS });
-    // Force phone column as text to preserve leading zeros / plus signs / avoid scientific notation
     const phoneColIdx = EXPORT_HEADERS.indexOf("Phone Number");
     for (let i = 0; i < data.length; i++) {
       const addr = XLSX.utils.encode_cell({ r: i + 1, c: phoneColIdx });
@@ -106,8 +242,16 @@ export default function TechniciansPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Technicians");
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    download(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `technicians-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    download(
+      new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      `technicians-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
   };
+
+  const isSearching = debouncedSearch.length > 0;
+  const pageWindow = useMemo(() => buildPageWindow(currentPage, totalPages), [currentPage, totalPages]);
+  const disablePrev = currentPage <= 1 || !hasResults;
+  const disableNext = currentPage >= totalPages || !hasResults;
 
   return (
     <div className="space-y-4">
@@ -118,15 +262,22 @@ export default function TechniciansPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Technicians</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">{rows.length} technicians</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {totalCountQuery.isLoading ? "Loading…" : `${headerTotal.toLocaleString()} technicians`}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isAdmin && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Download className="mr-1.5 h-4 w-4" /> Export
+                <Button variant="outline" size="sm" disabled={exporting}>
+                  {exporting ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-1.5 h-4 w-4" />
+                  )}
+                  Export
                   <ChevronDown className="ml-1 h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
@@ -160,7 +311,7 @@ export default function TechniciansPage() {
       </Card>
 
       <Card className="border-border/60">
-        <div className="overflow-x-auto">
+        <div ref={tableScrollRef} className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -174,17 +325,37 @@ export default function TechniciansPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {techniciansQuery.isLoading && (
-                <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">Loading…</TableCell></TableRow>
-              )}
-              {!techniciansQuery.isLoading && filtered.length === 0 && (
+              {paginatedQuery.isPending && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-10">
-                    {rows.length === 0 ? "No technicians yet. Add one manually or import from CSV/XLSX." : "No technicians match your search."}
+                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                    Loading…
                   </TableCell>
                 </TableRow>
               )}
-              {filtered.map((t) => {
+              {paginatedQuery.isError && rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-sm py-10">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-destructive">
+                        {(paginatedQuery.error as Error)?.message ?? "Failed to load technicians."}
+                      </span>
+                      <Button size="sm" variant="outline" onClick={() => paginatedQuery.refetch()}>
+                        Retry
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+              {!paginatedQuery.isPending && !paginatedQuery.isError && rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-10">
+                    {isSearching
+                      ? "No technicians match your search."
+                      : "No technicians yet. Add one manually or import from CSV/XLSX."}
+                  </TableCell>
+                </TableRow>
+              )}
+              {rows.map((t) => {
                 const tel = toTelHref(t.phone_number);
                 return (
                   <TableRow key={t.id}>
@@ -213,7 +384,9 @@ export default function TechniciansPage() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="max-w-[320px] truncate text-muted-foreground" title={t.notes ?? ""}>{t.notes || <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="max-w-[320px] truncate text-muted-foreground" title={t.notes ?? ""}>
+                      {t.notes || <span className="text-muted-foreground">—</span>}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex gap-1">
                         <Button size="icon" variant="ghost" onClick={() => setEditTech(t)} title="Edit">
@@ -230,6 +403,123 @@ export default function TechniciansPage() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination footer */}
+        <div className="flex flex-col gap-3 border-t border-border/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="whitespace-nowrap">
+              {isSearching
+                ? `Showing ${startRecord.toLocaleString()}–${endRecord.toLocaleString()} of ${filteredTotal.toLocaleString()} matching technicians`
+                : `Showing ${startRecord.toLocaleString()}–${endRecord.toLocaleString()} of ${filteredTotal.toLocaleString()} technicians`}
+            </span>
+            {paginatedQuery.isFetching && !paginatedQuery.isPending && (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Loading" />
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <label htmlFor="tech-page-size" className="text-xs text-muted-foreground whitespace-nowrap">
+                Technicians per page
+              </label>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => {
+                  const n = Number(v);
+                  if (PAGE_SIZE_OPTIONS.includes(n as PageSizeOption)) setPageSize(n as PageSizeOption);
+                }}
+              >
+                <SelectTrigger id="tech-page-size" className="h-8 w-[92px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <SelectItem key={n} value={String(n)} className="text-xs">
+                      {n.toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <nav className="flex items-center gap-1" aria-label="Technicians pagination">
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-8 w-8"
+                onClick={() => setCurrentPage(1)}
+                disabled={disablePrev}
+                aria-label="Go to first page"
+                title="Go to first page"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-8 w-8"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={disablePrev}
+                aria-label="Go to previous page"
+                title="Go to previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              {pageWindow.map((item, idx) => {
+                if (item === "ellipsis-left" || item === "ellipsis-right") {
+                  return (
+                    <span
+                      key={`${item}-${idx}`}
+                      className="px-1.5 text-xs text-muted-foreground select-none"
+                      aria-hidden="true"
+                    >
+                      …
+                    </span>
+                  );
+                }
+                const active = item === currentPage;
+                return (
+                  <Button
+                    key={item}
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    className="h-8 min-w-[2rem] px-2 text-xs"
+                    onClick={() => setCurrentPage(item)}
+                    aria-current={active ? "page" : undefined}
+                    aria-label={`Go to page ${item}`}
+                    disabled={!hasResults}
+                  >
+                    {item}
+                  </Button>
+                );
+              })}
+
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-8 w-8"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={disableNext}
+                aria-label="Go to next page"
+                title="Go to next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-8 w-8"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={disableNext}
+                aria-label="Go to last page"
+                title="Go to last page"
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </nav>
+          </div>
+        </div>
       </Card>
 
       <TechnicianDialog
@@ -238,7 +528,7 @@ export default function TechniciansPage() {
         technician={editTech}
         onSaved={handleSaved}
       />
-      <ImportTechniciansDialog open={importOpen} onOpenChange={setImportOpen} onImported={refresh} />
+      <ImportTechniciansDialog open={importOpen} onOpenChange={setImportOpen} onImported={invalidateAll} />
 
       <AlertDialog open={!!deleteTech} onOpenChange={(o) => !o && setDeleteTech(null)}>
         <AlertDialogContent>
