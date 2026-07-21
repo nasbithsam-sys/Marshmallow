@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Mail, Lock, ArrowRight, ShieldCheck, Wrench, KeyRound, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { heroTitle, premiumEase } from "@/lib/motion";
-import marshmallowLogo from "@/assets/marshmallow-logo.png";
+import marshmallowLogo from "@/assets/marshmallow-logo.png.asset.json";
 
 const Login = () => {
   const {
@@ -362,8 +362,8 @@ const Login = () => {
           transition={{ duration: 0.5 }}
           className="relative z-10 flex items-center gap-3"
         >
-          <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center border border-white/10">
-            <Wrench className="h-5 w-5 text-white" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden bg-white/15 border border-white/10">
+            <img src={marshmallowLogo.url} alt="Marshmallow" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-white">Marshmallow</h1>
         </motion.div>
@@ -442,8 +442,8 @@ const Login = () => {
           className="w-full max-w-sm space-y-8 relative z-10"
         >
           <div className="lg:hidden mb-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-[hsl(260,75%,58%)] flex items-center justify-center shadow-brand">
-              <Wrench className="h-4 w-4 text-primary-foreground" />
+            <div className="w-9 h-9 rounded-lg overflow-hidden shadow-brand">
+              <img src={marshmallowLogo.url} alt="Marshmallow" className="w-full h-full object-cover" />
             </div>
             <h1 className="text-lg font-bold tracking-tight text-foreground">Marshmallow</h1>
           </div>
