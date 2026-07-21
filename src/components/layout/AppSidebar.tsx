@@ -41,6 +41,7 @@ import { motion } from "framer-motion";
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import marshmallowLogo from "@/assets/marshmallow-logo.png.asset.json";
 
 const navItems = [
   { title: "All Leads", url: "/leads", icon: Users, navKey: "leads" },
