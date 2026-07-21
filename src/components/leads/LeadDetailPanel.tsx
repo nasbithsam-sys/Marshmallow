@@ -29,6 +29,7 @@ import LeadUpdatesSection from "./LeadUpdatesSection";
 import PaymentDialog from "./PaymentDialog";
 import CopyLeadButton from "./CopyLeadButton";
 import NoteThread from "./NoteThread";
+import NearbyAreasList, { type NearbyAreasData } from "./NearbyAreasList";
 import CancellationRequestDialog from "./CancellationRequestDialog";
 import CancellationRequestPanel from "./CancellationRequestPanel";
 import NumberNameCombobox from "./NumberNameCombobox";
@@ -1021,6 +1022,22 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 )}
               </div>
             </motion.div>
+          )}
+
+          {!hideProcessorDetails && (
+            <NearbyAreasList
+              leadId={leadId}
+              customerAddress={form.address ?? lead.address ?? null}
+              customerCity={form.city ?? lead.city ?? null}
+              customerState={form.state ?? lead.state ?? null}
+              customerZip={form.zip_code ?? lead.zip_code ?? null}
+              latitude={(lead as unknown as { latitude?: number | null }).latitude ?? null}
+              longitude={(lead as unknown as { longitude?: number | null }).longitude ?? null}
+              savedNearbyAreas={
+                ((lead as unknown as { nearby_areas?: unknown }).nearby_areas as NearbyAreasData | null) ?? null
+              }
+              canManage={isAdmin || isProcessor}
+            />
           )}
 
           <motion.div

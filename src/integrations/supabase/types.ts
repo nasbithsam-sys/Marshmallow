@@ -1136,6 +1136,7 @@ export type Database = {
           latitude: number | null
           longitude: number | null
           material_amount: number | null
+          nearby_areas: Json | null
           number_name: string | null
           payment_amount: number | null
           payment_screenshot_url: string | null
@@ -1186,6 +1187,7 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           material_amount?: number | null
+          nearby_areas?: Json | null
           number_name?: string | null
           payment_amount?: number | null
           payment_screenshot_url?: string | null
@@ -1236,6 +1238,7 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           material_amount?: number | null
+          nearby_areas?: Json | null
           number_name?: string | null
           payment_amount?: number | null
           payment_screenshot_url?: string | null
