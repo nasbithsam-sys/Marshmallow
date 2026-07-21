@@ -243,9 +243,35 @@ export default function TechniciansPage() {
     await qc.invalidateQueries({ queryKey: TECHNICIANS_ROOT_KEY });
   };
 
-  const handleSaved = async (_saved: TechnicianRecord) => {
+  const handleSaved = async (saved: TechnicianRecord) => {
+    // If a currently-selected technician was edited, refresh its cached snapshot
+    // so the copied output uses the latest values.
+    setSelected((prev) => {
+      if (!prev.has(saved.id)) return prev;
+      const next = new Map(prev);
+      next.set(saved.id, saved);
+      return next;
+    });
     await invalidateAll();
   };
+
+  // Keep the selection map in sync with the currently-visible page rows so
+  // edits from other places (or refetches) are reflected in copy output.
+  useEffect(() => {
+    if (!rows.length) return;
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      let changed = false;
+      const next = new Map(prev);
+      for (const r of rows) {
+        if (next.has(r.id) && next.get(r.id) !== r) {
+          next.set(r.id, r);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [rows]);
 
   const handleConfirmDelete = async () => {
     if (!deleteTech) return;
