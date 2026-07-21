@@ -205,10 +205,9 @@ export default function MapViewPage() {
   const filteredTechs = useMemo(() => {
     return mappedTechs.filter((t) => {
       if (serviceFilter !== "all" && (t.service ?? "") !== serviceFilter) return false;
-      if (techSearch.trim() && !t.name.toLowerCase().includes(techSearch.trim().toLowerCase())) return false;
       return true;
     });
-  }, [mappedTechs, serviceFilter, techSearch]);
+  }, [mappedTechs, serviceFilter]);
 
   const selectedTech = useMemo(
     () => mappedTechs.find((t) => t.id === selectedTechId) ?? null,
@@ -246,15 +245,29 @@ export default function MapViewPage() {
     const layer = techLayer.current;
     if (!layer) return;
     layer.clearLayers();
+    techMarkerRefs.current.clear();
     if (viewMode === "leads") return;
     for (const t of filteredTechs) {
       const isSelected = t.id === selectedTechId;
       const m = L.marker([t.coords.latitude, t.coords.longitude], { icon: techMarkerIcon(isSelected) });
+      const chatBtn = t.chat_link
+        ? `<div><a href="${escapeHtml(t.chat_link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:8px;padding:6px 10px;background:#2563eb;color:#fff;border-radius:6px;font-size:12px;text-decoration:none">Open Chat</a></div>`
+        : "";
+      m.bindPopup(`
+        <div style="min-width:220px;font-family:inherit">
+          <div style="font-weight:600;font-size:13px">${escapeHtml(t.name)}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px">No phone number</div>
+          <div style="margin-top:6px;font-size:12px">${escapeHtml(t.service || "—")} · ${escapeHtml(t.area || "")}</div>
+          ${t.notes ? `<div style="margin-top:6px;font-size:11px;color:#6b7280">${escapeHtml(t.notes)}</div>` : ""}
+          ${chatBtn}
+        </div>
+      `);
       m.on("click", () => {
         setSelectedTechId(t.id);
         if (isMobile) setSheetOpen(true);
       });
       m.addTo(layer);
+      techMarkerRefs.current.set(t.id, m);
     }
   }, [filteredTechs, selectedTechId, isMobile, mapVisible, viewMode]);
 
