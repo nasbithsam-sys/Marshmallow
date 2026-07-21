@@ -492,7 +492,7 @@ export default function TechniciansPage() {
                 transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                 role="region"
                 aria-label="Technician selection actions"
-                className="fixed left-1/2 z-[1000] flex max-w-[calc(100vw-32px)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-xl border border-border/60 bg-background/95 px-4 py-2.5 shadow-xl backdrop-blur motion-reduce:transition-none"
+                className="fixed left-1/2 z-40 inline-flex w-fit max-w-[calc(100vw-32px)] -translate-x-1/2 items-center justify-center gap-3 rounded-xl border border-border/60 bg-background/95 px-4 py-2.5 shadow-xl backdrop-blur motion-reduce:transition-none md:left-[calc(var(--sidebar-width,16rem)+(100vw-var(--sidebar-width,16rem))/2)] md:max-w-[calc(100vw-var(--sidebar-width,16rem)-360px)] flex-wrap"
                 style={{
                   bottom: `calc(env(safe-area-inset-bottom, 0px) + 20px)`,
                 }}
