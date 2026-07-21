@@ -484,48 +484,49 @@ export default function TechniciansPage() {
         createPortal(
           <AnimatePresence>
             {selectedCount > 0 && (
-              <motion.div
-                key="tech-selection-bar"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 12 }}
-                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                role="region"
-                aria-label="Technician selection actions"
-                className="fixed left-1/2 z-40 inline-flex w-fit max-w-[calc(100vw-32px)] -translate-x-1/2 items-center justify-center gap-3 rounded-xl border border-border/60 bg-background/95 px-4 py-2.5 shadow-xl backdrop-blur motion-reduce:transition-none md:left-[calc(var(--sidebar-width,16rem)+(100vw-var(--sidebar-width,16rem))/2)] md:max-w-[calc(100vw-var(--sidebar-width,16rem)-360px)] flex-wrap"
-                style={{
-                  bottom: `calc(env(safe-area-inset-bottom, 0px) + 20px)`,
-                }}
+              <div
+                className="pointer-events-none fixed bottom-5 left-[var(--sidebar-width,16rem)] right-0 z-40 flex justify-center px-4 max-md:left-0 max-md:bottom-[calc(12px+env(safe-area-inset-bottom))]"
               >
-                <span
-                  className="text-xs font-medium text-foreground whitespace-nowrap"
-                  aria-live="polite"
+                <motion.div
+                  key="tech-selection-bar"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 12 }}
+                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                  role="region"
+                  aria-label="Technician selection actions"
+                  className="pointer-events-auto inline-flex w-fit max-w-full items-center justify-center gap-3 rounded-xl border border-border/60 bg-background px-4 py-3 shadow-xl max-sm:flex-wrap motion-reduce:transition-none"
                 >
-                  {selectedCount === 1
-                    ? "1 technician selected"
-                    : `${selectedCount.toLocaleString()} technicians selected`}
-                </span>
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={handleCopySelected}
-                  aria-label="Copy selected technicians"
-                  title="Copy selected technicians to clipboard"
-                >
-                  <Copy className="mr-1.5 h-4 w-4" />
-                  Copy Selected Techs ({selectedCount.toLocaleString()})
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={clearSelection}
-                  aria-label="Clear technician selection"
-                  title="Clear technician selection"
-                >
-                  <X className="mr-1.5 h-4 w-4" />
-                  Clear Selection
-                </Button>
-              </motion.div>
+                  <span
+                    className="text-xs font-medium text-foreground whitespace-nowrap"
+                    aria-live="polite"
+                  >
+                    {selectedCount === 1
+                      ? "1 technician selected"
+                      : `${selectedCount.toLocaleString()} technicians selected`}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={handleCopySelected}
+                    aria-label="Copy selected technicians"
+                    title="Copy selected technicians to clipboard"
+                  >
+                    <Copy className="mr-1.5 h-4 w-4" />
+                    Copy Selected Techs ({selectedCount.toLocaleString()})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={clearSelection}
+                    aria-label="Clear technician selection"
+                    title="Clear technician selection"
+                  >
+                    <X className="mr-1.5 h-4 w-4" />
+                    Clear Selection
+                  </Button>
+                </motion.div>
+              </div>
             )}
           </AnimatePresence>,
           document.body,
