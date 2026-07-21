@@ -167,6 +167,8 @@ export default function TechniciansPage() {
   const [editTech, setEditTech] = useState<TechnicianRecord | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [deleteTech, setDeleteTech] = useState<TechnicianRecord | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [pageSize, setPageSize] = useState<PageSizeOption>(() => loadInitialPageSize());
@@ -422,6 +424,71 @@ export default function TechniciansPage() {
     else toast({ title: "Unable to copy technician data", variant: "destructive" });
   };
 
+  const handleBulkDelete = async () => {
+    if (bulkDeleting) return;
+    const ids = Array.from(selected.keys());
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    const BATCH = 200;
+    const deletedIds: string[] = [];
+    let firstError: string | null = null;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error, data } = await supabase
+          .from("technicians")
+          .delete()
+          .in("id", batch)
+          .select("id");
+        if (error) {
+          firstError = error.message;
+          break;
+        }
+        for (const row of data ?? []) deletedIds.push(row.id as string);
+      }
+    } catch (e) {
+      firstError = e instanceof Error ? e.message : String(e);
+    }
+
+    // Remove successfully deleted from selection
+    if (deletedIds.length > 0) {
+      setSelected((prev) => {
+        const next = new Map(prev);
+        for (const id of deletedIds) next.delete(id);
+        return next;
+      });
+    }
+
+    await invalidateAll();
+    setBulkDeleting(false);
+
+    const total = ids.length;
+    if (firstError && deletedIds.length === 0) {
+      toast({
+        title: "Unable to delete selected technicians",
+        description: firstError,
+        variant: "destructive",
+      });
+      return;
+    }
+    if (firstError && deletedIds.length > 0) {
+      toast({
+        title: `${deletedIds.length} technician${deletedIds.length === 1 ? "" : "s"} deleted, but ${
+          total - deletedIds.length
+        } could not be deleted`,
+        description: firstError,
+        variant: "destructive",
+      });
+      setBulkDeleteOpen(false);
+      return;
+    }
+    setBulkDeleteOpen(false);
+    toast({
+      title: deletedIds.length === 1 ? "1 technician deleted" : `${deletedIds.length} technicians deleted`,
+    });
+  };
+
+
 
   return (
     <div className={`space-y-4 ${selectedCount > 0 ? "pb-28" : ""}`}>
@@ -514,6 +581,16 @@ export default function TechniciansPage() {
                   >
                     <Copy className="mr-1.5 h-4 w-4" />
                     Copy Selected Techs ({selectedCount.toLocaleString()})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setBulkDeleteOpen(true)}
+                    aria-label="Delete selected technicians"
+                    title="Delete selected technicians"
+                  >
+                    <Trash2 className="mr-1.5 h-4 w-4" />
+                    Delete Selected ({selectedCount.toLocaleString()})
                   </Button>
                   <Button
                     size="sm"
@@ -794,6 +871,73 @@ export default function TechniciansPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={bulkDeleteOpen}
+        onOpenChange={(o) => {
+          if (bulkDeleting) return;
+          setBulkDeleteOpen(o);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected technicians?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedCount === 1
+                ? "Are you sure you want to permanently delete this technician? This action cannot be undone."
+                : `Are you sure you want to permanently delete these ${selectedCount.toLocaleString()} technicians? This action cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {selectedCount > 0 && (
+            <div className="max-h-64 overflow-y-auto rounded-md border border-border/60 bg-muted/30 p-2 text-xs">
+              <ul className="space-y-1.5">
+                {sortTechnicians(Array.from(selected.values()))
+                  .slice(0, 10)
+                  .map((t) => {
+                    const meta = [t.service, t.area].filter((v) => v && String(v).trim() !== "").join(" · ");
+                    const phone = t.phone_number && String(t.phone_number).trim() !== "" ? t.phone_number : "No phone number";
+                    return (
+                      <li key={t.id} className="flex flex-col">
+                        <span className="font-medium text-foreground">{t.name || "Unnamed technician"}</span>
+                        <span className="text-muted-foreground">
+                          {phone}
+                          {meta ? ` · ${meta}` : ""}
+                        </span>
+                      </li>
+                    );
+                  })}
+              </ul>
+              {selectedCount > 10 && (
+                <p className="mt-2 text-muted-foreground">
+                  And {(selectedCount - 10).toLocaleString()} more technician{selectedCount - 10 === 1 ? "" : "s"}
+                </p>
+              )}
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleBulkDelete();
+              }}
+              disabled={bulkDeleting || selectedCount === 0}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkDeleting ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : selectedCount === 1 ? (
+                "Delete Technician"
+              ) : (
+                `Delete ${selectedCount.toLocaleString()} Technicians`
+              )}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
