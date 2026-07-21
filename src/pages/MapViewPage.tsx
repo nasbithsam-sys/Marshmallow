@@ -115,6 +115,9 @@ export default function MapViewPage() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [pendingFocusLeadId, setPendingFocusLeadId] = useState<string | null>(null);
+  const [areaSearch, setAreaSearch] = useState("");
+  const [areaQuery, setAreaQuery] = useState(""); // applied on Search Area click
+  const [stateFilter, setStateFilter] = useState<string>("all");
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
@@ -202,12 +205,77 @@ export default function MapViewPage() {
     return Array.from(set).sort();
   }, [techniciansQuery.data]);
 
+  const US_STATES: Record<string, string> = {
+    AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming",DC:"District of Columbia",
+  };
+  const STATE_NAME_TO_CODE: Record<string, string> = Object.fromEntries(
+    Object.entries(US_STATES).map(([code, name]) => [name.toLowerCase(), code]),
+  );
+
+  const extractStateFromText = (s: string | null | undefined): string | null => {
+    if (!s) return null;
+    const txt = s.trim();
+    if (!txt) return null;
+    // Match 2-letter code as whole token
+    const m = txt.match(/\b([A-Z]{2})\b/);
+    if (m && US_STATES[m[1]]) return m[1];
+    const lower = txt.toLowerCase();
+    for (const name in STATE_NAME_TO_CODE) {
+      if (lower.includes(name)) return STATE_NAME_TO_CODE[name];
+    }
+    return null;
+  };
+
+  const availableStates = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of mappedLeads) {
+      const code = (l.state && l.state.length === 2 ? l.state.toUpperCase() : extractStateFromText(l.state)) || extractStateFromText(l.zipState);
+      if (code && US_STATES[code]) set.add(code);
+    }
+    for (const t of mappedTechs) {
+      const code = extractStateFromText(t.area);
+      if (code && US_STATES[code]) set.add(code);
+    }
+    return Array.from(set).sort();
+  }, [mappedLeads, mappedTechs]);
+
+  const techMatchesArea = (t: MappedTech, area: string) => {
+    if (!area) return true;
+    const q = area.trim().toLowerCase();
+    return (t.area ?? "").toLowerCase().includes(q) || (t.name ?? "").toLowerCase().includes(q);
+  };
+  const leadMatchesArea = (l: MappedLead, area: string) => {
+    if (!area) return true;
+    const q = area.trim().toLowerCase();
+    return [l.address, l.city, l.state, l.zip_code, l.zipCity, l.zipState]
+      .some((v) => (v ?? "").toString().toLowerCase().includes(q));
+  };
+  const techMatchesState = (t: MappedTech, code: string) => {
+    if (code === "all") return true;
+    return extractStateFromText(t.area) === code;
+  };
+  const leadMatchesState = (l: MappedLead, code: string) => {
+    if (code === "all") return true;
+    const lc = (l.state && l.state.length === 2 ? l.state.toUpperCase() : extractStateFromText(l.state)) || extractStateFromText(l.zipState);
+    return lc === code;
+  };
+
   const filteredTechs = useMemo(() => {
     return mappedTechs.filter((t) => {
       if (serviceFilter !== "all" && (t.service ?? "") !== serviceFilter) return false;
+      if (!techMatchesState(t, stateFilter)) return false;
+      if (!techMatchesArea(t, areaQuery)) return false;
       return true;
     });
-  }, [mappedTechs, serviceFilter]);
+  }, [mappedTechs, serviceFilter, stateFilter, areaQuery]);
+
+  const filteredLeads = useMemo(() => {
+    return mappedLeads.filter((l) => {
+      if (!leadMatchesState(l, stateFilter)) return false;
+      if (!leadMatchesArea(l, areaQuery)) return false;
+      return true;
+    });
+  }, [mappedLeads, stateFilter, areaQuery]);
 
   const selectedTech = useMemo(
     () => mappedTechs.find((t) => t.id === selectedTechId) ?? null,
@@ -216,11 +284,11 @@ export default function MapViewPage() {
 
   const leadsInRange = useMemo(() => {
     if (!selectedTech) return [] as Array<MappedLead & { distance: number }>;
-    return mappedLeads
+    return filteredLeads
       .map((l) => ({ ...l, distance: haversineMiles(selectedTech.coords, l.coords) }))
       .filter((l) => l.distance <= RADIUS_MILES)
       .sort((a, b) => a.distance - b.distance);
-  }, [selectedTech, mappedLeads]);
+  }, [selectedTech, filteredLeads]);
 
   useEffect(() => {
     if (!mapVisible) return;
@@ -283,7 +351,7 @@ export default function MapViewPage() {
       for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i) + salt) | 0;
       return (((h % 1000) / 500) - 1) * 0.0015;
     };
-    const list: Array<MappedLead & { distance?: number }> = selectedTech ? leadsInRange : mappedLeads;
+    const list: Array<MappedLead & { distance?: number }> = selectedTech ? leadsInRange : filteredLeads;
     for (const l of list) {
       const lat = l.coords.latitude + jitter(l.id, 1);
       const lng = l.coords.longitude + jitter(l.id, 7);
@@ -312,7 +380,7 @@ export default function MapViewPage() {
       m.addTo(layer);
       leadMarkerRefs.current.set(l.id, m);
     }
-  }, [mappedLeads, leadsInRange, selectedTech, navigate, mapVisible, viewMode]);
+  }, [filteredLeads, leadsInRange, selectedTech, navigate, mapVisible, viewMode]);
 
   // Handle pending customer focus after markers render
   useEffect(() => {
@@ -450,6 +518,48 @@ export default function MapViewPage() {
   const clearTechSearch = () => {
     setTechSearch("");
     setShowTechSuggestions(false);
+  };
+
+  const performAreaSearch = () => {
+    if (!mapVisible) setMapVisible(true);
+    setAreaQuery(areaSearch);
+    // Compute matches based on current filters + this area query
+    const q = areaSearch.trim().toLowerCase();
+    const techs = mappedTechs.filter((t) => {
+      if (serviceFilter !== "all" && (t.service ?? "") !== serviceFilter) return false;
+      if (!techMatchesState(t, stateFilter)) return false;
+      return !q || techMatchesArea(t, q);
+    });
+    const leads = mappedLeads.filter((l) => {
+      if (!leadMatchesState(l, stateFilter)) return false;
+      return !q || leadMatchesArea(l, q);
+    });
+    const pts: L.LatLngExpression[] = [];
+    if (viewMode !== "leads") techs.forEach((t) => pts.push([t.coords.latitude, t.coords.longitude]));
+    if (viewMode !== "techs") leads.forEach((l) => pts.push([l.coords.latitude, l.coords.longitude]));
+    if (pts.length === 0) {
+      toast("No technicians or customers found in this area");
+      return;
+    }
+    const map = mapRef.current;
+    if (!map) return;
+    setTimeout(() => {
+      const m = mapRef.current;
+      if (!m) return;
+      if (pts.length === 1) {
+        m.flyTo(pts[0] as L.LatLngTuple, 11, { duration: 0.6 });
+      } else {
+        m.fitBounds(L.latLngBounds(pts as L.LatLngTuple[]), { padding: [40, 40], maxZoom: 12 });
+      }
+    }, 60);
+  };
+
+  const resetLocationFilters = () => {
+    setAreaSearch("");
+    setAreaQuery("");
+    setStateFilter("all");
+    const map = mapRef.current;
+    if (map) map.flyTo([39.5, -98.35], 4, { duration: 0.6 });
   };
 
   useEffect(() => {
@@ -734,6 +844,42 @@ export default function MapViewPage() {
                   {services.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={stateFilter} onValueChange={setStateFilter}>
+                <SelectTrigger className="h-8 w-[150px] text-xs">
+                  <SelectValue placeholder="All states" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All states</SelectItem>
+                  {availableStates.map((code) => (
+                    <SelectItem key={code} value={code}>{code} · {US_STATES[code]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-1">
+                <div className="relative">
+                  <MapPin className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={areaSearch}
+                    onChange={(e) => setAreaSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); performAreaSearch(); } }}
+                    placeholder="City, ZIP, or area"
+                    className="h-8 w-[200px] pl-7 pr-7 text-xs"
+                    aria-label="Area search"
+                  />
+                  {areaSearch && (
+                    <button
+                      type="button"
+                      onClick={() => { setAreaSearch(""); setAreaQuery(""); }}
+                      aria-label="Clear area search"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={performAreaSearch}>Search Area</Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={resetLocationFilters}>Reset</Button>
+              </div>
               <div className="relative" ref={techInputWrapRef}>
                 <div className="flex items-center gap-1">
                   <div className="relative">
