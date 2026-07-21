@@ -236,7 +236,7 @@ export default function TechniciansPage() {
         open={addOpen || editTech !== null}
         onOpenChange={(o) => { if (!o) { setAddOpen(false); setEditTech(null); } }}
         technician={editTech}
-        onSaved={refresh}
+        onSaved={handleSaved}
       />
       <ImportTechniciansDialog open={importOpen} onOpenChange={setImportOpen} onImported={refresh} />
 
