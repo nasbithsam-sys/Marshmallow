@@ -68,6 +68,21 @@ function Block({ block }: { block: DocBlock }) {
 
 export function DocumentationTab() {
   const [downloading, setDownloading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [placesCount, setPlacesCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    supabase
+      .from("us_places")
+      .select("*", { count: "exact", head: true })
+      .then(({ count }) => {
+        if (alive) setPlacesCount(count ?? 0);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [syncing]);
 
   const handleDownload = async () => {
     try {
@@ -80,6 +95,31 @@ export function DocumentationTab() {
       toast.error("Failed to generate PDF");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleSyncPlaces = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    const toastId = toast.loading("Syncing US population dataset (this can take a minute)…");
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-us-places", { body: {} });
+      if (error) {
+        const msg = (data as { error?: string } | null)?.error ?? error.message;
+        toast.error(msg || "Sync failed", { id: toastId });
+        return;
+      }
+      const d = data as { imported?: number; skipped?: number; population_vintage?: number };
+      toast.success(
+        `Sync complete · ${d.imported ?? 0} places imported${
+          d.population_vintage ? ` (population ${d.population_vintage})` : ""
+        }`,
+        { id: toastId },
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Sync failed", { id: toastId });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -104,6 +144,31 @@ export function DocumentationTab() {
           </Button>
         </CardContent>
       </Card>
+
+      <Card className="border-border/60 bg-card/95">
+        <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-primary/8 p-2.5 text-primary">
+              <Database className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[15px] font-semibold tracking-tight">US Population Dataset</p>
+              <p className="text-[12px] text-muted-foreground">
+                Powers the “Top 5 Nearby Populated Areas” lead-form box. Sync once, then refresh
+                yearly when new Census ACS data is available.
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Places loaded: {placesCount == null ? "…" : placesCount.toLocaleString("en-US")}
+              </p>
+            </div>
+          </div>
+          <Button onClick={handleSyncPlaces} disabled={syncing} className="gap-2" variant="outline">
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+            {syncing ? "Syncing…" : "Sync Population Data"}
+          </Button>
+        </CardContent>
+      </Card>
+
 
       <div className="space-y-4">
         {DOC_SECTIONS.map((section) => (
