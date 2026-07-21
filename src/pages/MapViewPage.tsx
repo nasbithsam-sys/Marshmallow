@@ -115,6 +115,9 @@ export default function MapViewPage() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [pendingFocusLeadId, setPendingFocusLeadId] = useState<string | null>(null);
+  const [areaSearch, setAreaSearch] = useState("");
+  const [areaQuery, setAreaQuery] = useState(""); // applied on Search Area click
+  const [stateFilter, setStateFilter] = useState<string>("all");
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
