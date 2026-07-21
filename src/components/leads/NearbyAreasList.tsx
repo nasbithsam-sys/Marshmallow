@@ -167,7 +167,7 @@ export default function NearbyAreasList({
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-start gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <MapPin className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
+            <MapPin className="h-4 w-4 text-primary" aria-hidden="true" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-foreground">Nearby Areas List</h3>
