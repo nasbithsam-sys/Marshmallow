@@ -351,7 +351,7 @@ export default function MapViewPage() {
       for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i) + salt) | 0;
       return (((h % 1000) / 500) - 1) * 0.0015;
     };
-    const list: Array<MappedLead & { distance?: number }> = selectedTech ? leadsInRange : mappedLeads;
+    const list: Array<MappedLead & { distance?: number }> = selectedTech ? leadsInRange : filteredLeads;
     for (const l of list) {
       const lat = l.coords.latitude + jitter(l.id, 1);
       const lng = l.coords.longitude + jitter(l.id, 7);
