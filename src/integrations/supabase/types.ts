@@ -2435,6 +2435,45 @@ export type Database = {
         }
         Relationships: []
       }
+      us_places: {
+        Row: {
+          geography_vintage: number | null
+          geoid: string
+          latitude: number
+          longitude: number
+          name: string
+          population: number
+          population_vintage: number | null
+          state_code: string
+          state_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          geography_vintage?: number | null
+          geoid: string
+          latitude: number
+          longitude: number
+          name: string
+          population?: number
+          population_vintage?: number | null
+          state_code: string
+          state_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          geography_vintage?: number | null
+          geoid?: string
+          latitude?: number
+          longitude?: number
+          name?: string
+          population?: number
+          population_vintage?: number | null
+          state_code?: string
+          state_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_access_codes: {
         Row: {
           code: string
@@ -2533,6 +2572,19 @@ export type Database = {
           _priority?: string
         }
         Returns: string
+      }
+      get_top_nearby_populated_areas: {
+        Args: { _latitude: number; _longitude: number }
+        Returns: {
+          distance_miles: number
+          geoid: string
+          latitude: number
+          longitude: number
+          name: string
+          population: number
+          state_code: string
+          state_name: string
+        }[]
       }
       has_role:
         | {
