@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TechnicianDialog, TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { ImportTechniciansDialog } from "@/components/technicians/ImportTechniciansDialog";
 import { toast } from "@/hooks/use-toast";
+import { fetchAllTechnicians, TECHNICIANS_QUERY_KEY, upsertTechnicianInList } from "@/lib/technicians";
 import { toTelHref, phoneDigits } from "@/lib/phone";
 import { Contact, Plus, Upload, Download, Search, Pencil, Trash2, ChevronDown } from "lucide-react";
 
