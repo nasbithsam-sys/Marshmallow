@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Lead } from "@/lib/constants";
-import { Wrench, MapPin, FileText, CalendarClock, Image as ImageIcon, Briefcase, DollarSign, ChevronDown, MessageSquare } from "lucide-react";
+import { Wrench, MapPin, FileText, Image as ImageIcon, Briefcase, ChevronDown, MessageSquare } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
 import NoteThread from "./NoteThread";
@@ -110,17 +110,6 @@ export default function OprLeadCard({ lead }: Props) {
           )}
           {lead.service_details && (
             <Row icon={FileText} label="Service Details" value={lead.service_details} wrap />
-          )}
-          {lead.quote && (
-            <Row icon={DollarSign} label="Quote" value={lead.quote} wrap />
-          )}
-          {lead.customer_schedule_requirements && (
-            <Row
-              icon={CalendarClock}
-              label="Customer Schedule"
-              value={lead.customer_schedule_requirements}
-              wrap
-            />
           )}
         </div>
 
