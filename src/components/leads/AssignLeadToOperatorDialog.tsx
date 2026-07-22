@@ -31,8 +31,7 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
   const { user, profile } = useAuth();
 
   // Form state (editable, auto-filled from lead)
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
+  const [address, setAddress] = useState("");
   const [serviceType, setServiceType] = useState("");
   const [serviceDetails, setServiceDetails] = useState("");
   const [oprNotes, setOprNotes] = useState("");
@@ -55,8 +54,7 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
   // Auto-fill form when dialog opens
   useEffect(() => {
     if (open) {
-      setCity(lead.city || "");
-      setState(lead.state || "");
+      setAddress([lead.city, lead.state].filter(Boolean).join(", "));
       setServiceType(lead.service_type || "");
       setServiceDetails(lead.service_details || "");
       setOprNotes("");
@@ -204,8 +202,13 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
     try {
       // 1. Update lead fields if changed
       const updates: Record<string, unknown> = {};
-      if (city !== (lead.city || "")) updates.city = city;
-      if (state !== (lead.state || "")) updates.state = state;
+      
+      const addressParts = address.split(",").map(s => s.trim());
+      const newCity = addressParts[0] || "";
+      const newState = addressParts.slice(1).join(", ") || "";
+      
+      if (newCity !== (lead.city || "")) updates.city = newCity;
+      if (newState !== (lead.state || "")) updates.state = newState;
       if (serviceType !== (lead.service_type || "")) updates.service_type = serviceType;
       if (serviceDetails !== (lead.service_details || "")) updates.service_details = serviceDetails;
 
@@ -347,27 +350,15 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
                 <MapPin className="h-3.5 w-3.5" />
                 Customer Address
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="assign-city" className="text-[12px]">City</Label>
-                  <Input
-                    id="assign-city"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder="City"
-                    className="mt-1 h-9 rounded-xl text-[13px]"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="assign-state" className="text-[12px]">State</Label>
-                  <Input
-                    id="assign-state"
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                    placeholder="State"
-                    className="mt-1 h-9 rounded-xl text-[13px]"
-                  />
-                </div>
+              <div>
+                <Label htmlFor="assign-address" className="text-[12px]">Address (City, State)</Label>
+                <Input
+                  id="assign-address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="City, State"
+                  className="mt-1 h-9 rounded-xl text-[13px]"
+                />
               </div>
             </div>
 
