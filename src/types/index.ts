@@ -191,3 +191,12 @@ export interface StatusPermission {
   status: LeadStatus;
   allowed: boolean;
 }
+
+export interface LeadOperatorAssignment {
+  id: string;
+  lead_id: string;
+  operator_user_id: string;
+  assigned_by: string;
+  assigned_by_name: string;
+  created_at: string;
+}

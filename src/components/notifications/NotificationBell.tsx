@@ -8,6 +8,7 @@ import { Bell, CheckCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { playAssignmentSound } from '@/lib/notification-sound';
 
 const NOTIFICATION_POLL_INTERVAL_MS = 15 * 1000;
 const MAX_REMEMBERED_CANCELLATION_POPUPS = 200;
@@ -115,8 +116,22 @@ export default function NotificationBell() {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
+        (payload) => {
           void fetchNotifications();
+
+          // Play sound and show prominent toast for operator assignment notifications
+          if (role === 'opr') {
+            const newRow = payload.new as { title?: string; message?: string; lead_id?: string } | undefined;
+            if (newRow?.title?.includes('Lead Assigned')) {
+              playAssignmentSound();
+              toast('🔔 New Lead Assigned!', {
+                description: newRow.message || 'A new lead has been assigned to you.',
+                duration: 8000,
+                closeButton: true,
+                position: 'top-center',
+              });
+            }
+          }
         },
       )
       .subscribe();
@@ -124,7 +139,7 @@ export default function NotificationBell() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [fetchNotifications, user]);
+  }, [fetchNotifications, role, user]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 

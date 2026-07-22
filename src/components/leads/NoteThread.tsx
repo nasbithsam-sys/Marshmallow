@@ -20,7 +20,7 @@ interface LeadNote {
 
 interface Props {
   leadId: string;
-  noteType: "cs" | "processor" | "general";
+  noteType: "cs" | "processor" | "general" | "opr";
   label: string;
   profiles?: Record<string, string>;
   onNotesChanged?: () => void;
@@ -40,20 +40,23 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
   const isCS = role === "customer_service";
   const isCsAdmin = role === "cs_admin";
   const isProcessor = role === "processor";
+  const isOpr = role === "opr";
 
   const canViewThread = useMemo(() => {
     if (isAdmin) return true;
     if (noteType === "general") return true;
     if (noteType === "cs") return isCS || isCsAdmin || isProcessor;
+    if (noteType === "opr") return isProcessor || isOpr;
     return isProcessor;
-  }, [isAdmin, isCS, isCsAdmin, isProcessor, noteType]);
+  }, [isAdmin, isCS, isCsAdmin, isProcessor, isOpr, noteType]);
 
   const canWriteThread = useMemo(() => {
     if (isAdmin) return true;
     if (noteType === "general") return true;
     if (noteType === "cs") return isCS || isCsAdmin;
+    if (noteType === "opr") return isProcessor || isOpr;
     return isProcessor;
-  }, [isAdmin, isCS, isCsAdmin, isProcessor, noteType]);
+  }, [isAdmin, isCS, isCsAdmin, isProcessor, isOpr, noteType]);
 
   const fetchNotes = useCallback(async () => {
     if (!canViewThread) {

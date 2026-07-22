@@ -26,6 +26,7 @@ import {
   Check,
   Clipboard,
   ExternalLink,
+  UserPlus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -60,6 +61,7 @@ import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { getAssignableLeadTags } from "@/lib/lead-tags";
 import BookingDateTimeDialog, { formatBookingCompact, isBookingExpired } from "./BookingDateTimeDialog";
+import AssignLeadToOperatorDialog from "./AssignLeadToOperatorDialog";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useQuoAttention } from "@/hooks/useQuoAttention";
 
@@ -387,6 +389,8 @@ function LeadCard({
   const [completeCopied, setCompleteCopied] = useState(false);
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [bookingDialogMode, setBookingDialogMode] = useState<"add" | "edit">("add");
+  const [assignOprOpen, setAssignOprOpen] = useState(false);
+  const [oprOpen, setOprOpen] = useState(false);
   // Tick every 30s so blinking/expiry state stays fresh without a full refetch.
   const [, setNowTick] = useState(0);
   useEffect(() => {
@@ -399,11 +403,12 @@ function LeadCard({
   const [photoCount, setPhotoCount] = useState(
     initialPhotoCount !== undefined ? initialPhotoCount : 0
   );
-  const [hasNotes, setHasNotes] = useState<{ general: boolean; cs: boolean; processor: boolean }>(
-    initialHasNotes !== undefined ? initialHasNotes : {
+  const [hasNotes, setHasNotes] = useState<{ general: boolean; cs: boolean; processor: boolean; opr: boolean }>(
+    initialHasNotes !== undefined ? { ...initialHasNotes, opr: false } : {
       general: false,
       cs: false,
       processor: false,
+      opr: false,
     }
   );
   const reduceMotion = useReducedMotion();
@@ -454,6 +459,7 @@ function LeadCard({
       general: present.has("general"),
       cs: present.has("cs"),
       processor: present.has("processor"),
+      opr: present.has("opr"),
     });
   };
 
@@ -980,8 +986,8 @@ function LeadCard({
     open: boolean;
     setOpen: (v: boolean) => void;
     label: string;
-    noteType: "general" | "cs" | "processor";
-    tone?: "default" | "cs" | "processor";
+    noteType: "general" | "cs" | "processor" | "opr";
+    tone?: "default" | "cs" | "processor" | "opr";
     hasNotes?: boolean;
   }) => {
     const toneClasses =
@@ -989,10 +995,12 @@ function LeadCard({
         ? "crm-lead-card-soft border-amber-200/70 bg-[linear-gradient(180deg,hsl(42_100%_99%/0.86),hsl(42_100%_96%/0.7))] shadow-[0_14px_22px_-20px_rgba(245,158,11,0.12)] hover:border-amber-300/75 hover:bg-[linear-gradient(180deg,hsl(42_100%_99%/0.92),hsl(42_100%_96%/0.76))] dark:border-amber-400/22 dark:bg-[linear-gradient(180deg,hsl(34_34%_20%/0.94),hsl(32_28%_18%/0.9))] dark:shadow-none"
         : tone === "processor"
           ? "crm-lead-card-soft border-sky-200/72 bg-[linear-gradient(180deg,hsl(198_100%_99%/0.86),hsl(201_100%_96%/0.72))] shadow-[0_14px_22px_-20px_rgba(59,130,246,0.12)] hover:border-sky-300/78 hover:bg-[linear-gradient(180deg,hsl(198_100%_99%/0.92),hsl(201_100%_96%/0.78))] dark:border-sky-400/20 dark:bg-[linear-gradient(180deg,hsl(210_38%_20%/0.95),hsl(214_32%_18%/0.9))] dark:shadow-none"
-          : "crm-lead-card-soft shadow-[0_16px_26px_-22px_rgba(59,130,246,0.12)] hover:border-primary/20 hover:bg-[linear-gradient(180deg,hsl(210_100%_99%/0.98),hsl(212_100%_97%/0.86))] dark:bg-[linear-gradient(180deg,hsl(223_22%_18%/0.94),hsl(224_20%_16%/0.9))] dark:shadow-none";
+          : tone === "opr"
+            ? "crm-lead-card-soft border-emerald-200/70 bg-[linear-gradient(180deg,hsl(152_100%_99%/0.86),hsl(155_100%_96%/0.7))] shadow-[0_14px_22px_-20px_rgba(16,185,129,0.12)] hover:border-emerald-300/75 hover:bg-[linear-gradient(180deg,hsl(152_100%_99%/0.92),hsl(155_100%_96%/0.76))] dark:border-emerald-400/22 dark:bg-[linear-gradient(180deg,hsl(158_34%_20%/0.94),hsl(156_28%_18%/0.9))] dark:shadow-none"
+            : "crm-lead-card-soft shadow-[0_16px_26px_-22px_rgba(59,130,246,0.12)] hover:border-primary/20 hover:bg-[linear-gradient(180deg,hsl(210_100%_99%/0.98),hsl(212_100%_97%/0.86))] dark:bg-[linear-gradient(180deg,hsl(223_22%_18%/0.94),hsl(224_20%_16%/0.9))] dark:shadow-none";
 
     const dotColor =
-      tone === "cs" ? "bg-amber-500" : tone === "processor" ? "bg-sky-500" : "bg-primary";
+      tone === "cs" ? "bg-amber-500" : tone === "processor" ? "bg-sky-500" : tone === "opr" ? "bg-emerald-500" : "bg-primary";
 
     return (
       <Collapsible open={open} onOpenChange={setOpen}>
@@ -1363,6 +1371,16 @@ function LeadCard({
               hasNotes: hasNotes.processor,
             })}
 
+          {(isProcessor || isAdmin) &&
+            renderCollapsible({
+              open: oprOpen,
+              setOpen: setOprOpen,
+              label: "OPR Notes",
+              noteType: "opr",
+              tone: "opr",
+              hasNotes: hasNotes.opr,
+            })}
+
           {photoCount > 0 && (
             <div className="crm-lead-card-soft flex items-center justify-between rounded-xl border border-primary/12 px-3 py-2 text-[11px] font-semibold text-primary/85">
               <span className="inline-flex items-center gap-1.5">
@@ -1421,10 +1439,12 @@ function LeadCard({
             <div
               className={`grid items-center gap-1.5 ${
                 isAdmin
-                  ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_36px_36px]"
-                  : canCompleteCopy
-                    ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]"
-                    : "grid-cols-1"
+                  ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_36px_36px_36px]"
+                  : isProcessor
+                    ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_36px]"
+                    : canCompleteCopy
+                      ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]"
+                      : "grid-cols-1"
               }`}
             >
               <Button
@@ -1456,6 +1476,18 @@ function LeadCard({
                   customerName={lead.customer_name}
                   className="crm-lead-card-inner h-9 w-full rounded-[14px] border-border/60 bg-transparent text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
                 />
+              )}
+
+              {(isAdmin || isProcessor) && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="crm-lead-card-inner h-9 w-full rounded-[14px] text-emerald-600 dark:text-emerald-400 transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-400/30 hover:bg-emerald-500/[0.06] hover:shadow-[0_18px_26px_-20px_rgba(16,185,129,0.22)] dark:hover:shadow-none"
+                  onClick={() => setAssignOprOpen(true)}
+                  title="Assign to Operator"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                </Button>
               )}
 
               {isAdmin && (
@@ -1514,8 +1546,13 @@ function LeadCard({
           onConfirm={handleBookingConfirm}
           title={bookingDialogMode === "edit" ? "Edit Booking Date & Time" : "Set Booking Date & Time"}
         />
-        
-        
+
+        <AssignLeadToOperatorDialog
+          open={assignOprOpen}
+          onOpenChange={setAssignOprOpen}
+          lead={lead}
+          onSuccess={onRefresh}
+        />
 
       </Card>
     </motion.div>

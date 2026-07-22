@@ -23,6 +23,7 @@ import {
   CalendarDays,
   Save,
   ExternalLink,
+  UserPlus,
 } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import LeadUpdatesSection from "./LeadUpdatesSection";
@@ -34,6 +35,7 @@ import CancellationRequestDialog from "./CancellationRequestDialog";
 import CancellationRequestPanel from "./CancellationRequestPanel";
 import NumberNameCombobox from "./NumberNameCombobox";
 import QuoPhoneTrigger from "./QuoPhoneTrigger";
+import AssignLeadToOperatorDialog from "./AssignLeadToOperatorDialog";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
 import { toast } from "sonner";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
@@ -1139,6 +1141,22 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 subtitle="Technician and processing-side internal notes."
               />
               <NoteThread leadId={leadId} noteType="processor" label="Processor Notes" />
+            </motion.div>
+          )}
+
+          {(isAdmin || isProcessor) && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, delay: 0.19 }}
+              className={sectionClass}
+            >
+              <SectionHeader
+                icon={UserPlus}
+                title="OPR Notes"
+                subtitle="Notes shared with assigned operators."
+              />
+              <NoteThread leadId={leadId} noteType="opr" label="OPR Notes" />
             </motion.div>
           )}
 

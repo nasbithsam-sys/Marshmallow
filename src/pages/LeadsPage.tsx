@@ -114,6 +114,45 @@ export default function LeadsPage() {
 
     setLoading(true);
 
+    // Operator: only see explicitly assigned leads
+    if (role === "opr") {
+      const { data: assignments, error: assignError } = await supabase
+        .from("lead_operator_assignments")
+        .select("lead_id")
+        .eq("operator_user_id", user.id);
+
+      if (assignError) {
+        toast.error(assignError.message);
+        setLeads([]);
+        setLoading(false);
+        return;
+      }
+
+      if (!assignments || assignments.length === 0) {
+        setLeads([]);
+        setLoading(false);
+        return;
+      }
+
+      const leadIds = assignments.map((a: { lead_id: string }) => a.lead_id);
+
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*")
+        .in("id", leadIds)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        toast.error(error.message);
+        setLeads([]);
+      } else {
+        setLeads((data ?? []) as Lead[]);
+      }
+
+      setLoading(false);
+      return;
+    }
+
     let query = supabase.from("leads").select("*").order("created_at", { ascending: false });
 
     // CS can see only own created leads
@@ -181,6 +220,31 @@ export default function LeadsPage() {
       setSharedLeads([]);
     }
   }, [fetchLeads, fetchProfiles, fetchSharedLeads, role, user]);
+
+  // Realtime subscription for operator: auto-refresh when assignments change
+  useEffect(() => {
+    if (!user || role !== "opr") return;
+
+    const channel = supabase
+      .channel(`opr-assignments:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "lead_operator_assignments",
+          filter: `operator_user_id=eq.${user.id}`,
+        },
+        () => {
+          void fetchLeads();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchLeads, role, user]);
 
   const visibleMyLeads = useMemo(() => filterLeads([...leads]), [leads, filterLeads]);
   const visibleSharedLeads = useMemo(() => [...sharedLeads], [sharedLeads]);

@@ -67,7 +67,8 @@ export function getDefaultVisibleStatuses(role: AppRole | null | undefined): Set
     return new Set();
   }
   if (role === "opr") {
-    return new Set<LeadStatus>(["urgent_job", "partial_paid"]);
+    // Operators see all statuses — their access is controlled by lead assignments, not status filtering
+    return new Set(ALL_LEAD_STATUSES);
   }
   if (role === "admin" || role === "processor") {
     return new Set(ALL_LEAD_STATUSES);
