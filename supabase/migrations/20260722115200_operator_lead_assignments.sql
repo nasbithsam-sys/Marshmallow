@@ -31,14 +31,14 @@ CREATE POLICY "Authenticated users can read lead_operator_assignments"
 CREATE POLICY "Admin and processor can create lead_operator_assignments"
   ON lead_operator_assignments FOR INSERT TO authenticated
   WITH CHECK (
-    has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'processor')
+    has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'processor'::app_role)
   );
 
 -- Delete: admin or processor only (to un-assign)
 CREATE POLICY "Admin and processor can delete lead_operator_assignments"
   ON lead_operator_assignments FOR DELETE TO authenticated
   USING (
-    has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'processor')
+    has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'processor'::app_role)
   );
 
 -- 4. Enable Supabase Realtime so operators get instant assignment notifications
