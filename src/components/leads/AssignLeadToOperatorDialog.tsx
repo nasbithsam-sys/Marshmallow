@@ -35,6 +35,7 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
   const [serviceType, setServiceType] = useState("");
   const [serviceDetails, setServiceDetails] = useState("");
   const [quote, setQuote] = useState("");
+  const [showQuote, setShowQuote] = useState(true);
   const [customerScheduleRequirements, setCustomerScheduleRequirements] = useState("");
   const [oprNotes, setOprNotes] = useState("");
 
@@ -56,11 +57,11 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
   // Auto-fill form when dialog opens
   useEffect(() => {
     if (open) {
-      const defaultAddress = [lead.city, lead.state].filter(Boolean).join(", ");
-      setAddress(lead.half_address || lead.address || defaultAddress);
+      setAddress([lead.city, lead.state].filter(Boolean).join(", "));
       setServiceType(lead.service_type || "");
       setServiceDetails(lead.service_details || "");
       setQuote(lead.quote || "");
+      setShowQuote(lead.show_quote_to_opr !== false);
       setCustomerScheduleRequirements(lead.customer_schedule_requirements || "");
       setOprNotes("");
       setRemovedPhotoPaths(new Set());
@@ -217,6 +218,7 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
       if (serviceType !== (lead.service_type || "")) updates.service_type = serviceType;
       if (serviceDetails !== (lead.service_details || "")) updates.service_details = serviceDetails;
       if (quote !== (lead.quote || "")) updates.quote = quote;
+      if (showQuote !== (lead.show_quote_to_opr !== false)) updates.show_quote_to_opr = showQuote;
       if (customerScheduleRequirements !== (lead.customer_schedule_requirements || "")) updates.customer_schedule_requirements = customerScheduleRequirements;
 
       if (Object.keys(updates).length > 0) {
@@ -398,13 +400,26 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="assign-quote" className="text-[12px]">Quote</Label>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label htmlFor="assign-quote" className="text-[12px]">Quote</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Checkbox
+                        id="show-quote"
+                        checked={showQuote}
+                        onCheckedChange={(checked) => setShowQuote(checked as boolean)}
+                        className="h-3.5 w-3.5 rounded-[4px]"
+                      />
+                      <Label htmlFor="show-quote" className="text-[10px] font-medium leading-none cursor-pointer">
+                        Show to OPR
+                      </Label>
+                    </div>
+                  </div>
                   <Input
                     id="assign-quote"
                     value={quote}
                     onChange={(e) => setQuote(e.target.value)}
                     placeholder="Quote amount/details"
-                    className="mt-1 h-9 rounded-xl text-[13px]"
+                    className="h-9 rounded-xl text-[13px]"
                   />
                 </div>
                 <div>

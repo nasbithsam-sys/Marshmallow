@@ -122,6 +122,7 @@ export interface Lead {
   // Joined fields
   creator_name?: string;
   editor_name?: string;
+  show_quote_to_opr?: boolean | null;
 }
 
 
