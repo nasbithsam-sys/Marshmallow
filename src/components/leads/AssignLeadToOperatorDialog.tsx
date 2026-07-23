@@ -34,6 +34,8 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
   const [address, setAddress] = useState("");
   const [serviceType, setServiceType] = useState("");
   const [serviceDetails, setServiceDetails] = useState("");
+  const [quote, setQuote] = useState("");
+  const [customerScheduleRequirements, setCustomerScheduleRequirements] = useState("");
   const [oprNotes, setOprNotes] = useState("");
 
   // Photo management
@@ -54,9 +56,12 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
   // Auto-fill form when dialog opens
   useEffect(() => {
     if (open) {
-      setAddress([lead.city, lead.state].filter(Boolean).join(", "));
+      const defaultAddress = [lead.city, lead.state].filter(Boolean).join(", ");
+      setAddress(lead.half_address || lead.address || defaultAddress);
       setServiceType(lead.service_type || "");
       setServiceDetails(lead.service_details || "");
+      setQuote(lead.quote || "");
+      setCustomerScheduleRequirements(lead.customer_schedule_requirements || "");
       setOprNotes("");
       setRemovedPhotoPaths(new Set());
       setNewPhotoFiles([]);
@@ -211,6 +216,8 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
       if (newState !== (lead.state || "")) updates.state = newState;
       if (serviceType !== (lead.service_type || "")) updates.service_type = serviceType;
       if (serviceDetails !== (lead.service_details || "")) updates.service_details = serviceDetails;
+      if (quote !== (lead.quote || "")) updates.quote = quote;
+      if (customerScheduleRequirements !== (lead.customer_schedule_requirements || "")) updates.customer_schedule_requirements = customerScheduleRequirements;
 
       if (Object.keys(updates).length > 0) {
         updates.last_edited_by = user.id;
@@ -388,6 +395,28 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
                   className="mt-1 min-h-[72px] resize-none rounded-xl text-[13px]"
                   rows={3}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="assign-quote" className="text-[12px]">Quote</Label>
+                  <Input
+                    id="assign-quote"
+                    value={quote}
+                    onChange={(e) => setQuote(e.target.value)}
+                    placeholder="Quote amount/details"
+                    className="mt-1 h-9 rounded-xl text-[13px]"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="assign-customer-schedule" className="text-[12px]">Customer Schedule Req.</Label>
+                  <Input
+                    id="assign-customer-schedule"
+                    value={customerScheduleRequirements}
+                    onChange={(e) => setCustomerScheduleRequirements(e.target.value)}
+                    placeholder="E.g. Mon-Fri morning only"
+                    className="mt-1 h-9 rounded-xl text-[13px]"
+                  />
+                </div>
               </div>
             </div>
 

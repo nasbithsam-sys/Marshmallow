@@ -77,6 +77,37 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
     void fetchNotes();
   }, [fetchNotes]);
 
+  // Realtime subscription for notes
+  useEffect(() => {
+    if (!canViewThread) return;
+
+    const channel = supabase
+      .channel(`notes:${leadId}:${noteType}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "lead_notes",
+          filter: `lead_id=eq.${leadId}`,
+        },
+        (payload) => {
+          // Only fetch if it matches our noteType (Supabase realtime filters only support single column, so we check note_type here)
+          const newRow = payload.new as { note_type?: string };
+          const oldRow = payload.old as { note_type?: string };
+          
+          if (newRow?.note_type === noteType || oldRow?.note_type === noteType) {
+            void fetchNotes();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [canViewThread, fetchNotes, leadId, noteType]);
+
   const profilesKey = JSON.stringify(profiles);
 
   useEffect(() => {
