@@ -54,31 +54,22 @@ interface MappedTech extends TechnicianRecord {
   coords: LatLng;
 }
 
-function pinIconUrl(fill: string, stroke: string, size: number) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 32">
-    <path d="M12 0.75 C5.65 0.75 0.75 5.65 0.75 12 C0.75 20.5 12 31.25 12 31.25 C12 31.25 23.25 20.5 23.25 12 C23.25 5.65 18.35 0.75 12 0.75 Z"
-      fill="${fill}" stroke="${stroke}" stroke-width="1.5" stroke-linejoin="round"/>
-    <circle cx="12" cy="12" r="4.25" fill="#ffffff"/>
-  </svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
-
 const LEAD_PIN_ICON = L.icon({
-  iconUrl: pinIconUrl("#ef4444", "#ffffff", 30),
+  iconUrl: "/map-lead-pin.svg",
   iconSize: [30, 30],
   iconAnchor: [15, 29],
   popupAnchor: [0, -28],
 });
 
 const TECH_PIN_ICON = L.icon({
-  iconUrl: pinIconUrl("#3b82f6", "#ffffff", 30),
+  iconUrl: "/map-tech-pin.svg",
   iconSize: [30, 30],
   iconAnchor: [15, 29],
   popupAnchor: [0, -28],
 });
 
 const SELECTED_TECH_PIN_ICON = L.icon({
-  iconUrl: pinIconUrl("#2563eb", "#ffffff", 34),
+  iconUrl: "/map-tech-pin-selected.svg",
   iconSize: [34, 34],
   iconAnchor: [17, 33],
   popupAnchor: [0, -31],
@@ -492,11 +483,12 @@ export default function MapViewPage() {
       if (!nextVisibleLeadIds.has(id) || !marker) toRemove.push(id);
     }
 
+    const applyAllNow = activeSelectedTechIdRef.current === null;
     const batchSize = 40;
     const runBatch = () => {
       if (leadVisibilityGenerationRef.current !== generation) return;
       let processed = 0;
-      while (processed < batchSize && (toRemove.length || toAdd.length)) {
+      while ((applyAllNow || processed < batchSize) && (toRemove.length || toAdd.length)) {
         const removeId = toRemove.pop();
         if (removeId) {
           const marker = leadMarkerRefs.current.get(removeId);
