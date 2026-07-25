@@ -56,39 +56,105 @@ interface MappedTech extends TechnicianRecord {
 
 function pinSvg(fill: string, stroke: string, size = 32) {
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 32" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35))">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 32" style="display:block">
       <path d="M12 0.75 C5.65 0.75 0.75 5.65 0.75 12 C0.75 20.5 12 31.25 12 31.25 C12 31.25 23.25 20.5 23.25 12 C23.25 5.65 18.35 0.75 12 0.75 Z"
         fill="${fill}" stroke="${stroke}" stroke-width="1.5" stroke-linejoin="round"/>
       <circle cx="12" cy="12" r="4.25" fill="#ffffff"/>
     </svg>`;
 }
 
-function leadMarkerIcon() {
-  return L.divIcon({
-    className: "marshmallow-lead-marker",
-    html: pinSvg("#ef4444", "#ffffff", 32),
-    iconSize: [32, 32],
-    iconAnchor: [16, 31],
-    popupAnchor: [0, -28],
-  });
-}
+const LEAD_MARKER_ICON = L.divIcon({
+  className: "marshmallow-lead-marker",
+  html: pinSvg("#ef4444", "#ffffff", 32),
+  iconSize: [32, 32],
+  iconAnchor: [16, 31],
+  popupAnchor: [0, -28],
+});
 
-function techMarkerIcon(selected: boolean) {
-  const color = selected ? "#2563eb" : "#3b82f6";
-  const size = selected ? 36 : 32;
-  return L.divIcon({
-    className: "marshmallow-tech-marker",
-    html: pinSvg(color, "#ffffff", size),
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size - 1],
-    popupAnchor: [0, -28],
-  });
-}
+const TECH_MARKER_ICON = L.divIcon({
+  className: "marshmallow-tech-marker",
+  html: pinSvg("#3b82f6", "#ffffff", 32),
+  iconSize: [32, 32],
+  iconAnchor: [16, 31],
+  popupAnchor: [0, -28],
+});
+
+const SELECTED_TECH_MARKER_ICON = L.divIcon({
+  className: "marshmallow-tech-marker",
+  html: pinSvg("#2563eb", "#ffffff", 36),
+  iconSize: [36, 36],
+  iconAnchor: [18, 35],
+  popupAnchor: [0, -28],
+});
 
 function escapeHtml(v: string) {
   return String(v ?? "")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function leadMarkerLatLng(l: MappedLead): L.LatLngTuple {
+  let latHash = 0;
+  let lngHash = 0;
+  for (let i = 0; i < l.id.length; i++) {
+    latHash = (latHash * 31 + l.id.charCodeAt(i) + 1) | 0;
+    lngHash = (lngHash * 31 + l.id.charCodeAt(i) + 7) | 0;
+  }
+  const latJitter = (((latHash % 1000) / 500) - 1) * 0.0015;
+  const lngJitter = (((lngHash % 1000) / 500) - 1) * 0.0015;
+  return [l.coords.latitude + latJitter, l.coords.longitude + lngJitter];
+}
+
+function buildTechPopupHtml(t: MappedTech) {
+  const phone = (t.phone_number ?? "").trim();
+  const telHref = phone ? `tel:${phone.startsWith("+") ? "+" : ""}${phone.replace(/\D/g, "")}` : "";
+  const phoneBlock = phone
+    ? `<div style="margin-top:6px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Phone</div>
+         <a href="${escapeHtml(telHref)}" style="font-size:13px;color:#2563eb;font-weight:600;text-decoration:none">${escapeHtml(phone)}</a>
+         <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
+           <a href="${escapeHtml(telHref)}" style="padding:4px 8px;background:#111827;color:#fff;border-radius:6px;font-size:11px;text-decoration:none">Call Tech</a>
+           <button data-copy-phone="${escapeHtml(phone)}" class="ml-copy-phone" style="padding:4px 8px;background:#f3f4f6;color:#111827;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;cursor:pointer">Copy Phone</button>
+         </div>
+       </div>`
+    : `<div style="margin-top:6px;font-size:12px;color:#6b7280">No phone number</div>`;
+  const serviceBlock = t.service
+    ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Service</div><div style="font-size:13px">${escapeHtml(t.service)}</div></div>`
+    : "";
+  const areaBlock = t.area
+    ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Area</div><div style="font-size:13px">${escapeHtml(t.area)}</div></div>`
+    : "";
+  const notesBlock = t.notes
+    ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Notes</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word">${escapeHtml(t.notes)}</div></div>`
+    : "";
+  const chatBtn = t.chat_link
+    ? `<div style="margin-top:10px"><a href="${escapeHtml(t.chat_link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 10px;background:#2563eb;color:#fff;border-radius:6px;font-size:12px;text-decoration:none">Open Chat</a></div>`
+    : "";
+
+  return `<div style="min-width:280px;max-width:360px;max-height:420px;overflow-y:auto;font-family:inherit">
+    <div style="font-weight:600;font-size:14px">${escapeHtml(t.name)}</div>
+    ${phoneBlock}${serviceBlock}${areaBlock}${notesBlock}${chatBtn}
+  </div>`;
+}
+
+function buildLeadPopupHtml(l: MappedLead, selectedTech: MappedTech | null) {
+  const distance = selectedTech ? haversineMiles(selectedTech.coords, l.coords) : null;
+  const zipCity = [l.zipCity, l.zipState].filter(Boolean).join(", ");
+  const distanceLine = selectedTech && distance !== null && distance <= RADIUS_MILES
+    ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${distance.toFixed(1)} mi from ${escapeHtml(selectedTech.name)} (approx.)</div>`
+    : "";
+  return `
+    <div style="min-width:230px;font-family:inherit">
+      <div style="font-weight:600;font-size:13px">${escapeHtml(l.customer_name || "Unnamed")}</div>
+      <div style="font-size:11px;color:#6b7280">Job ${escapeHtml(l.job_id ?? "")}</div>
+      <div style="margin-top:6px;font-size:12px">${escapeHtml(l.customer_phone || "")}</div>
+      <div style="font-size:12px"><b>ZIP:</b> ${escapeHtml(l.zip)}${zipCity ? ` <span style="color:#6b7280">· ${escapeHtml(zipCity)}</span>` : ""}</div>
+      <div style="margin-top:6px;font-size:12px"><b>Service:</b> ${escapeHtml(l.service_type || "-")}</div>
+      <div style="font-size:12px"><b>Status:</b> ${escapeHtml(STATUS_LABELS[l.status] ?? l.status)}</div>
+      ${distanceLine}
+      <div style="margin-top:6px;font-size:10px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:3px 6px;border-radius:4px;display:inline-block">Approximate ZIP area</div>
+      <div><button data-lead-id="${escapeHtml(l.id)}" class="ml-view-lead" style="margin-top:8px;padding:6px 10px;background:#111827;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">View Lead</button></div>
+    </div>
+  `;
 }
 
 export default function MapViewPage() {
@@ -103,6 +169,14 @@ export default function MapViewPage() {
   const radiusLayer = useRef<L.Circle | null>(null);
   const leadMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
   const techMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
+  const leadDataRefs = useRef<Map<string, MappedLead>>(new Map());
+  const techDataRefs = useRef<Map<string, MappedTech>>(new Map());
+  const selectedTechRef = useRef<MappedTech | null>(null);
+  const previousSelectedTechId = useRef<string | null>(null);
+  const isMobileRef = useRef(isMobile);
+  const mapInvalidateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leadFocusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const techFocusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [selectedTechId, setSelectedTechId] = useState<string | null>(null);
   const [serviceFilter, setServiceFilter] = useState<string>("all");
@@ -278,6 +352,14 @@ export default function MapViewPage() {
     [mappedTechs, selectedTechId],
   );
 
+  useEffect(() => {
+    selectedTechRef.current = selectedTech;
+  }, [selectedTech]);
+
+  useEffect(() => {
+    isMobileRef.current = isMobile;
+  }, [isMobile]);
+
   const leadsInRange = useMemo(() => {
     if (!selectedTech) return [] as Array<MappedLead & { distance: number }>;
     return filteredLeads
@@ -294,9 +376,23 @@ export default function MapViewPage() {
     leadLayer.current = L.layerGroup().addTo(map);
     techLayer.current = L.layerGroup().addTo(map);
     mapRef.current = map;
-    setTimeout(() => map.invalidateSize(), 50);
+    const leadMarkers = leadMarkerRefs.current;
+    const techMarkers = techMarkerRefs.current;
+    const leadData = leadDataRefs.current;
+    const techData = techDataRefs.current;
+    mapInvalidateTimeout.current = setTimeout(() => map.invalidateSize(), 50);
     return () => {
+      if (mapInvalidateTimeout.current) clearTimeout(mapInvalidateTimeout.current);
+      if (leadFocusTimeout.current) clearTimeout(leadFocusTimeout.current);
+      if (techFocusTimeout.current) clearTimeout(techFocusTimeout.current);
+      mapInvalidateTimeout.current = null;
+      leadFocusTimeout.current = null;
+      techFocusTimeout.current = null;
       map.remove();
+      leadMarkers.clear();
+      techMarkers.clear();
+      leadData.clear();
+      techData.clear();
       mapRef.current = null;
       leadLayer.current = null;
       techLayer.current = null;
@@ -308,60 +404,62 @@ export default function MapViewPage() {
   useEffect(() => {
     const layer = techLayer.current;
     if (!layer) return;
-    layer.clearLayers();
-    techMarkerRefs.current.clear();
-    if (viewMode === "leads") return;
+    const nextIds = new Set(filteredTechs.map((t) => t.id));
+    for (const [id, marker] of techMarkerRefs.current) {
+      if (!nextIds.has(id)) {
+        marker.remove();
+        marker.off();
+        techMarkerRefs.current.delete(id);
+        techDataRefs.current.delete(id);
+      }
+    }
     for (const t of filteredTechs) {
-      const isSelected = t.id === selectedTechId;
-      const m = L.marker([t.coords.latitude, t.coords.longitude], { icon: techMarkerIcon(isSelected) });
       const phone = (t.phone_number ?? "").trim();
-      // Attach a permanent tooltip showing the phone number on/next to the marker.
+      const existingMarker = techMarkerRefs.current.get(t.id);
+      if (existingMarker) {
+        existingMarker.setLatLng([t.coords.latitude, t.coords.longitude]);
+        existingMarker.setPopupContent(buildTechPopupHtml(t));
+        if (phone) {
+          existingMarker.bindTooltip(escapeHtml(phone), {
+            permanent: false,
+            direction: "right",
+            offset: [8, -12],
+            className: "marshmallow-tech-phone-label",
+            opacity: 1,
+          });
+        } else {
+          existingMarker.unbindTooltip();
+        }
+        if (viewMode !== "leads" && !layer.hasLayer(existingMarker)) existingMarker.addTo(layer);
+        if (viewMode === "leads" && layer.hasLayer(existingMarker)) layer.removeLayer(existingMarker);
+        techDataRefs.current.set(t.id, t);
+        continue;
+      }
+      const m = L.marker([t.coords.latitude, t.coords.longitude], {
+        icon: t.id === selectedTechRef.current?.id ? SELECTED_TECH_MARKER_ICON : TECH_MARKER_ICON,
+      });
       if (phone) {
         m.bindTooltip(escapeHtml(phone), {
-          permanent: true,
+          permanent: false,
           direction: "right",
           offset: [8, -12],
           className: "marshmallow-tech-phone-label",
           opacity: 1,
         });
       }
-      const telHref = phone ? `tel:${phone.startsWith("+") ? "+" : ""}${phone.replace(/\D/g, "")}` : "";
-      const phoneBlock = phone
-        ? `<div style="margin-top:6px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Phone</div>
-             <a href="${escapeHtml(telHref)}" style="font-size:13px;color:#2563eb;font-weight:600;text-decoration:none">${escapeHtml(phone)}</a>
-             <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
-               <a href="${escapeHtml(telHref)}" style="padding:4px 8px;background:#111827;color:#fff;border-radius:6px;font-size:11px;text-decoration:none">Call Tech</a>
-               <button data-copy-phone="${escapeHtml(phone)}" class="ml-copy-phone" style="padding:4px 8px;background:#f3f4f6;color:#111827;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;cursor:pointer">Copy Phone</button>
-             </div>
-           </div>`
-        : `<div style="margin-top:6px;font-size:12px;color:#6b7280">No phone number</div>`;
-      const serviceBlock = t.service
-        ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Service</div><div style="font-size:13px">${escapeHtml(t.service)}</div></div>`
-        : "";
-      const areaBlock = t.area
-        ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Area</div><div style="font-size:13px">${escapeHtml(t.area)}</div></div>`
-        : "";
-      const notesBlock = t.notes
-        ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Notes</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word">${escapeHtml(t.notes)}</div></div>`
-        : "";
-      const chatBtn = t.chat_link
-        ? `<div style="margin-top:10px"><a href="${escapeHtml(t.chat_link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 10px;background:#2563eb;color:#fff;border-radius:6px;font-size:12px;text-decoration:none">Open Chat</a></div>`
-        : "";
-      m.bindPopup(
-        `<div style="min-width:280px;max-width:360px;max-height:420px;overflow-y:auto;font-family:inherit">
-          <div style="font-weight:600;font-size:14px">${escapeHtml(t.name)}</div>
-          ${phoneBlock}${serviceBlock}${areaBlock}${notesBlock}${chatBtn}
-        </div>`,
-        { maxWidth: 360, minWidth: 280, maxHeight: 420 },
-      );
+      m.bindPopup(buildTechPopupHtml(t), { maxWidth: 360, minWidth: 280, maxHeight: 420 });
       m.on("popupopen", () => {
-        const btn = document.querySelector<HTMLButtonElement>(`.ml-copy-phone[data-copy-phone="${phone.replace(/"/g, "&quot;")}"]`);
+        const currentTech = techDataRefs.current.get(t.id);
+        if (currentTech) m.setPopupContent(buildTechPopupHtml(currentTech));
+        const popup = m.getPopup()?.getElement();
+        const btn = popup?.querySelector<HTMLButtonElement>(".ml-copy-phone");
+        const currentPhone = (currentTech?.phone_number ?? "").trim();
         if (btn) btn.onclick = async () => {
           try {
-            if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(phone);
+            if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(currentPhone);
             else {
               const ta = document.createElement("textarea");
-              ta.value = phone; ta.style.position = "fixed"; ta.style.opacity = "0";
+              ta.value = currentPhone; ta.style.position = "fixed"; ta.style.opacity = "0";
               document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
             }
             toast("Phone number copied");
@@ -370,56 +468,78 @@ export default function MapViewPage() {
       });
       m.on("click", () => {
         setSelectedTechId(t.id);
-        if (isMobile) setSheetOpen(true);
+        if (isMobileRef.current) setSheetOpen(true);
       });
-      m.addTo(layer);
+      if (viewMode !== "leads") m.addTo(layer);
       techMarkerRefs.current.set(t.id, m);
+      techDataRefs.current.set(t.id, t);
     }
-  }, [filteredTechs, selectedTechId, isMobile, mapVisible, viewMode]);
+  }, [filteredTechs, mapVisible, viewMode]);
+
+  useEffect(() => {
+    const previousId = previousSelectedTechId.current;
+    if (previousId && previousId !== selectedTechId) {
+      techMarkerRefs.current.get(previousId)?.setIcon(TECH_MARKER_ICON);
+    }
+    if (selectedTechId) {
+      techMarkerRefs.current.get(selectedTechId)?.setIcon(SELECTED_TECH_MARKER_ICON);
+    }
+    previousSelectedTechId.current = selectedTechId;
+  }, [selectedTechId]);
 
 
 
   useEffect(() => {
     const layer = leadLayer.current;
     if (!layer) return;
-    layer.clearLayers();
-    leadMarkerRefs.current.clear();
-    if (viewMode === "techs") return;
-    const jitter = (id: string, salt: number) => {
-      let h = 0;
-      for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i) + salt) | 0;
-      return (((h % 1000) / 500) - 1) * 0.0015;
-    };
-    const list: Array<MappedLead & { distance?: number }> = selectedTech ? leadsInRange : filteredLeads;
-    for (const l of list) {
-      const lat = l.coords.latitude + jitter(l.id, 1);
-      const lng = l.coords.longitude + jitter(l.id, 7);
-      const m = L.marker([lat, lng], { icon: leadMarkerIcon() });
-      const zipCity = [l.zipCity, l.zipState].filter(Boolean).join(", ");
-      const distanceLine = selectedTech && typeof l.distance === "number"
-        ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${l.distance.toFixed(1)} mi from ${escapeHtml(selectedTech.name)} (approx.)</div>`
-        : "";
-      m.bindPopup(`
-        <div style="min-width:230px;font-family:inherit">
-          <div style="font-weight:600;font-size:13px">${escapeHtml(l.customer_name || "Unnamed")}</div>
-          <div style="font-size:11px;color:#6b7280">Job ${escapeHtml(l.job_id ?? "")}</div>
-          <div style="margin-top:6px;font-size:12px">${escapeHtml(l.customer_phone || "")}</div>
-          <div style="font-size:12px"><b>ZIP:</b> ${escapeHtml(l.zip)}${zipCity ? ` <span style="color:#6b7280">· ${escapeHtml(zipCity)}</span>` : ""}</div>
-          <div style="margin-top:6px;font-size:12px"><b>Service:</b> ${escapeHtml(l.service_type || "—")}</div>
-          <div style="font-size:12px"><b>Status:</b> ${escapeHtml(STATUS_LABELS[l.status] ?? l.status)}</div>
-          ${distanceLine}
-          <div style="margin-top:6px;font-size:10px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:3px 6px;border-radius:4px;display:inline-block">Approximate ZIP area</div>
-          <div><button data-lead-id="${l.id}" class="ml-view-lead" style="margin-top:8px;padding:6px 10px;background:#111827;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">View Lead</button></div>
-        </div>
-      `);
+    const nextIds = new Set(filteredLeads.map((l) => l.id));
+
+    for (const [id, marker] of leadMarkerRefs.current) {
+      if (!nextIds.has(id)) {
+        marker.remove();
+        marker.off();
+        leadMarkerRefs.current.delete(id);
+        leadDataRefs.current.delete(id);
+      }
+    }
+
+    for (const l of filteredLeads) {
+      const marker = leadMarkerRefs.current.get(l.id);
+      if (marker) {
+        marker.setLatLng(leadMarkerLatLng(l));
+        if (marker.isPopupOpen()) marker.setPopupContent(buildLeadPopupHtml(l, selectedTechRef.current));
+        leadDataRefs.current.set(l.id, l);
+        continue;
+      }
+
+      const m = L.marker(leadMarkerLatLng(l), { icon: LEAD_MARKER_ICON });
+      m.bindPopup(buildLeadPopupHtml(l, selectedTechRef.current));
       m.on("popupopen", () => {
-        const el = document.querySelector<HTMLButtonElement>(`.ml-view-lead[data-lead-id="${l.id}"]`);
+        const currentLead = leadDataRefs.current.get(l.id);
+        if (currentLead) m.setPopupContent(buildLeadPopupHtml(currentLead, selectedTechRef.current));
+        const popup = m.getPopup()?.getElement();
+        const el = popup?.querySelector<HTMLButtonElement>(".ml-view-lead");
         if (el) el.onclick = () => navigate(`/leads/${l.id}`);
       });
-      m.addTo(layer);
       leadMarkerRefs.current.set(l.id, m);
+      leadDataRefs.current.set(l.id, l);
     }
-  }, [filteredLeads, leadsInRange, selectedTech, navigate, mapVisible, viewMode]);
+  }, [filteredLeads, mapVisible, navigate]);
+
+  useEffect(() => {
+    const layer = leadLayer.current;
+    if (!layer) return;
+    const visibleLeadIds = new Set((selectedTech ? leadsInRange : filteredLeads).map((l) => l.id));
+
+    for (const [id, marker] of leadMarkerRefs.current) {
+      const shouldShow = viewMode !== "techs" && visibleLeadIds.has(id);
+      if (shouldShow && !layer.hasLayer(marker)) marker.addTo(layer);
+      if (!shouldShow && layer.hasLayer(marker)) layer.removeLayer(marker);
+
+      const lead = leadDataRefs.current.get(id);
+      if (lead && marker.isPopupOpen()) marker.setPopupContent(buildLeadPopupHtml(lead, selectedTech));
+    }
+  }, [filteredLeads, leadsInRange, mapVisible, selectedTech, viewMode]);
 
   // Handle pending customer focus after markers render
   useEffect(() => {
@@ -429,7 +549,11 @@ export default function MapViewPage() {
     if (!map || !marker) return;
     const latlng = marker.getLatLng();
     map.flyTo(latlng, 12, { duration: 0.7 });
-    setTimeout(() => marker.openPopup(), 650);
+    if (leadFocusTimeout.current) clearTimeout(leadFocusTimeout.current);
+    leadFocusTimeout.current = setTimeout(() => {
+      marker.openPopup();
+      leadFocusTimeout.current = null;
+    }, 650);
     setPendingFocusLeadId(null);
   }, [pendingFocusLeadId, mappedLeads, leadsInRange, viewMode]);
 
@@ -608,7 +732,11 @@ export default function MapViewPage() {
     if (!map || !marker) return;
     const ll = marker.getLatLng();
     map.flyTo(ll, 10, { duration: 0.6 });
-    setTimeout(() => marker.openPopup(), 650);
+    if (techFocusTimeout.current) clearTimeout(techFocusTimeout.current);
+    techFocusTimeout.current = setTimeout(() => {
+      marker.openPopup();
+      techFocusTimeout.current = null;
+    }, 650);
     setPendingFocusTechId(null);
   }, [pendingFocusTechId, filteredTechs, viewMode, mapVisible]);
 
