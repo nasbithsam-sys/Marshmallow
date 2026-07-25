@@ -54,26 +54,161 @@ interface MappedTech extends TechnicianRecord {
   coords: LatLng;
 }
 
-const LEAD_PIN_ICON = L.icon({
-  iconUrl: "/map-lead-pin.svg",
-  iconSize: [30, 30],
-  iconAnchor: [15, 29],
-  popupAnchor: [0, -28],
-});
+type CanvasPinKind = "lead" | "tech";
 
-const TECH_PIN_ICON = L.icon({
-  iconUrl: "/map-tech-pin.svg",
-  iconSize: [30, 30],
-  iconAnchor: [15, 29],
-  popupAnchor: [0, -28],
-});
+interface CanvasPin {
+  id: string;
+  kind: CanvasPinKind;
+  lat: number;
+  lng: number;
+  selected?: boolean;
+}
 
-const SELECTED_TECH_PIN_ICON = L.icon({
-  iconUrl: "/map-tech-pin-selected.svg",
-  iconSize: [34, 34],
-  iconAnchor: [17, 33],
-  popupAnchor: [0, -31],
-});
+class MapPinCanvasLayer extends L.Layer {
+  private canvas: HTMLCanvasElement | null = null;
+  private map: L.Map | null = null;
+  private topLeft = L.point(0, 0);
+  private pins: CanvasPin[] = [];
+
+  constructor(
+    private readonly onTechClick: (id: string, latlng: L.LatLng) => void,
+    private readonly onLeadClick: (id: string, latlng: L.LatLng) => void,
+    private readonly getTechTooltip: (id: string) => string,
+  ) {
+    super();
+  }
+
+  onAdd(map: L.Map) {
+    this.map = map;
+    this.canvas = L.DomUtil.create("canvas", "marshmallow-map-pin-canvas");
+    this.canvas.style.position = "absolute";
+    this.canvas.style.zIndex = "620";
+    this.canvas.style.pointerEvents = "auto";
+    this.canvas.addEventListener("click", this.handleClick);
+    this.canvas.addEventListener("mousemove", this.handleMouseMove);
+    const pane = map.getPane("marshmallow-tech-pins") ?? map.getPanes().overlayPane;
+    pane.appendChild(this.canvas);
+    map.on("move zoom resize viewreset", this.reset, this);
+    this.reset();
+  }
+
+  onRemove(map: L.Map) {
+    map.off("move zoom resize viewreset", this.reset, this);
+    if (this.canvas) {
+      this.canvas.removeEventListener("click", this.handleClick);
+      this.canvas.removeEventListener("mousemove", this.handleMouseMove);
+      L.DomUtil.remove(this.canvas);
+    }
+    this.canvas = null;
+    this.map = null;
+  }
+
+  setPins(pins: CanvasPin[]) {
+    this.pins = pins;
+    this.redraw();
+  }
+
+  private reset = () => {
+    if (!this.map || !this.canvas) return;
+    const size = this.map.getSize();
+    this.topLeft = this.map.containerPointToLayerPoint([0, 0]);
+    L.DomUtil.setPosition(this.canvas, this.topLeft);
+    const scale = window.devicePixelRatio || 1;
+    this.canvas.width = Math.max(1, Math.round(size.x * scale));
+    this.canvas.height = Math.max(1, Math.round(size.y * scale));
+    this.canvas.style.width = `${size.x}px`;
+    this.canvas.style.height = `${size.y}px`;
+    const ctx = this.canvas.getContext("2d");
+    if (ctx) ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    this.redraw();
+  };
+
+  private redraw() {
+    if (!this.map || !this.canvas) return;
+    const ctx = this.canvas.getContext("2d");
+    if (!ctx) return;
+    const size = this.map.getSize();
+    ctx.clearRect(0, 0, size.x, size.y);
+
+    for (const pin of this.pins) {
+      if (pin.kind === "lead") this.drawPin(ctx, pin, "#ef4444", 30);
+    }
+    for (const pin of this.pins) {
+      if (pin.kind === "tech") this.drawPin(ctx, pin, pin.selected ? "#2563eb" : "#3b82f6", pin.selected ? 34 : 30);
+    }
+  }
+
+  private drawPin(ctx: CanvasRenderingContext2D, pin: CanvasPin, fill: string, size: number) {
+    if (!this.map) return;
+    const point = this.map.latLngToLayerPoint([pin.lat, pin.lng]).subtract(this.topLeft);
+    const scale = size / 32;
+    ctx.save();
+    ctx.translate(point.x - 12 * scale, point.y - 31.25 * scale);
+    ctx.scale(scale, scale);
+    ctx.beginPath();
+    ctx.moveTo(12, 0.75);
+    ctx.bezierCurveTo(5.65, 0.75, 0.75, 5.65, 0.75, 12);
+    ctx.bezierCurveTo(0.75, 20.5, 12, 31.25, 12, 31.25);
+    ctx.bezierCurveTo(12, 31.25, 23.25, 20.5, 23.25, 12);
+    ctx.bezierCurveTo(23.25, 5.65, 18.35, 0.75, 12, 0.75);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = "round";
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(12, 12, 4.25, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private findHit(event: MouseEvent) {
+    if (!this.map) return null;
+    const point = this.map.mouseEventToLayerPoint(event).subtract(this.topLeft);
+    for (let i = this.pins.length - 1; i >= 0; i -= 1) {
+      const pin = this.pins[i];
+      if (pin.kind !== "tech") continue;
+      if (this.pinContainsPoint(pin, point)) return pin;
+    }
+    for (let i = this.pins.length - 1; i >= 0; i -= 1) {
+      const pin = this.pins[i];
+      if (pin.kind !== "lead") continue;
+      if (this.pinContainsPoint(pin, point)) return pin;
+    }
+    return null;
+  }
+
+  private pinContainsPoint(pin: CanvasPin, point: L.Point) {
+    if (!this.map) return false;
+    const anchor = this.map.latLngToLayerPoint([pin.lat, pin.lng]).subtract(this.topLeft);
+    const size = pin.kind === "tech" && pin.selected ? 34 : 30;
+    const halfWidth = size * 0.42;
+    return point.x >= anchor.x - halfWidth
+      && point.x <= anchor.x + halfWidth
+      && point.y >= anchor.y - size
+      && point.y <= anchor.y + 3;
+  }
+
+  private handleClick = (event: MouseEvent) => {
+    if (!this.map) return;
+    const hit = this.findHit(event);
+    if (!hit) return;
+    L.DomEvent.stop(event);
+    const latlng = L.latLng(hit.lat, hit.lng);
+    if (hit.kind === "tech") this.onTechClick(hit.id, latlng);
+    else this.onLeadClick(hit.id, latlng);
+  };
+
+  private handleMouseMove = (event: MouseEvent) => {
+    if (!this.canvas) return;
+    const hit = this.findHit(event);
+    this.canvas.style.cursor = hit ? "pointer" : "";
+    this.canvas.title = hit?.kind === "tech" ? this.getTechTooltip(hit.id) : "";
+  };
+}
 
 function escapeHtml(v: string) {
   return String(v ?? "")
@@ -104,13 +239,8 @@ export default function MapViewPage() {
 
   const mapRef = useRef<L.Map | null>(null);
   const mapEl = useRef<HTMLDivElement | null>(null);
-  const leadLayer = useRef<L.LayerGroup | null>(null);
-  const techLayer = useRef<L.LayerGroup | null>(null);
+  const pinLayerRef = useRef<MapPinCanvasLayer | null>(null);
   const radiusLayer = useRef<L.Circle | null>(null);
-  const leadMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
-  const techMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
-  const leadMarkerMetaRefs = useRef<Map<string, { lat: number; lng: number }>>(new Map());
-  const techMarkerMetaRefs = useRef<Map<string, { lat: number; lng: number; phone: string }>>(new Map());
   const leadDataRefs = useRef<Map<string, MappedLead>>(new Map());
   const techDataRefs = useRef<Map<string, MappedTech>>(new Map());
   const selectedTechRef = useRef<MappedTech | null>(null);
@@ -142,6 +272,8 @@ export default function MapViewPage() {
   const [areaSearch, setAreaSearch] = useState("");
   const [areaQuery, setAreaQuery] = useState(""); // applied on Search Area click
   const [stateFilter, setStateFilter] = useState<string>("all");
+  const [mapReady, setMapReady] = useState(false);
+  const [pinRenderVersion, setPinRenderVersion] = useState(0);
 
   const urgentLeadsQuery = useQuery({
     queryKey: ["map-urgent-leads"],
@@ -426,34 +558,20 @@ export default function MapViewPage() {
   }, [navigate]);
 
   const applyTechMarkerSelection = useCallback((techId: string | null) => {
-    const previousId = activeSelectedTechIdRef.current;
-    if (previousId && previousId !== techId) {
-      const previousMarker = techMarkerRefs.current.get(previousId);
-      if (previousMarker) {
-        previousMarker.setIcon(TECH_PIN_ICON);
-        previousMarker.setZIndexOffset(0);
-      }
-    }
-    if (techId) {
-      const selectedMarker = techMarkerRefs.current.get(techId);
-      if (selectedMarker) {
-        selectedMarker.setIcon(SELECTED_TECH_PIN_ICON);
-        selectedMarker.setZIndexOffset(1000);
-      }
-    }
     activeSelectedTechIdRef.current = techId;
+    setPinRenderVersion((version) => version + 1);
   }, []);
 
-  const openTechPopup = useCallback((techId: string, marker: L.Marker) => {
+  const openTechPopup = useCallback((techId: string, latlng: L.LatLngExpression) => {
     const tech = techDataRefs.current.get(techId);
     if (!tech) return;
-    openSharedPopup(marker.getLatLng(), createTechPopupElement(tech));
+    openSharedPopup(latlng, createTechPopupElement(tech));
   }, [createTechPopupElement, openSharedPopup]);
 
-  const openLeadPopup = useCallback((leadId: string, marker: L.Marker) => {
+  const openLeadPopup = useCallback((leadId: string, latlng: L.LatLngExpression) => {
     const lead = leadDataRefs.current.get(leadId);
     if (!lead) return;
-    openSharedPopup(marker.getLatLng(), createLeadPopupElement(lead, selectedTechRef.current));
+    openSharedPopup(latlng, createLeadPopupElement(lead, selectedTechRef.current));
   }, [createLeadPopupElement, openSharedPopup]);
 
   const cancelLeadVisibilityWork = useCallback(() => {
@@ -466,8 +584,7 @@ export default function MapViewPage() {
 
   const scheduleLeadVisibility = useCallback((nextVisibleLeadIds: Set<string>) => {
     desiredVisibleLeadIdsRef.current = new Set(nextVisibleLeadIds);
-    const layer = leadLayer.current;
-    if (!layer) return;
+    if (!pinLayerRef.current) return;
     cancelLeadVisibilityWork();
     const generation = leadVisibilityGenerationRef.current;
     const visibleLeadIds = visibleLeadIdsRef.current;
@@ -475,12 +592,10 @@ export default function MapViewPage() {
     const toRemove: string[] = [];
 
     for (const id of nextVisibleLeadIds) {
-      const marker = leadMarkerRefs.current.get(id);
-      if (marker && (!visibleLeadIds.has(id) || !layer.hasLayer(marker))) toAdd.push(id);
+      if (leadDataRefs.current.has(id) && !visibleLeadIds.has(id)) toAdd.push(id);
     }
     for (const id of visibleLeadIds) {
-      const marker = leadMarkerRefs.current.get(id);
-      if (!nextVisibleLeadIds.has(id) || !marker) toRemove.push(id);
+      if (!nextVisibleLeadIds.has(id) || !leadDataRefs.current.has(id)) toRemove.push(id);
     }
 
     const applyAllNow = activeSelectedTechIdRef.current === null;
@@ -491,8 +606,6 @@ export default function MapViewPage() {
       while ((applyAllNow || processed < batchSize) && (toRemove.length || toAdd.length)) {
         const removeId = toRemove.pop();
         if (removeId) {
-          const marker = leadMarkerRefs.current.get(removeId);
-          if (marker && layer.hasLayer(marker)) layer.removeLayer(marker);
           visibleLeadIds.delete(removeId);
           processed += 1;
           continue;
@@ -500,12 +613,11 @@ export default function MapViewPage() {
 
         const addId = toAdd.pop();
         if (addId) {
-          const marker = leadMarkerRefs.current.get(addId);
-          if (marker && !layer.hasLayer(marker)) marker.addTo(layer);
-          if (marker) visibleLeadIds.add(addId);
+          if (leadDataRefs.current.has(addId)) visibleLeadIds.add(addId);
           processed += 1;
         }
       }
+      setPinRenderVersion((version) => version + 1);
       if (toRemove.length || toAdd.length) {
         leadVisibilityFrameRef.current = window.requestAnimationFrame(runBatch);
       } else {
@@ -516,13 +628,13 @@ export default function MapViewPage() {
     runBatch();
   }, [cancelLeadVisibilityWork]);
 
-  const handleTechMarkerClick = useCallback((techId: string, marker: L.Marker) => {
+  const handleTechMarkerClick = useCallback((techId: string, latlng: L.LatLng) => {
     const tech = techDataRefs.current.get(techId);
     if (!tech) return;
     cancelLeadVisibilityWork();
     selectedTechRef.current = tech;
     applyTechMarkerSelection(techId);
-    openTechPopup(techId, marker);
+    openTechPopup(techId, latlng);
     setSelectedTechId(techId);
     if (isMobileRef.current) setSheetOpen(true);
   }, [applyTechMarkerSelection, cancelLeadVisibilityWork, openTechPopup]);
@@ -537,25 +649,28 @@ export default function MapViewPage() {
   useEffect(() => {
     if (!mapVisible) return;
     if (mapRef.current || !mapEl.current) return;
+    setMapReady(false);
     const map = L.map(mapEl.current, { zoomControl: true, preferCanvas: true, markerZoomAnimation: false }).setView([39.5, -98.35], 4);
     const leadPane = map.createPane("marshmallow-lead-pins");
     const techPane = map.createPane("marshmallow-tech-pins");
     leadPane.style.zIndex = "610";
     techPane.style.zIndex = "620";
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
-    leadLayer.current = L.layerGroup().addTo(map);
-    techLayer.current = L.layerGroup().addTo(map);
+    const pinLayer = new MapPinCanvasLayer(
+      handleTechMarkerClick,
+      (leadId, latlng) => openLeadPopup(leadId, latlng),
+      (techId) => techDataRefs.current.get(techId)?.phone_number?.trim() ?? "",
+    ).addTo(map);
+    pinLayerRef.current = pinLayer;
     mapRef.current = map;
-    const leadMarkers = leadMarkerRefs.current;
-    const techMarkers = techMarkerRefs.current;
-    const leadMarkerMeta = leadMarkerMetaRefs.current;
-    const techMarkerMeta = techMarkerMetaRefs.current;
     const leadData = leadDataRefs.current;
     const techData = techDataRefs.current;
     const visibleLeadIds = visibleLeadIdsRef.current;
     const desiredVisibleLeadIds = desiredVisibleLeadIdsRef.current;
     mapInvalidateTimeout.current = setTimeout(() => map.invalidateSize(), 50);
+    setMapReady(true);
     return () => {
+      setMapReady(false);
       cancelLeadVisibilityWork();
       if (mapInvalidateTimeout.current) clearTimeout(mapInvalidateTimeout.current);
       if (leadFocusTimeout.current) clearTimeout(leadFocusTimeout.current);
@@ -568,165 +683,101 @@ export default function MapViewPage() {
         mapPopupRef.current.remove();
         mapPopupRef.current = null;
       }
+      pinLayer.remove();
       map.remove();
-      leadMarkers.clear();
-      techMarkers.clear();
-      leadMarkerMeta.clear();
-      techMarkerMeta.clear();
       leadData.clear();
       techData.clear();
       visibleLeadIds.clear();
       desiredVisibleLeadIds.clear();
       activeSelectedTechIdRef.current = null;
       mapRef.current = null;
-      leadLayer.current = null;
-      techLayer.current = null;
+      pinLayerRef.current = null;
       radiusLayer.current = null;
     };
-  }, [cancelLeadVisibilityWork, mapVisible]);
+  }, [cancelLeadVisibilityWork, handleTechMarkerClick, mapVisible, openLeadPopup]);
 
-  // Technician markers
+  // Canvas marker data
   useEffect(() => {
-    const layer = techLayer.current;
-    if (!layer) return;
+    if (!mapReady) return;
     const nextIds = new Set(filteredTechs.map((t) => t.id));
-    for (const [id, marker] of techMarkerRefs.current) {
+    for (const id of techDataRefs.current.keys()) {
       if (!nextIds.has(id)) {
-        if (layer.hasLayer(marker)) layer.removeLayer(marker);
-        marker.off();
-        techMarkerRefs.current.delete(id);
-        techMarkerMetaRefs.current.delete(id);
         techDataRefs.current.delete(id);
       }
     }
     for (const t of filteredTechs) {
-      const phone = (t.phone_number ?? "").trim();
-      const existingMarker = techMarkerRefs.current.get(t.id);
-      const lat = t.coords.latitude;
-      const lng = t.coords.longitude;
-      if (existingMarker) {
-        const meta = techMarkerMetaRefs.current.get(t.id);
-        if (!meta || meta.lat !== lat || meta.lng !== lng) existingMarker.setLatLng([lat, lng]);
-        if (!meta || meta.phone !== phone) {
-          existingMarker.unbindTooltip();
-          if (phone) {
-            existingMarker.bindTooltip(escapeHtml(phone), {
-              permanent: false,
-              direction: "right",
-              offset: [8, -12],
-              className: "marshmallow-tech-phone-label",
-              opacity: 1,
-            });
-          }
-        }
-        if (activeSelectedTechIdRef.current === t.id) {
-          existingMarker.setIcon(SELECTED_TECH_PIN_ICON);
-          existingMarker.setZIndexOffset(1000);
-        }
-        if (viewMode !== "leads" && !layer.hasLayer(existingMarker)) existingMarker.addTo(layer);
-        if (viewMode === "leads" && layer.hasLayer(existingMarker)) layer.removeLayer(existingMarker);
-        techMarkerMetaRefs.current.set(t.id, { lat, lng, phone });
-        techDataRefs.current.set(t.id, t);
-        continue;
-      }
-      const m = L.marker([lat, lng], {
-        icon: t.id === activeSelectedTechIdRef.current ? SELECTED_TECH_PIN_ICON : TECH_PIN_ICON,
-        pane: "marshmallow-tech-pins",
-        bubblingMouseEvents: false,
-        riseOnHover: true,
-        zIndexOffset: t.id === activeSelectedTechIdRef.current ? 1000 : 0,
-      });
-      if (phone) {
-        m.bindTooltip(escapeHtml(phone), {
-          permanent: false,
-          direction: "right",
-          offset: [8, -12],
-          className: "marshmallow-tech-phone-label",
-          opacity: 1,
-        });
-      }
-      m.on("click", (event) => {
-        L.DomEvent.stop(event.originalEvent);
-        handleTechMarkerClick(t.id, m);
-      });
-      if (viewMode !== "leads") m.addTo(layer);
-      techMarkerRefs.current.set(t.id, m);
-      techMarkerMetaRefs.current.set(t.id, { lat, lng, phone });
       techDataRefs.current.set(t.id, t);
     }
-  }, [filteredTechs, handleTechMarkerClick, mapVisible, viewMode]);
+    setPinRenderVersion((version) => version + 1);
+  }, [filteredTechs, mapReady]);
 
   useEffect(() => {
     applyTechMarkerSelection(selectedTechId);
   }, [applyTechMarkerSelection, selectedTechId]);
 
   useEffect(() => {
-    const layer = leadLayer.current;
-    if (!layer) return;
+    if (!mapReady) return;
     const nextIds = new Set(filteredLeads.map((l) => l.id));
 
-    for (const [id, marker] of leadMarkerRefs.current) {
+    for (const id of leadDataRefs.current.keys()) {
       if (!nextIds.has(id)) {
-        if (layer.hasLayer(marker)) layer.removeLayer(marker);
-        marker.off();
-        leadMarkerRefs.current.delete(id);
-        leadMarkerMetaRefs.current.delete(id);
         leadDataRefs.current.delete(id);
         visibleLeadIdsRef.current.delete(id);
       }
     }
 
     for (const l of filteredLeads) {
-      const marker = leadMarkerRefs.current.get(l.id);
-      const [lat, lng] = leadMarkerLatLng(l);
-      if (marker) {
-        const meta = leadMarkerMetaRefs.current.get(l.id);
-        if (!meta || meta.lat !== lat || meta.lng !== lng) marker.setLatLng([lat, lng]);
-        leadMarkerMetaRefs.current.set(l.id, { lat, lng });
-        leadDataRefs.current.set(l.id, l);
-        continue;
-      }
-
-      const m = L.marker([lat, lng], {
-        icon: LEAD_PIN_ICON,
-        pane: "marshmallow-lead-pins",
-        bubblingMouseEvents: false,
-      });
-      m.on("click", (event) => {
-        L.DomEvent.stop(event.originalEvent);
-        openLeadPopup(l.id, m);
-      });
-      if (desiredVisibleLeadIdsRef.current.has(l.id)) {
-        m.addTo(layer);
-        visibleLeadIdsRef.current.add(l.id);
-      }
-      leadMarkerRefs.current.set(l.id, m);
-      leadMarkerMetaRefs.current.set(l.id, { lat, lng });
       leadDataRefs.current.set(l.id, l);
     }
-  }, [filteredLeads, mapVisible, openLeadPopup]);
+    setPinRenderVersion((version) => version + 1);
+  }, [filteredLeads, mapReady]);
 
   useEffect(() => {
+    if (!mapReady) return;
     const visibleLeadIds = new Set((selectedTech ? leadsInRange : filteredLeads).map((l) => l.id));
     if (viewMode === "techs") visibleLeadIds.clear();
     scheduleLeadVisibility(visibleLeadIds);
-  }, [filteredLeads, leadsInRange, mapVisible, scheduleLeadVisibility, selectedTech, viewMode]);
+  }, [filteredLeads, leadsInRange, mapReady, scheduleLeadVisibility, selectedTech, viewMode]);
+
+  useEffect(() => {
+    if (!mapReady || !pinLayerRef.current) return;
+    const pins: CanvasPin[] = [];
+    if (viewMode !== "techs") {
+      for (const l of filteredLeads) {
+        if (!visibleLeadIdsRef.current.has(l.id)) continue;
+        const [lat, lng] = leadMarkerLatLng(l);
+        pins.push({ id: l.id, kind: "lead", lat, lng });
+      }
+    }
+    if (viewMode !== "leads") {
+      for (const t of filteredTechs) {
+        pins.push({
+          id: t.id,
+          kind: "tech",
+          lat: t.coords.latitude,
+          lng: t.coords.longitude,
+          selected: t.id === activeSelectedTechIdRef.current,
+        });
+      }
+    }
+    pinLayerRef.current.setPins(pins);
+  }, [filteredLeads, filteredTechs, mapReady, pinRenderVersion, viewMode]);
 
   // Handle pending customer focus after markers render
   useEffect(() => {
     if (!pendingFocusLeadId) return;
     const map = mapRef.current;
-    const marker = leadMarkerRefs.current.get(pendingFocusLeadId);
-    if (!map || !marker) return;
-    const latlng = marker.getLatLng();
+    const lead = leadDataRefs.current.get(pendingFocusLeadId);
+    if (!map || !lead) return;
+    const latlng = L.latLng(leadMarkerLatLng(lead));
     map.flyTo(latlng, 12, { duration: 0.7 });
     if (leadFocusTimeout.current) clearTimeout(leadFocusTimeout.current);
     leadFocusTimeout.current = setTimeout(() => {
-      openLeadPopup(pendingFocusLeadId, marker);
+      openLeadPopup(pendingFocusLeadId, latlng);
       leadFocusTimeout.current = null;
     }, 650);
     setPendingFocusLeadId(null);
-  }, [mappedLeads, leadsInRange, openLeadPopup, pendingFocusLeadId, viewMode]);
+  }, [mappedLeads, leadsInRange, mapReady, openLeadPopup, pendingFocusLeadId, viewMode]);
 
   // Selected-tech radius circle
   useEffect(() => {
@@ -902,17 +953,17 @@ export default function MapViewPage() {
   useEffect(() => {
     if (!pendingFocusTechId) return;
     const map = mapRef.current;
-    const marker = techMarkerRefs.current.get(pendingFocusTechId);
-    if (!map || !marker) return;
-    const ll = marker.getLatLng();
+    const tech = techDataRefs.current.get(pendingFocusTechId) ?? filteredTechs.find((t) => t.id === pendingFocusTechId);
+    if (!map || !tech) return;
+    const ll = L.latLng(tech.coords.latitude, tech.coords.longitude);
     map.flyTo(ll, 10, { duration: 0.6 });
     if (techFocusTimeout.current) clearTimeout(techFocusTimeout.current);
     techFocusTimeout.current = setTimeout(() => {
-      openTechPopup(pendingFocusTechId, marker);
+      openTechPopup(pendingFocusTechId, ll);
       techFocusTimeout.current = null;
     }, 650);
     setPendingFocusTechId(null);
-  }, [filteredTechs, mapVisible, openTechPopup, pendingFocusTechId, viewMode]);
+  }, [filteredTechs, mapReady, openTechPopup, pendingFocusTechId, viewMode]);
 
 
   // Portal-positioned dropdown anchoring
