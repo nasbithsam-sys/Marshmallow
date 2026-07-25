@@ -54,38 +54,43 @@ interface MappedTech extends TechnicianRecord {
   coords: LatLng;
 }
 
-function pinSvg(fill: string, stroke: string, size = 32) {
-  return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 32" style="display:block">
-      <path d="M12 0.75 C5.65 0.75 0.75 5.65 0.75 12 C0.75 20.5 12 31.25 12 31.25 C12 31.25 23.25 20.5 23.25 12 C23.25 5.65 18.35 0.75 12 0.75 Z"
-        fill="${fill}" stroke="${stroke}" stroke-width="1.5" stroke-linejoin="round"/>
-      <circle cx="12" cy="12" r="4.25" fill="#ffffff"/>
-    </svg>`;
-}
-
-const LEAD_MARKER_ICON = L.divIcon({
-  className: "marshmallow-lead-marker",
-  html: pinSvg("#ef4444", "#ffffff", 32),
-  iconSize: [32, 32],
-  iconAnchor: [16, 31],
-  popupAnchor: [0, -28],
+const POINT_RENDERER = L.canvas({
+  padding: 0.5,
+  tolerance: 6,
 });
 
-const TECH_MARKER_ICON = L.divIcon({
-  className: "marshmallow-tech-marker",
-  html: pinSvg("#3b82f6", "#ffffff", 32),
-  iconSize: [32, 32],
-  iconAnchor: [16, 31],
-  popupAnchor: [0, -28],
-});
+const TECH_POINT_STYLE: L.CircleMarkerOptions = {
+  renderer: POINT_RENDERER,
+  radius: 6,
+  color: "#ffffff",
+  weight: 2,
+  opacity: 1,
+  fillColor: "#3b82f6",
+  fillOpacity: 0.95,
+  interactive: true,
+};
 
-const SELECTED_TECH_MARKER_ICON = L.divIcon({
-  className: "marshmallow-tech-marker",
-  html: pinSvg("#2563eb", "#ffffff", 36),
-  iconSize: [36, 36],
-  iconAnchor: [18, 35],
-  popupAnchor: [0, -28],
-});
+const SELECTED_TECH_POINT_STYLE: L.CircleMarkerOptions = {
+  renderer: POINT_RENDERER,
+  radius: 9,
+  color: "#ffffff",
+  weight: 3,
+  opacity: 1,
+  fillColor: "#2563eb",
+  fillOpacity: 1,
+  interactive: true,
+};
+
+const LEAD_POINT_STYLE: L.CircleMarkerOptions = {
+  renderer: POINT_RENDERER,
+  radius: 6,
+  color: "#ffffff",
+  weight: 2,
+  opacity: 1,
+  fillColor: "#ef4444",
+  fillOpacity: 0.95,
+  interactive: true,
+};
 
 function escapeHtml(v: string) {
   return String(v ?? "")
@@ -167,8 +172,8 @@ export default function MapViewPage() {
   const leadLayer = useRef<L.LayerGroup | null>(null);
   const techLayer = useRef<L.LayerGroup | null>(null);
   const radiusLayer = useRef<L.Circle | null>(null);
-  const leadMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
-  const techMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
+  const leadMarkerRefs = useRef<Map<string, L.CircleMarker>>(new Map());
+  const techMarkerRefs = useRef<Map<string, L.CircleMarker>>(new Map());
   const leadDataRefs = useRef<Map<string, MappedLead>>(new Map());
   const techDataRefs = useRef<Map<string, MappedTech>>(new Map());
   const selectedTechRef = useRef<MappedTech | null>(null);
@@ -407,7 +412,7 @@ export default function MapViewPage() {
     const nextIds = new Set(filteredTechs.map((t) => t.id));
     for (const [id, marker] of techMarkerRefs.current) {
       if (!nextIds.has(id)) {
-        marker.remove();
+        if (layer.hasLayer(marker)) layer.removeLayer(marker);
         marker.off();
         techMarkerRefs.current.delete(id);
         techDataRefs.current.delete(id);
@@ -435,9 +440,10 @@ export default function MapViewPage() {
         techDataRefs.current.set(t.id, t);
         continue;
       }
-      const m = L.marker([t.coords.latitude, t.coords.longitude], {
-        icon: t.id === selectedTechRef.current?.id ? SELECTED_TECH_MARKER_ICON : TECH_MARKER_ICON,
-      });
+      const m = L.circleMarker(
+        [t.coords.latitude, t.coords.longitude],
+        t.id === selectedTechRef.current?.id ? SELECTED_TECH_POINT_STYLE : TECH_POINT_STYLE,
+      );
       if (phone) {
         m.bindTooltip(escapeHtml(phone), {
           permanent: false,
@@ -479,10 +485,18 @@ export default function MapViewPage() {
   useEffect(() => {
     const previousId = previousSelectedTechId.current;
     if (previousId && previousId !== selectedTechId) {
-      techMarkerRefs.current.get(previousId)?.setIcon(TECH_MARKER_ICON);
+      const previousMarker = techMarkerRefs.current.get(previousId);
+      if (previousMarker) {
+        previousMarker.setStyle(TECH_POINT_STYLE);
+        previousMarker.setRadius(TECH_POINT_STYLE.radius ?? 6);
+      }
     }
     if (selectedTechId) {
-      techMarkerRefs.current.get(selectedTechId)?.setIcon(SELECTED_TECH_MARKER_ICON);
+      const selectedMarker = techMarkerRefs.current.get(selectedTechId);
+      if (selectedMarker) {
+        selectedMarker.setStyle(SELECTED_TECH_POINT_STYLE);
+        selectedMarker.setRadius(SELECTED_TECH_POINT_STYLE.radius ?? 9);
+      }
     }
     previousSelectedTechId.current = selectedTechId;
   }, [selectedTechId]);
@@ -496,7 +510,7 @@ export default function MapViewPage() {
 
     for (const [id, marker] of leadMarkerRefs.current) {
       if (!nextIds.has(id)) {
-        marker.remove();
+        if (layer.hasLayer(marker)) layer.removeLayer(marker);
         marker.off();
         leadMarkerRefs.current.delete(id);
         leadDataRefs.current.delete(id);
@@ -512,7 +526,7 @@ export default function MapViewPage() {
         continue;
       }
 
-      const m = L.marker(leadMarkerLatLng(l), { icon: LEAD_MARKER_ICON });
+      const m = L.circleMarker(leadMarkerLatLng(l), LEAD_POINT_STYLE);
       m.bindPopup(buildLeadPopupHtml(l, selectedTechRef.current));
       m.on("popupopen", () => {
         const currentLead = leadDataRefs.current.get(l.id);
@@ -573,7 +587,6 @@ export default function MapViewPage() {
         fillColor: "#3b82f6",
         fillOpacity: 0.08,
       }).addTo(map);
-      map.flyTo([selectedTech.coords.latitude, selectedTech.coords.longitude], 9, { duration: 0.6 });
     }
   }, [selectedTech, mapVisible]);
 
