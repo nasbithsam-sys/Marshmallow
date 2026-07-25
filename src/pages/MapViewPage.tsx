@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -54,48 +54,44 @@ interface MappedTech extends TechnicianRecord {
   coords: LatLng;
 }
 
-const POINT_RENDERER = L.canvas({
-  padding: 0.5,
-  tolerance: 6,
+function pinIconUrl(fill: string, stroke: string, size: number) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 32">
+    <path d="M12 0.75 C5.65 0.75 0.75 5.65 0.75 12 C0.75 20.5 12 31.25 12 31.25 C12 31.25 23.25 20.5 23.25 12 C23.25 5.65 18.35 0.75 12 0.75 Z"
+      fill="${fill}" stroke="${stroke}" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="12" cy="12" r="4.25" fill="#ffffff"/>
+  </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+const LEAD_PIN_ICON = L.icon({
+  iconUrl: pinIconUrl("#ef4444", "#ffffff", 30),
+  iconSize: [30, 30],
+  iconAnchor: [15, 29],
+  popupAnchor: [0, -28],
 });
 
-const TECH_POINT_STYLE: L.CircleMarkerOptions = {
-  renderer: POINT_RENDERER,
-  radius: 6,
-  color: "#ffffff",
-  weight: 2,
-  opacity: 1,
-  fillColor: "#3b82f6",
-  fillOpacity: 0.95,
-  interactive: true,
-};
+const TECH_PIN_ICON = L.icon({
+  iconUrl: pinIconUrl("#3b82f6", "#ffffff", 30),
+  iconSize: [30, 30],
+  iconAnchor: [15, 29],
+  popupAnchor: [0, -28],
+});
 
-const SELECTED_TECH_POINT_STYLE: L.CircleMarkerOptions = {
-  renderer: POINT_RENDERER,
-  radius: 9,
-  color: "#ffffff",
-  weight: 3,
-  opacity: 1,
-  fillColor: "#2563eb",
-  fillOpacity: 1,
-  interactive: true,
-};
-
-const LEAD_POINT_STYLE: L.CircleMarkerOptions = {
-  renderer: POINT_RENDERER,
-  radius: 6,
-  color: "#ffffff",
-  weight: 2,
-  opacity: 1,
-  fillColor: "#ef4444",
-  fillOpacity: 0.95,
-  interactive: true,
-};
+const SELECTED_TECH_PIN_ICON = L.icon({
+  iconUrl: pinIconUrl("#2563eb", "#ffffff", 34),
+  iconSize: [34, 34],
+  iconAnchor: [17, 33],
+  popupAnchor: [0, -31],
+});
 
 function escapeHtml(v: string) {
   return String(v ?? "")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function phoneTelHref(phone: string) {
+  return phone ? `tel:${phone.startsWith("+") ? "+" : ""}${phone.replace(/\D/g, "")}` : "";
 }
 
 function leadMarkerLatLng(l: MappedLead): L.LatLngTuple {
@@ -110,58 +106,6 @@ function leadMarkerLatLng(l: MappedLead): L.LatLngTuple {
   return [l.coords.latitude + latJitter, l.coords.longitude + lngJitter];
 }
 
-function buildTechPopupHtml(t: MappedTech) {
-  const phone = (t.phone_number ?? "").trim();
-  const telHref = phone ? `tel:${phone.startsWith("+") ? "+" : ""}${phone.replace(/\D/g, "")}` : "";
-  const phoneBlock = phone
-    ? `<div style="margin-top:6px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Phone</div>
-         <a href="${escapeHtml(telHref)}" style="font-size:13px;color:#2563eb;font-weight:600;text-decoration:none">${escapeHtml(phone)}</a>
-         <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
-           <a href="${escapeHtml(telHref)}" style="padding:4px 8px;background:#111827;color:#fff;border-radius:6px;font-size:11px;text-decoration:none">Call Tech</a>
-           <button data-copy-phone="${escapeHtml(phone)}" class="ml-copy-phone" style="padding:4px 8px;background:#f3f4f6;color:#111827;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;cursor:pointer">Copy Phone</button>
-         </div>
-       </div>`
-    : `<div style="margin-top:6px;font-size:12px;color:#6b7280">No phone number</div>`;
-  const serviceBlock = t.service
-    ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Service</div><div style="font-size:13px">${escapeHtml(t.service)}</div></div>`
-    : "";
-  const areaBlock = t.area
-    ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Area</div><div style="font-size:13px">${escapeHtml(t.area)}</div></div>`
-    : "";
-  const notesBlock = t.notes
-    ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Notes</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word">${escapeHtml(t.notes)}</div></div>`
-    : "";
-  const chatBtn = t.chat_link
-    ? `<div style="margin-top:10px"><a href="${escapeHtml(t.chat_link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 10px;background:#2563eb;color:#fff;border-radius:6px;font-size:12px;text-decoration:none">Open Chat</a></div>`
-    : "";
-
-  return `<div style="min-width:280px;max-width:360px;max-height:420px;overflow-y:auto;font-family:inherit">
-    <div style="font-weight:600;font-size:14px">${escapeHtml(t.name)}</div>
-    ${phoneBlock}${serviceBlock}${areaBlock}${notesBlock}${chatBtn}
-  </div>`;
-}
-
-function buildLeadPopupHtml(l: MappedLead, selectedTech: MappedTech | null) {
-  const distance = selectedTech ? haversineMiles(selectedTech.coords, l.coords) : null;
-  const zipCity = [l.zipCity, l.zipState].filter(Boolean).join(", ");
-  const distanceLine = selectedTech && distance !== null && distance <= RADIUS_MILES
-    ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${distance.toFixed(1)} mi from ${escapeHtml(selectedTech.name)} (approx.)</div>`
-    : "";
-  return `
-    <div style="min-width:230px;font-family:inherit">
-      <div style="font-weight:600;font-size:13px">${escapeHtml(l.customer_name || "Unnamed")}</div>
-      <div style="font-size:11px;color:#6b7280">Job ${escapeHtml(l.job_id ?? "")}</div>
-      <div style="margin-top:6px;font-size:12px">${escapeHtml(l.customer_phone || "")}</div>
-      <div style="font-size:12px"><b>ZIP:</b> ${escapeHtml(l.zip)}${zipCity ? ` <span style="color:#6b7280">· ${escapeHtml(zipCity)}</span>` : ""}</div>
-      <div style="margin-top:6px;font-size:12px"><b>Service:</b> ${escapeHtml(l.service_type || "-")}</div>
-      <div style="font-size:12px"><b>Status:</b> ${escapeHtml(STATUS_LABELS[l.status] ?? l.status)}</div>
-      ${distanceLine}
-      <div style="margin-top:6px;font-size:10px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:3px 6px;border-radius:4px;display:inline-block">Approximate ZIP area</div>
-      <div><button data-lead-id="${escapeHtml(l.id)}" class="ml-view-lead" style="margin-top:8px;padding:6px 10px;background:#111827;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">View Lead</button></div>
-    </div>
-  `;
-}
-
 export default function MapViewPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -172,13 +116,19 @@ export default function MapViewPage() {
   const leadLayer = useRef<L.LayerGroup | null>(null);
   const techLayer = useRef<L.LayerGroup | null>(null);
   const radiusLayer = useRef<L.Circle | null>(null);
-  const leadMarkerRefs = useRef<Map<string, L.CircleMarker>>(new Map());
-  const techMarkerRefs = useRef<Map<string, L.CircleMarker>>(new Map());
+  const leadMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
+  const techMarkerRefs = useRef<Map<string, L.Marker>>(new Map());
+  const leadMarkerMetaRefs = useRef<Map<string, { lat: number; lng: number }>>(new Map());
+  const techMarkerMetaRefs = useRef<Map<string, { lat: number; lng: number; phone: string }>>(new Map());
   const leadDataRefs = useRef<Map<string, MappedLead>>(new Map());
   const techDataRefs = useRef<Map<string, MappedTech>>(new Map());
   const selectedTechRef = useRef<MappedTech | null>(null);
-  const previousSelectedTechId = useRef<string | null>(null);
+  const activeSelectedTechIdRef = useRef<string | null>(null);
   const isMobileRef = useRef(isMobile);
+  const mapPopupRef = useRef<L.Popup | null>(null);
+  const visibleLeadIdsRef = useRef<Set<string>>(new Set());
+  const leadVisibilityFrameRef = useRef<number | null>(null);
+  const leadVisibilityGenerationRef = useRef(0);
   const mapInvalidateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leadFocusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const techFocusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -373,37 +323,271 @@ export default function MapViewPage() {
       .sort((a, b) => a.distance - b.distance);
   }, [selectedTech, filteredLeads]);
 
+  const getMapPopup = useCallback(() => {
+    if (!mapPopupRef.current) {
+      mapPopupRef.current = L.popup({
+        autoPan: false,
+        autoClose: true,
+        closeOnClick: true,
+        closeButton: true,
+        keepInView: false,
+        minWidth: 230,
+        maxWidth: 360,
+      });
+    }
+    return mapPopupRef.current;
+  }, []);
+
+  const openSharedPopup = useCallback((latlng: L.LatLngExpression, content: HTMLElement) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const popup = getMapPopup();
+    map.closePopup(popup);
+    popup.setLatLng(latlng).setContent(content).openOn(map);
+  }, [getMapPopup]);
+
+  const createTechPopupElement = useCallback((t: MappedTech) => {
+    const root = document.createElement("div");
+    root.style.minWidth = "280px";
+    root.style.maxWidth = "360px";
+    root.style.maxHeight = "420px";
+    root.style.overflowY = "auto";
+    root.style.fontFamily = "inherit";
+    root.addEventListener("click", (event) => event.stopPropagation());
+
+    const phone = (t.phone_number ?? "").trim();
+    const telHref = phoneTelHref(phone);
+    const phoneBlock = phone
+      ? `<div style="margin-top:6px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Phone</div>
+           <a href="${escapeHtml(telHref)}" style="font-size:13px;color:#2563eb;font-weight:600;text-decoration:none">${escapeHtml(phone)}</a>
+           <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
+             <a href="${escapeHtml(telHref)}" style="padding:4px 8px;background:#111827;color:#fff;border-radius:6px;font-size:11px;text-decoration:none">Call Tech</a>
+             <button type="button" class="ml-copy-phone" style="padding:4px 8px;background:#f3f4f6;color:#111827;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;cursor:pointer">Copy Phone</button>
+           </div>
+         </div>`
+      : `<div style="margin-top:6px;font-size:12px;color:#6b7280">No phone number</div>`;
+    const serviceBlock = t.service
+      ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Service</div><div style="font-size:13px">${escapeHtml(t.service)}</div></div>`
+      : "";
+    const areaBlock = t.area
+      ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Area</div><div style="font-size:13px">${escapeHtml(t.area)}</div></div>`
+      : "";
+    const notesBlock = t.notes
+      ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Notes</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word">${escapeHtml(t.notes)}</div></div>`
+      : "";
+    const chatBtn = t.chat_link
+      ? `<div style="margin-top:10px"><a href="${escapeHtml(t.chat_link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 10px;background:#2563eb;color:#fff;border-radius:6px;font-size:12px;text-decoration:none">Open Chat</a></div>`
+      : "";
+
+    root.innerHTML = `<div style="font-weight:600;font-size:14px">${escapeHtml(t.name)}</div>${phoneBlock}${serviceBlock}${areaBlock}${notesBlock}${chatBtn}`;
+    const copyButton = root.querySelector<HTMLButtonElement>(".ml-copy-phone");
+    if (copyButton) {
+      copyButton.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        try {
+          if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(phone);
+          else {
+            const ta = document.createElement("textarea");
+            ta.value = phone; ta.style.position = "fixed"; ta.style.opacity = "0";
+            document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+          }
+          toast("Phone number copied");
+        } catch { toast("Failed to copy"); }
+      });
+    }
+    return root;
+  }, []);
+
+  const createLeadPopupElement = useCallback((l: MappedLead, currentSelectedTech: MappedTech | null) => {
+    const root = document.createElement("div");
+    root.style.minWidth = "230px";
+    root.style.fontFamily = "inherit";
+    root.addEventListener("click", (event) => event.stopPropagation());
+
+    const distance = currentSelectedTech ? haversineMiles(currentSelectedTech.coords, l.coords) : null;
+    const zipCity = [l.zipCity, l.zipState].filter(Boolean).join(", ");
+    const distanceLine = currentSelectedTech && distance !== null && distance <= RADIUS_MILES
+      ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${distance.toFixed(1)} mi from ${escapeHtml(currentSelectedTech.name)} (approx.)</div>`
+      : "";
+
+    root.innerHTML = `
+      <div style="font-weight:600;font-size:13px">${escapeHtml(l.customer_name || "Unnamed")}</div>
+      <div style="font-size:11px;color:#6b7280">Job ${escapeHtml(l.job_id ?? "")}</div>
+      <div style="margin-top:6px;font-size:12px">${escapeHtml(l.customer_phone || "")}</div>
+      <div style="font-size:12px"><b>ZIP:</b> ${escapeHtml(l.zip)}${zipCity ? ` <span style="color:#6b7280">· ${escapeHtml(zipCity)}</span>` : ""}</div>
+      <div style="margin-top:6px;font-size:12px"><b>Service:</b> ${escapeHtml(l.service_type || "-")}</div>
+      <div style="font-size:12px"><b>Status:</b> ${escapeHtml(STATUS_LABELS[l.status] ?? l.status)}</div>
+      ${distanceLine}
+      <div style="margin-top:6px;font-size:10px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:3px 6px;border-radius:4px;display:inline-block">Approximate ZIP area</div>
+      <div><button type="button" class="ml-view-lead" style="margin-top:8px;padding:6px 10px;background:#111827;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">View Lead</button></div>
+    `;
+    const viewButton = root.querySelector<HTMLButtonElement>(".ml-view-lead");
+    if (viewButton) {
+      viewButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        navigate(`/leads/${l.id}`);
+      });
+    }
+    return root;
+  }, [navigate]);
+
+  const applyTechMarkerSelection = useCallback((techId: string | null) => {
+    const previousId = activeSelectedTechIdRef.current;
+    if (previousId && previousId !== techId) {
+      const previousMarker = techMarkerRefs.current.get(previousId);
+      if (previousMarker) {
+        previousMarker.setIcon(TECH_PIN_ICON);
+        previousMarker.setZIndexOffset(0);
+      }
+    }
+    if (techId) {
+      const selectedMarker = techMarkerRefs.current.get(techId);
+      if (selectedMarker) {
+        selectedMarker.setIcon(SELECTED_TECH_PIN_ICON);
+        selectedMarker.setZIndexOffset(1000);
+      }
+    }
+    activeSelectedTechIdRef.current = techId;
+  }, []);
+
+  const openTechPopup = useCallback((techId: string, marker: L.Marker) => {
+    const tech = techDataRefs.current.get(techId);
+    if (!tech) return;
+    openSharedPopup(marker.getLatLng(), createTechPopupElement(tech));
+  }, [createTechPopupElement, openSharedPopup]);
+
+  const openLeadPopup = useCallback((leadId: string, marker: L.Marker) => {
+    const lead = leadDataRefs.current.get(leadId);
+    if (!lead) return;
+    openSharedPopup(marker.getLatLng(), createLeadPopupElement(lead, selectedTechRef.current));
+  }, [createLeadPopupElement, openSharedPopup]);
+
+  const cancelLeadVisibilityWork = useCallback(() => {
+    leadVisibilityGenerationRef.current += 1;
+    if (leadVisibilityFrameRef.current !== null) {
+      window.cancelAnimationFrame(leadVisibilityFrameRef.current);
+      leadVisibilityFrameRef.current = null;
+    }
+  }, []);
+
+  const scheduleLeadVisibility = useCallback((nextVisibleLeadIds: Set<string>) => {
+    const layer = leadLayer.current;
+    if (!layer) return;
+    cancelLeadVisibilityWork();
+    const generation = leadVisibilityGenerationRef.current;
+    const visibleLeadIds = visibleLeadIdsRef.current;
+    const toAdd: string[] = [];
+    const toRemove: string[] = [];
+
+    for (const id of nextVisibleLeadIds) {
+      const marker = leadMarkerRefs.current.get(id);
+      if (marker && (!visibleLeadIds.has(id) || !layer.hasLayer(marker))) toAdd.push(id);
+    }
+    for (const id of visibleLeadIds) {
+      const marker = leadMarkerRefs.current.get(id);
+      if (!nextVisibleLeadIds.has(id) || !marker) toRemove.push(id);
+    }
+
+    const batchSize = 40;
+    const runBatch = () => {
+      if (leadVisibilityGenerationRef.current !== generation) return;
+      let processed = 0;
+      while (processed < batchSize && (toRemove.length || toAdd.length)) {
+        const removeId = toRemove.pop();
+        if (removeId) {
+          const marker = leadMarkerRefs.current.get(removeId);
+          if (marker && layer.hasLayer(marker)) layer.removeLayer(marker);
+          visibleLeadIds.delete(removeId);
+          processed += 1;
+          continue;
+        }
+
+        const addId = toAdd.pop();
+        if (addId) {
+          const marker = leadMarkerRefs.current.get(addId);
+          if (marker && !layer.hasLayer(marker)) marker.addTo(layer);
+          if (marker) visibleLeadIds.add(addId);
+          processed += 1;
+        }
+      }
+      if (toRemove.length || toAdd.length) {
+        leadVisibilityFrameRef.current = window.requestAnimationFrame(runBatch);
+      } else {
+        leadVisibilityFrameRef.current = null;
+      }
+    };
+
+    leadVisibilityFrameRef.current = window.requestAnimationFrame(runBatch);
+  }, [cancelLeadVisibilityWork]);
+
+  const handleTechMarkerClick = useCallback((techId: string, marker: L.Marker) => {
+    const tech = techDataRefs.current.get(techId);
+    if (!tech) return;
+    cancelLeadVisibilityWork();
+    selectedTechRef.current = tech;
+    applyTechMarkerSelection(techId);
+    openTechPopup(techId, marker);
+    setSelectedTechId(techId);
+    if (isMobileRef.current) setSheetOpen(true);
+  }, [applyTechMarkerSelection, cancelLeadVisibilityWork, openTechPopup]);
+
+  const clearSelectedTech = useCallback(() => {
+    cancelLeadVisibilityWork();
+    selectedTechRef.current = null;
+    applyTechMarkerSelection(null);
+    setSelectedTechId(null);
+  }, [applyTechMarkerSelection, cancelLeadVisibilityWork]);
+
   useEffect(() => {
     if (!mapVisible) return;
     if (mapRef.current || !mapEl.current) return;
-    const map = L.map(mapEl.current, { zoomControl: true, preferCanvas: true }).setView([39.5, -98.35], 4);
+    const map = L.map(mapEl.current, { zoomControl: true, preferCanvas: true, markerZoomAnimation: false }).setView([39.5, -98.35], 4);
+    const leadPane = map.createPane("marshmallow-lead-pins");
+    const techPane = map.createPane("marshmallow-tech-pins");
+    leadPane.style.zIndex = "610";
+    techPane.style.zIndex = "620";
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
     leadLayer.current = L.layerGroup().addTo(map);
     techLayer.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     const leadMarkers = leadMarkerRefs.current;
     const techMarkers = techMarkerRefs.current;
+    const leadMarkerMeta = leadMarkerMetaRefs.current;
+    const techMarkerMeta = techMarkerMetaRefs.current;
     const leadData = leadDataRefs.current;
     const techData = techDataRefs.current;
+    const visibleLeadIds = visibleLeadIdsRef.current;
     mapInvalidateTimeout.current = setTimeout(() => map.invalidateSize(), 50);
     return () => {
+      cancelLeadVisibilityWork();
       if (mapInvalidateTimeout.current) clearTimeout(mapInvalidateTimeout.current);
       if (leadFocusTimeout.current) clearTimeout(leadFocusTimeout.current);
       if (techFocusTimeout.current) clearTimeout(techFocusTimeout.current);
       mapInvalidateTimeout.current = null;
       leadFocusTimeout.current = null;
       techFocusTimeout.current = null;
+      if (mapPopupRef.current) {
+        map.closePopup(mapPopupRef.current);
+        mapPopupRef.current.remove();
+        mapPopupRef.current = null;
+      }
       map.remove();
       leadMarkers.clear();
       techMarkers.clear();
+      leadMarkerMeta.clear();
+      techMarkerMeta.clear();
       leadData.clear();
       techData.clear();
+      visibleLeadIds.clear();
+      activeSelectedTechIdRef.current = null;
       mapRef.current = null;
       leadLayer.current = null;
       techLayer.current = null;
       radiusLayer.current = null;
     };
-  }, [mapVisible]);
+  }, [cancelLeadVisibilityWork, mapVisible]);
 
   // Technician markers
   useEffect(() => {
@@ -415,35 +599,47 @@ export default function MapViewPage() {
         if (layer.hasLayer(marker)) layer.removeLayer(marker);
         marker.off();
         techMarkerRefs.current.delete(id);
+        techMarkerMetaRefs.current.delete(id);
         techDataRefs.current.delete(id);
       }
     }
     for (const t of filteredTechs) {
       const phone = (t.phone_number ?? "").trim();
       const existingMarker = techMarkerRefs.current.get(t.id);
+      const lat = t.coords.latitude;
+      const lng = t.coords.longitude;
       if (existingMarker) {
-        existingMarker.setLatLng([t.coords.latitude, t.coords.longitude]);
-        existingMarker.setPopupContent(buildTechPopupHtml(t));
-        if (phone) {
-          existingMarker.bindTooltip(escapeHtml(phone), {
-            permanent: false,
-            direction: "right",
-            offset: [8, -12],
-            className: "marshmallow-tech-phone-label",
-            opacity: 1,
-          });
-        } else {
+        const meta = techMarkerMetaRefs.current.get(t.id);
+        if (!meta || meta.lat !== lat || meta.lng !== lng) existingMarker.setLatLng([lat, lng]);
+        if (!meta || meta.phone !== phone) {
           existingMarker.unbindTooltip();
+          if (phone) {
+            existingMarker.bindTooltip(escapeHtml(phone), {
+              permanent: false,
+              direction: "right",
+              offset: [8, -12],
+              className: "marshmallow-tech-phone-label",
+              opacity: 1,
+            });
+          }
+        }
+        if (activeSelectedTechIdRef.current === t.id) {
+          existingMarker.setIcon(SELECTED_TECH_PIN_ICON);
+          existingMarker.setZIndexOffset(1000);
         }
         if (viewMode !== "leads" && !layer.hasLayer(existingMarker)) existingMarker.addTo(layer);
         if (viewMode === "leads" && layer.hasLayer(existingMarker)) layer.removeLayer(existingMarker);
+        techMarkerMetaRefs.current.set(t.id, { lat, lng, phone });
         techDataRefs.current.set(t.id, t);
         continue;
       }
-      const m = L.circleMarker(
-        [t.coords.latitude, t.coords.longitude],
-        t.id === selectedTechRef.current?.id ? SELECTED_TECH_POINT_STYLE : TECH_POINT_STYLE,
-      );
+      const m = L.marker([lat, lng], {
+        icon: t.id === activeSelectedTechIdRef.current ? SELECTED_TECH_PIN_ICON : TECH_PIN_ICON,
+        pane: "marshmallow-tech-pins",
+        bubblingMouseEvents: false,
+        riseOnHover: true,
+        zIndexOffset: t.id === activeSelectedTechIdRef.current ? 1000 : 0,
+      });
       if (phone) {
         m.bindTooltip(escapeHtml(phone), {
           permanent: false,
@@ -453,55 +649,20 @@ export default function MapViewPage() {
           opacity: 1,
         });
       }
-      m.bindPopup(buildTechPopupHtml(t), { maxWidth: 360, minWidth: 280, maxHeight: 420 });
-      m.on("popupopen", () => {
-        const currentTech = techDataRefs.current.get(t.id);
-        if (currentTech) m.setPopupContent(buildTechPopupHtml(currentTech));
-        const popup = m.getPopup()?.getElement();
-        const btn = popup?.querySelector<HTMLButtonElement>(".ml-copy-phone");
-        const currentPhone = (currentTech?.phone_number ?? "").trim();
-        if (btn) btn.onclick = async () => {
-          try {
-            if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(currentPhone);
-            else {
-              const ta = document.createElement("textarea");
-              ta.value = currentPhone; ta.style.position = "fixed"; ta.style.opacity = "0";
-              document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
-            }
-            toast("Phone number copied");
-          } catch { toast("Failed to copy"); }
-        };
-      });
-      m.on("click", () => {
-        setSelectedTechId(t.id);
-        if (isMobileRef.current) setSheetOpen(true);
+      m.on("click", (event) => {
+        L.DomEvent.stop(event.originalEvent);
+        handleTechMarkerClick(t.id, m);
       });
       if (viewMode !== "leads") m.addTo(layer);
       techMarkerRefs.current.set(t.id, m);
+      techMarkerMetaRefs.current.set(t.id, { lat, lng, phone });
       techDataRefs.current.set(t.id, t);
     }
-  }, [filteredTechs, mapVisible, viewMode]);
+  }, [filteredTechs, handleTechMarkerClick, mapVisible, viewMode]);
 
   useEffect(() => {
-    const previousId = previousSelectedTechId.current;
-    if (previousId && previousId !== selectedTechId) {
-      const previousMarker = techMarkerRefs.current.get(previousId);
-      if (previousMarker) {
-        previousMarker.setStyle(TECH_POINT_STYLE);
-        previousMarker.setRadius(TECH_POINT_STYLE.radius ?? 6);
-      }
-    }
-    if (selectedTechId) {
-      const selectedMarker = techMarkerRefs.current.get(selectedTechId);
-      if (selectedMarker) {
-        selectedMarker.setStyle(SELECTED_TECH_POINT_STYLE);
-        selectedMarker.setRadius(SELECTED_TECH_POINT_STYLE.radius ?? 9);
-      }
-    }
-    previousSelectedTechId.current = selectedTechId;
-  }, [selectedTechId]);
-
-
+    applyTechMarkerSelection(selectedTechId);
+  }, [applyTechMarkerSelection, selectedTechId]);
 
   useEffect(() => {
     const layer = leadLayer.current;
@@ -513,47 +674,43 @@ export default function MapViewPage() {
         if (layer.hasLayer(marker)) layer.removeLayer(marker);
         marker.off();
         leadMarkerRefs.current.delete(id);
+        leadMarkerMetaRefs.current.delete(id);
         leadDataRefs.current.delete(id);
+        visibleLeadIdsRef.current.delete(id);
       }
     }
 
     for (const l of filteredLeads) {
       const marker = leadMarkerRefs.current.get(l.id);
+      const [lat, lng] = leadMarkerLatLng(l);
       if (marker) {
-        marker.setLatLng(leadMarkerLatLng(l));
-        if (marker.isPopupOpen()) marker.setPopupContent(buildLeadPopupHtml(l, selectedTechRef.current));
+        const meta = leadMarkerMetaRefs.current.get(l.id);
+        if (!meta || meta.lat !== lat || meta.lng !== lng) marker.setLatLng([lat, lng]);
+        leadMarkerMetaRefs.current.set(l.id, { lat, lng });
         leadDataRefs.current.set(l.id, l);
         continue;
       }
 
-      const m = L.circleMarker(leadMarkerLatLng(l), LEAD_POINT_STYLE);
-      m.bindPopup(buildLeadPopupHtml(l, selectedTechRef.current));
-      m.on("popupopen", () => {
-        const currentLead = leadDataRefs.current.get(l.id);
-        if (currentLead) m.setPopupContent(buildLeadPopupHtml(currentLead, selectedTechRef.current));
-        const popup = m.getPopup()?.getElement();
-        const el = popup?.querySelector<HTMLButtonElement>(".ml-view-lead");
-        if (el) el.onclick = () => navigate(`/leads/${l.id}`);
+      const m = L.marker([lat, lng], {
+        icon: LEAD_PIN_ICON,
+        pane: "marshmallow-lead-pins",
+        bubblingMouseEvents: false,
+      });
+      m.on("click", (event) => {
+        L.DomEvent.stop(event.originalEvent);
+        openLeadPopup(l.id, m);
       });
       leadMarkerRefs.current.set(l.id, m);
+      leadMarkerMetaRefs.current.set(l.id, { lat, lng });
       leadDataRefs.current.set(l.id, l);
     }
-  }, [filteredLeads, mapVisible, navigate]);
+  }, [filteredLeads, mapVisible, openLeadPopup]);
 
   useEffect(() => {
-    const layer = leadLayer.current;
-    if (!layer) return;
     const visibleLeadIds = new Set((selectedTech ? leadsInRange : filteredLeads).map((l) => l.id));
-
-    for (const [id, marker] of leadMarkerRefs.current) {
-      const shouldShow = viewMode !== "techs" && visibleLeadIds.has(id);
-      if (shouldShow && !layer.hasLayer(marker)) marker.addTo(layer);
-      if (!shouldShow && layer.hasLayer(marker)) layer.removeLayer(marker);
-
-      const lead = leadDataRefs.current.get(id);
-      if (lead && marker.isPopupOpen()) marker.setPopupContent(buildLeadPopupHtml(lead, selectedTech));
-    }
-  }, [filteredLeads, leadsInRange, mapVisible, selectedTech, viewMode]);
+    if (viewMode === "techs") visibleLeadIds.clear();
+    scheduleLeadVisibility(visibleLeadIds);
+  }, [filteredLeads, leadsInRange, mapVisible, scheduleLeadVisibility, selectedTech, viewMode]);
 
   // Handle pending customer focus after markers render
   useEffect(() => {
@@ -565,28 +722,32 @@ export default function MapViewPage() {
     map.flyTo(latlng, 12, { duration: 0.7 });
     if (leadFocusTimeout.current) clearTimeout(leadFocusTimeout.current);
     leadFocusTimeout.current = setTimeout(() => {
-      marker.openPopup();
+      openLeadPopup(pendingFocusLeadId, marker);
       leadFocusTimeout.current = null;
     }, 650);
     setPendingFocusLeadId(null);
-  }, [pendingFocusLeadId, mappedLeads, leadsInRange, viewMode]);
+  }, [mappedLeads, leadsInRange, openLeadPopup, pendingFocusLeadId, viewMode]);
 
   // Selected-tech radius circle
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (radiusLayer.current) {
+    if (selectedTech) {
+      const latlng: L.LatLngExpression = [selectedTech.coords.latitude, selectedTech.coords.longitude];
+      if (radiusLayer.current) {
+        radiusLayer.current.setLatLng(latlng);
+      } else {
+        radiusLayer.current = L.circle(latlng, {
+          radius: RADIUS_METERS,
+          color: "#2563eb",
+          weight: 1.5,
+          fillColor: "#3b82f6",
+          fillOpacity: 0.08,
+        }).addTo(map);
+      }
+    } else if (radiusLayer.current) {
       map.removeLayer(radiusLayer.current);
       radiusLayer.current = null;
-    }
-    if (selectedTech) {
-      radiusLayer.current = L.circle([selectedTech.coords.latitude, selectedTech.coords.longitude], {
-        radius: RADIUS_METERS,
-        color: "#2563eb",
-        weight: 1.5,
-        fillColor: "#3b82f6",
-        fillOpacity: 0.08,
-      }).addTo(map);
     }
   }, [selectedTech, mapVisible]);
 
@@ -620,7 +781,7 @@ export default function MapViewPage() {
     if (viewMode === "techs") setViewMode("both");
     if (selectedTech) {
       const inRange = leadsInRange.some((l) => l.id === lead.id);
-      if (!inRange) setSelectedTechId(null);
+      if (!inRange) clearSelectedTech();
     }
     setShowSuggestions(false);
     setCustomerSearch(lead.customer_name || "");
@@ -747,11 +908,11 @@ export default function MapViewPage() {
     map.flyTo(ll, 10, { duration: 0.6 });
     if (techFocusTimeout.current) clearTimeout(techFocusTimeout.current);
     techFocusTimeout.current = setTimeout(() => {
-      marker.openPopup();
+      openTechPopup(pendingFocusTechId, marker);
       techFocusTimeout.current = null;
     }, 650);
     setPendingFocusTechId(null);
-  }, [pendingFocusTechId, filteredTechs, viewMode, mapVisible]);
+  }, [filteredTechs, mapVisible, openTechPopup, pendingFocusTechId, viewMode]);
 
 
   // Portal-positioned dropdown anchoring
@@ -926,7 +1087,7 @@ export default function MapViewPage() {
             <div className="flex-1 min-w-0">
               <TechnicianDetailsContent technician={selectedTech} />
             </div>
-            <Button size="icon" variant="ghost" onClick={() => setSelectedTechId(null)}><X className="h-4 w-4" /></Button>
+            <Button size="icon" variant="ghost" onClick={clearSelectedTech}><X className="h-4 w-4" /></Button>
           </div>
           <div className="border-t pt-3">
             <div className="flex flex-wrap gap-2 mb-2">
