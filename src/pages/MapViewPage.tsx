@@ -127,6 +127,7 @@ export default function MapViewPage() {
   const isMobileRef = useRef(isMobile);
   const mapPopupRef = useRef<L.Popup | null>(null);
   const visibleLeadIdsRef = useRef<Set<string>>(new Set());
+  const desiredVisibleLeadIdsRef = useRef<Set<string>>(new Set());
   const leadVisibilityFrameRef = useRef<number | null>(null);
   const leadVisibilityGenerationRef = useRef(0);
   const mapInvalidateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -473,6 +474,7 @@ export default function MapViewPage() {
   }, []);
 
   const scheduleLeadVisibility = useCallback((nextVisibleLeadIds: Set<string>) => {
+    desiredVisibleLeadIdsRef.current = new Set(nextVisibleLeadIds);
     const layer = leadLayer.current;
     if (!layer) return;
     cancelLeadVisibilityWork();
@@ -519,7 +521,7 @@ export default function MapViewPage() {
       }
     };
 
-    leadVisibilityFrameRef.current = window.requestAnimationFrame(runBatch);
+    runBatch();
   }, [cancelLeadVisibilityWork]);
 
   const handleTechMarkerClick = useCallback((techId: string, marker: L.Marker) => {
@@ -559,6 +561,7 @@ export default function MapViewPage() {
     const leadData = leadDataRefs.current;
     const techData = techDataRefs.current;
     const visibleLeadIds = visibleLeadIdsRef.current;
+    const desiredVisibleLeadIds = desiredVisibleLeadIdsRef.current;
     mapInvalidateTimeout.current = setTimeout(() => map.invalidateSize(), 50);
     return () => {
       cancelLeadVisibilityWork();
@@ -581,6 +584,7 @@ export default function MapViewPage() {
       leadData.clear();
       techData.clear();
       visibleLeadIds.clear();
+      desiredVisibleLeadIds.clear();
       activeSelectedTechIdRef.current = null;
       mapRef.current = null;
       leadLayer.current = null;
@@ -700,6 +704,10 @@ export default function MapViewPage() {
         L.DomEvent.stop(event.originalEvent);
         openLeadPopup(l.id, m);
       });
+      if (desiredVisibleLeadIdsRef.current.has(l.id)) {
+        m.addTo(layer);
+        visibleLeadIdsRef.current.add(l.id);
+      }
       leadMarkerRefs.current.set(l.id, m);
       leadMarkerMetaRefs.current.set(l.id, { lat, lng });
       leadDataRefs.current.set(l.id, l);
