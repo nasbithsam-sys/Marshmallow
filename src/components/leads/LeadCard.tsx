@@ -421,7 +421,7 @@ function LeadCard({
 
   useEffect(() => {
     if (initialHasNotes !== undefined) {
-      setHasNotes(initialHasNotes);
+      setHasNotes({ ...initialHasNotes, opr: false });
     }
   }, [initialHasNotes]);
 
@@ -444,7 +444,7 @@ function LeadCard({
 
   const refreshNotePresence = async () => {
     if (!shouldShowPersistentNoteDots()) {
-      setHasNotes({ general: false, cs: false, processor: false });
+      setHasNotes({ general: false, cs: false, processor: false, opr: false });
       return;
     }
 
