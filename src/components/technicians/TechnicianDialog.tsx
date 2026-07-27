@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { geocodeAddress } from "@/lib/geo";
-import { isLikelyPhone } from "@/lib/phone";
+import { formatUSPhone, stripPhone } from "@/lib/phone";
 import { lookupZipCentroid, resolveZip } from "@/lib/zipCentroids";
 import { TECHNICIANS_QUERY_KEY, upsertTechnicianInList } from "@/lib/technicians";
 import { useQueryClient } from "@tanstack/react-query";
@@ -46,7 +46,7 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
   useEffect(() => {
     if (open) {
       setName(technician?.name ?? "");
-      setPhone(technician?.phone_number ?? "");
+      setPhone(formatUSPhone(technician?.phone_number ?? ""));
       setPhoneError(null);
       setArea(technician?.area ?? "");
       setService(technician?.service ?? "");
@@ -58,9 +58,10 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
   const handleSubmit = async () => {
     const cleanName = name.trim();
     const cleanArea = area.trim();
-    const cleanPhone = phone.trim();
-    if (cleanPhone && !isLikelyPhone(cleanPhone)) {
-      setPhoneError("Enter a valid phone number");
+    const cleanPhone = formatUSPhone(phone);
+    const phoneDigits = stripPhone(cleanPhone);
+    if (cleanPhone && phoneDigits.length !== 10) {
+      setPhoneError("Enter a valid 10-digit U.S. phone number");
       return;
     }
     setPhoneError(null);
@@ -148,10 +149,11 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
               id="tech-phone"
               type="tel"
               value={phone}
-              onChange={(e) => { setPhone(e.target.value); if (phoneError) setPhoneError(null); }}
+              onChange={(e) => { setPhone(formatUSPhone(e.target.value)); if (phoneError) setPhoneError(null); }}
               placeholder="e.g. (305) 555-0123"
               inputMode="tel"
               autoComplete="tel"
+              maxLength={14}
             />
             {phoneError && <p className="text-[11px] text-destructive">{phoneError}</p>}
           </div>
