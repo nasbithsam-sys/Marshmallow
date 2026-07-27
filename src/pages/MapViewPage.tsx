@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { MapPin, Search, Loader2, X, Contact, User } from "lucide-react";
+import { MapPin, Search, X, Contact, User } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { TechnicianRecord } from "@/components/technicians/TechnicianDialog";
 import { TechnicianDetailsContent } from "@/components/map/TechnicianDetailsContent";
 import { fetchAllTechnicians, TECHNICIANS_QUERY_KEY } from "@/lib/technicians";
-import { haversineMiles, geocodeAddress, isValidLatLng, LatLng } from "@/lib/geo";
+import { haversineMiles, isValidLatLng, LatLng } from "@/lib/geo";
 import { resolveZip, lookupZipCentroidSync, preloadZipDataset, ZipCentroid } from "@/lib/zipCentroids";
 import { STATUS_LABELS } from "@/lib/constants";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -27,6 +27,12 @@ import { toast } from "sonner";
 
 const RADIUS_MILES = 20;
 const RADIUS_METERS = RADIUS_MILES * 1609.344;
+const US_STATES: Record<string, string> = {
+  AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming",DC:"District of Columbia",
+};
+const STATE_NAME_TO_CODE: Record<string, string> = Object.fromEntries(
+  Object.entries(US_STATES).map(([code, name]) => [name.toLowerCase(), code]),
+);
 
 interface UrgentLead {
   id: string;
@@ -52,6 +58,11 @@ interface MappedLead extends UrgentLead {
 
 interface MappedTech extends TechnicianRecord {
   coords: LatLng;
+}
+
+interface SearchableTech extends TechnicianRecord {
+  coords: LatLng | null;
+  locationUnavailable: boolean;
 }
 
 type CanvasPinKind = "lead" | "tech";
@@ -234,7 +245,6 @@ function leadMarkerLatLng(l: MappedLead): L.LatLngTuple {
 
 export default function MapViewPage() {
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const isMobile = useIsMobile();
 
   const mapRef = useRef<L.Map | null>(null);
@@ -242,8 +252,8 @@ export default function MapViewPage() {
   const pinLayerRef = useRef<MapPinCanvasLayer | null>(null);
   const radiusLayer = useRef<L.Circle | null>(null);
   const leadDataRefs = useRef<Map<string, MappedLead>>(new Map());
-  const techDataRefs = useRef<Map<string, MappedTech>>(new Map());
-  const selectedTechRef = useRef<MappedTech | null>(null);
+  const techDataRefs = useRef<Map<string, SearchableTech>>(new Map());
+  const selectedTechRef = useRef<SearchableTech | null>(null);
   const activeSelectedTechIdRef = useRef<string | null>(null);
   const isMobileRef = useRef(isMobile);
   const mapPopupRef = useRef<L.Popup | null>(null);
@@ -261,7 +271,6 @@ export default function MapViewPage() {
   const [showTechSuggestions, setShowTechSuggestions] = useState(false);
   const [techActiveIndex, setTechActiveIndex] = useState(0);
   const [pendingFocusTechId, setPendingFocusTechId] = useState<string | null>(null);
-  const [geocoding, setGeocoding] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [zipDatasetReady, setZipDatasetReady] = useState(false);
   const [mapVisible, setMapVisible] = useState(false);
@@ -301,52 +310,56 @@ export default function MapViewPage() {
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      const techsNeedGeo = (techniciansQuery.data ?? []).filter((t) => !isValidLatLng(t.latitude, t.longitude));
-      if (!techsNeedGeo.length) return;
-      setGeocoding(true);
-      for (const t of techsNeedGeo) {
-        if (cancelled) break;
-        const c = await geocodeAddress(t.area);
-        if (c) await supabase.from("technicians").update({ latitude: c.latitude, longitude: c.longitude }).eq("id", t.id);
-      }
-      if (!cancelled) {
-        setGeocoding(false);
-        qc.invalidateQueries({ queryKey: ["technicians"] });
-      }
-    };
-    void run();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [techniciansQuery.data]);
-
   const mappedLeads = useMemo<MappedLead[]>(() => {
     if (!zipDatasetReady) return [];
     const rows = urgentLeadsQuery.data ?? [];
     const out: MappedLead[] = [];
     for (const l of rows) {
       const zip = resolveZip({ zip_code: l.zip_code, address: l.address });
-      if (!zip) continue;
       const centroid: ZipCentroid | null = lookupZipCentroidSync(zip);
-      if (!centroid) continue;
+      const hasSavedCoords = isValidLatLng(l.latitude, l.longitude);
+      if (!hasSavedCoords && !centroid) continue;
       out.push({
         ...l,
-        coords: { latitude: centroid.latitude, longitude: centroid.longitude },
-        zip,
-        zipCity: centroid.city,
-        zipState: centroid.state,
+        coords: hasSavedCoords
+          ? { latitude: l.latitude as number, longitude: l.longitude as number }
+          : { latitude: centroid?.latitude as number, longitude: centroid?.longitude as number },
+        zip: zip ?? "",
+        zipCity: centroid?.city ?? l.city ?? "",
+        zipState: centroid?.state ?? l.state ?? "",
       });
     }
     return out;
   }, [urgentLeadsQuery.data, zipDatasetReady]);
 
+  const searchableTechs = useMemo<SearchableTech[]>(() => {
+    if (!zipDatasetReady) return [];
+    return (techniciansQuery.data ?? []).map((t) => {
+      if (isValidLatLng(t.latitude, t.longitude)) {
+        return {
+          ...t,
+          coords: { latitude: t.latitude as number, longitude: t.longitude as number },
+          locationUnavailable: false,
+        };
+      }
+      const zip = resolveZip({ address: t.area });
+      const centroid = lookupZipCentroidSync(zip);
+      if (centroid) {
+        return {
+          ...t,
+          coords: { latitude: centroid.latitude, longitude: centroid.longitude },
+          locationUnavailable: false,
+        };
+      }
+      return { ...t, coords: null, locationUnavailable: true };
+    });
+  }, [techniciansQuery.data, zipDatasetReady]);
+
   const mappedTechs = useMemo<MappedTech[]>(() => {
-    return (techniciansQuery.data ?? [])
-      .filter((t) => isValidLatLng(t.latitude, t.longitude))
-      .map((t) => ({ ...t, coords: { latitude: t.latitude as number, longitude: t.longitude as number } }));
-  }, [techniciansQuery.data]);
+    return searchableTechs
+      .filter((t): t is SearchableTech & { coords: LatLng; locationUnavailable: false } => !!t.coords && !t.locationUnavailable)
+      .map((t) => ({ ...t, coords: t.coords }));
+  }, [searchableTechs]);
 
   const services = useMemo(() => {
     const set = new Set<string>();
@@ -354,14 +367,7 @@ export default function MapViewPage() {
     return Array.from(set).sort();
   }, [techniciansQuery.data]);
 
-  const US_STATES: Record<string, string> = {
-    AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming",DC:"District of Columbia",
-  };
-  const STATE_NAME_TO_CODE: Record<string, string> = Object.fromEntries(
-    Object.entries(US_STATES).map(([code, name]) => [name.toLowerCase(), code]),
-  );
-
-  const extractStateFromText = (s: string | null | undefined): string | null => {
+  const extractStateFromText = useCallback((s: string | null | undefined): string | null => {
     if (!s) return null;
     const txt = s.trim();
     if (!txt) return null;
@@ -373,7 +379,7 @@ export default function MapViewPage() {
       if (lower.includes(name)) return STATE_NAME_TO_CODE[name];
     }
     return null;
-  };
+  }, []);
 
   const availableStates = useMemo(() => {
     const set = new Set<string>();
@@ -381,42 +387,48 @@ export default function MapViewPage() {
       const code = (l.state && l.state.length === 2 ? l.state.toUpperCase() : extractStateFromText(l.state)) || extractStateFromText(l.zipState);
       if (code && US_STATES[code]) set.add(code);
     }
-    for (const t of mappedTechs) {
+    for (const t of searchableTechs) {
       const code = extractStateFromText(t.area);
       if (code && US_STATES[code]) set.add(code);
     }
     return Array.from(set).sort();
-  }, [mappedLeads, mappedTechs]);
+  }, [extractStateFromText, mappedLeads, searchableTechs]);
 
-  const techMatchesArea = (t: MappedTech, area: string) => {
+  const techMatchesArea = useCallback((t: TechnicianRecord, area: string) => {
     if (!area) return true;
     const q = area.trim().toLowerCase();
     return (t.area ?? "").toLowerCase().includes(q) || (t.name ?? "").toLowerCase().includes(q);
-  };
-  const leadMatchesArea = (l: MappedLead, area: string) => {
+  }, []);
+  const leadMatchesArea = useCallback((l: Pick<UrgentLead, "address" | "city" | "state" | "zip_code"> & { zipCity?: string; zipState?: string }, area: string) => {
     if (!area) return true;
     const q = area.trim().toLowerCase();
     return [l.address, l.city, l.state, l.zip_code, l.zipCity, l.zipState]
       .some((v) => (v ?? "").toString().toLowerCase().includes(q));
-  };
-  const techMatchesState = (t: MappedTech, code: string) => {
+  }, []);
+  const techMatchesState = useCallback((t: TechnicianRecord, code: string) => {
     if (code === "all") return true;
     return extractStateFromText(t.area) === code;
-  };
-  const leadMatchesState = (l: MappedLead, code: string) => {
+  }, [extractStateFromText]);
+  const leadMatchesState = useCallback((l: Pick<UrgentLead, "state"> & { zipState?: string }, code: string) => {
     if (code === "all") return true;
     const lc = (l.state && l.state.length === 2 ? l.state.toUpperCase() : extractStateFromText(l.state)) || extractStateFromText(l.zipState);
     return lc === code;
-  };
+  }, [extractStateFromText]);
 
-  const filteredTechs = useMemo(() => {
-    return mappedTechs.filter((t) => {
+  const filteredSearchableTechs = useMemo(() => {
+    return searchableTechs.filter((t) => {
       if (serviceFilter !== "all" && (t.service ?? "") !== serviceFilter) return false;
       if (!techMatchesState(t, stateFilter)) return false;
       if (!techMatchesArea(t, areaQuery)) return false;
       return true;
     });
-  }, [mappedTechs, serviceFilter, stateFilter, areaQuery]);
+  }, [areaQuery, searchableTechs, serviceFilter, stateFilter, techMatchesArea, techMatchesState]);
+
+  const filteredTechs = useMemo(() => {
+    return filteredSearchableTechs
+      .filter((t): t is SearchableTech & { coords: LatLng; locationUnavailable: false } => !!t.coords && !t.locationUnavailable)
+      .map((t) => ({ ...t, coords: t.coords }));
+  }, [filteredSearchableTechs]);
 
   const filteredLeads = useMemo(() => {
     return mappedLeads.filter((l) => {
@@ -424,11 +436,34 @@ export default function MapViewPage() {
       if (!leadMatchesArea(l, areaQuery)) return false;
       return true;
     });
-  }, [mappedLeads, stateFilter, areaQuery]);
+  }, [areaQuery, leadMatchesArea, leadMatchesState, mappedLeads, stateFilter]);
+
+  const filteredUrgentLeadTotal = useMemo(() => {
+    if (!zipDatasetReady) return 0;
+    return (urgentLeadsQuery.data ?? []).filter((l) => {
+      const zip = resolveZip({ zip_code: l.zip_code, address: l.address });
+      const centroid = lookupZipCentroidSync(zip);
+      const leadForFilters = {
+        ...l,
+        zipCity: centroid?.city ?? "",
+        zipState: centroid?.state ?? "",
+      };
+      if (!leadMatchesState(leadForFilters, stateFilter)) return false;
+      if (!leadMatchesArea(leadForFilters, areaQuery)) return false;
+      return true;
+    }).length;
+  }, [areaQuery, leadMatchesArea, leadMatchesState, stateFilter, urgentLeadsQuery.data, zipDatasetReady]);
+
+  const technicianCountLabel = filteredSearchableTechs.length === filteredTechs.length
+    ? `${filteredTechs.length} techs`
+    : `${filteredSearchableTechs.length} techs · ${filteredTechs.length} mapped`;
+  const urgentLeadCountLabel = filteredUrgentLeadTotal === filteredLeads.length
+    ? `${filteredLeads.length} urgent leads`
+    : `${filteredUrgentLeadTotal} urgent leads · ${filteredLeads.length} mapped`;
 
   const selectedTech = useMemo(
-    () => mappedTechs.find((t) => t.id === selectedTechId) ?? null,
-    [mappedTechs, selectedTechId],
+    () => filteredSearchableTechs.find((t) => t.id === selectedTechId) ?? searchableTechs.find((t) => t.id === selectedTechId) ?? null,
+    [filteredSearchableTechs, searchableTechs, selectedTechId],
   );
 
   useEffect(() => {
@@ -440,7 +475,7 @@ export default function MapViewPage() {
   }, [isMobile]);
 
   const leadsInRange = useMemo(() => {
-    if (!selectedTech) return [] as Array<MappedLead & { distance: number }>;
+    if (!selectedTech?.coords) return [] as Array<MappedLead & { distance: number }>;
     return filteredLeads
       .map((l) => ({ ...l, distance: haversineMiles(selectedTech.coords, l.coords) }))
       .filter((l) => l.distance <= RADIUS_MILES)
@@ -470,7 +505,7 @@ export default function MapViewPage() {
     popup.setLatLng(latlng).setContent(content).openOn(map);
   }, [getMapPopup]);
 
-  const createTechPopupElement = useCallback((t: MappedTech) => {
+  const createTechPopupElement = useCallback((t: SearchableTech) => {
     const root = document.createElement("div");
     root.style.minWidth = "280px";
     root.style.maxWidth = "360px";
@@ -496,6 +531,9 @@ export default function MapViewPage() {
     const areaBlock = t.area
       ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Area</div><div style="font-size:13px">${escapeHtml(t.area)}</div></div>`
       : "";
+    const locationBlock = t.locationUnavailable
+      ? `<div style="margin-top:8px;font-size:11px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:4px 6px;border-radius:4px">Location unavailable</div>`
+      : "";
     const notesBlock = t.notes
       ? `<div style="margin-top:8px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Notes</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word">${escapeHtml(t.notes)}</div></div>`
       : "";
@@ -503,7 +541,7 @@ export default function MapViewPage() {
       ? `<div style="margin-top:10px"><a href="${escapeHtml(t.chat_link)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:6px 10px;background:#2563eb;color:#fff;border-radius:6px;font-size:12px;text-decoration:none">Open Chat</a></div>`
       : "";
 
-    root.innerHTML = `<div style="font-weight:600;font-size:14px">${escapeHtml(t.name)}</div>${phoneBlock}${serviceBlock}${areaBlock}${notesBlock}${chatBtn}`;
+    root.innerHTML = `<div style="font-weight:600;font-size:14px">${escapeHtml(t.name)}</div>${phoneBlock}${serviceBlock}${areaBlock}${locationBlock}${notesBlock}${chatBtn}`;
     const copyButton = root.querySelector<HTMLButtonElement>(".ml-copy-phone");
     if (copyButton) {
       copyButton.addEventListener("click", async (event) => {
@@ -523,13 +561,13 @@ export default function MapViewPage() {
     return root;
   }, []);
 
-  const createLeadPopupElement = useCallback((l: MappedLead, currentSelectedTech: MappedTech | null) => {
+  const createLeadPopupElement = useCallback((l: MappedLead, currentSelectedTech: SearchableTech | null) => {
     const root = document.createElement("div");
     root.style.minWidth = "230px";
     root.style.fontFamily = "inherit";
     root.addEventListener("click", (event) => event.stopPropagation());
 
-    const distance = currentSelectedTech ? haversineMiles(currentSelectedTech.coords, l.coords) : null;
+    const distance = currentSelectedTech?.coords ? haversineMiles(currentSelectedTech.coords, l.coords) : null;
     const zipCity = [l.zipCity, l.zipState].filter(Boolean).join(", ");
     const distanceLine = currentSelectedTech && distance !== null && distance <= RADIUS_MILES
       ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${distance.toFixed(1)} mi from ${escapeHtml(currentSelectedTech.name)} (approx.)</div>`
@@ -699,17 +737,17 @@ export default function MapViewPage() {
   // Canvas marker data
   useEffect(() => {
     if (!mapReady) return;
-    const nextIds = new Set(filteredTechs.map((t) => t.id));
+    const nextIds = new Set(filteredSearchableTechs.map((t) => t.id));
     for (const id of techDataRefs.current.keys()) {
       if (!nextIds.has(id)) {
         techDataRefs.current.delete(id);
       }
     }
-    for (const t of filteredTechs) {
+    for (const t of filteredSearchableTechs) {
       techDataRefs.current.set(t.id, t);
     }
     setPinRenderVersion((version) => version + 1);
-  }, [filteredTechs, mapReady]);
+  }, [filteredSearchableTechs, mapReady]);
 
   useEffect(() => {
     applyTechMarkerSelection(selectedTechId);
@@ -783,7 +821,7 @@ export default function MapViewPage() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (selectedTech) {
+    if (selectedTech?.coords) {
       const latlng: L.LatLngExpression = [selectedTech.coords.latitude, selectedTech.coords.longitude];
       if (radiusLayer.current) {
         radiusLayer.current.setLatLng(latlng);
@@ -863,26 +901,28 @@ export default function MapViewPage() {
   // Technician search
   const techMatches = useMemo(() => {
     const q = techSearch.trim().toLowerCase();
-    if (!q) return [] as MappedTech[];
-    const source = (techniciansQuery.data ?? []).filter((t) => {
+    if (!q) return [] as SearchableTech[];
+    return searchableTechs.filter((t) => {
       if (serviceFilter !== "all" && (t.service ?? "") !== serviceFilter) return false;
       return (t.name ?? "").toLowerCase().includes(q);
-    });
-    // Prefer techs with valid coords first (mappable), then others
-    const mappable = source.filter((t) => isValidLatLng(t.latitude, t.longitude))
-      .map((t) => ({ ...t, coords: { latitude: t.latitude as number, longitude: t.longitude as number } })) as MappedTech[];
-    return mappable.slice(0, 25);
-  }, [techSearch, techniciansQuery.data, serviceFilter]);
+    }).slice(0, 25);
+  }, [techSearch, searchableTechs, serviceFilter]);
 
   useEffect(() => { setTechActiveIndex(0); }, [techSearch]);
 
-  const selectTech = (tech: MappedTech) => {
+  const selectTech = (tech: SearchableTech) => {
     if (!mapVisible) setMapVisible(true);
     if (viewMode === "leads") setViewMode("both");
     setShowTechSuggestions(false);
     setTechSearch(tech.name || "");
     setSelectedTechId(tech.id);
-    setPendingFocusTechId(tech.id);
+    selectedTechRef.current = tech;
+    if (tech.coords) {
+      setPendingFocusTechId(tech.id);
+    } else {
+      setPendingFocusTechId(null);
+      toast("Location unavailable");
+    }
     if (isMobile) setSheetOpen(true);
   };
 
@@ -954,7 +994,7 @@ export default function MapViewPage() {
     if (!pendingFocusTechId) return;
     const map = mapRef.current;
     const tech = techDataRefs.current.get(pendingFocusTechId) ?? filteredTechs.find((t) => t.id === pendingFocusTechId);
-    if (!map || !tech) return;
+    if (!map || !tech?.coords) return;
     const ll = L.latLng(tech.coords.latitude, tech.coords.longitude);
     map.flyTo(ll, 10, { duration: 0.6 });
     if (techFocusTimeout.current) clearTimeout(techFocusTimeout.current);
@@ -1116,6 +1156,11 @@ export default function MapViewPage() {
                         {svcArea}
                       </div>
                     )}
+                    {t.locationUnavailable && (
+                      <div className="text-[11px] text-amber-600 truncate mt-0.5">
+                        Location unavailable
+                      </div>
+                    )}
                   </button>
                 </li>
               );
@@ -1137,6 +1182,11 @@ export default function MapViewPage() {
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <TechnicianDetailsContent technician={selectedTech} />
+              {selectedTech.locationUnavailable && (
+                <Badge variant="outline" className="mt-2 text-[11px] text-amber-700 border-amber-300 bg-amber-50">
+                  Location unavailable
+                </Badge>
+              )}
             </div>
             <Button size="icon" variant="ghost" onClick={clearSelectedTech}><X className="h-4 w-4" /></Button>
           </div>
@@ -1173,7 +1223,7 @@ export default function MapViewPage() {
         </>
       ) : (
         <div className="text-xs text-muted-foreground">
-          {mappedTechs.length === 0
+          {filteredTechs.length === 0
             ? "Add technicians in the Technicians section to see coverage."
             : `Select a technician marker to see coverage and matching urgent leads within ${RADIUS_MILES} miles.`}
         </div>
@@ -1192,9 +1242,8 @@ export default function MapViewPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Map View</h1>
             <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
-              <Contact className="h-3 w-3" /> {mappedTechs.length} techs · {mappedLeads.length} urgent leads
-              {selectedTech && <><span>·</span><span>{leadsInRange.length} within {RADIUS_MILES} mi</span></>}
-              {geocoding && <Loader2 className="h-3 w-3 animate-spin" />}
+              <Contact className="h-3 w-3" /> {technicianCountLabel} · {urgentLeadCountLabel}
+              {selectedTech?.coords && <><span>·</span><span>{leadsInRange.length} within {RADIUS_MILES} mi</span></>}
             </p>
           </div>
         </div>
