@@ -106,7 +106,7 @@ class MapPinCanvasLayer extends L.Layer {
     super();
   }
 
-  onAdd(map: L.Map) {
+  onAdd(map: L.Map): this {
     this.map = map;
     this.canvas = L.DomUtil.create("canvas", "marshmallow-map-pin-canvas");
     this.canvas.style.position = "absolute";
@@ -121,9 +121,10 @@ class MapPinCanvasLayer extends L.Layer {
     map.on("moveend zoomend", this.handleMoveEnd, this);
     map.on("resize viewreset", this.scheduleReset, this);
     this.reset();
+    return this;
   }
 
-  onRemove(map: L.Map) {
+  onRemove(map: L.Map): this {
     map.off("movestart zoomstart", this.handleMoveStart, this);
     map.off("moveend zoomend", this.handleMoveEnd, this);
     map.off("resize viewreset", this.scheduleReset, this);
@@ -139,6 +140,7 @@ class MapPinCanvasLayer extends L.Layer {
     this.leadHitTargets = [];
     this.techHitTargets = [];
     this.lastMouseMoveEvent = null;
+    return this;
   }
 
   setPins(pins: CanvasPin[]) {
