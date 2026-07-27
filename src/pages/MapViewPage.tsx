@@ -75,11 +75,28 @@ interface CanvasPin {
   selected?: boolean;
 }
 
+interface CanvasHitTarget extends CanvasPin {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
 class MapPinCanvasLayer extends L.Layer {
   private canvas: HTMLCanvasElement | null = null;
   private map: L.Map | null = null;
   private topLeft = L.point(0, 0);
   private pins: CanvasPin[] = [];
+  private leadHitTargets: CanvasHitTarget[] = [];
+  private techHitTargets: CanvasHitTarget[] = [];
+  private resetFrame: number | null = null;
+  private redrawFrame: number | null = null;
+  private hoverFrame: number | null = null;
+  private lastMouseMoveEvent: MouseEvent | null = null;
+  private isMoving = false;
+  private canvasCssWidth = 0;
+  private canvasCssHeight = 0;
+  private canvasScale = 0;
 
   constructor(
     private readonly onTechClick: (id: string, latlng: L.LatLng) => void,
@@ -97,27 +114,74 @@ class MapPinCanvasLayer extends L.Layer {
     this.canvas.style.pointerEvents = "auto";
     this.canvas.addEventListener("click", this.handleClick);
     this.canvas.addEventListener("mousemove", this.handleMouseMove);
+    this.canvas.addEventListener("mouseleave", this.handleMouseLeave);
     const pane = map.getPane("marshmallow-tech-pins") ?? map.getPanes().overlayPane;
     pane.appendChild(this.canvas);
-    map.on("move zoom resize viewreset", this.reset, this);
+    map.on("movestart zoomstart", this.handleMoveStart, this);
+    map.on("moveend zoomend", this.handleMoveEnd, this);
+    map.on("resize viewreset", this.scheduleReset, this);
     this.reset();
   }
 
   onRemove(map: L.Map) {
-    map.off("move zoom resize viewreset", this.reset, this);
+    map.off("movestart zoomstart", this.handleMoveStart, this);
+    map.off("moveend zoomend", this.handleMoveEnd, this);
+    map.off("resize viewreset", this.scheduleReset, this);
+    this.cancelFrames();
     if (this.canvas) {
       this.canvas.removeEventListener("click", this.handleClick);
       this.canvas.removeEventListener("mousemove", this.handleMouseMove);
+      this.canvas.removeEventListener("mouseleave", this.handleMouseLeave);
       L.DomUtil.remove(this.canvas);
     }
     this.canvas = null;
     this.map = null;
+    this.leadHitTargets = [];
+    this.techHitTargets = [];
+    this.lastMouseMoveEvent = null;
   }
 
   setPins(pins: CanvasPin[]) {
     this.pins = pins;
-    this.redraw();
+    this.scheduleRedraw();
   }
+
+  private cancelFrames() {
+    if (this.resetFrame !== null) window.cancelAnimationFrame(this.resetFrame);
+    if (this.redrawFrame !== null) window.cancelAnimationFrame(this.redrawFrame);
+    if (this.hoverFrame !== null) window.cancelAnimationFrame(this.hoverFrame);
+    this.resetFrame = null;
+    this.redrawFrame = null;
+    this.hoverFrame = null;
+  }
+
+  private scheduleReset = () => {
+    if (this.resetFrame !== null) return;
+    this.resetFrame = window.requestAnimationFrame(() => {
+      this.resetFrame = null;
+      this.reset();
+    });
+  };
+
+  private scheduleRedraw = () => {
+    if (this.redrawFrame !== null) return;
+    this.redrawFrame = window.requestAnimationFrame(() => {
+      this.redrawFrame = null;
+      this.redraw();
+    });
+  };
+
+  private handleMoveStart = () => {
+    this.isMoving = true;
+    if (!this.canvas) return;
+    this.canvas.style.cursor = "";
+    this.canvas.title = "";
+  };
+
+  private handleMoveEnd = () => {
+    this.isMoving = false;
+    this.scheduleReset();
+  };
 
   private reset = () => {
     if (!this.map || !this.canvas) return;
@@ -125,10 +189,25 @@ class MapPinCanvasLayer extends L.Layer {
     this.topLeft = this.map.containerPointToLayerPoint([0, 0]);
     L.DomUtil.setPosition(this.canvas, this.topLeft);
     const scale = window.devicePixelRatio || 1;
-    this.canvas.width = Math.max(1, Math.round(size.x * scale));
-    this.canvas.height = Math.max(1, Math.round(size.y * scale));
-    this.canvas.style.width = `${size.x}px`;
-    this.canvas.style.height = `${size.y}px`;
+    const nextPixelWidth = Math.max(1, Math.round(size.x * scale));
+    const nextPixelHeight = Math.max(1, Math.round(size.y * scale));
+    if (
+      this.canvas.width !== nextPixelWidth
+      || this.canvas.height !== nextPixelHeight
+      || this.canvasScale !== scale
+    ) {
+      this.canvas.width = nextPixelWidth;
+      this.canvas.height = nextPixelHeight;
+      this.canvasScale = scale;
+    }
+    if (this.canvasCssWidth !== size.x) {
+      this.canvas.style.width = `${size.x}px`;
+      this.canvasCssWidth = size.x;
+    }
+    if (this.canvasCssHeight !== size.y) {
+      this.canvas.style.height = `${size.y}px`;
+      this.canvasCssHeight = size.y;
+    }
     const ctx = this.canvas.getContext("2d");
     if (ctx) ctx.setTransform(scale, 0, 0, scale, 0, 0);
     this.redraw();
@@ -140,6 +219,8 @@ class MapPinCanvasLayer extends L.Layer {
     if (!ctx) return;
     const size = this.map.getSize();
     ctx.clearRect(0, 0, size.x, size.y);
+    this.leadHitTargets = [];
+    this.techHitTargets = [];
 
     for (const pin of this.pins) {
       if (pin.kind === "lead") this.drawPin(ctx, pin, "#ef4444", 30);
@@ -152,6 +233,17 @@ class MapPinCanvasLayer extends L.Layer {
   private drawPin(ctx: CanvasRenderingContext2D, pin: CanvasPin, fill: string, size: number) {
     if (!this.map) return;
     const point = this.map.latLngToLayerPoint([pin.lat, pin.lng]).subtract(this.topLeft);
+    const halfWidth = size * 0.42;
+    const target: CanvasHitTarget = {
+      ...pin,
+      minX: point.x - halfWidth,
+      maxX: point.x + halfWidth,
+      minY: point.y - size,
+      maxY: point.y + 3,
+    };
+    if (pin.kind === "tech") this.techHitTargets.push(target);
+    else this.leadHitTargets.push(target);
+
     const scale = size / 32;
     ctx.save();
     ctx.translate(point.x - 12 * scale, point.y - 31.25 * scale);
@@ -179,28 +271,22 @@ class MapPinCanvasLayer extends L.Layer {
   private findHit(event: MouseEvent) {
     if (!this.map) return null;
     const point = this.map.mouseEventToLayerPoint(event).subtract(this.topLeft);
-    for (let i = this.pins.length - 1; i >= 0; i -= 1) {
-      const pin = this.pins[i];
-      if (pin.kind !== "tech") continue;
+    for (let i = this.techHitTargets.length - 1; i >= 0; i -= 1) {
+      const pin = this.techHitTargets[i];
       if (this.pinContainsPoint(pin, point)) return pin;
     }
-    for (let i = this.pins.length - 1; i >= 0; i -= 1) {
-      const pin = this.pins[i];
-      if (pin.kind !== "lead") continue;
+    for (let i = this.leadHitTargets.length - 1; i >= 0; i -= 1) {
+      const pin = this.leadHitTargets[i];
       if (this.pinContainsPoint(pin, point)) return pin;
     }
     return null;
   }
 
-  private pinContainsPoint(pin: CanvasPin, point: L.Point) {
-    if (!this.map) return false;
-    const anchor = this.map.latLngToLayerPoint([pin.lat, pin.lng]).subtract(this.topLeft);
-    const size = pin.kind === "tech" && pin.selected ? 34 : 30;
-    const halfWidth = size * 0.42;
-    return point.x >= anchor.x - halfWidth
-      && point.x <= anchor.x + halfWidth
-      && point.y >= anchor.y - size
-      && point.y <= anchor.y + 3;
+  private pinContainsPoint(pin: CanvasHitTarget, point: L.Point) {
+    return point.x >= pin.minX
+      && point.x <= pin.maxX
+      && point.y >= pin.minY
+      && point.y <= pin.maxY;
   }
 
   private handleClick = (event: MouseEvent) => {
@@ -214,10 +300,27 @@ class MapPinCanvasLayer extends L.Layer {
   };
 
   private handleMouseMove = (event: MouseEvent) => {
+    if (!this.canvas || this.isMoving) return;
+    this.lastMouseMoveEvent = event;
+    if (this.hoverFrame !== null) return;
+    this.hoverFrame = window.requestAnimationFrame(() => {
+      this.hoverFrame = null;
+      if (!this.canvas || this.isMoving || !this.lastMouseMoveEvent) return;
+      const hit = this.findHit(this.lastMouseMoveEvent);
+      this.canvas.style.cursor = hit ? "pointer" : "";
+      this.canvas.title = hit?.kind === "tech" ? this.getTechTooltip(hit.id) : "";
+    });
+  };
+
+  private handleMouseLeave = () => {
+    this.lastMouseMoveEvent = null;
+    if (this.hoverFrame !== null) {
+      window.cancelAnimationFrame(this.hoverFrame);
+      this.hoverFrame = null;
+    }
     if (!this.canvas) return;
-    const hit = this.findHit(event);
-    this.canvas.style.cursor = hit ? "pointer" : "";
-    this.canvas.title = hit?.kind === "tech" ? this.getTechTooltip(hit.id) : "";
+    this.canvas.style.cursor = "";
+    this.canvas.title = "";
   };
 }
 
