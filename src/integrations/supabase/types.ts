@@ -782,6 +782,69 @@ export type Database = {
           },
         ]
       }
+      lead_operator_assignments: {
+        Row: {
+          assigned_by: string | null
+          assigned_by_name: string
+          created_at: string | null
+          id: string
+          lead_id: string
+          operator_user_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          assigned_by_name?: string
+          created_at?: string | null
+          id?: string
+          lead_id: string
+          operator_user_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          assigned_by_name?: string
+          created_at?: string | null
+          id?: string
+          lead_id?: string
+          operator_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_operator_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_operator_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_operator_assignments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_operator_assignments_operator_user_id_fkey"
+            columns: ["operator_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_operator_assignments_operator_user_id_fkey"
+            columns: ["operator_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_payment_requests: {
         Row: {
           amount: number
@@ -1148,6 +1211,7 @@ export type Database = {
           scheduled_time_start: string | null
           service_details: string | null
           service_type: string
+          show_quote_to_opr: boolean | null
           source_url: string | null
           state: string | null
           status: string
@@ -1199,6 +1263,7 @@ export type Database = {
           scheduled_time_start?: string | null
           service_details?: string | null
           service_type: string
+          show_quote_to_opr?: boolean | null
           source_url?: string | null
           state?: string | null
           status?: string
@@ -1250,6 +1315,7 @@ export type Database = {
           scheduled_time_start?: string | null
           service_details?: string | null
           service_type?: string
+          show_quote_to_opr?: boolean | null
           source_url?: string | null
           state?: string | null
           status?: string
