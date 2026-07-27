@@ -8,6 +8,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { geocodeAddress } from "@/lib/geo";
 import { isLikelyPhone } from "@/lib/phone";
+import { lookupZipCentroid, resolveZip } from "@/lib/zipCentroids";
+import { TECHNICIANS_QUERY_KEY, upsertTechnicianInList } from "@/lib/technicians";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
 export interface TechnicianRecord {
@@ -30,6 +33,7 @@ interface Props {
 }
 
 export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Props) {
+  const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
@@ -66,7 +70,9 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
       let longitude = technician?.longitude ?? null;
       const areaChanged = !technician || technician.area !== cleanArea;
       if (areaChanged && cleanArea) {
-        const coords = await geocodeAddress(cleanArea);
+        const zip = resolveZip({ address: cleanArea });
+        const centroid = await lookupZipCentroid(zip);
+        const coords = centroid ?? await geocodeAddress(cleanArea);
         if (coords) {
           latitude = coords.latitude;
           longitude = coords.longitude;
@@ -108,6 +114,9 @@ export function TechnicianDialog({ open, onOpenChange, technician, onSaved }: Pr
         toast({ title: "Save failed", description: error?.message ?? "Could not verify the saved technician.", variant: "destructive" });
       } else {
         const geoWarn = !!cleanArea && (latitude == null || longitude == null);
+        queryClient.setQueryData<TechnicianRecord[]>(TECHNICIANS_QUERY_KEY, (current) =>
+          upsertTechnicianInList(current, saved),
+        );
         toast({
           title: technician ? "Technician updated" : "Technician added",
           description: geoWarn ? "Saved, but the area could not be located on the map." : undefined,
