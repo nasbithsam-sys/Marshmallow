@@ -12,6 +12,7 @@ import { playAssignmentSound } from '@/lib/notification-sound';
 
 const NOTIFICATION_POLL_INTERVAL_MS = 15 * 1000;
 const MAX_REMEMBERED_CANCELLATION_POPUPS = 200;
+const NOTIFICATION_LIMIT = 20;
 
 const cancellationPopupStorageKey = (userId: string) => `shown-cancellation-popups:${userId}`;
 
@@ -41,6 +42,29 @@ interface Notification {
   created_at: string;
 }
 
+const getAssignedLeadIdsForOperator = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('lead_operator_assignments')
+    .select('lead_id')
+    .eq('operator_user_id', userId);
+
+  if (error || !data) return new Set<string>();
+  return new Set(data.map((row: { lead_id: string }) => row.lead_id).filter(Boolean));
+};
+
+const hasOperatorLeadAssignment = async (userId: string, leadId: string | null | undefined) => {
+  if (!leadId) return false;
+
+  const { data, error } = await supabase
+    .from('lead_operator_assignments')
+    .select('lead_id')
+    .eq('operator_user_id', userId)
+    .eq('lead_id', leadId)
+    .maybeSingle();
+
+  return !error && Boolean(data);
+};
+
 export default function NotificationBell() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
@@ -50,14 +74,34 @@ export default function NotificationBell() {
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
+
+    if (role === 'opr') {
+      const assignedLeadIds = await getAssignedLeadIdsForOperator(user.id);
+      const assignedLeadIdList = Array.from(assignedLeadIds);
+      let query = supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(NOTIFICATION_LIMIT);
+
+      query = assignedLeadIdList.length > 0
+        ? query.or(`lead_id.is.null,lead_id.in.(${assignedLeadIdList.join(',')})`)
+        : query.is('lead_id', null);
+
+      const { data } = await query;
+      if (data) setNotifications(data as Notification[]);
+      return;
+    }
+
     const { data } = await supabase
       .from('notifications')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(NOTIFICATION_LIMIT);
     if (data) setNotifications(data as Notification[]);
-  }, [user]);
+  }, [role, user]);
 
   useEffect(() => {
     shownCancellationPopups.current = user ? loadShownCancellationPopupIds(user.id) : new Set<string>();
@@ -116,13 +160,13 @@ export default function NotificationBell() {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
+        async (payload) => {
           void fetchNotifications();
 
           // Play sound and show prominent toast for operator assignment notifications
           if (role === 'opr') {
             const newRow = payload.new as { title?: string; message?: string; lead_id?: string } | undefined;
-            if (newRow?.title?.includes('Lead Assigned')) {
+            if (newRow?.title?.includes('Lead Assigned') && await hasOperatorLeadAssignment(user.id, newRow.lead_id)) {
               playAssignmentSound();
               toast('🔔 New Lead Assigned!', {
                 description: newRow.message || 'A new lead has been assigned to you.',
