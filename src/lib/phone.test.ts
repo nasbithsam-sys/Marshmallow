@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizePhoneE164 } from "@/lib/phone";
+import { formatUSPhone, normalizePhoneE164 } from "@/lib/phone";
+
+describe("formatUSPhone", () => {
+  it("formats a 10-digit US phone number", () => {
+    expect(formatUSPhone("3055550123")).toBe("(305) 555-0123");
+  });
+
+  it("drops a leading US country code from 11 pasted digits", () => {
+    expect(formatUSPhone("13055550123")).toBe("(305) 555-0123");
+  });
+
+  it("strips unsupported characters and ignores digits after 10", () => {
+    expect(formatUSPhone("305-555-0123abc999")).toBe("(305) 555-0123");
+  });
+});
 
 describe("normalizePhoneE164", () => {
   it("normalizes a 10-digit US number to E.164", () => {

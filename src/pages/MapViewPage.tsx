@@ -485,11 +485,13 @@ export default function MapViewPage() {
   const getMapPopup = useCallback(() => {
     if (!mapPopupRef.current) {
       mapPopupRef.current = L.popup({
-        autoPan: false,
+        autoPan: true,
         autoClose: true,
         closeOnClick: true,
         closeButton: true,
-        keepInView: false,
+        keepInView: true,
+        autoPanPaddingTopLeft: L.point(16, 16),
+        autoPanPaddingBottomRight: L.point(16, 16),
         minWidth: 230,
         maxWidth: 360,
       });
@@ -503,6 +505,7 @@ export default function MapViewPage() {
     const popup = getMapPopup();
     map.closePopup(popup);
     popup.setLatLng(latlng).setContent(content).openOn(map);
+    popup.update();
   }, [getMapPopup]);
 
   const createTechPopupElement = useCallback((t: SearchableTech) => {
