@@ -30,24 +30,24 @@ ALTER TABLE public.quo_pinned_conversations ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Admins read quo number preferences" ON public.quo_number_preferences;
 CREATE POLICY "Admins read quo number preferences"
   ON public.quo_number_preferences FOR SELECT TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+  USING (public.has_role((select auth.uid()), 'admin'::public.app_role));
 
 DROP POLICY IF EXISTS "Admins manage quo number preferences" ON public.quo_number_preferences;
 CREATE POLICY "Admins manage quo number preferences"
   ON public.quo_number_preferences FOR ALL TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'::public.app_role))
-  WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
+  USING (public.has_role((select auth.uid()), 'admin'::public.app_role))
+  WITH CHECK (public.has_role((select auth.uid()), 'admin'::public.app_role));
 
 DROP POLICY IF EXISTS "Admins read quo pinned conversations" ON public.quo_pinned_conversations;
 CREATE POLICY "Admins read quo pinned conversations"
   ON public.quo_pinned_conversations FOR SELECT TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+  USING (public.has_role((select auth.uid()), 'admin'::public.app_role));
 
 DROP POLICY IF EXISTS "Admins manage quo pinned conversations" ON public.quo_pinned_conversations;
 CREATE POLICY "Admins manage quo pinned conversations"
   ON public.quo_pinned_conversations FOR ALL TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'::public.app_role))
-  WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
+  USING (public.has_role((select auth.uid()), 'admin'::public.app_role))
+  WITH CHECK (public.has_role((select auth.uid()), 'admin'::public.app_role));
 
 CREATE OR REPLACE FUNCTION public.enforce_quo_pinned_conversation_limit()
 RETURNS trigger

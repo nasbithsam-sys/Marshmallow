@@ -24,18 +24,18 @@ CREATE POLICY "Authenticated can read calls"
 
 CREATE POLICY "CS and Admin can insert calls"
   ON public.calls FOR INSERT TO authenticated
-  WITH CHECK (created_by = auth.uid() AND (
-    has_role(auth.uid(),'admin'::app_role)
-    OR has_role(auth.uid(),'customer_service'::app_role)
+  WITH CHECK (created_by = (select auth.uid()) AND (
+    has_role((select auth.uid()),'admin'::app_role)
+    OR has_role((select auth.uid()),'customer_service'::app_role)
   ));
 
 CREATE POLICY "Owner or Admin can update calls"
   ON public.calls FOR UPDATE TO authenticated
-  USING (created_by = auth.uid() OR has_role(auth.uid(),'admin'::app_role));
+  USING (created_by = (select auth.uid()) OR has_role((select auth.uid()),'admin'::app_role));
 
 CREATE POLICY "Owner or Admin can delete calls"
   ON public.calls FOR DELETE TO authenticated
-  USING (created_by = auth.uid() OR has_role(auth.uid(),'admin'::app_role));
+  USING (created_by = (select auth.uid()) OR has_role((select auth.uid()),'admin'::app_role));
 
 CREATE INDEX idx_calls_call_date ON public.calls(call_date DESC);
 CREATE INDEX idx_calls_flag ON public.calls(flag);

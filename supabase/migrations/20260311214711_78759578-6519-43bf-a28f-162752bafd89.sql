@@ -14,8 +14,8 @@ CREATE POLICY "Authenticated users can view lead_shares"
 
 CREATE POLICY "Admins can insert lead_shares"
   ON public.lead_shares FOR INSERT TO authenticated
-  WITH CHECK (public.has_role(auth.uid(), 'admin'));
+  WITH CHECK (public.has_role((select auth.uid()), 'admin'));
 
 CREATE POLICY "Admins can delete lead_shares"
   ON public.lead_shares FOR DELETE TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'));
+  USING (public.has_role((select auth.uid()), 'admin'));

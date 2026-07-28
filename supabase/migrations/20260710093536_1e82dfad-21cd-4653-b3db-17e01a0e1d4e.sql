@@ -16,7 +16,7 @@ REVOKE EXECUTE ON FUNCTION public.update_updated_at_column() FROM anon, authenti
 REVOKE EXECUTE ON FUNCTION public.enforce_quo_pinned_conversation_limit() FROM anon, authenticated, PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.enforce_lead_tag_role_access() FROM anon, authenticated, PUBLIC;
 
--- has_role and can_access_quo_ai are used by RLS policies via auth.uid() — they need to
+-- has_role and can_access_quo_ai are used by RLS policies via (select auth.uid()) — they need to
 -- remain callable by authenticated users. Keep them as-is.
 
 -- 2. Add search_path to handle_user_delete_cleanup (only function missing it)

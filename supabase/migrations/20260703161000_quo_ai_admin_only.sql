@@ -5,7 +5,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT public.has_role(auth.uid(), 'admin'::public.app_role);
+  SELECT public.has_role((select auth.uid()), 'admin'::public.app_role);
 $$;
 
 DELETE FROM public.navigation_permissions AS np

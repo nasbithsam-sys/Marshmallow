@@ -14,8 +14,8 @@ CREATE POLICY "Authenticated can read message templates"
 
 CREATE POLICY "Admins can manage message templates"
   ON public.message_templates FOR ALL TO authenticated
-  USING (has_role(auth.uid(), 'admin'::app_role))
-  WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
+  USING (has_role((select auth.uid()), 'admin'::app_role))
+  WITH CHECK (has_role((select auth.uid()), 'admin'::app_role));
 
 DROP TRIGGER IF EXISTS message_templates_set_updated_at ON public.message_templates;
 CREATE TRIGGER message_templates_set_updated_at

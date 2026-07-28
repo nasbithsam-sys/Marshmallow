@@ -35,10 +35,10 @@ CREATE POLICY "Processor admin can create own payment requests"
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    requested_by = auth.uid()
+    requested_by = (select auth.uid())
     AND (
-      (requested_by_role = 'processor' AND public.has_role(auth.uid(), 'processor'::public.app_role))
-      OR (requested_by_role = 'admin' AND public.has_role(auth.uid(), 'admin'::public.app_role))
+      (requested_by_role = 'processor' AND public.has_role((select auth.uid()), 'processor'::public.app_role))
+      OR (requested_by_role = 'admin' AND public.has_role((select auth.uid()), 'admin'::public.app_role))
     )
   );
 
@@ -46,8 +46,8 @@ CREATE POLICY "Admins can review payment requests"
   ON public.lead_payment_requests
   FOR UPDATE
   TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'::public.app_role))
-  WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
+  USING (public.has_role((select auth.uid()), 'admin'::public.app_role))
+  WITH CHECK (public.has_role((select auth.uid()), 'admin'::public.app_role));
 
 CREATE TRIGGER trg_lead_payment_requests_updated_at
   BEFORE UPDATE ON public.lead_payment_requests

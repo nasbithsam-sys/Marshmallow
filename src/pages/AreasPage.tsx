@@ -75,7 +75,8 @@ export default function AreasPage() {
       .from("leads")
       .select("id, address, city, service_type, status, created_at")
       .gte("created_at", dateRange.from.toISOString())
-      .lte("created_at", dateRange.to.toISOString());
+      .lte("created_at", dateRange.to.toISOString())
+      .limit(1500);
     if (data) setLeads(data as Lead[]);
     setLoading(false);
   };

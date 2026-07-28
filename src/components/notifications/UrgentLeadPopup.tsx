@@ -14,7 +14,7 @@ interface UrgentNotification {
   read: boolean;
 }
 
-const POLL_MS = 20000;
+const POLL_MS = 300000; // 5 minutes fallback
 const BASELINE_KEY = "urgent_popup_baseline_at";
 
 function getOrInitBaseline(): string {
@@ -60,9 +60,27 @@ export default function UrgentLeadPopup() {
   useEffect(() => {
     if (!eligible) return;
     void fetchUrgent();
+    
+    // Realtime subscription for immediate updates
+    const channel = supabase
+      .channel("urgent-notifications-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: user?.id ? `user_id=eq.${user.id}` : undefined },
+        () => {
+          void fetchUrgent();
+        }
+      )
+      .subscribe();
+
+    // Fallback polling
     const interval = setInterval(fetchUrgent, POLL_MS);
-    return () => clearInterval(interval);
-  }, [fetchUrgent, eligible]);
+    
+    return () => {
+      clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchUrgent, eligible, user?.id]);
 
   const dismiss = async (id: string) => {
     setItems((prev) => prev.filter((n) => n.id !== id));

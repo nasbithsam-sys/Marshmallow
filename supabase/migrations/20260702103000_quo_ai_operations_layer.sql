@@ -232,11 +232,11 @@ CREATE POLICY "Authorized read quo ai events"
 
 CREATE POLICY "Admins read quo ai jobs"
   ON public.quo_ai_jobs FOR SELECT TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+  USING (public.has_role((select auth.uid()), 'admin'::public.app_role));
 
 CREATE POLICY "Admins read quo ai cost logs"
   ON public.quo_ai_cost_logs FOR SELECT TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+  USING (public.has_role((select auth.uid()), 'admin'::public.app_role));
 
 CREATE POLICY "Authorized read quo ai feedback"
   ON public.quo_ai_feedback FOR SELECT TO authenticated
@@ -244,12 +244,12 @@ CREATE POLICY "Authorized read quo ai feedback"
 
 CREATE POLICY "Authorized insert quo ai feedback"
   ON public.quo_ai_feedback FOR INSERT TO authenticated
-  WITH CHECK (user_id = auth.uid() AND public.can_access_quo_ai());
+  WITH CHECK (user_id = (select auth.uid()) AND public.can_access_quo_ai());
 
 CREATE POLICY "Admins manage quo ai settings"
   ON public.quo_ai_settings FOR ALL TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'::public.app_role))
-  WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
+  USING (public.has_role((select auth.uid()), 'admin'::public.app_role))
+  WITH CHECK (public.has_role((select auth.uid()), 'admin'::public.app_role));
 
 CREATE POLICY "Authorized read quo ai daily briefs"
   ON public.quo_ai_daily_briefs FOR SELECT TO authenticated
