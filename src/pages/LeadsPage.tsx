@@ -53,6 +53,7 @@ export default function LeadsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [totalLeads, setTotalLeads] = useState(0);
   const [sharedLeads, setSharedLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -114,7 +115,8 @@ export default function LeadsPage() {
 
     setLoading(true);
 
-    // Operator: only see explicitly assigned leads
+    let query = supabase.from("leads").select("*", { count: "exact" });
+
     if (role === "opr") {
       const { data: assignments, error: assignError } = await supabase
         .from("lead_operator_assignments")
@@ -124,53 +126,52 @@ export default function LeadsPage() {
       if (assignError) {
         toast.error(assignError.message);
         setLeads([]);
+        setTotalLeads(0);
         setLoading(false);
         return;
       }
 
       if (!assignments || assignments.length === 0) {
         setLeads([]);
+        setTotalLeads(0);
         setLoading(false);
         return;
       }
 
-      const leadIds = assignments.map((a: { lead_id: string }) => a.lead_id);
-
-      const { data, error } = await supabase
-        .from("leads")
-        .select("*")
-        .in("id", leadIds)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        toast.error(error.message);
-        setLeads([]);
-      } else {
-        setLeads((data ?? []) as Lead[]);
-      }
-
-      setLoading(false);
-      return;
-    }
-
-    let query = supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(2000);
-
-    // CS can see only own created leads
-    if (role === "customer_service") {
+      query = query.in(
+        "id",
+        assignments.map((a: { lead_id: string }) => a.lead_id)
+      );
+    } else if (role === "customer_service") {
       query = query.eq("created_by", user.id);
     }
 
-    const { data, error } = await query;
+    if (safeStatusFilter !== "all") {
+      query = query.eq("status", safeStatusFilter);
+    }
+
+    if (deferredSearch) {
+      const s = `%${deferredSearch}%`;
+      query = query.or(`customer_name.ilike.${s},job_id.ilike.${s},customer_phone.ilike.${s},address.ilike.${s},service_type.ilike.${s}`);
+    }
+
+    query = query
+      .order("created_at", { ascending: false })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    const { data, error, count } = await query;
 
     if (error) {
       toast.error(error.message);
       setLeads([]);
+      setTotalLeads(0);
     } else {
       setLeads((data ?? []) as Lead[]);
+      setTotalLeads(count ?? 0);
     }
 
     setLoading(false);
-  }, [role, user]);
+  }, [role, user, page, pageSize, deferredSearch, safeStatusFilter]);
 
   const fetchSharedLeads = useCallback(async () => {
     if (!user || role !== "customer_service") return;
@@ -193,11 +194,22 @@ export default function LeadsPage() {
 
     const leadIds = (shares as LeadShareRow[]).map((share) => share.lead_id);
 
-    const { data: leadsData, error: leadsError } = await supabase
-      .from("leads")
-      .select("*")
-      .in("id", leadIds)
-      .order("created_at", { ascending: false });
+    let query = supabase.from("leads").select("*", { count: "exact" }).in("id", leadIds);
+
+    if (safeStatusFilter !== "all") {
+      query = query.eq("status", safeStatusFilter);
+    }
+
+    if (deferredSearch) {
+      const s = `%${deferredSearch}%`;
+      query = query.or(`customer_name.ilike.${s},job_id.ilike.${s},customer_phone.ilike.${s},address.ilike.${s},service_type.ilike.${s}`);
+    }
+
+    query = query
+      .order("created_at", { ascending: false })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    const { data: leadsData, error: leadsError, count } = await query;
 
     if (leadsError) {
       toast.error(leadsError.message);
@@ -206,7 +218,12 @@ export default function LeadsPage() {
     }
 
     setSharedLeads((leadsData ?? []) as Lead[]);
-  }, [role, user]);
+    // If active tab is shared, totalLeads should technically be this count,
+    // but we'll set totalLeads here and let the UI use it.
+    if (activeTab === "shared") {
+      setTotalLeads(count ?? 0);
+    }
+  }, [role, user, page, pageSize, deferredSearch, safeStatusFilter, activeTab]);
 
   useEffect(() => {
     if (!user || !role) return;
@@ -253,32 +270,14 @@ export default function LeadsPage() {
 
   const filtered = useMemo(() => {
     let result = [...currentLeads];
-
-    if (safeStatusFilter !== "all") {
-      result = result.filter((l) => l.status === safeStatusFilter);
-    }
-
-    if (deferredSearch) {
-      const s = deferredSearch.toLowerCase();
-      result = result.filter(
-        (l) =>
-          l.customer_name?.toLowerCase().includes(s) ||
-          l.job_id?.toLowerCase().includes(s) ||
-          l.customer_phone?.toLowerCase().includes(s) ||
-          l.address?.toLowerCase().includes(s) ||
-          l.service_type?.toLowerCase().includes(s),
-      );
-    }
-
     result.sort(compareLeadDisplayPriority);
-
     return result;
-  }, [currentLeads, deferredSearch, safeStatusFilter]);
+  }, [currentLeads]);
 
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
+  const totalPages = Math.ceil(totalLeads / pageSize);
+  const paged = filtered;
   useEffect(() => {
-    if (filtered.length === 0 && page !== 0) {
+    if (totalLeads === 0 && page !== 0) {
       setPage(0);
       return;
     }
@@ -286,7 +285,7 @@ export default function LeadsPage() {
     if (totalPages > 0 && page >= totalPages) {
       setPage(totalPages - 1);
     }
-  }, [filtered.length, page, totalPages]);
+  }, [totalLeads, page, totalPages]);
 
   const pagedIdsStr = paged.map((l) => l.id).join(",");
 
@@ -396,7 +395,36 @@ export default function LeadsPage() {
   const hasActiveFilters = Boolean(search) || safeStatusFilter !== "all";
 
   const exportData = async (format: "csv" | "xlsx") => {
-    const leadIds = filtered.map((lead) => lead.id);
+    let query = supabase.from("leads").select("*");
+    
+    if (activeTab === "shared") {
+      const { data: shares } = await supabase.from("lead_shares").select("lead_id").eq("shared_with_user_id", user?.id);
+      const leadIds = (shares || []).map(s => s.lead_id);
+      query = query.in("id", leadIds);
+    } else if (role === "customer_service") {
+      query = query.eq("created_by", user?.id);
+    } else if (role === "opr") {
+      const { data: assignments } = await supabase.from("lead_operator_assignments").select("lead_id").eq("operator_user_id", user?.id);
+      const leadIds = (assignments || []).map(a => a.lead_id);
+      query = query.in("id", leadIds);
+    }
+
+    if (safeStatusFilter !== "all") query = query.eq("status", safeStatusFilter);
+    if (deferredSearch) {
+      const s = `%${deferredSearch}%`;
+      query = query.or(`customer_name.ilike.${s},job_id.ilike.${s},customer_phone.ilike.${s},address.ilike.${s},service_type.ilike.${s}`);
+    }
+
+    query = query.order("created_at", { ascending: false });
+
+    const { data: exportLeadsData, error: exportError } = await query;
+    if (exportError) {
+      toast.error(`Export failed: ${exportError.message}`);
+      return;
+    }
+
+    const exportLeads = (exportLeadsData || []) as Lead[];
+    const leadIds = exportLeads.map((lead) => lead.id);
     const noteSummaryByLead: Record<string, { general: string; cs: string; processor: string }> = {};
 
     if (leadIds.length > 0) {
@@ -436,7 +464,7 @@ export default function LeadsPage() {
       });
     }
 
-    const data = filtered.map((l) => ({
+    const data = exportLeads.map((l) => ({
       "Job ID": l.job_id,
       "Customer Name": l.customer_name,
       Phone: l.customer_phone || "",

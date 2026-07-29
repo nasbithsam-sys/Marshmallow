@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,66 +23,65 @@ const AllLeads = () => {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [page, setPage] = useState(0);
+  const pageSize = 50;
+  const deferredSearch = useDeferredValue(search);
 
   const { filterLeads, allowedStatuses } = useAllowedStatuses();
 
+  const safeStatusFilter = statusFilter === "all" || allowedStatuses.has(statusFilter) ? statusFilter : "all";
+
   const {
-    data: leads = [],
+    data: queryResult,
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ["leads", role, user?.id],
+    queryKey: ["leads", role, user?.id, page, deferredSearch, safeStatusFilter],
     queryFn: async () => {
-      let query = supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(2000);
+      let query = supabase.from("leads").select("*", { count: "exact" });
 
-      // CS can only see only his own created leads
       if (role === "customer_service") {
         query = query.eq("created_by", user!.id);
       }
 
-      // Processor/Admin can see all leads
-      const { data, error } = await query.order("created_at", { ascending: false });
+      if (safeStatusFilter !== "all") {
+        query = query.eq("status", safeStatusFilter);
+      }
 
+      if (deferredSearch) {
+        const s = `%${deferredSearch}%`;
+        query = query.or(`customer_name.ilike.${s},job_id.ilike.${s},customer_phone.ilike.${s},address.ilike.${s}`);
+      }
+
+      query = query
+        .order("created_at", { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      const { data, error, count } = await query;
       if (error) throw error;
-      return (data ?? []) as Lead[];
+      return { leads: (data ?? []) as Lead[], count: count ?? 0 };
     },
     enabled: !!user,
   });
+
+  const leads = queryResult?.leads || [];
+  const totalCount = queryResult?.count || 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   const visibleLeads = useMemo(() => {
     return filterLeads([...leads]);
   }, [leads, filterLeads]);
 
-  const safeStatusFilter = statusFilter === "all" || allowedStatuses.has(statusFilter) ? statusFilter : "all";
-
   const filteredLeads = useMemo(() => {
     let result = [...visibleLeads];
-
-    if (search) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (l) =>
-          l.customer_name?.toLowerCase().includes(q) ||
-          l.customer_phone?.toLowerCase().includes(q) ||
-          l.job_id?.toLowerCase().includes(q) ||
-          l.address?.toLowerCase().includes(q),
-      );
-    }
-
-    if (safeStatusFilter !== "all") {
-      result = result.filter((l) => l.status === safeStatusFilter);
-    }
-
     return result.sort(compareLeadDisplayPriority);
-  }, [visibleLeads, search, safeStatusFilter]);
+  }, [visibleLeads]);
 
   const urgentCount = visibleLeads.filter((l) => l.status === "urgent_job").length;
   const scheduledCount = visibleLeads.filter((l) => l.status === "scheduled").length;
   const activeCount = visibleLeads.filter(
     (l) => l.status !== "cancelled" && l.status !== "paid" && l.status !== "job_done",
   ).length;
-
-  const totalCount = visibleLeads.length;
 
   return (
     <div className="space-y-6">
@@ -228,6 +227,23 @@ const AllLeads = () => {
               ))}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between py-4">
+          <p className="text-sm text-muted-foreground">
+            Showing {page * pageSize + 1} to {Math.min((page + 1) * pageSize, totalCount)} of {totalCount} leads
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>
+              Previous
+            </Button>
+            <span className="text-sm">Page {page + 1} of {totalPages}</span>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>
+              Next
+            </Button>
+          </div>
         </div>
       )}
 
