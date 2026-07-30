@@ -760,11 +760,13 @@ async function processPendingJobs(supabase: SupabaseClient, body: Record<string,
   if (requestedJobIds.length > 0) {
     // Specific job IDs requested — fetch them regardless of run_after
     jobsQuery = jobsQuery.in("id", requestedJobIds);
-  } else if (forceAi) {
-    // force_ai=true (manual run or webhook trigger) — skip run_after so debounced jobs run now
-    // no run_after filter applied
   } else {
-    jobsQuery = jobsQuery.lte("run_after", new Date().toISOString());
+    // New-message tagging only: never process sweep/backfill/report style jobs.
+    jobsQuery = jobsQuery.eq("job_type", "message_analysis").not("latest_message_id", "is", null);
+
+    if (!forceAi) {
+      jobsQuery = jobsQuery.lte("run_after", new Date().toISOString());
+    }
   }
 
   const { data: jobs, error: jobsError } = await jobsQuery
