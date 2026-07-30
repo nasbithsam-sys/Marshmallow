@@ -38,6 +38,17 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { status: 200, headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
+  // DISABLED: no scheduled AI daily report. AI only runs on new incoming messages.
+  return jsonResponse({
+    success: true,
+    disabled: true,
+    reason: "Daily brief disabled — AI only runs on new incoming messages.",
+  });
+});
+
+async function _disabledDailyBrief(req: Request) {
+  {
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey =
