@@ -264,7 +264,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
       direction: form.direction || null,
       address: form.address || null,
       half_address: form.half_address || null,
-      service_type: form.service_type || null,
+      service_type: form.service_type?.trim() || "",
       status: form.status,
       scheduled_date: form.scheduled_date || null,
       scheduled_time_start,
