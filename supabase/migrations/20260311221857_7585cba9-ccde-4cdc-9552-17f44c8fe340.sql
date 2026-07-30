@@ -29,22 +29,22 @@ CREATE POLICY "Authenticated can read payments" ON public.lead_payments
   FOR SELECT TO authenticated USING (true);
 
 CREATE POLICY "Authenticated can insert payments" ON public.lead_payments
-  FOR INSERT TO authenticated WITH CHECK (created_by = (select auth.uid()));
+  FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
 
 CREATE POLICY "Admins can delete payments" ON public.lead_payments
-  FOR DELETE TO authenticated USING (has_role((select auth.uid()), 'admin'::app_role));
+  FOR DELETE TO authenticated USING (has_role(auth.uid(), 'admin'::app_role));
 
 -- 3. Fix notifications RLS: drop ALL policy, add granular policies
 DROP POLICY IF EXISTS "Users see own notifications" ON public.notifications;
 
 CREATE POLICY "Users can select own notifications" ON public.notifications
-  FOR SELECT TO authenticated USING ((select auth.uid()) = user_id);
+  FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
 CREATE POLICY "Authenticated can insert notifications" ON public.notifications
   FOR INSERT TO authenticated WITH CHECK (true);
 
 CREATE POLICY "Users can update own notifications" ON public.notifications
-  FOR UPDATE TO authenticated USING ((select auth.uid()) = user_id);
+  FOR UPDATE TO authenticated USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own notifications" ON public.notifications
-  FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
+  FOR DELETE TO authenticated USING (auth.uid() = user_id);

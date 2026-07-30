@@ -223,14 +223,14 @@ CREATE POLICY "Authenticated read ai conversation states"
 CREATE POLICY "Authorized update ai conversation states"
   ON public.ai_conversation_states FOR UPDATE TO authenticated
   USING (
-    public.has_role((select auth.uid()), 'admin')
-    OR public.has_role((select auth.uid()), 'processor')
-    OR public.has_role((select auth.uid()), 'customer_service')
+    public.has_role(auth.uid(), 'admin')
+    OR public.has_role(auth.uid(), 'processor')
+    OR public.has_role(auth.uid(), 'customer_service')
   )
   WITH CHECK (
-    public.has_role((select auth.uid()), 'admin')
-    OR public.has_role((select auth.uid()), 'processor')
-    OR public.has_role((select auth.uid()), 'customer_service')
+    public.has_role(auth.uid(), 'admin')
+    OR public.has_role(auth.uid(), 'processor')
+    OR public.has_role(auth.uid(), 'customer_service')
   );
 
 CREATE POLICY "Authenticated read ai reminders"
@@ -239,14 +239,14 @@ CREATE POLICY "Authenticated read ai reminders"
 CREATE POLICY "Authorized manage ai reminders"
   ON public.ai_reminders FOR ALL TO authenticated
   USING (
-    public.has_role((select auth.uid()), 'admin')
-    OR public.has_role((select auth.uid()), 'processor')
-    OR public.has_role((select auth.uid()), 'customer_service')
+    public.has_role(auth.uid(), 'admin')
+    OR public.has_role(auth.uid(), 'processor')
+    OR public.has_role(auth.uid(), 'customer_service')
   )
   WITH CHECK (
-    public.has_role((select auth.uid()), 'admin')
-    OR public.has_role((select auth.uid()), 'processor')
-    OR public.has_role((select auth.uid()), 'customer_service')
+    public.has_role(auth.uid(), 'admin')
+    OR public.has_role(auth.uid(), 'processor')
+    OR public.has_role(auth.uid(), 'customer_service')
   );
 
 CREATE POLICY "Authenticated read ai review queue"
@@ -255,14 +255,14 @@ CREATE POLICY "Authenticated read ai review queue"
 CREATE POLICY "Authorized update ai review queue"
   ON public.ai_review_queue FOR UPDATE TO authenticated
   USING (
-    public.has_role((select auth.uid()), 'admin')
-    OR public.has_role((select auth.uid()), 'processor')
-    OR public.has_role((select auth.uid()), 'customer_service')
+    public.has_role(auth.uid(), 'admin')
+    OR public.has_role(auth.uid(), 'processor')
+    OR public.has_role(auth.uid(), 'customer_service')
   )
   WITH CHECK (
-    public.has_role((select auth.uid()), 'admin')
-    OR public.has_role((select auth.uid()), 'processor')
-    OR public.has_role((select auth.uid()), 'customer_service')
+    public.has_role(auth.uid(), 'admin')
+    OR public.has_role(auth.uid(), 'processor')
+    OR public.has_role(auth.uid(), 'customer_service')
   );
 
 CREATE POLICY "Authenticated read ai lead links"
@@ -273,15 +273,15 @@ CREATE POLICY "Authorized insert manual ai lead links"
   WITH CHECK (
     created_by_ai = FALSE
     AND (
-      public.has_role((select auth.uid()), 'admin')
-      OR public.has_role((select auth.uid()), 'processor')
-      OR public.has_role((select auth.uid()), 'customer_service')
+      public.has_role(auth.uid(), 'admin')
+      OR public.has_role(auth.uid(), 'processor')
+      OR public.has_role(auth.uid(), 'customer_service')
     )
   );
 
 CREATE POLICY "Admins read ai usage logs"
   ON public.ai_usage_logs FOR SELECT TO authenticated
-  USING (public.has_role((select auth.uid()), 'admin'));
+  USING (public.has_role(auth.uid(), 'admin'));
 
 CREATE POLICY "Authenticated read ai audit logs"
   ON public.ai_audit_logs FOR SELECT TO authenticated USING (true);
@@ -289,11 +289,11 @@ CREATE POLICY "Authenticated read ai audit logs"
 CREATE POLICY "Authorized insert ai audit logs"
   ON public.ai_audit_logs FOR INSERT TO authenticated
   WITH CHECK (
-    user_id = (select auth.uid())
+    user_id = auth.uid()
     AND (
-      public.has_role((select auth.uid()), 'admin')
-      OR public.has_role((select auth.uid()), 'processor')
-      OR public.has_role((select auth.uid()), 'customer_service')
+      public.has_role(auth.uid(), 'admin')
+      OR public.has_role(auth.uid(), 'processor')
+      OR public.has_role(auth.uid(), 'customer_service')
     )
   );
 

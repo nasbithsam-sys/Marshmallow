@@ -6,9 +6,9 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT
-    public.has_role((select auth.uid()), 'admin'::public.app_role)
-    OR public.has_role((select auth.uid()), 'processor'::public.app_role)
-    OR public.has_role((select auth.uid()), 'customer_service'::public.app_role);
+    public.has_role(auth.uid(), 'admin'::public.app_role)
+    OR public.has_role(auth.uid(), 'processor'::public.app_role)
+    OR public.has_role(auth.uid(), 'customer_service'::public.app_role);
 $$;
 
 DROP POLICY IF EXISTS "Allow authenticated read on quo_phone_numbers" ON public.quo_phone_numbers;

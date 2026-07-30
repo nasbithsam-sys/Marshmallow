@@ -33,7 +33,7 @@ const AllLeads = () => {
   } = useQuery({
     queryKey: ["leads", role, user?.id],
     queryFn: async () => {
-      let query = supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(2000);
+      let query = supabase.from("leads").select("*");
 
       // CS can only see only his own created leads
       if (role === "customer_service") {

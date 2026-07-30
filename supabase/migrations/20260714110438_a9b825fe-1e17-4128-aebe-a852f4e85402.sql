@@ -3,21 +3,21 @@ CREATE POLICY "Scoped lead access" ON public.leads
 FOR SELECT TO authenticated
 USING (
   CASE
-    WHEN public.has_role((select auth.uid()), 'admin'::public.app_role) THEN TRUE
-    WHEN public.has_role((select auth.uid()), 'processor'::public.app_role) THEN TRUE
-    WHEN public.has_role((select auth.uid()), 'cs_admin'::public.app_role) THEN
+    WHEN public.has_role(auth.uid(), 'admin'::public.app_role) THEN TRUE
+    WHEN public.has_role(auth.uid(), 'processor'::public.app_role) THEN TRUE
+    WHEN public.has_role(auth.uid(), 'cs_admin'::public.app_role) THEN
       status NOT IN ('paid','partial_paid','cancelled','job_done','scammed')
-    WHEN public.has_role((select auth.uid()), 'opr'::public.app_role) THEN
+    WHEN public.has_role(auth.uid(), 'opr'::public.app_role) THEN
       status = 'urgent_job'
     ELSE (
       status <> 'scammed'
       AND (
-        created_by = (select auth.uid())
-        OR assigned_cs = (select auth.uid())
+        created_by = auth.uid()
+        OR assigned_cs = auth.uid()
         OR EXISTS (
           SELECT 1 FROM public.lead_shares
           WHERE lead_shares.lead_id = leads.id
-            AND lead_shares.shared_with_user_id = (select auth.uid())
+            AND lead_shares.shared_with_user_id = auth.uid()
         )
       )
     )
@@ -28,29 +28,29 @@ DROP POLICY IF EXISTS "Authorized users can update leads" ON public.leads;
 CREATE POLICY "Authorized users can update leads"
   ON public.leads FOR UPDATE TO authenticated
   USING (
-    created_by = (select auth.uid())
-    OR assigned_cs = (select auth.uid())
-    OR public.has_role((select auth.uid()), 'admin'::public.app_role)
-    OR public.has_role((select auth.uid()), 'processor'::public.app_role)
-    OR public.has_role((select auth.uid()), 'cs_admin'::public.app_role)
+    created_by = auth.uid()
+    OR assigned_cs = auth.uid()
+    OR public.has_role(auth.uid(), 'admin'::public.app_role)
+    OR public.has_role(auth.uid(), 'processor'::public.app_role)
+    OR public.has_role(auth.uid(), 'cs_admin'::public.app_role)
   )
   WITH CHECK (
     (
-      created_by = (select auth.uid())
-      OR assigned_cs = (select auth.uid())
-      OR public.has_role((select auth.uid()), 'admin'::public.app_role)
-      OR public.has_role((select auth.uid()), 'processor'::public.app_role)
-      OR public.has_role((select auth.uid()), 'cs_admin'::public.app_role)
+      created_by = auth.uid()
+      OR assigned_cs = auth.uid()
+      OR public.has_role(auth.uid(), 'admin'::public.app_role)
+      OR public.has_role(auth.uid(), 'processor'::public.app_role)
+      OR public.has_role(auth.uid(), 'cs_admin'::public.app_role)
     )
     AND (
-      public.has_role((select auth.uid()), 'admin'::public.app_role)
-      OR public.has_role((select auth.uid()), 'processor'::public.app_role)
+      public.has_role(auth.uid(), 'admin'::public.app_role)
+      OR public.has_role(auth.uid(), 'processor'::public.app_role)
       OR status <> 'scammed'
     )
     AND (
-      NOT public.has_role((select auth.uid()), 'cs_admin'::public.app_role)
-      OR public.has_role((select auth.uid()), 'admin'::public.app_role)
-      OR public.has_role((select auth.uid()), 'processor'::public.app_role)
+      NOT public.has_role(auth.uid(), 'cs_admin'::public.app_role)
+      OR public.has_role(auth.uid(), 'admin'::public.app_role)
+      OR public.has_role(auth.uid(), 'processor'::public.app_role)
       OR status NOT IN ('paid','partial_paid','cancelled','job_done','scammed')
     )
   );

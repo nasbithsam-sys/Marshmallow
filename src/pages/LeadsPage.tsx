@@ -153,7 +153,7 @@ export default function LeadsPage() {
       return;
     }
 
-    let query = supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(2000);
+    let query = supabase.from("leads").select("*").order("created_at", { ascending: false });
 
     // CS can see only own created leads
     if (role === "customer_service") {
@@ -384,7 +384,7 @@ export default function LeadsPage() {
     return () => {
       active = false;
     };
-  }, [pagedIdsStr]);
+  }, [pagedIdsStr, profiles]);
 
   const countSource = activeTab === "shared" ? visibleSharedLeads : visibleMyLeads;
 

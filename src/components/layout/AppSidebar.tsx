@@ -80,6 +80,7 @@ export default function AppSidebar() {
       }
       return count || 0;
     },
+    refetchInterval: 15000,
   });
 
   // Fetch pending payment requests count (Admin-only nav item, but query is cheap)
@@ -95,6 +96,7 @@ export default function AppSidebar() {
       }
       return count || 0;
     },
+    refetchInterval: 15000,
     enabled: role === "admin",
   });
 
@@ -105,22 +107,8 @@ export default function AppSidebar() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "lead_cancellation_requests" },
-        (payload: any) => {
-          queryClient.setQueryData<number>(["pending-cancellations-count"], (currentCount) => {
-            let nextCount = currentCount ?? 0;
-            if (payload.eventType === "INSERT" && payload.new.status === "pending") {
-              nextCount += 1;
-            } else if (payload.eventType === "DELETE" && payload.old.status === "pending") {
-              nextCount -= 1;
-            } else if (payload.eventType === "UPDATE") {
-              if (payload.old.status === "pending" && payload.new.status !== "pending") {
-                nextCount -= 1;
-              } else if (payload.old.status !== "pending" && payload.new.status === "pending") {
-                nextCount += 1;
-              }
-            }
-            return Math.max(0, nextCount);
-          });
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["pending-cancellations-count"] });
         }
       )
       .subscribe();
@@ -138,22 +126,8 @@ export default function AppSidebar() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "lead_payment_requests" },
-        (payload: any) => {
-          queryClient.setQueryData<number>(["pending-payment-requests-count"], (currentCount) => {
-            let nextCount = currentCount ?? 0;
-            if (payload.eventType === "INSERT" && payload.new.status === "pending") {
-              nextCount += 1;
-            } else if (payload.eventType === "DELETE" && payload.old.status === "pending") {
-              nextCount -= 1;
-            } else if (payload.eventType === "UPDATE") {
-              if (payload.old.status === "pending" && payload.new.status !== "pending") {
-                nextCount -= 1;
-              } else if (payload.old.status !== "pending" && payload.new.status === "pending") {
-                nextCount += 1;
-              }
-            }
-            return Math.max(0, nextCount);
-          });
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["pending-payment-requests-count"] });
         }
       )
       .subscribe();

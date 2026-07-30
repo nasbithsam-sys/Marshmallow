@@ -2,4 +2,4 @@
 DROP POLICY IF EXISTS "Users insert own notifications" ON public.notifications;
 CREATE POLICY "Authenticated can insert notifications"
   ON public.notifications FOR INSERT TO authenticated
-  WITH CHECK ((select auth.uid()) IS NOT NULL);
+  WITH CHECK (auth.uid() IS NOT NULL);

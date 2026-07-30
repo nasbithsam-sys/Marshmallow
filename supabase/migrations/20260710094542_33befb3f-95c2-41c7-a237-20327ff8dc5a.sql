@@ -9,7 +9,7 @@ CREATE POLICY "Admins can read activity logs"
   ON public.activity_logs
   FOR SELECT
   TO authenticated
-  USING (public.has_role((select auth.uid()), 'admin'::public.app_role));
+  USING (public.has_role(auth.uid(), 'admin'::public.app_role));
 
 -- 3. lead_payments: restrict SELECT to admin, processor, or record creator
 DO $$
@@ -25,9 +25,9 @@ CREATE POLICY "Admins processors and creator can read lead payments"
   FOR SELECT
   TO authenticated
   USING (
-    public.has_role((select auth.uid()), 'admin'::public.app_role)
-    OR public.has_role((select auth.uid()), 'processor'::public.app_role)
-    OR created_by = (select auth.uid())
+    public.has_role(auth.uid(), 'admin'::public.app_role)
+    OR public.has_role(auth.uid(), 'processor'::public.app_role)
+    OR created_by = auth.uid()
   );
 
 -- 4. lead_payment_requests: restrict SELECT to admin, processor, or requester
@@ -44,9 +44,9 @@ CREATE POLICY "Admins processors and requester can read payment requests"
   FOR SELECT
   TO authenticated
   USING (
-    public.has_role((select auth.uid()), 'admin'::public.app_role)
-    OR public.has_role((select auth.uid()), 'processor'::public.app_role)
-    OR requested_by = (select auth.uid())
+    public.has_role(auth.uid(), 'admin'::public.app_role)
+    OR public.has_role(auth.uid(), 'processor'::public.app_role)
+    OR requested_by = auth.uid()
   );
 
 -- 5. notifications INSERT: only self, or admin (for creating notifications for others)
@@ -63,8 +63,8 @@ CREATE POLICY "Self or admin can create notifications"
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    user_id = (select auth.uid())
-    OR public.has_role((select auth.uid()), 'admin'::public.app_role)
-    OR public.has_role((select auth.uid()), 'processor'::public.app_role)
-    OR public.has_role((select auth.uid()), 'customer_service'::public.app_role)
+    user_id = auth.uid()
+    OR public.has_role(auth.uid(), 'admin'::public.app_role)
+    OR public.has_role(auth.uid(), 'processor'::public.app_role)
+    OR public.has_role(auth.uid(), 'customer_service'::public.app_role)
   );

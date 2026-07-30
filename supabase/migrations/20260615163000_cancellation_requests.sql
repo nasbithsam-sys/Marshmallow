@@ -34,27 +34,27 @@ CREATE POLICY "Authenticated can read cancellation requests"
 CREATE POLICY "CS processor admin can create own cancellation requests"
   ON public.lead_cancellation_requests FOR INSERT TO authenticated
   WITH CHECK (
-    requested_by = (select auth.uid())
+    requested_by = auth.uid()
     AND (
-      (requested_by_role = 'customer_service' AND has_role((select auth.uid()), 'customer_service'::app_role))
-      OR (requested_by_role = 'processor' AND has_role((select auth.uid()), 'processor'::app_role))
-      OR (requested_by_role = 'admin' AND has_role((select auth.uid()), 'admin'::app_role))
+      (requested_by_role = 'customer_service' AND has_role(auth.uid(), 'customer_service'::app_role))
+      OR (requested_by_role = 'processor' AND has_role(auth.uid(), 'processor'::app_role))
+      OR (requested_by_role = 'admin' AND has_role(auth.uid(), 'admin'::app_role))
     )
   );
 
 CREATE POLICY "Approvers can review cancellation requests"
   ON public.lead_cancellation_requests FOR UPDATE TO authenticated
   USING (
-    has_role((select auth.uid()), 'admin'::app_role)
+    has_role(auth.uid(), 'admin'::app_role)
     OR (
-      has_role((select auth.uid()), 'processor'::app_role)
+      has_role(auth.uid(), 'processor'::app_role)
       AND requested_by_role = 'customer_service'
     )
   )
   WITH CHECK (
-    has_role((select auth.uid()), 'admin'::app_role)
+    has_role(auth.uid(), 'admin'::app_role)
     OR (
-      has_role((select auth.uid()), 'processor'::app_role)
+      has_role(auth.uid(), 'processor'::app_role)
       AND requested_by_role = 'customer_service'
     )
   );

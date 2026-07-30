@@ -89,17 +89,17 @@ CREATE POLICY "Allow authenticated read on quo_sync_logs" ON public.quo_sync_log
 
 -- UPDATE Policies (Allow admin, processor, customer_service)
 CREATE POLICY "Allow authorized update on quo_conversations" ON public.quo_conversations FOR UPDATE TO authenticated 
-USING (public.has_role((select auth.uid()), 'admin') OR public.has_role((select auth.uid()), 'processor') OR public.has_role((select auth.uid()), 'customer_service'))
-WITH CHECK (public.has_role((select auth.uid()), 'admin') OR public.has_role((select auth.uid()), 'processor') OR public.has_role((select auth.uid()), 'customer_service'));
+USING (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'processor') OR public.has_role(auth.uid(), 'customer_service'))
+WITH CHECK (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'processor') OR public.has_role(auth.uid(), 'customer_service'));
 
 CREATE POLICY "Allow authorized update on quo_conversation_flags" ON public.quo_conversation_flags FOR UPDATE TO authenticated 
-USING (public.has_role((select auth.uid()), 'admin') OR public.has_role((select auth.uid()), 'processor') OR public.has_role((select auth.uid()), 'customer_service'))
-WITH CHECK (public.has_role((select auth.uid()), 'admin') OR public.has_role((select auth.uid()), 'processor') OR public.has_role((select auth.uid()), 'customer_service'));
+USING (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'processor') OR public.has_role(auth.uid(), 'customer_service'))
+WITH CHECK (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'processor') OR public.has_role(auth.uid(), 'customer_service'));
 
 -- We do not typically need direct frontend inserts into these tables (Edge Functions do it via service role)
 -- But just in case flags need to be created if missing on update, allow insert for same roles
 CREATE POLICY "Allow authorized insert on quo_conversation_flags" ON public.quo_conversation_flags FOR INSERT TO authenticated 
-WITH CHECK (public.has_role((select auth.uid()), 'admin') OR public.has_role((select auth.uid()), 'processor') OR public.has_role((select auth.uid()), 'customer_service'));
+WITH CHECK (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'processor') OR public.has_role(auth.uid(), 'customer_service'));
 
 -- Functions to automatically update updated_at timestamps
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()

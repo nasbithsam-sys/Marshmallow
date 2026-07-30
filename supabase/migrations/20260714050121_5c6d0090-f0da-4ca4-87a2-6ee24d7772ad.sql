@@ -22,8 +22,8 @@ ALTER TABLE public.crm_updates ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Admins manage crm_updates"
   ON public.crm_updates FOR ALL
   TO authenticated
-  USING (public.has_role((select auth.uid()), 'admin'::public.app_role))
-  WITH CHECK (public.has_role((select auth.uid()), 'admin'::public.app_role));
+  USING (public.has_role(auth.uid(), 'admin'::public.app_role))
+  WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
 
 -- Authenticated users can read active notifications targeted to their role
 CREATE POLICY "Users read active updates for their role"
@@ -33,7 +33,7 @@ CREATE POLICY "Users read active updates for their role"
     is_active = true
     AND EXISTS (
       SELECT 1 FROM public.user_roles ur
-      WHERE ur.user_id = (select auth.uid())
+      WHERE ur.user_id = auth.uid()
         AND ur.role::text = ANY(crm_updates.target_roles)
     )
   );
@@ -62,17 +62,17 @@ ALTER TABLE public.crm_update_receipts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users read own receipts"
   ON public.crm_update_receipts FOR SELECT
   TO authenticated
-  USING (user_id = (select auth.uid()) OR public.has_role((select auth.uid()), 'admin'::public.app_role));
+  USING (user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'::public.app_role));
 
 CREATE POLICY "Users insert own receipts"
   ON public.crm_update_receipts FOR INSERT
   TO authenticated
-  WITH CHECK (user_id = (select auth.uid()));
+  WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "Admins delete receipts"
   ON public.crm_update_receipts FOR DELETE
   TO authenticated
-  USING (public.has_role((select auth.uid()), 'admin'::public.app_role));
+  USING (public.has_role(auth.uid(), 'admin'::public.app_role));
 
 CREATE INDEX crm_update_receipts_user_idx ON public.crm_update_receipts(user_id, notification_id);
 

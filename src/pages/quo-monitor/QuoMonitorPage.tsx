@@ -1488,10 +1488,20 @@ export default function QuoMonitorPage() {
         if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
           upsertLiveConversation(payload.new as Partial<ConversationRow>);
         }
+        scheduleConversationRefresh();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_conversation_states" }, scheduleConversationRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_conversation_state" }, scheduleConversationRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_jobs" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["quo-ai-diagnostics"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_ai_cost_logs" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["quo-ai-diagnostics"] });
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_lead_links" }, scheduleConversationRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["quo-monitor-lead-phones"] });
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_pinned_conversations" }, () => {
         queryClient.invalidateQueries({ queryKey: ["quo-pinned-conversations"] });
       })
@@ -1507,7 +1517,12 @@ export default function QuoMonitorPage() {
           if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
             upsertLiveMessage(payload.new as Partial<MessageRow>);
           }
+          if (payload.eventType !== "INSERT") {
+            queryClient.invalidateQueries({ queryKey: ["quo-ai-messages", selectedConvId] });
+          }
         }
+
+        scheduleConversationRefresh();
       })
       .subscribe();
 
