@@ -114,8 +114,6 @@ export default function LeadsPage() {
 
     setLoading(true);
 
-    const SELECT_COLUMNS = "id, job_id, status, customer_name, customer_email, customer_phone, service_type, address, city, state, zip_code, number_name, last_edited_at, created_at, created_by";
-
     // Operator: only see explicitly assigned leads
     if (role === "opr") {
       const { data: assignments, error: assignError } = await supabase
@@ -140,7 +138,7 @@ export default function LeadsPage() {
 
       const { data, error } = await supabase
         .from("leads")
-        .select(SELECT_COLUMNS)
+        .select("*")
         .in("id", leadIds)
         .order("created_at", { ascending: false });
 
@@ -155,7 +153,7 @@ export default function LeadsPage() {
       return;
     }
 
-    let query = supabase.from("leads").select(SELECT_COLUMNS).order("created_at", { ascending: false }).limit(500);
+    let query = supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(2000);
 
     // CS can see only own created leads
     if (role === "customer_service") {
@@ -194,11 +192,10 @@ export default function LeadsPage() {
     }
 
     const leadIds = (shares as LeadShareRow[]).map((share) => share.lead_id);
-    const SELECT_COLUMNS = "id, job_id, status, customer_name, customer_email, customer_phone, service_type, address, city, state, zip_code, number_name, last_edited_at, created_at, created_by";
 
     const { data: leadsData, error: leadsError } = await supabase
       .from("leads")
-      .select(SELECT_COLUMNS)
+      .select("*")
       .in("id", leadIds)
       .order("created_at", { ascending: false });
 

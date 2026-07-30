@@ -33,8 +33,7 @@ const AllLeads = () => {
   } = useQuery({
     queryKey: ["leads", role, user?.id],
     queryFn: async () => {
-      const SELECT_COLUMNS = "id, job_id, status, customer_name, customer_email, customer_phone, service_type, address, city, state, zip_code, number_name, last_edited_at, created_at, created_by";
-      let query = supabase.from("leads").select(SELECT_COLUMNS).order("created_at", { ascending: false }).limit(500);
+      let query = supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(2000);
 
       // CS can only see only his own created leads
       if (role === "customer_service") {
@@ -42,7 +41,7 @@ const AllLeads = () => {
       }
 
       // Processor/Admin can see all leads
-      const { data, error } = await query;
+      const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw error;
       return (data ?? []) as Lead[];
