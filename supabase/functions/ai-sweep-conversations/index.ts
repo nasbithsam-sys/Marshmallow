@@ -54,6 +54,20 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
+  // DISABLED: AI must only run on newly received messages.
+  // This sweep re-analyzed old conversations and is intentionally a no-op now.
+  return jsonResponse({
+    success: true,
+    disabled: true,
+    reason: "Sweep disabled — AI only runs on new incoming messages.",
+    scanned: 0,
+    marked_possible_dead: 0,
+    queued_analysis: 0,
+  });
+});
+
+async function _disabledSweep(req: Request) {
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey =
