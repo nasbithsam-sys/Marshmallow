@@ -2667,6 +2667,7 @@ export type Database = {
             }
             Returns: boolean
           }
+      healthcheck: { Args: never; Returns: Json }
       quo_conversation_counts_by_number: {
         Args: never
         Returns: {
