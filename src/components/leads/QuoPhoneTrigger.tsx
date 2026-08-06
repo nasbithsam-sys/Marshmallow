@@ -102,7 +102,9 @@ export default function QuoPhoneTrigger({
         }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_messages" }, scheduleLiveRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_outbound_messages" }, scheduleLiveRefresh)
       .subscribe();
+
 
     return () => {
       active = false;
