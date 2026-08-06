@@ -2272,6 +2272,48 @@ export type Database = {
           },
         ]
       }
+      quo_outbound_messages: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          error: string | null
+          id: string
+          phone_number_id: string | null
+          quo_message_id: string | null
+          sent_at: string | null
+          status: string
+          to_number: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          phone_number_id?: string | null
+          quo_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          to_number: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          phone_number_id?: string | null
+          quo_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          to_number?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       quo_phone_numbers: {
         Row: {
           active: boolean
