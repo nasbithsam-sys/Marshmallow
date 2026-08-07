@@ -145,12 +145,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const loadedRoleRaw = roleRes.data?.role as string | undefined;
     const loadedRole = VALID_ROLES.includes(loadedRoleRaw as AppRole) ? (loadedRoleRaw as AppRole) : null;
 
+    // Transient failures (network/permission errors) must NOT be treated as a
+    // deleted account — only sign out when the queries succeeded and the rows
+    // are genuinely missing.
+    if (profileRes.error || roleRes.error) {
+      console.error("Failed to load user data", profileRes.error ?? roleRes.error);
+      setProfileLoaded(true);
+      return;
+    }
+
     // If the profile or a valid role is missing, the account was deleted or
     // never fully provisioned. Force the session out immediately.
     if (!loadedProfile || !loadedRole) {
       await forceSignOutOrphan();
       return;
     }
+
 
     setProfile(loadedProfile);
     setRole(loadedRole);
