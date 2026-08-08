@@ -155,10 +155,26 @@ export default function QuoDashboardPage() {
             display_number
           )
         `)
+        .order("created_at", { ascending: false });
+
       if (error) {
-        toast.error("Failed to load QUO Dashboard conversations");
-        throw error;
+        console.warn("Primary PostgREST fetch failed, running fallback fetch:", error.message);
+
+        // Fallback: Fetch conversations directly without relationship join
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("quo_conversations")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (fallbackError) {
+          console.error("Fallback fetch failed:", fallbackError.message);
+          toast.error(`Database error: ${fallbackError.message}`);
+          return [];
+        }
+
+        return (fallbackData as ConversationRow[]) ?? [];
       }
+
       return (data as ConversationRow[]) ?? [];
     },
     refetchInterval: 15000,
