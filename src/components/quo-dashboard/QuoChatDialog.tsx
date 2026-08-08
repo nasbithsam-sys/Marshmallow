@@ -143,6 +143,25 @@ export default function QuoChatDialog({
 
     setMessages((prev) => [...prev, optimisticMsg]);
 
+    // Dispatch Chrome Extension postMessage trigger
+    const chatUrl = getQuoChatUrl(
+      (conversation as any).quo_conversation_id,
+      conversation.customer_number
+    );
+
+    try {
+      window.postMessage(
+        {
+          action: "QUO_SEND_MESSAGE",
+          chatUrl: chatUrl,
+          message: textToSend,
+        },
+        "*"
+      );
+    } catch (postErr) {
+      console.warn("PostMessage dispatch error", postErr);
+    }
+
     try {
       // Insert into quo_messages database table
       const { data, error } = await supabase.from("quo_messages").insert({
@@ -169,7 +188,7 @@ export default function QuoChatDialog({
           })
           .eq("id", conversation.id);
 
-        toast.success("Message sent to chat");
+        toast.success("Message sent & dispatched to Chrome Extension");
       }
     } catch (err) {
       console.error("Send message exception", err);

@@ -129,6 +129,22 @@ export default function QuoPhoneTrigger({
 
     setSending(true);
     setError(null);
+
+    // Dispatch Chrome Extension postMessage trigger
+    try {
+      const cleanPhone = normalizedPhone.replace(/\D/g, "");
+      window.postMessage(
+        {
+          action: "QUO_SEND_MESSAGE",
+          chatUrl: `https://app.openphone.com/messages?phone=${cleanPhone}`,
+          message: content,
+        },
+        "*"
+      );
+    } catch (postErr) {
+      console.warn("PostMessage dispatch error", postErr);
+    }
+
     try {
       const response = await sendQuoChatMessage(normalizedPhone, content);
       setMessages((current) => mergeQuoMessages([...current, response.message]));

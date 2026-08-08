@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export type QuoLeadStatus =
   | "raw"
   | "spam"
@@ -164,4 +166,112 @@ export function getQuoChatUrl(quoConversationId?: string | null, customerNumber?
 
   const cleanPhone = customerNumber ? customerNumber.replace(/\D/g, "") : "";
   return `https://app.openphone.com/messages?phone=${cleanPhone}`;
+}
+
+/**
+ * Generates realistic mock test data for QUO Dashboard (Phone numbers, conversations, and messages)
+ */
+export async function generateMockQuoData(): Promise<{ success: boolean; count: number }> {
+  try {
+    // 1. Ensure sample QUO Phone Numbers exist
+    const { data: existingNumbers } = await supabase.from("quo_phone_numbers").select("id, number");
+    let numberIds: string[] = existingNumbers?.map((n) => n.id) || [];
+
+    if (numberIds.length === 0) {
+      const samplePhoneNumbers = [
+        { quo_phone_number_id: "num_main_01", number: "+14155550100", name: "Main Line - (415) 555-0100", label: "Main Office" },
+        { quo_phone_number_id: "num_emergency_02", number: "+14155550200", name: "Emergency Line - (415) 555-0200", label: "Emergency Dispatch" },
+        { quo_phone_number_id: "num_marketing_03", number: "+14155550300", name: "Marketing Campaign - (415) 555-0300", label: "Google Ads Line" },
+        { quo_phone_number_id: "num_support_04", number: "+14155550400", name: "Customer Service - (415) 555-0400", label: "CS Support" },
+      ];
+
+      const { data: insertedNumbers, error: numError } = await supabase
+        .from("quo_phone_numbers")
+        .insert(samplePhoneNumbers)
+        .select("id");
+
+      if (numError) {
+        console.error("Error inserting sample numbers", numError);
+      } else if (insertedNumbers) {
+        numberIds = insertedNumbers.map((n) => n.id);
+      }
+    }
+
+    const sampleMockLeads = [
+      { name: "John Smith", phone: "+14155550142", status: "qualified_lead", preview: "Hi, I have an urgent water leak under my kitchen sink." },
+      { name: "Emily Davis", phone: "+14155550198", status: "spam", preview: "We offer SEO ranking services for small businesses." },
+      { name: "Michael Johnson", phone: "+14155550177", status: "contacted", preview: "Hi, how much do you charge for electrical outlet installation?" },
+      { name: "Sarah Wilson", phone: "+14155550163", status: "rejected", preview: "No thanks, the quote is higher than my budget." },
+      { name: "David Martinez", phone: "+14155550155", status: "successfully_completed", preview: "Job completed! Thanks for sending technician Alex so quickly." },
+      { name: "Jessica Taylor", phone: "+14155550189", status: "raw", preview: "Hey, do you service the Downtown area?" },
+      { name: "Robert Anderson", phone: "+14155550133", status: "qualified_lead", preview: "Need HVAC repair before tomorrow morning if possible." },
+      { name: "Amanda Thomas", phone: "+14155550122", status: "contacted", preview: "I received your estimate. Can we schedule for Friday?" },
+      { name: "James Jackson", phone: "+14155550111", status: "raw", preview: "Is someone available to answer a quick question?" },
+      { name: "Rachel White", phone: "+14155550199", status: "successfully_completed", preview: "Invoice paid! Great service." },
+    ];
+
+    let insertedCount = 0;
+    const now = Date.now();
+
+    for (let i = 0; i < sampleMockLeads.length; i++) {
+      const mock = sampleMockLeads[i];
+      const hoursAgo = i * 3.5;
+      const createdAtIso = new Date(now - hoursAgo * 3600 * 1000).toISOString();
+      const numId = numberIds[i % numberIds.length] || null;
+
+      const conversationIdStr = `conv_mock_${now}_${i}`;
+
+      const { data: convData, error: convErr } = await supabase
+        .from("quo_conversations")
+        .insert({
+          quo_conversation_id: conversationIdStr,
+          customer_name: mock.name,
+          customer_number: mock.phone,
+          number_id: numId,
+          status: mock.status,
+          current_status: mock.status,
+          last_message_preview: mock.preview,
+          last_message_time: createdAtIso,
+          last_message_at: createdAtIso,
+          created_at: createdAtIso,
+          updated_at: createdAtIso,
+        })
+        .select("id")
+        .single();
+
+      if (convErr) {
+        console.error("Error inserting mock conversation", convErr);
+        continue;
+      }
+
+      if (convData) {
+        insertedCount++;
+
+        // Add 2 sample messages per conversation
+        await supabase.from("quo_messages").insert([
+          {
+            quo_message_id: `msg_mock_in_${now}_${i}`,
+            conversation_id: convData.id,
+            sender: "customer",
+            direction: "inbound",
+            text: mock.preview,
+            message_time: new Date(new Date(createdAtIso).getTime() - 1000 * 60 * 5).toISOString(),
+          },
+          {
+            quo_message_id: `msg_mock_out_${now}_${i}`,
+            conversation_id: convData.id,
+            sender: "agent",
+            direction: "outbound",
+            text: `Hello ${mock.name}, thank you for contacting us! We're reviewing your inquiry now.`,
+            message_time: createdAtIso,
+          },
+        ]);
+      }
+    }
+
+    return { success: true, count: insertedCount };
+  } catch (err) {
+    console.error("Failed to generate mock QUO data", err);
+    return { success: false, count: 0 };
+  }
 }
