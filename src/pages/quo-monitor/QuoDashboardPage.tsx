@@ -156,8 +156,6 @@ export default function QuoDashboardPage() {
             display_number
           )
         `)
-        .order("created_at", { ascending: false });
-
       if (error) {
         toast.error("Failed to load QUO Dashboard conversations");
         throw error;
