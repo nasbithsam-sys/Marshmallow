@@ -1,5 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
-
 export type QuoLeadStatus =
   | "raw"
   | "spam"
@@ -50,6 +48,79 @@ export const QUO_LEAD_STATUS_CONFIG: Record<QuoLeadStatus, QuoStatusConfig> = {
 export const QUO_LEAD_STATUS_KEYS = Object.keys(
   QUO_LEAD_STATUS_CONFIG
 ) as QuoLeadStatus[];
+
+export const QUO_PHONE_NUMBER_NAME_MAP: Record<string, string> = {
+  "13465949213": "Mini Split",
+  "19726324844": "Max Mad",
+  "16693378803": "JOC HOT TUB",
+  "19723626313": "Dallas, Texas",
+  "18329816614": "Exterior Painting Nationwide / TV Mounting",
+  "14243339932": "BEVERLY HILLS 2",
+  "12393067796": "NAPLES FLORIDA",
+  "13463537571": "Sliding Door",
+  "14697785063": "Nationwide Christmas Lights",
+  "13463539245": "Nationwide Drywall Patch Repair",
+  "17372775713": "Junk Removal Nationwide MIS",
+  "17866736371": "Miami FB/ND Garage Door OP1",
+  "13465779242": "Houston Facebook ND Garage Door OP1",
+  "16575716845": "Orange County Handyman OP1",
+  "18582643190": "San Diego Garage Door OP1",
+  "17472988624": "Los Angeles Appliance OP1",
+  "14632098542": "Indianapolis Handyman",
+  "18723287251": "Chicago Facebook",
+  "18188149252": "Los Angeles Facebook OP1",
+  "12819426479": "Houston Handyman OP1",
+  "14708232133": "Atlanta Georgia Appliance Repair / GD",
+  "14709448210": "Atlanta Georgia Handyman",
+  "12132779445": "LOS ANGELES GARAGE DOOR / CLEANING / PLUMBING",
+  "16613628754": "Santa Clarita Handyman",
+  "16572230626": "Orange County Appliance Repair",
+  "18322097989": "Houston Handyman",
+  "12014489324": "New Jersey Handyman",
+  "19542396751": "Miami Appliance Repair",
+  "15614646940": "Miami Handyman",
+  "18722787204": "Chicago Handyman",
+  "19292983346": "New York Handyman",
+  "17374027035": "Austin Handyman N/FB",
+  "16692366322": "San Jose Appliance Repair",
+  "16692026712": "San Jose Handyman",
+  "16822049388": "Nationwide Plumbing FB / Nationwide Handyman",
+  "17475887812": "Technicians Communications (NEW)",
+  "12133192404": "Los Angeles Handyman FB",
+  "18582890634": "San Diego - Appliance Repair",
+  "16193049048": "San Diego - Handyman",
+  "12134718651": "Los Angeles - Handyman",
+  "13464060053": "Appliance Repair Nationwide MIS",
+  "13462263895": "Garage Door NATIONWIDE MIS",
+  "14697188444": "Dallas Garage Door",
+};
+
+/**
+ * Returns official QUO Number Name from DB object or dictionary mapping
+ */
+export function getQuoNumberName(
+  numObj?: { name?: string | null; label?: string | null; display_number?: string | null; number?: string | null } | null,
+  fallbackRawNumber?: string | null
+): string {
+  if (numObj?.name && numObj.name.trim()) return numObj.name.trim();
+  if (numObj?.label && numObj.label.trim()) return numObj.label.trim();
+
+  const numToTest = numObj?.number || fallbackRawNumber || "";
+  const digits = numToTest.replace(/\D/g, "");
+
+  if (digits && QUO_PHONE_NUMBER_NAME_MAP[digits]) {
+    return QUO_PHONE_NUMBER_NAME_MAP[digits];
+  }
+
+  if (digits.length === 10 && QUO_PHONE_NUMBER_NAME_MAP[`1${digits}`]) {
+    return QUO_PHONE_NUMBER_NAME_MAP[`1${digits}`];
+  }
+
+  if (numObj?.display_number) return numObj.display_number;
+  if (numObj?.number) return formatUsPhone(numObj.number);
+
+  return fallbackRawNumber ? formatUsPhone(fallbackRawNumber) : "Main Line";
+}
 
 /**
  * Normalizes any legacy or custom status into one of our 6 standard QuoLeadStatuses
@@ -125,7 +196,6 @@ export function formatEasternTime(
 export function getEasternDateBounds(dateStr: string, boundary: "start" | "end"): Date | null {
   if (!dateStr) return null;
   try {
-    // Check if current NY offset is EDT (-04:00) or EST (-05:00)
     const tempDate = new Date(`${dateStr}T12:00:00Z`);
     const nyTimeStr = tempDate.toLocaleString("en-US", { timeZone: "America/New_York", timeZoneName: "short" });
     const isEDT = nyTimeStr.includes("EDT");

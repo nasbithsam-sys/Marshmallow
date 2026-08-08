@@ -57,9 +57,9 @@ import { premiumEase } from "@/lib/motion";
 import {
   formatEasternTime,
   formatUsPhone,
-  
   getEasternDateBounds,
   getQuoChatUrl,
+  getQuoNumberName,
   normalizeQuoLeadStatus,
   QUO_LEAD_STATUS_CONFIG,
   QUO_LEAD_STATUS_KEYS,
@@ -318,11 +318,7 @@ export default function QuoDashboardPage() {
       // 1. Search Query Filter
       if (search.trim()) {
         const q = search.toLowerCase();
-        const numberName =
-          c.quo_phone_numbers?.name ||
-          c.quo_phone_numbers?.label ||
-          c.quo_phone_numbers?.number ||
-          "";
+        const numberName = getQuoNumberName(c.quo_phone_numbers);
         const matchesName = c.customer_name?.toLowerCase().includes(q);
         const matchesPhone = c.customer_number?.toLowerCase().includes(q);
         const matchesNumName = numberName.toLowerCase().includes(q);
@@ -425,7 +421,7 @@ export default function QuoDashboardPage() {
 
       const numId = conv.number_id || "unknown";
       const numberObj = conv.quo_phone_numbers;
-      const numName = numberObj?.name || numberObj?.label || numberObj?.display_number || numberObj?.number || "Main Line";
+      const numName = getQuoNumberName(numberObj);
       const numPhone = numberObj?.number || "No number";
 
       if (!byNumberMap[numId]) {
@@ -587,7 +583,7 @@ export default function QuoDashboardPage() {
                   <div className="max-h-48 overflow-y-auto space-y-1.5 pt-1">
                     {phoneNumbers.map((num) => {
                       const isChecked = selectedNumberIds.includes(num.id);
-                      const labelName = num.name || num.label || num.display_number || num.number;
+                      const labelName = getQuoNumberName(num);
 
                       return (
                         <div
@@ -792,12 +788,7 @@ export default function QuoDashboardPage() {
                   </TableRow>
                 ) : (
                   filteredConversations.map((row, index) => {
-                    const numberName =
-                      row.quo_phone_numbers?.name ||
-                      row.quo_phone_numbers?.label ||
-                      row.quo_phone_numbers?.display_number ||
-                      row.quo_phone_numbers?.number ||
-                      "Main Line";
+                    const numberName = getQuoNumberName(row.quo_phone_numbers);
 
                     const normStatusKey = normalizeQuoLeadStatus(row.status || row.current_status);
                     const statusCfg = QUO_LEAD_STATUS_CONFIG[normStatusKey];
@@ -1123,10 +1114,7 @@ export default function QuoDashboardPage() {
                 id: activeChatConversation.id,
                 customer_name: activeChatConversation.customer_name,
                 customer_number: activeChatConversation.customer_number,
-                number_name:
-                  activeChatConversation.quo_phone_numbers?.name ||
-                  activeChatConversation.quo_phone_numbers?.label ||
-                  activeChatConversation.quo_phone_numbers?.number,
+                number_name: getQuoNumberName(activeChatConversation.quo_phone_numbers),
                 status: activeChatConversation.status,
               }
             : null
