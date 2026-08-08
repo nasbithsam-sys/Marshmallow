@@ -105,7 +105,6 @@ export default function QuoDashboardPage() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [activeChatConversation, setActiveChatConversation] = useState<ConversationRow | null>(null);
-  const [generatingMock, setGeneratingMock] = useState(false);
 
   // Fetch QUO Phone Numbers list
   const { data: phoneNumbers = [] } = useQuery<QuoPhoneNumber[]>({
@@ -418,24 +417,6 @@ export default function QuoDashboardPage() {
     };
   }, [filteredConversations]);
 
-  const handleGenerateMock = async () => {
-    setGeneratingMock(true);
-    toast.info("Generating random test data...");
-    try {
-      const res = await generateMockQuoData();
-      if (res.success) {
-        toast.success(`Generated ${res.count} test QUO conversations with chat history!`);
-        refetch();
-      } else {
-        toast.error("Failed to generate test data");
-      }
-    } catch (err) {
-      toast.error("Error generating test data");
-    } finally {
-      setGeneratingMock(false);
-    }
-  };
-
   const handleCopyChatUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     toast.success("QUO chat link copied to clipboard");
@@ -468,19 +449,6 @@ export default function QuoDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Generate Mock Data Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleGenerateMock}
-              disabled={generatingMock}
-              className="gap-1.5 text-xs h-9 bg-background/80 border-primary/30 text-primary hover:bg-primary/10"
-              title="Generate random test conversations and chat messages for testing"
-            >
-              <Sparkles className={`h-3.5 w-3.5 ${generatingMock ? "animate-spin" : ""}`} />
-              <span>{generatingMock ? "Generating..." : "Generate Test Data"}</span>
-            </Button>
-
             {/* Webhook Status Toggle */}
             <Button
               variant="outline"
