@@ -221,19 +221,32 @@ export function formatUsPhone(value?: string | null): string {
 }
 
 /**
- * Constructs or extracts the QUO Chat Link for a conversation
+ * Constructs or extracts the QUO Chat Link for a conversation (my.quo.com format)
+ * Example: https://my.quo.com/inbox/PNCbxD59ja/c/CN3fb9fd0bff2342c0b2523334864e4d74
  */
-export function getQuoChatUrl(quoConversationId?: string | null, customerNumber?: string | null): string {
+export function getQuoChatUrl(
+  quoConversationId?: string | null,
+  customerNumber?: string | null,
+  quoPhoneNumberId?: string | null
+): string {
   if (!quoConversationId && !customerNumber) return "#";
 
   if (quoConversationId && (quoConversationId.startsWith("http://") || quoConversationId.startsWith("https://"))) {
     return quoConversationId;
   }
 
+  const pncId = quoPhoneNumberId ? quoPhoneNumberId.trim() : "";
+
   if (quoConversationId) {
-    return `https://app.openphone.com/messages/${quoConversationId}`;
+    if (pncId) {
+      return `https://my.quo.com/inbox/${pncId}/c/${quoConversationId}`;
+    }
+    return `https://my.quo.com/inbox/c/${quoConversationId}`;
   }
 
   const cleanPhone = customerNumber ? customerNumber.replace(/\D/g, "") : "";
-  return `https://app.openphone.com/messages?phone=${cleanPhone}`;
+  if (pncId) {
+    return `https://my.quo.com/inbox/${pncId}?phone=${cleanPhone}`;
+  }
+  return `https://my.quo.com/inbox?phone=${cleanPhone}`;
 }

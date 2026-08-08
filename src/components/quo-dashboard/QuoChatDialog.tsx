@@ -147,7 +147,8 @@ export default function QuoChatDialog({
     // Dispatch Chrome Extension postMessage trigger
     const chatUrl = getQuoChatUrl(
       (conversation as any).quo_conversation_id,
-      conversation.customer_number
+      conversation.customer_number,
+      (conversation as any).quo_phone_number_id
     );
 
     try {

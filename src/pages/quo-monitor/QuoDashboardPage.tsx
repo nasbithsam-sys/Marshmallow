@@ -797,7 +797,8 @@ export default function QuoDashboardPage() {
                       "time"
                     );
 
-                    const quoChatUrl = getQuoChatUrl(row.quo_conversation_id, row.customer_number);
+                    const pncId = row.quo_phone_numbers?.quo_phone_number_id || undefined;
+                    const quoChatUrl = getQuoChatUrl(row.quo_conversation_id, row.customer_number, pncId);
 
                     return (
                       <TableRow
