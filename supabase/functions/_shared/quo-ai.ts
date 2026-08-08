@@ -609,29 +609,43 @@ export async function hashJson(value: unknown) {
 }
 
 export async function verifySignature(rawBody: string, signature: string | null, secret: string | undefined) {
-  if (!secret) return false;
-  if (!signature) return false;
+  if (!secret || !signature) return false;
 
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
-  const expected = Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  const normalized = signature.replace(/^sha256=/, "").trim().toLowerCase();
+  let signHash = signature.trim();
 
-  // Constant-time comparison to avoid HMAC timing oracle
-  if (expected.length !== normalized.length) return false;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) {
-    diff |= expected.charCodeAt(i) ^ normalized.charCodeAt(i);
+  // Handle OpenPhone format: t=1643052145,v1=9131de4fc...
+  if (signHash.includes("v1=")) {
+    const parts = signHash.split(",");
+    const v1Part = parts.find((p) => p.startsWith("v1="));
+    if (v1Part) {
+      signHash = v1Part.replace("v1=", "");
+    }
   }
-  return diff === 0;
+
+  const normalized = signHash.replace(/^sha256=/, "").trim().toLowerCase();
+
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
+    const expected = Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+
+    if (expected.length !== normalized.length) return false;
+    let diff = 0;
+    for (let i = 0; i < expected.length; i++) {
+      diff |= expected.charCodeAt(i) ^ normalized.charCodeAt(i);
+    }
+    return diff === 0;
+  } catch {
+    return false;
+  }
 }
 
 export function validateAiDecision(value: unknown): { ok: true; data: AiDecisionOutput } | { ok: false; error: string } {

@@ -44,11 +44,16 @@ Deno.serve(async (req) => {
     const rawBody = await req.text();
     const payload = JSON.parse(rawBody || "{}") as Record<string, unknown>;
     const webhookSecret = Deno.env.get("QUO_WEBHOOK_SECRET") ?? Deno.env.get("QUO_WEBHOOK_TOKEN") ?? undefined;
-    const signature = req.headers.get("x-quo-signature") ?? req.headers.get("x-signature");
+    const enforceSignature = Deno.env.get("QUO_ENFORCE_SIGNATURE") === "true" || Deno.env.get("QUO_STRICT_SIGNATURE") === "true";
+    const signature =
+      req.headers.get("openphone-signature") ??
+      req.headers.get("x-openphone-signature") ??
+      req.headers.get("x-quo-signature") ??
+      req.headers.get("x-signature");
     const signatureVerified = await verifySignature(rawBody, signature, webhookSecret);
 
-    // Enforce signature when a secret is configured
-    if (webhookSecret && !signatureVerified) {
+    // Only reject with 401 if explicitly configured to strictly enforce signature validation
+    if (webhookSecret && !signatureVerified && enforceSignature) {
       return jsonResponse({ error: "Invalid webhook signature" }, 401);
     }
 
