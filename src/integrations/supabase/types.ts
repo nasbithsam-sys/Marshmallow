@@ -14,38 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      user_notepads: {
-        Row: {
-          content: string
-          created_at: string
-          id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          content?: string
-          created_at?: string
-          id?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_notepads_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       activity_logs: {
         Row: {
           action: string
@@ -2635,6 +2603,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_notepads: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -2742,6 +2734,7 @@ export type Database = {
             Returns: boolean
           }
       healthcheck: { Args: never; Returns: Json }
+      is_admin_user: { Args: { check_user_id: string }; Returns: boolean }
       quo_conversation_counts_by_number: {
         Args: never
         Returns: {
