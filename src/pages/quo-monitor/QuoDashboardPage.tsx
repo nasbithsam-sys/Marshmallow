@@ -164,6 +164,31 @@ export default function QuoDashboardPage() {
     refetchInterval: 15000,
   });
 
+  // Realtime subscription for instant incoming webhook chat updates
+  React.useEffect(() => {
+    const channel = supabase
+      .channel("quo-dashboard-realtime-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "quo_conversations" },
+        () => {
+          refetch();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "quo_messages" },
+        () => {
+          refetch();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refetch]);
+
   // Mutation to update conversation Lead Status
   const updateStatusMutation = useMutation({
     mutationFn: async ({
