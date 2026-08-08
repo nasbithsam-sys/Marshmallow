@@ -15,8 +15,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Download, Share2, X, SlidersHorizontal, BarChart3, Puzzle } from "lucide-react";
+import { Plus, Search, Download, Share2, X, SlidersHorizontal, BarChart3, Puzzle, FileText } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
+import { useNotepad } from "@/contexts/NotepadContext";
 import LeadCard from "@/components/leads/LeadCard";
 import OprLeadCard from "@/components/leads/OprLeadCard";
 import type { LeadCancellationRequest } from "@/types";
@@ -50,6 +51,8 @@ interface LeadNoteExportRow {
 
 export default function LeadsPage() {
   const { user, role } = useAuth();
+  const { toggleNotepad, isNotepadOpen, activeUserIds } = useNotepad();
+  const isAnyNotepadOpen = activeUserIds.length > 0;
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -553,6 +556,18 @@ export default function LeadsPage() {
           >
             <Puzzle className="h-3.5 w-3.5" />
             Extension
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => toggleNotepad()}
+            className={`gap-1.5 text-[12px] h-9 border-border/60 ${
+              isAnyNotepadOpen ? "bg-primary/10 border-primary/30 text-primary" : "hover:bg-muted/30"
+            }`}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Notepad
           </Button>
 
           {(isAdmin || isCS) && (

@@ -1,0 +1,840 @@
+import React, { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Search,
+  MessageSquare,
+  ChevronDown,
+  Calendar,
+  Filter,
+  PhoneCall,
+  RefreshCw,
+  Clock,
+  Check,
+  ExternalLink,
+  Copy,
+} from "lucide-react";
+import { toast } from "sonner";
+import { motion } from "framer-motion";
+import { premiumEase } from "@/lib/motion";
+import {
+  formatEasternTime,
+  formatUsPhone,
+  getEasternDateBounds,
+  getQuoChatUrl,
+  normalizeQuoLeadStatus,
+  QUO_LEAD_STATUS_CONFIG,
+  QUO_LEAD_STATUS_KEYS,
+  type QuoLeadStatus,
+} from "@/lib/quo-dashboard";
+import QuoChatDialog from "@/components/quo-dashboard/QuoChatDialog";
+
+interface QuoPhoneNumber {
+  id: string;
+  quo_phone_number_id: string | null;
+  number: string;
+  name: string | null;
+  label: string | null;
+  display_number: string | null;
+}
+
+interface ConversationRow {
+  id: string;
+  quo_conversation_id: string;
+  customer_name: string | null;
+  customer_number: string | null;
+  number_id: string | null;
+  last_message_preview: string | null;
+  last_message_time: string | null;
+  last_message_at: string | null;
+  created_at: string;
+  status: string | null;
+  current_status?: string | null;
+  quo_phone_numbers?: QuoPhoneNumber | null;
+}
+
+type DateRangePreset = "all" | "today" | "yesterday" | "last7" | "month" | "custom";
+
+export default function QuoDashboardPage() {
+  const { role } = useAuth();
+  const queryClient = useQueryClient();
+
+  const [search, setSearch] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedNumberIds, setSelectedNumberIds] = useState<string[]>([]);
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [activeChatConversation, setActiveChatConversation] = useState<ConversationRow | null>(null);
+
+  // Fetch QUO Phone Numbers list
+  const { data: phoneNumbers = [] } = useQuery<QuoPhoneNumber[]>({
+    queryKey: ["quo-phone-numbers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quo_phone_numbers")
+        .select("id, quo_phone_number_id, number, name, label, display_number")
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.error("Failed to load QUO phone numbers", error);
+        return [];
+      }
+      return (data as QuoPhoneNumber[]) ?? [];
+    },
+  });
+
+  // Fetch Conversations list
+  const {
+    data: conversations = [],
+    isLoading,
+    isRefetching,
+    refetch,
+  } = useQuery<ConversationRow[]>({
+    queryKey: ["quo-dashboard-conversations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quo_conversations")
+        .select(`
+          id,
+          quo_conversation_id,
+          customer_name,
+          customer_number,
+          number_id,
+          last_message_preview,
+          last_message_time,
+          last_message_at,
+          created_at,
+          status,
+          current_status,
+          quo_phone_numbers (
+            id,
+            quo_phone_number_id,
+            number,
+            name,
+            label,
+            display_number
+          )
+        `)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        toast.error("Failed to load QUO Dashboard conversations");
+        throw error;
+      }
+      return (data as ConversationRow[]) ?? [];
+    },
+    refetchInterval: 15000,
+  });
+
+  // Mutation to update conversation Lead Status
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({
+      conversationId,
+      newStatus,
+    }: {
+      conversationId: string;
+      newStatus: QuoLeadStatus;
+    }) => {
+      const { error } = await supabase
+        .from("quo_conversations")
+        .update({
+          status: newStatus,
+          current_status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversationId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.setQueryData<ConversationRow[]>(
+        ["quo-dashboard-conversations"],
+        (old = []) =>
+          old.map((c) =>
+            c.id === variables.conversationId
+              ? { ...c, status: variables.newStatus, current_status: variables.newStatus }
+              : c
+          )
+      );
+      toast.success(`Lead status updated to ${QUO_LEAD_STATUS_CONFIG[variables.newStatus].label}`);
+    },
+    onError: (err: Error) => {
+      toast.error(`Failed to update status: ${err.message}`);
+    },
+  });
+
+  // Toggle selection for QUO Phone Numbers filter
+  const handleToggleNumber = (id: string) => {
+    setSelectedNumberIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllNumbers = () => {
+    if (selectedNumberIds.length === phoneNumbers.length) {
+      setSelectedNumberIds([]);
+    } else {
+      setSelectedNumberIds(phoneNumbers.map((n) => n.id));
+    }
+  };
+
+  // Helper for Eastern Time Date Filtering
+  const todayNYStr = useMemo(() => {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  }, []);
+
+  const yesterdayNYStr = useMemo(() => {
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    return y.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  }, []);
+
+  // Filter conversations by Search, Selected Numbers, Status, and Eastern Time Date Range
+  const filteredConversations = useMemo(() => {
+    return conversations.filter((c) => {
+      // 1. Search Query Filter
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const numberName =
+          c.quo_phone_numbers?.name ||
+          c.quo_phone_numbers?.label ||
+          c.quo_phone_numbers?.number ||
+          "";
+        const matchesName = c.customer_name?.toLowerCase().includes(q);
+        const matchesPhone = c.customer_number?.toLowerCase().includes(q);
+        const matchesNumName = numberName.toLowerCase().includes(q);
+        const matchesMessage = c.last_message_preview?.toLowerCase().includes(q);
+
+        if (!matchesName && !matchesPhone && !matchesNumName && !matchesMessage) {
+          return false;
+        }
+      }
+
+      // 2. Selected QUO Numbers Filter
+      if (selectedNumberIds.length > 0 && c.number_id) {
+        if (!selectedNumberIds.includes(c.number_id)) {
+          return false;
+        }
+      }
+
+      // 3. Lead Status Filter
+      const currentNormStatus = normalizeQuoLeadStatus(c.status || c.current_status);
+      if (selectedStatus !== "all" && currentNormStatus !== selectedStatus) {
+        return false;
+      }
+
+      // 4. Custom Date Range Filter (evaluated strictly in Eastern Time)
+      if (datePreset !== "all") {
+        const incomingTimeIso = c.created_at || c.last_message_at || c.last_message_time;
+        if (!incomingTimeIso) return false;
+
+        const incomingDate = new Date(incomingTimeIso);
+        if (isNaN(incomingDate.getTime())) return false;
+
+        if (datePreset === "today") {
+          const startBound = getEasternDateBounds(todayNYStr, "start");
+          const endBound = getEasternDateBounds(todayNYStr, "end");
+          if (startBound && incomingDate < startBound) return false;
+          if (endBound && incomingDate > endBound) return false;
+        } else if (datePreset === "yesterday") {
+          const startBound = getEasternDateBounds(yesterdayNYStr, "start");
+          const endBound = getEasternDateBounds(yesterdayNYStr, "end");
+          if (startBound && incomingDate < startBound) return false;
+          if (endBound && incomingDate > endBound) return false;
+        } else if (datePreset === "last7") {
+          const d7 = new Date();
+          d7.setDate(d7.getDate() - 7);
+          const d7NYStr = d7.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+          const startBound = getEasternDateBounds(d7NYStr, "start");
+          if (startBound && incomingDate < startBound) return false;
+        } else if (datePreset === "custom") {
+          if (startDate) {
+            const startBound = getEasternDateBounds(startDate, "start");
+            if (startBound && incomingDate < startBound) return false;
+          }
+          if (endDate) {
+            const endBound = getEasternDateBounds(endDate, "end");
+            if (endBound && incomingDate > endBound) return false;
+          }
+        }
+      }
+
+      return true;
+    });
+  }, [
+    conversations,
+    search,
+    selectedNumberIds,
+    selectedStatus,
+    datePreset,
+    startDate,
+    endDate,
+    todayNYStr,
+    yesterdayNYStr,
+  ]);
+
+  // Query Webhook Ingestion Paused Setting
+  const { data: isWebhookPaused = false, refetch: refetchWebhookSetting } = useQuery<boolean>({
+    queryKey: ["quo-webhook-paused-setting"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quo_ai_settings" as any)
+        .select("value")
+        .eq("key", "quo_webhook_ingestion_paused")
+        .maybeSingle();
+
+      if (error) return false;
+      return (data as any)?.value === true;
+    },
+  });
+
+  // Mutation to toggle Webhook Ingestion Paused state
+  const toggleWebhookMutation = useMutation({
+    mutationFn: async (shouldPause: boolean) => {
+      const { error } = await supabase
+        .from("quo_ai_settings" as any)
+        .upsert(
+          {
+            key: "quo_webhook_ingestion_paused",
+            value: shouldPause,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "key" }
+        );
+
+      if (error) throw error;
+    },
+    onSuccess: (_, shouldPause) => {
+      refetchWebhookSetting();
+      toast.success(
+        shouldPause
+          ? "QUO Webhook ingestion paused"
+          : "QUO Webhook ingestion activated! Now receiving new messages."
+      );
+    },
+    onError: (err: Error) => {
+      toast.error(`Failed to toggle webhook setting: ${err.message}`);
+    },
+  });
+
+  const handleCopyChatUrl = (url: string) => {
+    navigator.clipboard.writeText(url);
+    toast.success("QUO chat link copied to clipboard");
+  };
+
+  return (
+    <div className="mx-auto max-w-[1600px] space-y-6 pb-12">
+      {/* Top Hero Section */}
+      <motion.section
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: premiumEase }}
+        className="glass-panel-strong relative overflow-hidden rounded-[28px] px-5 py-5 shadow-[0_38px_82px_-42px_rgba(59,130,246,0.28)] sm:px-6 sm:py-6"
+      >
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+              <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
+              QUO Webhook Triage
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-[-0.04em] text-foreground">
+              QUO Dashboard
+            </h1>
+            <p className="mt-1 max-w-2xl text-xs sm:text-sm text-muted-foreground flex items-center gap-1.5 flex-wrap">
+              <span>Live incoming webhook chats, real-time message history, and lead status management strictly in</span>
+              <Badge variant="secondary" className="font-semibold text-foreground text-[11px] px-2 py-0 border-primary/20">
+                Eastern Time Zone (US/Eastern)
+              </Badge>
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toggleWebhookMutation.mutate(!isWebhookPaused)}
+              className={`gap-1.5 text-xs h-9 font-medium border transition-all ${
+                isWebhookPaused
+                  ? "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 hover:bg-amber-100"
+                  : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100"
+              }`}
+              title="Toggle Webhook Message Ingestion"
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isWebhookPaused ? "bg-amber-500 animate-pulse" : "bg-emerald-500 shadow-[0_0_8px_#10b981]"
+                }`}
+              />
+              <span>{isWebhookPaused ? "Webhook Paused (Click to Activate)" : "Webhook Active"}</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="gap-2 text-xs h-9 bg-background/80"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin text-primary" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+        </div>
+      </motion.section>
+
+      {/* Filter Control Bar */}
+      <div className="glass-panel-strong rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm border border-border/60">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[240px]">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search number name, customer phone, or messages..."
+            className="pl-9 h-9 text-xs bg-background/80"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* QUO Numbers Selector Filter */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2 text-xs border-border/70 bg-background/80">
+                <PhoneCall className="h-3.5 w-3.5 text-primary" />
+                <span>
+                  {selectedNumberIds.length === 0
+                    ? "All QUO Numbers"
+                    : selectedNumberIds.length === phoneNumbers.length
+                    ? "All QUO Numbers"
+                    : `${selectedNumberIds.length} Number${selectedNumberIds.length > 1 ? "s" : ""}`}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[260px] p-3">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <span className="text-xs font-semibold text-foreground">Select QUO Numbers</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSelectAllNumbers}
+                    className="h-6 text-[10px] px-2 text-primary"
+                  >
+                    {selectedNumberIds.length === phoneNumbers.length ? "Deselect All" : "Select All"}
+                  </Button>
+                </div>
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pt-1">
+                  {phoneNumbers.map((num) => {
+                    const isChecked = selectedNumberIds.includes(num.id);
+                    const labelName = num.name || num.label || num.display_number || num.number;
+
+                    return (
+                      <div
+                        key={num.id}
+                        onClick={() => handleToggleNumber(num.id)}
+                        className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted/40 cursor-pointer text-xs select-none"
+                      >
+                        <Checkbox checked={isChecked} onCheckedChange={() => handleToggleNumber(num.id)} />
+                        <span className="truncate font-medium text-foreground">{labelName}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Lead Status Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2 text-xs border-border/70 bg-background/80">
+                <Filter className="h-3.5 w-3.5 text-primary" />
+                <span className="capitalize">
+                  {selectedStatus === "all"
+                    ? "All Statuses"
+                    : QUO_LEAD_STATUS_CONFIG[selectedStatus as QuoLeadStatus]?.label || selectedStatus}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px]">
+              <DropdownMenuItem onClick={() => setSelectedStatus("all")} className="text-xs">
+                All Statuses
+              </DropdownMenuItem>
+              {QUO_LEAD_STATUS_KEYS.map((key) => {
+                const cfg = QUO_LEAD_STATUS_CONFIG[key];
+                return (
+                  <DropdownMenuItem
+                    key={key}
+                    onClick={() => setSelectedStatus(key)}
+                    className="text-xs flex items-center justify-between"
+                  >
+                    <span>{cfg.label}</span>
+                    {selectedStatus === key && <Check className="h-3.5 w-3.5 text-primary" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Date Range Selector (Strictly Eastern Time) */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2 text-xs border-border/70 bg-background/80">
+                <Calendar className="h-3.5 w-3.5 text-primary" />
+                <span>
+                  {datePreset === "all"
+                    ? "All Dates (ET)"
+                    : datePreset === "today"
+                    ? "Today (ET)"
+                    : datePreset === "yesterday"
+                    ? "Yesterday (ET)"
+                    : datePreset === "last7"
+                    ? "Last 7 Days (ET)"
+                    : "Custom Range (ET)"}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[310px] p-4 space-y-3">
+              <div className="text-xs font-semibold text-foreground border-b pb-2 flex items-center justify-between">
+                <span>Date Range Filter</span>
+                <Badge variant="secondary" className="text-[10px] font-mono">
+                  Eastern Time (ET)
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5">
+                <Button
+                  size="sm"
+                  variant={datePreset === "all" ? "default" : "outline"}
+                  onClick={() => setDatePreset("all")}
+                  className="h-7 text-xs"
+                >
+                  All Dates
+                </Button>
+                <Button
+                  size="sm"
+                  variant={datePreset === "today" ? "default" : "outline"}
+                  onClick={() => setDatePreset("today")}
+                  className="h-7 text-xs"
+                >
+                  Today (ET)
+                </Button>
+                <Button
+                  size="sm"
+                  variant={datePreset === "yesterday" ? "default" : "outline"}
+                  onClick={() => setDatePreset("yesterday")}
+                  className="h-7 text-xs"
+                >
+                  Yesterday (ET)
+                </Button>
+                <Button
+                  size="sm"
+                  variant={datePreset === "last7" ? "default" : "outline"}
+                  onClick={() => setDatePreset("last7")}
+                  className="h-7 text-xs"
+                >
+                  Last 7 Days (ET)
+                </Button>
+              </div>
+
+              <div className="pt-2 border-t space-y-2">
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  Custom Date Range (Eastern Time):
+                </span>
+                <div className="space-y-1.5">
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Start Date</Label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setDatePreset("custom");
+                      }}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">End Date</Label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setDatePreset("custom");
+                      }}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
+      {/* Main QUO Dashboard Table */}
+      <div className="glass-panel-strong rounded-2xl border border-border/60 overflow-hidden shadow-sm">
+        <Table>
+          <TableHeader className="bg-muted/40">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-[60px] text-center font-semibold text-xs text-foreground">
+                #
+              </TableHead>
+              <TableHead className="font-semibold text-xs text-foreground">
+                Number Name
+              </TableHead>
+              <TableHead className="font-semibold text-xs text-foreground">
+                Customer Number
+              </TableHead>
+              <TableHead className="font-semibold text-xs text-foreground w-[120px]">
+                Chat
+              </TableHead>
+              <TableHead className="font-semibold text-xs text-foreground">
+                Incoming time (ET)
+              </TableHead>
+              <TableHead className="font-semibold text-xs text-foreground">
+                Lead Status
+              </TableHead>
+              <TableHead className="font-semibold text-xs text-foreground text-right w-[160px]">
+                Quo Chat Link
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+
+          <TableBody>
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, idx) => (
+                <TableRow key={idx}>
+                  <TableCell className="text-center"><Skeleton className="h-4 w-4 mx-auto" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-36" /></TableCell>
+                  <TableCell><Skeleton className="h-7 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-6 w-28" /></TableCell>
+                  <TableCell className="text-right"><Skeleton className="h-7 w-24 ml-auto" /></TableCell>
+                </TableRow>
+              ))
+            ) : filteredConversations.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="h-40 text-center text-muted-foreground text-xs">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
+                    <span>No conversations found matching filters</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredConversations.map((row, index) => {
+                const numberName =
+                  row.quo_phone_numbers?.name ||
+                  row.quo_phone_numbers?.label ||
+                  row.quo_phone_numbers?.display_number ||
+                  row.quo_phone_numbers?.number ||
+                  "Main Line";
+
+                const normStatusKey = normalizeQuoLeadStatus(row.status || row.current_status);
+                const statusCfg = QUO_LEAD_STATUS_CONFIG[normStatusKey];
+                const incomingTimeDisplay = formatEasternTime(
+                  row.created_at || row.last_message_at || row.last_message_time,
+                  "time"
+                );
+
+                const quoChatUrl = getQuoChatUrl(row.quo_conversation_id, row.customer_number);
+
+                return (
+                  <TableRow
+                    key={row.id}
+                    className="hover:bg-muted/30 transition-colors duration-150 border-b border-border/40"
+                  >
+                    {/* Column 1: # / Chat # */}
+                    <TableCell className="text-center font-mono text-xs text-muted-foreground font-semibold">
+                      {index + 1}
+                    </TableCell>
+
+                    {/* Column 2: Number Name */}
+                    <TableCell className="font-medium text-xs text-foreground">
+                      {numberName}
+                    </TableCell>
+
+                    {/* Column 3: Customer Number */}
+                    <TableCell className="font-medium text-xs text-foreground font-mono">
+                      {formatUsPhone(row.customer_number)}
+                      {row.customer_name && (
+                        <span className="text-[11px] font-sans font-normal text-muted-foreground block">
+                          {row.customer_name}
+                        </span>
+                      )}
+                    </TableCell>
+
+                    {/* Column 4: Chat (Open Button) */}
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setActiveChatConversation(row)}
+                        className="h-7 px-3 text-xs gap-1.5 border-border/70 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                        <span>Open</span>
+                      </Button>
+                    </TableCell>
+
+                    {/* Column 5: Incoming time (Eastern Time) */}
+                    <TableCell className="text-xs text-foreground font-mono">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <span>{incomingTimeDisplay}</span>
+                      </div>
+                    </TableCell>
+
+                    {/* Column 6: Lead Status (Interactive Dropdown) */}
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-7 px-2.5 rounded-lg border text-xs font-medium gap-1.5 transition-all ${statusCfg.badgeClass}`}
+                          >
+                            <span>{statusCfg.label}</span>
+                            <ChevronDown className="h-3 w-3 opacity-60" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-[210px] p-1">
+                          {QUO_LEAD_STATUS_KEYS.map((statusKey) => {
+                            const optionCfg = QUO_LEAD_STATUS_CONFIG[statusKey];
+                            const isSelected = normStatusKey === statusKey;
+
+                            return (
+                              <DropdownMenuItem
+                                key={statusKey}
+                                onClick={() =>
+                                  updateStatusMutation.mutate({
+                                    conversationId: row.id,
+                                    newStatus: statusKey,
+                                  })
+                                }
+                                className="text-xs p-2 flex items-center justify-between cursor-pointer"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{optionCfg.label}</span>
+                                  <span className="text-[10px] text-muted-foreground leading-tight">
+                                    {optionCfg.description}
+                                  </span>
+                                </div>
+                                {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0 ml-1" />}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+
+                    {/* Column 7: Quo Chat Link (Replaced Agent Column) */}
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <a
+                          href={quoChatUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center"
+                        >
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                            title="Open QUO Chat Link in new tab"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            <span>Quo Chat Link</span>
+                          </Button>
+                        </a>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleCopyChatUrl(quoChatUrl)}
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          title="Copy chat link"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+
+        {/* Footer Summary */}
+        <div className="p-3 border-t border-border/40 bg-muted/20 flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            Showing <strong className="text-foreground">{filteredConversations.length}</strong> of{" "}
+            <strong className="text-foreground">{conversations.length}</strong> conversations
+          </span>
+          <span className="text-[11px] font-mono">Timezone: Eastern Time Zone (US/Eastern)</span>
+        </div>
+      </div>
+
+      {/* Webhook Chat Drawer UI Box */}
+      <QuoChatDialog
+        open={!!activeChatConversation}
+        onOpenChange={(open) => !open && setActiveChatConversation(null)}
+        conversation={
+          activeChatConversation
+            ? {
+                id: activeChatConversation.id,
+                customer_name: activeChatConversation.customer_name,
+                customer_number: activeChatConversation.customer_number,
+                number_name:
+                  activeChatConversation.quo_phone_numbers?.name ||
+                  activeChatConversation.quo_phone_numbers?.label ||
+                  activeChatConversation.quo_phone_numbers?.number,
+                status: activeChatConversation.status,
+              }
+            : null
+        }
+        onStatusChange={(newStatus) => {
+          if (activeChatConversation) {
+            updateStatusMutation.mutate({
+              conversationId: activeChatConversation.id,
+              newStatus,
+            });
+          }
+        }}
+      />
+    </div>
+  );
+}

@@ -201,3 +201,12 @@ export interface LeadOperatorAssignment {
   assigned_by_name: string;
   created_at: string;
 }
+
+export interface UserNotepad {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+

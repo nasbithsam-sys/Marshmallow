@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, Calendar, LayoutList } from "lucide-react";
+import { Plus, Search, Calendar, LayoutList, FileText } from "lucide-react";
+import { useNotepad } from "@/contexts/NotepadContext";
 import StatusBadge from "@/components/leads/StatusBadge";
 import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import LeadDetailPanel from "@/components/leads/LeadDetailPanel";
@@ -19,6 +20,8 @@ import { compareLeadDisplayPriority } from "@/lib/constants";
 
 const AllLeads = () => {
   const { user, role } = useAuth();
+  const { toggleNotepad, activeUserIds } = useNotepad();
+  const isAnyNotepadOpen = activeUserIds.length > 0;
   const [addOpen, setAddOpen] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -92,12 +95,26 @@ const AllLeads = () => {
           <p className="text-sm text-muted-foreground mt-1">{totalCount} total leads</p>
         </div>
 
-        {(role === "admin" || role === "customer_service") && (
-          <Button onClick={() => setAddOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add New Lead
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => toggleNotepad()}
+            className={`gap-1.5 text-xs h-9 border-border/60 ${
+              isAnyNotepadOpen ? "bg-primary/10 border-primary/30 text-primary" : "hover:bg-muted/30"
+            }`}
+          >
+            <FileText className="h-4 w-4" />
+            Notepad
           </Button>
-        )}
+
+          {(role === "admin" || role === "customer_service") && (
+            <Button onClick={() => setAddOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add New Lead
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-3">
