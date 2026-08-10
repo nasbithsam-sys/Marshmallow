@@ -602,6 +602,18 @@ export default function QuoDashboardPage() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setManageNumbersOpen(true)}
+              className="gap-2 text-xs h-9 bg-background/80"
+              title="Rename numbers and add emojis"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Manage numbers
+            </Button>
+
+
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => refetch()}
               disabled={isRefetching}
               className="gap-2 text-xs h-9 bg-background/80"
