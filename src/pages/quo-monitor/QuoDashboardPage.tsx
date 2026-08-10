@@ -153,7 +153,6 @@ export default function QuoDashboardPage() {
   const [numberNameFilter, setNumberNameFilter] = useState("");
   const [customerFilter, setCustomerFilter] = useState("");
   const [timeSort, setTimeSort] = useState<"desc" | "asc">("desc");
-  const [manageNumbersOpen, setManageNumbersOpen] = useState(false);
 
   // Custom number display names / emojis (stored in quo_ai_settings)
   const { data: numberDisplayMap = {} } = useQuery<QuoNumberDisplayMap>({
@@ -407,16 +406,13 @@ export default function QuoDashboardPage() {
 
   // Filter conversations by Search, Selected Numbers, Status, and Eastern Time Date Range
   const filteredConversations = useMemo(() => {
-<<<<<<< HEAD
     const filtered = conversations.filter((c) => {
-      const numberName = resolveQuoNumberDisplay(c.quo_phone_numbers, numberDisplayMap).name;
-=======
-    return conversations.filter((c) => {
       // 0. Hidden Numbers Filter (unless showHiddenNumbers is toggled on)
       if (!showHiddenNumbers && c.number_id && hiddenNumberIds.has(c.number_id)) {
         return false;
       }
->>>>>>> cc589d4 (feat: add persistent Manage Numbers hide/show display modal to QUO Dashboard matching reference UI)
+
+      const numberName = resolveQuoNumberDisplay(c.quo_phone_numbers, numberDisplayMap).name;
 
       // 1. Search Query Filter
       if (search.trim()) {
@@ -642,6 +638,7 @@ export default function QuoDashboardPage() {
                 }`}
               />
               <span>{isWebhookPaused ? "Webhook Paused" : "Webhook Active"}</span>
+            </Button>
             <Button
               variant="outline"
               size="sm"
