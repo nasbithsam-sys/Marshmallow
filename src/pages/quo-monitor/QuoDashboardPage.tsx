@@ -59,13 +59,19 @@ import {
   formatUsPhone,
   getEasternDateBounds,
   getQuoChatUrl,
-  getQuoNumberName,
   normalizeQuoLeadStatus,
   QUO_LEAD_STATUS_CONFIG,
   QUO_LEAD_STATUS_KEYS,
   type QuoLeadStatus,
 } from "@/lib/quo-dashboard";
+import {
+  QUO_NUMBER_DISPLAY_SETTING_KEY,
+  resolveQuoNumberDisplay,
+  type QuoNumberDisplayMap,
+} from "@/lib/quo-number-display";
+import QuoNumberDisplayDialog from "@/components/quo-dashboard/QuoNumberDisplayDialog";
 import QuoChatDialog from "@/components/quo-dashboard/QuoChatDialog";
+
 
 interface QuoPhoneNumber {
   id: string;
@@ -105,6 +111,56 @@ export default function QuoDashboardPage() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [activeChatConversation, setActiveChatConversation] = useState<ConversationRow | null>(null);
+
+  // Column-header filters
+  const [numberNameFilter, setNumberNameFilter] = useState("");
+  const [customerFilter, setCustomerFilter] = useState("");
+  const [timeSort, setTimeSort] = useState<"desc" | "asc">("desc");
+  const [manageNumbersOpen, setManageNumbersOpen] = useState(false);
+
+  // Custom number display names / emojis (stored in quo_ai_settings)
+  const { data: numberDisplayMap = {} } = useQuery<QuoNumberDisplayMap>({
+    queryKey: ["quo-number-display-map"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quo_ai_settings" as any)
+        .select("value")
+        .eq("key", QUO_NUMBER_DISPLAY_SETTING_KEY)
+        .maybeSingle();
+      if (error) return {};
+      const value = (data as any)?.value;
+      return value && typeof value === "object" ? (value as QuoNumberDisplayMap) : {};
+    },
+  });
+
+  const saveDisplayMapMutation = useMutation({
+    mutationFn: async (map: QuoNumberDisplayMap) => {
+      const cleaned: QuoNumberDisplayMap = {};
+      Object.entries(map).forEach(([id, entry]) => {
+        const label = (entry?.label || "").trim();
+        const emoji = (entry?.emoji || "").trim();
+        if (label || emoji) cleaned[id] = { ...(label ? { label } : {}), ...(emoji ? { emoji } : {}) };
+      });
+      const { error } = await supabase.from("quo_ai_settings" as any).upsert(
+        {
+          key: QUO_NUMBER_DISPLAY_SETTING_KEY,
+          value: cleaned,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" }
+      );
+      if (error) throw error;
+      return cleaned;
+    },
+    onSuccess: (cleaned) => {
+      queryClient.setQueryData(["quo-number-display-map"], cleaned);
+      setManageNumbersOpen(false);
+      toast.success("Number names updated");
+    },
+    onError: (err: Error) => toast.error(`Failed to save names: ${err.message}`),
+  });
+
+
 
   // Fetch QUO Phone Numbers list
   const { data: phoneNumbers = [] } = useQuery<QuoPhoneNumber[]>({
@@ -314,11 +370,12 @@ export default function QuoDashboardPage() {
 
   // Filter conversations by Search, Selected Numbers, Status, and Eastern Time Date Range
   const filteredConversations = useMemo(() => {
-    return conversations.filter((c) => {
+    const filtered = conversations.filter((c) => {
+      const numberName = resolveQuoNumberDisplay(c.quo_phone_numbers, numberDisplayMap).name;
+
       // 1. Search Query Filter
       if (search.trim()) {
         const q = search.toLowerCase();
-        const numberName = getQuoNumberName(c.quo_phone_numbers);
         const matchesName = c.customer_name?.toLowerCase().includes(q);
         const matchesPhone = c.customer_number?.toLowerCase().includes(q);
         const matchesNumName = numberName.toLowerCase().includes(q);
@@ -328,6 +385,20 @@ export default function QuoDashboardPage() {
           return false;
         }
       }
+
+      // 1b. Column header filters
+      if (numberNameFilter.trim() && !numberName.toLowerCase().includes(numberNameFilter.toLowerCase().trim())) {
+        return false;
+      }
+      if (customerFilter.trim()) {
+        const cq = customerFilter.toLowerCase().trim();
+        const digits = cq.replace(/\D/g, "");
+        const matchesCust =
+          c.customer_name?.toLowerCase().includes(cq) ||
+          (digits && (c.customer_number || "").replace(/\D/g, "").includes(digits));
+        if (!matchesCust) return false;
+      }
+
 
       // 2. Selected QUO Numbers Filter
       if (selectedNumberIds.length > 0 && c.number_id) {
@@ -380,6 +451,13 @@ export default function QuoDashboardPage() {
 
       return true;
     });
+
+    const timeOf = (c: ConversationRow) =>
+      new Date(c.created_at || c.last_message_at || c.last_message_time || 0).getTime();
+
+    return [...filtered].sort((a, b) =>
+      timeSort === "desc" ? timeOf(b) - timeOf(a) : timeOf(a) - timeOf(b)
+    );
   }, [
     conversations,
     search,
@@ -390,7 +468,12 @@ export default function QuoDashboardPage() {
     endDate,
     todayNYStr,
     yesterdayNYStr,
+    numberNameFilter,
+    customerFilter,
+    timeSort,
+    numberDisplayMap,
   ]);
+
 
   // Analytics Computation
   const analyticsData = useMemo(() => {
@@ -421,7 +504,7 @@ export default function QuoDashboardPage() {
 
       const numId = conv.number_id || "unknown";
       const numberObj = conv.quo_phone_numbers;
-      const numName = getQuoNumberName(numberObj);
+      const numName = resolveQuoNumberDisplay(numberObj, numberDisplayMap).full;
       const numPhone = numberObj?.number || "No number";
 
       if (!byNumberMap[numId]) {
@@ -452,12 +535,22 @@ export default function QuoDashboardPage() {
       statusCounts,
       perNumberList,
     };
-  }, [filteredConversations]);
+  }, [filteredConversations, numberDisplayMap]);
+
+  // Chat counts per QUO number (for the manage-numbers dialog)
+  const chatCountsByNumberId = useMemo(() => {
+    const counts: Record<string, number> = {};
+    conversations.forEach((c) => {
+      if (c.number_id) counts[c.number_id] = (counts[c.number_id] || 0) + 1;
+    });
+    return counts;
+  }, [conversations]);
 
   const handleCopyChatUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     toast.success("QUO chat link copied to clipboard");
   };
+
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-6 pb-12">
@@ -505,6 +598,18 @@ export default function QuoDashboardPage() {
               />
               <span>{isWebhookPaused ? "Webhook Paused" : "Webhook Active"}</span>
             </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setManageNumbersOpen(true)}
+              className="gap-2 text-xs h-9 bg-background/80"
+              title="Rename numbers and add emojis"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Manage numbers
+            </Button>
+
 
             <Button
               variant="outline"
@@ -583,7 +688,7 @@ export default function QuoDashboardPage() {
                   <div className="max-h-48 overflow-y-auto space-y-1.5 pt-1">
                     {phoneNumbers.map((num) => {
                       const isChecked = selectedNumberIds.includes(num.id);
-                      const labelName = getQuoNumberName(num);
+                      const labelName = resolveQuoNumberDisplay(num, numberDisplayMap).full;
 
                       return (
                         <div
@@ -744,20 +849,142 @@ export default function QuoDashboardPage() {
                     #
                   </TableHead>
                   <TableHead className="font-semibold text-xs text-foreground">
-                    Number Name
+                    <div className="flex items-center gap-1">
+                      <span>Number Name</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-6 w-6 ${numberNameFilter || selectedNumberIds.length ? "text-primary" : "text-muted-foreground"}`}
+                            title="Filter by number name"
+                          >
+                            <Filter className="h-3 w-3" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-[260px] p-3 space-y-2">
+                          <Label className="text-[11px] text-muted-foreground">Filter number name</Label>
+                          <Input
+                            value={numberNameFilter}
+                            onChange={(e) => setNumberNameFilter(e.target.value)}
+                            placeholder="e.g. Dallas"
+                            className="h-8 text-xs"
+                          />
+                          <div className="max-h-40 space-y-1 overflow-y-auto border-t pt-2">
+                            {phoneNumbers.map((num) => (
+                              <div
+                                key={num.id}
+                                onClick={() => handleToggleNumber(num.id)}
+                                className="flex cursor-pointer select-none items-center gap-2 rounded-lg p-1.5 text-xs hover:bg-muted/40"
+                              >
+                                <Checkbox checked={selectedNumberIds.includes(num.id)} />
+                                <span className="truncate">
+                                  {resolveQuoNumberDisplay(num, numberDisplayMap).full}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-full text-xs"
+                            onClick={() => {
+                              setNumberNameFilter("");
+                              setSelectedNumberIds([]);
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </TableHead>
                   <TableHead className="font-semibold text-xs text-foreground">
-                    Customer Number
+                    <div className="flex items-center gap-1">
+                      <span>Customer Number</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-6 w-6 ${customerFilter ? "text-primary" : "text-muted-foreground"}`}
+                            title="Filter customer"
+                          >
+                            <Filter className="h-3 w-3" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-[240px] p-3 space-y-2">
+                          <Label className="text-[11px] text-muted-foreground">Name or phone</Label>
+                          <Input
+                            value={customerFilter}
+                            onChange={(e) => setCustomerFilter(e.target.value)}
+                            placeholder="Search customer..."
+                            className="h-8 text-xs"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-full text-xs"
+                            onClick={() => setCustomerFilter("")}
+                          >
+                            Clear
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </TableHead>
                   <TableHead className="font-semibold text-xs text-foreground w-[120px]">
                     Chat
                   </TableHead>
                   <TableHead className="font-semibold text-xs text-foreground">
-                    Incoming time (ET)
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTimeSort((p) => (p === "desc" ? "asc" : "desc"))}
+                      className="h-6 gap-1 px-1 text-xs font-semibold text-foreground"
+                      title="Sort by incoming time"
+                    >
+                      <span>Incoming time (ET)</span>
+                      <ChevronDown
+                        className={`h-3 w-3 text-muted-foreground transition-transform ${
+                          timeSort === "asc" ? "rotate-180" : ""
+                        }`}
+                      />
+                    </Button>
                   </TableHead>
                   <TableHead className="font-semibold text-xs text-foreground">
-                    Lead Status
+                    <div className="flex items-center gap-1">
+                      <span>Lead Status</span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-6 w-6 ${selectedStatus !== "all" ? "text-primary" : "text-muted-foreground"}`}
+                            title="Filter by lead status"
+                          >
+                            <Filter className="h-3 w-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-[200px]">
+                          <DropdownMenuItem onClick={() => setSelectedStatus("all")} className="text-xs">
+                            All Statuses
+                          </DropdownMenuItem>
+                          {QUO_LEAD_STATUS_KEYS.map((key) => (
+                            <DropdownMenuItem
+                              key={key}
+                              onClick={() => setSelectedStatus(key)}
+                              className="flex items-center justify-between text-xs"
+                            >
+                              <span>{QUO_LEAD_STATUS_CONFIG[key].label}</span>
+                              {selectedStatus === key && <Check className="h-3.5 w-3.5 text-primary" />}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableHead>
+
                   <TableHead className="font-semibold text-xs text-foreground text-right w-[160px]">
                     Quo Chat Link
                   </TableHead>
@@ -788,7 +1015,7 @@ export default function QuoDashboardPage() {
                   </TableRow>
                 ) : (
                   filteredConversations.map((row, index) => {
-                    const numberName = getQuoNumberName(row.quo_phone_numbers);
+                    const numberName = resolveQuoNumberDisplay(row.quo_phone_numbers, numberDisplayMap).full;
 
                     const normStatusKey = normalizeQuoLeadStatus(row.status || row.current_status);
                     const statusCfg = QUO_LEAD_STATUS_CONFIG[normStatusKey];
@@ -1105,6 +1332,16 @@ export default function QuoDashboardPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Manage QUO number display names + emojis */}
+      <QuoNumberDisplayDialog
+        open={manageNumbersOpen}
+        onOpenChange={setManageNumbersOpen}
+        numbers={phoneNumbers.map((n) => ({ ...n, chatCount: chatCountsByNumberId[n.id] || 0 }))}
+        displayMap={numberDisplayMap}
+        isSaving={saveDisplayMapMutation.isPending}
+        onSave={(map) => saveDisplayMapMutation.mutate(map)}
+      />
+
       {/* Webhook Chat Drawer UI Box */}
       <QuoChatDialog
         open={!!activeChatConversation}
@@ -1115,7 +1352,7 @@ export default function QuoDashboardPage() {
                 id: activeChatConversation.id,
                 customer_name: activeChatConversation.customer_name,
                 customer_number: activeChatConversation.customer_number,
-                number_name: getQuoNumberName(activeChatConversation.quo_phone_numbers),
+                number_name: resolveQuoNumberDisplay(activeChatConversation.quo_phone_numbers, numberDisplayMap).full,
                 status: activeChatConversation.status,
               }
             : null
