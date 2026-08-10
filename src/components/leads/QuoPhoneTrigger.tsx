@@ -1,22 +1,33 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, MessageSquare, Phone, Send } from "lucide-react";
+import { CheckCheck, Loader2, MessageSquare, Phone, Send } from "lucide-react";
+import { toast } from "sonner";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizePhoneE164, stripPhone } from "@/lib/phone";
 import { fetchQuoChatThread, sendQuoChatMessage, type QuoChatMessage } from "@/lib/quo-chat";
+import {
+  formatEasternTime,
+  formatUsPhone,
+  getQuoChatUrl,
+  getQuoNumberEmoji,
+  getQuoNumberName,
+  normalizeQuoLeadStatus,
+  QUO_LEAD_STATUS_CONFIG,
+  sendQuoMessageViaExtension,
+} from "@/lib/quo-dashboard";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import RenderEmoji from "@/components/common/RenderEmoji";
 
 interface QuoPhoneTriggerProps {
   contactName: string;
@@ -55,7 +66,18 @@ export default function QuoPhoneTrigger({
   const [messages, setMessages] = useState<QuoChatMessage[]>([]);
   const [messageDraft, setMessageDraft] = useState("");
   const [sending, setSending] = useState(false);
-  const [workspaceNumberLabel, setWorkspaceNumberLabel] = useState<string | null>(null);
+
+  // Conversation metadata for header details
+  const [conversationMeta, setConversationMeta] = useState<{
+    id?: string;
+    quoConversationId?: string;
+    quoPhoneNumberId?: string;
+    phoneNumberObj?: any;
+    numberName?: string;
+    numberEmoji?: string;
+    status?: string;
+  } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isAdmin = role === "admin";
 
@@ -74,12 +96,26 @@ export default function QuoPhoneTrigger({
         const response = await fetchQuoChatThread(normalizedPhone);
         if (!active) return;
         setMessages(mergeQuoMessages(response.messages ?? []));
-        setWorkspaceNumberLabel(response.phoneNumber?.name ?? response.phoneNumber?.formattedNumber ?? null);
+
+        const numObj = response.phoneNumber;
+        const numName = getQuoNumberName(numObj, numObj?.formattedNumber);
+        const numEmoji = getQuoNumberEmoji(numObj, numObj?.formattedNumber);
+        const convStatus = (response.conversation as any)?.current_status || (response.conversation as any)?.status || "raw";
+
+        setConversationMeta({
+          id: response.conversation?.id,
+          quoConversationId: (response.conversation as any)?.quo_conversation_id,
+          quoPhoneNumberId: response.phoneNumber?.id,
+          phoneNumberObj: numObj,
+          numberName: numName,
+          numberEmoji: numEmoji,
+          status: convStatus,
+        });
       } catch (fetchError) {
         if (!active) return;
         setError(fetchError instanceof Error ? fetchError.message : "Failed to load Quo messages");
         setMessages([]);
-        setWorkspaceNumberLabel(null);
+        setConversationMeta(null);
       } finally {
         if (active && showLoading) setLoading(false);
       }
@@ -105,7 +141,6 @@ export default function QuoPhoneTrigger({
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_outbound_messages" }, scheduleLiveRefresh)
       .subscribe();
 
-
     return () => {
       active = false;
       if (refreshTimer) clearTimeout(refreshTimer);
@@ -129,35 +164,56 @@ export default function QuoPhoneTrigger({
 
     setSending(true);
     setError(null);
+    setMessageDraft("");
 
-    // Dispatch Chrome Extension postMessage trigger
+    const nowIso = new Date().toISOString();
+    const tempId = `temp_${Date.now()}`;
+
+    // Optimistically add message to stream
+    const optimisticMsg: QuoChatMessage = {
+      id: tempId,
+      to: [normalizedPhone],
+      from: "agent",
+      text: content,
+      phoneNumberId: conversationMeta?.quoPhoneNumberId || "",
+      conversationId: conversationMeta?.id,
+      direction: "outgoing",
+      status: "pending",
+      createdAt: nowIso,
+    };
+    setMessages((current) => mergeQuoMessages([...current, optimisticMsg]));
+
+    // Construct Chat URL for OpenPhone / my.quo.com
+    const chatUrl = getQuoChatUrl(
+      conversationMeta?.quoConversationId,
+      normalizedPhone,
+      conversationMeta?.quoPhoneNumberId
+    );
+
+    // Save message via API / Supabase
     try {
-      const cleanPhone = normalizedPhone.replace(/\D/g, "");
-      window.postMessage(
-        {
-          action: "QUO_SEND_MESSAGE",
-          chatUrl: `https://app.openphone.com/messages?phone=${cleanPhone}`,
-          message: content,
-        },
-        "*"
-      );
-    } catch (postErr) {
-      console.warn("PostMessage dispatch error", postErr);
+      await sendQuoChatMessage(normalizedPhone, content);
+    } catch (sendErr) {
+      console.warn("sendQuoChatMessage save warning:", sendErr);
     }
 
+    // Trigger Chrome Extension postMessage and await QUO_SEND_MESSAGE_RESPONSE
+    const toastId = toast.loading("Sending via QUO Extension...");
+
     try {
-      const response = await sendQuoChatMessage(normalizedPhone, content);
-      setMessages((current) => mergeQuoMessages([...current, response.message]));
-      setMessageDraft("");
-      window.setTimeout(() => {
-        void fetchQuoChatThread(normalizedPhone)
-          .then((thread) => setMessages(mergeQuoMessages(thread.messages ?? [])))
-          .catch(() => undefined);
-      }, 1200);
-    } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : "Failed to send Quo message");
+      const extRes = await sendQuoMessageViaExtension(chatUrl, content);
+      if (extRes.success) {
+        toast.success("Success! The message was pasted and sent via QUO.", { id: toastId });
+      } else {
+        toast.error(`Extension notice: ${extRes.error || "Failed to complete send"}`, { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(`Extension notice: ${err?.message || "Extension dispatch error"}`, { id: toastId });
     } finally {
       setSending(false);
+      void fetchQuoChatThread(normalizedPhone)
+        .then((thread) => setMessages(mergeQuoMessages(thread.messages ?? [])))
+        .catch(() => undefined);
     }
   };
 
@@ -168,6 +224,9 @@ export default function QuoPhoneTrigger({
   if (!isAdmin) {
     return <span className={className}>{triggerLabel}</span>;
   }
+
+  const currentStatusKey = normalizeQuoLeadStatus(conversationMeta?.status);
+  const statusCfg = QUO_LEAD_STATUS_CONFIG[currentStatusKey];
 
   return (
     <>
@@ -186,127 +245,127 @@ export default function QuoPhoneTrigger({
         <span>{triggerLabel}</span>
       </button>
 
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-xl">
-          <SheetHeader className="space-y-3 pr-8">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/15 bg-primary/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-              <MessageSquare className="h-3.5 w-3.5" />
-              Quo Chat
-            </div>
-            <div className="space-y-1">
-              <SheetTitle>Quo Chat</SheetTitle>
-              <SheetDescription>
-                Admin-only Quo conversation view for this contact.
-              </SheetDescription>
-            </div>
-          </SheetHeader>
-
-          <div className="mt-6 space-y-6">
-            <div className="rounded-3xl border border-border/60 bg-muted/[0.18] p-5">
-              <div className="space-y-4">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[580px] h-[85vh] max-h-[680px] p-0 flex flex-col overflow-hidden glass-panel-strong border-border/80 shadow-2xl">
+          {/* Modern Header - Identical to QUO Dashboard */}
+          <DialogHeader className="p-4 border-b border-border/50 bg-muted/30 shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary font-semibold text-sm shrink-0">
+                  <MessageSquare className="h-5 w-5" />
+                </span>
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    Contact
-                  </p>
-                  <p className="mt-1 text-base font-semibold text-foreground">{contactName}</p>
-                </div>
-
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    Phone Number
-                  </p>
-                  <p className="mt-1 font-mono text-sm text-foreground">{panelPhone}</p>
-                </div>
-
-                {workspaceNumberLabel && (
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      Quo Number
-                    </p>
-                    <p className="mt-1 text-sm text-foreground">{workspaceNumberLabel}</p>
+                  <DialogTitle className="text-base font-semibold tracking-tight text-foreground flex items-center gap-2">
+                    <span>{formatUsPhone(panelPhone)}</span>
+                    {contactName && (
+                      <span className="text-xs font-normal text-muted-foreground">
+                        ({contactName})
+                      </span>
+                    )}
+                  </DialogTitle>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {conversationMeta?.numberName && (
+                      <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                        <RenderEmoji emoji={conversationMeta.numberEmoji} size="sm" />
+                        <span>{conversationMeta.numberName}</span>
+                      </span>
+                    )}
+                    <Badge
+                      variant="outline"
+                      className={`text-[11px] font-semibold ${statusCfg.badgeClass}`}
+                    >
+                      {statusCfg.label}
+                    </Badge>
                   </div>
-                )}
-              </div>
-            </div>
-
-            <div className="min-h-[320px] rounded-3xl border border-dashed border-border/70 bg-gradient-to-br from-muted/[0.2] to-transparent p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                Messages
-              </p>
-              <div className="mt-4 rounded-2xl border border-border/50 bg-background/70 p-4">
-                {loading ? (
-                  <div className="flex min-h-[240px] items-center justify-center text-sm text-muted-foreground">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading Quo messages...
-                  </div>
-                ) : error ? (
-                  <div className="flex min-h-[240px] items-center justify-center text-center text-sm text-destructive">
-                    {error}
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="flex min-h-[240px] items-center justify-center text-center text-sm text-muted-foreground">
-                    Quo messages will appear here
-                  </div>
-                ) : (
-                  <div className="max-h-[320px] space-y-3 overflow-y-auto pr-1">
-                    {messages.map((message) => {
-                      const outgoing = message.direction === "outgoing";
-                      return (
-                        <div key={message.id} className={cn("flex", outgoing ? "justify-end" : "justify-start")}>
-                          <div
-                            className={cn(
-                              "max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm",
-                              outgoing ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
-                            )}
-                          >
-                            <p className="whitespace-pre-wrap leading-6">{message.text}</p>
-                            <p
-                              className={cn(
-                                "mt-2 text-[11px]",
-                                outgoing ? "text-primary-foreground/75" : "text-muted-foreground",
-                              )}
-                            >
-                              {new Date(message.createdAt).toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-border/60 bg-muted/[0.16] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                Send Message
-              </p>
-              <div className="mt-3 space-y-3">
-                <Textarea
-                  value={messageDraft}
-                  onChange={(event) => setMessageDraft(event.target.value)}
-                  placeholder="Type a message to send through Quo..."
-                  className="min-h-[120px]"
-                  disabled={!normalizedPhone || sending}
-                />
-                <div className="flex justify-end">
-                  <Button type="button" onClick={() => void handleSend()} disabled={!normalizedPhone || sending || !messageDraft.trim()}>
-                    {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                    Send
-                  </Button>
                 </div>
               </div>
             </div>
+          </DialogHeader>
+
+          {/* Messages Stream Body - Identical to QUO Dashboard */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-background/40">
+            {loading ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground gap-2 text-xs">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                Loading chat messages...
+              </div>
+            ) : error ? (
+              <div className="flex items-center justify-center h-full text-center text-xs text-destructive">
+                {error}
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-1 text-xs">
+                <MessageSquare className="h-8 w-8 text-muted-foreground/40 mb-1" />
+                <span>No messages in this chat yet.</span>
+              </div>
+            ) : (
+              messages.map((message) => {
+                const isOutbound = message.direction === "outgoing" || message.from === "agent";
+
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex flex-col ${isOutbound ? "items-end" : "items-start"}`}
+                  >
+                    <div
+                      className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm shadow-sm leading-relaxed ${
+                        isOutbound
+                          ? "bg-primary text-primary-foreground rounded-br-xs"
+                          : "bg-muted/90 text-foreground border border-border/50 rounded-bl-xs"
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap break-words">{message.text || "—"}</p>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-muted-foreground">
+                      <span>{formatEasternTime(message.createdAt, "time")}</span>
+                      {isOutbound && <CheckCheck className="h-3 w-3 text-primary/70" />}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={messagesEndRef} />
           </div>
 
-          <SheetFooter className="mt-6">
-            <Button type="button" onClick={() => setOpen(false)} className="rounded-xl">
-              Close
+          {/* Chat Input Footer - Identical to QUO Dashboard */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSend();
+            }}
+            className="p-3 border-t border-border/50 bg-background/80 flex items-end gap-2 shrink-0"
+          >
+            <Textarea
+              value={messageDraft}
+              onChange={(event) => setMessageDraft(event.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleSend();
+                }
+              }}
+              placeholder="Type a message to append to chat thread..."
+              className="flex-1 min-h-[44px] max-h-[100px] resize-none text-xs bg-muted/30 focus-visible:ring-1 focus-visible:ring-primary/40 border-border/60"
+              disabled={!normalizedPhone || sending}
+            />
+            <Button
+              type="submit"
+              disabled={!normalizedPhone || sending || !messageDraft.trim()}
+              size="sm"
+              className="h-[44px] px-4 gap-1.5 font-medium shrink-0"
+            >
+              {sending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  <span>Send</span>
+                </>
+              )}
             </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
