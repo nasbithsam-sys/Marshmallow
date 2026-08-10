@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getQuoNumberName, getQuoNumberEmoji, formatUsPhone } from "@/lib/quo-dashboard";
+import RenderEmoji from "@/components/common/RenderEmoji";
 
 export interface QuoNumberPrefItem {
   phone_number_id: string; // UUID from quo_phone_numbers
@@ -343,8 +344,8 @@ export default function ManageNumbersModal({
                     </div>
 
                     {/* Icon Badge Container */}
-                    <div className="h-9 w-9 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center shrink-0 text-base shadow-sm select-none">
-                      <span>{item.emoji}</span>
+                    <div className="h-9 w-9 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center shrink-0 shadow-sm select-none">
+                      <RenderEmoji emoji={item.emoji} size="md" />
                     </div>
 
                     {/* Number Name Input & Chat Count Details */}

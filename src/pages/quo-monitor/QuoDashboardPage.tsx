@@ -77,6 +77,7 @@ import {
 import QuoNumberDisplayDialog from "@/components/quo-dashboard/QuoNumberDisplayDialog";
 import QuoChatDialog from "@/components/quo-dashboard/QuoChatDialog";
 import ManageNumbersModal from "@/components/quo-dashboard/ManageNumbersModal";
+import RenderEmoji from "@/components/common/RenderEmoji";
 
 
 interface QuoPhoneNumber {
@@ -546,14 +547,14 @@ export default function QuoDashboardPage() {
       statusCounts[st] = (statusCounts[st] || 0) + 1;
 
       const numId = conv.number_id || "unknown";
-      const numberObj = conv.quo_phone_numbers;
-      const numName = resolveQuoNumberDisplay(numberObj, numberDisplayMap).full;
+      const numDisp = resolveQuoNumberDisplay(numberObj, numberDisplayMap);
       const numPhone = numberObj?.number || "No number";
 
       if (!byNumberMap[numId]) {
         byNumberMap[numId] = {
           numberId: numId,
-          name: numName,
+          name: numDisp.name,
+          emoji: numDisp.emoji,
           phone: numPhone,
           total: 0,
           statusCounts: {
@@ -750,7 +751,7 @@ export default function QuoDashboardPage() {
                   <div className="max-h-48 overflow-y-auto space-y-1.5 pt-1">
                     {phoneNumbers.map((num) => {
                       const isChecked = selectedNumberIds.includes(num.id);
-                      const labelName = resolveQuoNumberDisplay(num, numberDisplayMap).full;
+                      const numDisp = resolveQuoNumberDisplay(num, numberDisplayMap);
 
                       return (
                         <div
@@ -759,7 +760,8 @@ export default function QuoDashboardPage() {
                           className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted/40 cursor-pointer text-xs select-none"
                         >
                           <Checkbox checked={isChecked} onCheckedChange={() => handleToggleNumber(num.id)} />
-                          <span className="truncate font-medium text-foreground">{labelName}</span>
+                          <RenderEmoji emoji={numDisp.emoji} size="sm" />
+                          <span className="truncate font-medium text-foreground">{numDisp.name}</span>
                         </div>
                       );
                     })}
@@ -1077,7 +1079,7 @@ export default function QuoDashboardPage() {
                   </TableRow>
                 ) : (
                   filteredConversations.map((row, index) => {
-                    const numberName = resolveQuoNumberDisplay(row.quo_phone_numbers, numberDisplayMap).full;
+                    const numberDisp = resolveQuoNumberDisplay(row.quo_phone_numbers, numberDisplayMap);
 
                     const normStatusKey = normalizeQuoLeadStatus(row.status || row.current_status);
                     const statusCfg = QUO_LEAD_STATUS_CONFIG[normStatusKey];
@@ -1101,7 +1103,10 @@ export default function QuoDashboardPage() {
 
                         {/* Column 2: Number Name */}
                         <TableCell className="font-medium text-xs text-foreground">
-                          {numberName}
+                          <div className="flex items-center gap-2">
+                            <RenderEmoji emoji={numberDisp.emoji} size="sm" />
+                            <span className="truncate">{numberDisp.name}</span>
+                          </div>
                         </TableCell>
 
                         {/* Column 3: Customer Number */}
@@ -1325,7 +1330,12 @@ export default function QuoDashboardPage() {
 
                       return (
                         <TableRow key={item.numberId} className="hover:bg-muted/30">
-                          <TableCell className="font-medium text-xs text-foreground">{item.name}</TableCell>
+                          <TableCell className="font-medium text-xs text-foreground">
+                            <div className="flex items-center gap-2">
+                              <RenderEmoji emoji={item.emoji} size="sm" />
+                              <span>{item.name}</span>
+                            </div>
+                          </TableCell>
                           <TableCell className="font-mono text-xs text-muted-foreground">
                             {formatUsPhone(item.phone)}
                           </TableCell>
