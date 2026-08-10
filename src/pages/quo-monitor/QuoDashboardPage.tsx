@@ -535,12 +535,22 @@ export default function QuoDashboardPage() {
       statusCounts,
       perNumberList,
     };
-  }, [filteredConversations]);
+  }, [filteredConversations, numberDisplayMap]);
+
+  // Chat counts per QUO number (for the manage-numbers dialog)
+  const chatCountsByNumberId = useMemo(() => {
+    const counts: Record<string, number> = {};
+    conversations.forEach((c) => {
+      if (c.number_id) counts[c.number_id] = (counts[c.number_id] || 0) + 1;
+    });
+    return counts;
+  }, [conversations]);
 
   const handleCopyChatUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     toast.success("QUO chat link copied to clipboard");
   };
+
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-6 pb-12">
