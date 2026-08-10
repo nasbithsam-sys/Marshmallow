@@ -547,6 +547,7 @@ export default function QuoDashboardPage() {
       statusCounts[st] = (statusCounts[st] || 0) + 1;
 
       const numId = conv.number_id || "unknown";
+      const numberObj = conv.quo_phone_numbers;
       const numDisp = resolveQuoNumberDisplay(numberObj, numberDisplayMap);
       const numPhone = numberObj?.number || "No number";
 
