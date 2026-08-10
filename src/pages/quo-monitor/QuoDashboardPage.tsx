@@ -1332,6 +1332,16 @@ export default function QuoDashboardPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Manage QUO number display names + emojis */}
+      <QuoNumberDisplayDialog
+        open={manageNumbersOpen}
+        onOpenChange={setManageNumbersOpen}
+        numbers={phoneNumbers.map((n) => ({ ...n, chatCount: chatCountsByNumberId[n.id] || 0 }))}
+        displayMap={numberDisplayMap}
+        isSaving={saveDisplayMapMutation.isPending}
+        onSave={(map) => saveDisplayMapMutation.mutate(map)}
+      />
+
       {/* Webhook Chat Drawer UI Box */}
       <QuoChatDialog
         open={!!activeChatConversation}
