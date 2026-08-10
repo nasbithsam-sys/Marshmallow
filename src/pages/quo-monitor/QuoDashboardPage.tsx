@@ -59,7 +59,6 @@ import {
   formatUsPhone,
   getEasternDateBounds,
   getQuoChatUrl,
-  getQuoNumberName,
   normalizeQuoLeadStatus,
   QUO_LEAD_STATUS_CONFIG,
   QUO_LEAD_STATUS_KEYS,
@@ -505,7 +504,7 @@ export default function QuoDashboardPage() {
 
       const numId = conv.number_id || "unknown";
       const numberObj = conv.quo_phone_numbers;
-      const numName = getQuoNumberName(numberObj);
+      const numName = resolveQuoNumberDisplay(numberObj, numberDisplayMap).full;
       const numPhone = numberObj?.number || "No number";
 
       if (!byNumberMap[numId]) {
@@ -667,7 +666,7 @@ export default function QuoDashboardPage() {
                   <div className="max-h-48 overflow-y-auto space-y-1.5 pt-1">
                     {phoneNumbers.map((num) => {
                       const isChecked = selectedNumberIds.includes(num.id);
-                      const labelName = getQuoNumberName(num);
+                      const labelName = resolveQuoNumberDisplay(num, numberDisplayMap).full;
 
                       return (
                         <div
@@ -872,7 +871,7 @@ export default function QuoDashboardPage() {
                   </TableRow>
                 ) : (
                   filteredConversations.map((row, index) => {
-                    const numberName = getQuoNumberName(row.quo_phone_numbers);
+                    const numberName = resolveQuoNumberDisplay(row.quo_phone_numbers, numberDisplayMap).full;
 
                     const normStatusKey = normalizeQuoLeadStatus(row.status || row.current_status);
                     const statusCfg = QUO_LEAD_STATUS_CONFIG[normStatusKey];
@@ -1199,7 +1198,7 @@ export default function QuoDashboardPage() {
                 id: activeChatConversation.id,
                 customer_name: activeChatConversation.customer_name,
                 customer_number: activeChatConversation.customer_number,
-                number_name: getQuoNumberName(activeChatConversation.quo_phone_numbers),
+                number_name: resolveQuoNumberDisplay(activeChatConversation.quo_phone_numbers, numberDisplayMap).full,
                 status: activeChatConversation.status,
               }
             : null
