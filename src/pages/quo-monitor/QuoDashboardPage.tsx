@@ -50,6 +50,9 @@ import {
   XCircle,
   CheckCircle2,
   PhoneIncoming,
+  SlidersHorizontal,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -71,6 +74,7 @@ import {
 } from "@/lib/quo-number-display";
 import QuoNumberDisplayDialog from "@/components/quo-dashboard/QuoNumberDisplayDialog";
 import QuoChatDialog from "@/components/quo-dashboard/QuoChatDialog";
+import ManageNumbersModal from "@/components/quo-dashboard/ManageNumbersModal";
 
 
 interface QuoPhoneNumber {
@@ -111,6 +115,39 @@ export default function QuoDashboardPage() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [activeChatConversation, setActiveChatConversation] = useState<ConversationRow | null>(null);
+  const [manageNumbersOpen, setManageNumbersOpen] = useState(false);
+  const [showHiddenNumbers, setShowHiddenNumbers] = useState(false);
+
+  // Fetch QUO Number Preferences
+  const { data: numberPreferences = [], refetch: refetchPreferences } = useQuery({
+    queryKey: ["quo-number-preferences"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("quo_number_preferences").select("*");
+      if (error) {
+        console.warn("Could not load quo_number_preferences:", error.message);
+        return [];
+      }
+      return data || [];
+    },
+  });
+
+  const preferencesMap = useMemo(() => {
+    const map: Record<string, { phone_number_id: string; hidden: boolean; sort_order: number; label_override?: string | null; emoji?: string | null }> = {};
+    numberPreferences.forEach((pref: any) => {
+      if (pref.phone_number_id) {
+        map[pref.phone_number_id] = pref;
+      }
+    });
+    return map;
+  }, [numberPreferences]);
+
+  const hiddenNumberIds = useMemo(() => {
+    const set = new Set<string>();
+    Object.entries(preferencesMap).forEach(([numId, pref]) => {
+      if (pref.hidden) set.add(numId);
+    });
+    return set;
+  }, [preferencesMap]);
 
   // Column-header filters
   const [numberNameFilter, setNumberNameFilter] = useState("");
@@ -370,8 +407,16 @@ export default function QuoDashboardPage() {
 
   // Filter conversations by Search, Selected Numbers, Status, and Eastern Time Date Range
   const filteredConversations = useMemo(() => {
+<<<<<<< HEAD
     const filtered = conversations.filter((c) => {
       const numberName = resolveQuoNumberDisplay(c.quo_phone_numbers, numberDisplayMap).name;
+=======
+    return conversations.filter((c) => {
+      // 0. Hidden Numbers Filter (unless showHiddenNumbers is toggled on)
+      if (!showHiddenNumbers && c.number_id && hiddenNumberIds.has(c.number_id)) {
+        return false;
+      }
+>>>>>>> cc589d4 (feat: add persistent Manage Numbers hide/show display modal to QUO Dashboard matching reference UI)
 
       // 1. Search Query Filter
       if (search.trim()) {
@@ -597,20 +642,6 @@ export default function QuoDashboardPage() {
                 }`}
               />
               <span>{isWebhookPaused ? "Webhook Paused" : "Webhook Active"}</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setManageNumbersOpen(true)}
-              className="gap-2 text-xs h-9 bg-background/80"
-              title="Rename numbers and add emojis"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Manage numbers
-            </Button>
-
-
             <Button
               variant="outline"
               size="sm"
@@ -620,6 +651,16 @@ export default function QuoDashboardPage() {
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin text-primary" : ""}`} />
               Refresh
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setManageNumbersOpen(true)}
+              className="gap-2 text-xs h-9 bg-background/80 border-border/80 hover:bg-muted/50 font-medium"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+              <span>Manage numbers</span>
             </Button>
           </div>
         </div>
@@ -655,6 +696,28 @@ export default function QuoDashboardPage() {
                   className="pl-8 h-8 text-xs bg-background/80"
                 />
               </div>
+            )}
+
+            {/* Show/Hide Hidden Numbers Toggle */}
+            {hiddenNumberIds.size > 0 && (
+              <Button
+                variant={showHiddenNumbers ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setShowHiddenNumbers(!showHiddenNumbers)}
+                className="h-8 gap-1.5 text-xs border-border/70 bg-background/80"
+              >
+                {showHiddenNumbers ? (
+                  <>
+                    <Eye className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Showing {hiddenNumberIds.size} Hidden</span>
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-3.5 w-3.5 text-rose-400" />
+                    <span>{hiddenNumberIds.size} Hidden</span>
+                  </>
+                )}
+              </Button>
             )}
 
             {/* QUO Numbers Selector Filter */}
@@ -1364,6 +1427,20 @@ export default function QuoDashboardPage() {
               newStatus,
             });
           }
+        }}
+      />
+
+      {/* Manage Numbers Modal */}
+      <ManageNumbersModal
+        open={manageNumbersOpen}
+        onOpenChange={setManageNumbersOpen}
+        phoneNumbers={phoneNumbers}
+        conversations={conversations}
+        preferences={preferencesMap}
+        onPreferencesUpdated={() => {
+          refetchPreferences();
+          queryClient.invalidateQueries({ queryKey: ["quo-phone-numbers"] });
+          queryClient.invalidateQueries({ queryKey: ["quo-dashboard-conversations"] });
         }}
       />
     </div>
