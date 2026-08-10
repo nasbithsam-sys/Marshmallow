@@ -371,11 +371,12 @@ export default function QuoDashboardPage() {
 
   // Filter conversations by Search, Selected Numbers, Status, and Eastern Time Date Range
   const filteredConversations = useMemo(() => {
-    return conversations.filter((c) => {
+    const filtered = conversations.filter((c) => {
+      const numberName = resolveQuoNumberDisplay(c.quo_phone_numbers, numberDisplayMap).name;
+
       // 1. Search Query Filter
       if (search.trim()) {
         const q = search.toLowerCase();
-        const numberName = getQuoNumberName(c.quo_phone_numbers);
         const matchesName = c.customer_name?.toLowerCase().includes(q);
         const matchesPhone = c.customer_number?.toLowerCase().includes(q);
         const matchesNumName = numberName.toLowerCase().includes(q);
@@ -385,6 +386,20 @@ export default function QuoDashboardPage() {
           return false;
         }
       }
+
+      // 1b. Column header filters
+      if (numberNameFilter.trim() && !numberName.toLowerCase().includes(numberNameFilter.toLowerCase().trim())) {
+        return false;
+      }
+      if (customerFilter.trim()) {
+        const cq = customerFilter.toLowerCase().trim();
+        const digits = cq.replace(/\D/g, "");
+        const matchesCust =
+          c.customer_name?.toLowerCase().includes(cq) ||
+          (digits && (c.customer_number || "").replace(/\D/g, "").includes(digits));
+        if (!matchesCust) return false;
+      }
+
 
       // 2. Selected QUO Numbers Filter
       if (selectedNumberIds.length > 0 && c.number_id) {
