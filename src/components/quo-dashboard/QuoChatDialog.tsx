@@ -7,16 +7,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, MessageSquare, User, Phone, CheckCheck } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Loader2, Send, MessageSquare, User, Phone, CheckCheck, Clock, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   formatEasternTime,
   formatUsPhone,
   getQuoChatUrl,
   sendQuoMessageViaExtension,
+  scheduleQuoMessageViaExtension,
   normalizeQuoLeadStatus,
   QUO_LEAD_STATUS_CONFIG,
   type QuoLeadStatus,
@@ -55,6 +62,8 @@ export default function QuoChatDialog({
   const [loading, setLoading] = useState(false);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [customScheduleTime, setCustomScheduleTime] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch messages when conversation changes or opens
@@ -195,6 +204,38 @@ export default function QuoChatDialog({
     }
   };
 
+  const handleScheduleMessage = async (scheduleTime: string) => {
+    if (!newMessage.trim() || !conversation?.id || sending) return;
+
+    const textToSend = newMessage.trim();
+    setNewMessage("");
+    setCustomScheduleTime("");
+    setScheduleOpen(false);
+    setSending(true);
+
+    const chatUrl = getQuoChatUrl(
+      (conversation as any).quo_conversation_id,
+      conversation.customer_number,
+      (conversation as any).quo_phone_number_id
+    );
+
+    const toastId = toast.loading(`Scheduling message for "${scheduleTime}" via Extension...`);
+
+    try {
+      const extRes = await scheduleQuoMessageViaExtension(chatUrl, textToSend, scheduleTime);
+
+      if (extRes.success) {
+        toast.success(`Success! Message scheduled for "${scheduleTime}".`, { id: toastId });
+      } else {
+        toast.error(`Failed to schedule: ${extRes.error || "Cancelled"}`, { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(`Failed to schedule: ${err?.message || "Extension error"}`, { id: toastId });
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (!conversation) return null;
 
   const currentStatusKey = normalizeQuoLeadStatus(conversation.status);
@@ -307,21 +348,115 @@ export default function QuoChatDialog({
             placeholder="Type a message to append to chat thread..."
             className="flex-1 min-h-[44px] max-h-[100px] resize-none text-xs bg-muted/30 focus-visible:ring-1 focus-visible:ring-primary/40 border-border/60"
           />
-          <Button
-            type="submit"
-            disabled={!newMessage.trim() || sending}
-            size="sm"
-            className="h-[44px] px-4 gap-1.5 font-medium shrink-0"
-          >
-            {sending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <Send className="h-4 w-4" />
-                <span>Send</span>
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              type="submit"
+              disabled={!newMessage.trim() || sending}
+              size="sm"
+              className="h-[44px] px-4 gap-1.5 font-medium"
+            >
+              {sending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  <span>Send</span>
+                </>
+              )}
+            </Button>
+
+            {/* Schedule Message Popover */}
+            <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!newMessage.trim() || sending}
+                  className="h-[44px] px-3 gap-1.5 border-border/80 bg-background/80 hover:bg-muted text-xs font-medium"
+                  title="Schedule message for later via Chrome Extension"
+                >
+                  <Clock className="h-4 w-4 text-amber-400" />
+                  <span className="hidden sm:inline">Schedule</span>
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[300px] p-3 space-y-3 glass-panel-strong border-border/80 shadow-2xl">
+                <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <Clock className="h-4 w-4 text-amber-400" />
+                    <span>Schedule Message</span>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px]">Quo Extension</Badge>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium text-muted-foreground">Quick Presets</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
+                      onClick={() => handleScheduleMessage("tomorrow at 9am")}
+                    >
+                      Tomorrow 9:00 AM
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
+                      onClick={() => handleScheduleMessage("tomorrow at 5pm")}
+                    >
+                      Tomorrow 5:00 PM
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
+                      onClick={() => handleScheduleMessage("in 1 hour")}
+                    >
+                      In 1 Hour
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
+                      onClick={() => handleScheduleMessage("in 2 hours")}
+                    >
+                      In 2 Hours
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Custom Time Input */}
+                <div className="space-y-1.5 pt-1 border-t border-border/40">
+                  <label className="text-[11px] font-medium text-muted-foreground">Custom Time Description</label>
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      value={customScheduleTime}
+                      onChange={(e) => setCustomScheduleTime(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && customScheduleTime.trim()) {
+                          e.preventDefault();
+                          handleScheduleMessage(customScheduleTime.trim());
+                        }
+                      }}
+                      placeholder="e.g. tomorrow at 5pm"
+                      className="h-8 text-xs bg-muted/30"
+                    />
+                    <Button
+                      size="sm"
+                      disabled={!customScheduleTime.trim()}
+                      onClick={() => handleScheduleMessage(customScheduleTime.trim())}
+                      className="h-8 text-xs px-3 bg-amber-600 hover:bg-amber-700 text-white shrink-0 font-medium"
+                    >
+                      Schedule
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
