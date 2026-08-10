@@ -1,0 +1,1 @@
+UPDATE public.user_roles SET role = 'admin'::public.app_role WHERE user_id = '8e2c5c33-a74c-4e8d-b588-45f528fbd6e7';
