@@ -65,7 +65,14 @@ import {
   QUO_LEAD_STATUS_KEYS,
   type QuoLeadStatus,
 } from "@/lib/quo-dashboard";
+import {
+  QUO_NUMBER_DISPLAY_SETTING_KEY,
+  resolveQuoNumberDisplay,
+  type QuoNumberDisplayMap,
+} from "@/lib/quo-number-display";
+import QuoNumberDisplayDialog from "@/components/quo-dashboard/QuoNumberDisplayDialog";
 import QuoChatDialog from "@/components/quo-dashboard/QuoChatDialog";
+
 
 interface QuoPhoneNumber {
   id: string;
