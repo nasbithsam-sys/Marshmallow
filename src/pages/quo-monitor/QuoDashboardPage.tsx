@@ -62,6 +62,8 @@ import {
   formatUsPhone,
   getEasternDateBounds,
   getQuoChatUrl,
+  getQuoNumberName,
+  getQuoNumberEmoji,
   normalizeQuoLeadStatus,
   QUO_LEAD_STATUS_CONFIG,
   QUO_LEAD_STATUS_KEYS,

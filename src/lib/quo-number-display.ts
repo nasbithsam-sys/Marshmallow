@@ -1,4 +1,4 @@
-import { getQuoNumberName } from "@/lib/quo-dashboard";
+import { getQuoNumberName, getQuoNumberEmoji } from "@/lib/quo-dashboard";
 
 export interface QuoNumberDisplayEntry {
   label?: string;
@@ -19,7 +19,7 @@ interface NumberLike {
 
 /**
  * Resolves the display name of a QUO number, honoring admin-defined
- * custom labels and emojis stored in quo_ai_settings.
+ * custom labels and emojis stored in quo_ai_settings and default maps.
  */
 export function resolveQuoNumberDisplay(
   numObj: NumberLike | null | undefined,
@@ -28,6 +28,6 @@ export function resolveQuoNumberDisplay(
 ): { name: string; emoji: string; full: string } {
   const entry = (numObj?.id && displayMap[numObj.id]) || {};
   const base = (entry.label || "").trim() || getQuoNumberName(numObj, fallbackRawNumber);
-  const emoji = (entry.emoji || "").trim();
+  const emoji = (entry.emoji || "").trim() || getQuoNumberEmoji(numObj, fallbackRawNumber);
   return { name: base, emoji, full: emoji ? `${emoji} ${base}` : base };
 }

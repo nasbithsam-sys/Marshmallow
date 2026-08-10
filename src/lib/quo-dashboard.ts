@@ -95,6 +95,77 @@ export const QUO_PHONE_NUMBER_NAME_MAP: Record<string, string> = {
   "14697188444": "Dallas Garage Door",
 };
 
+export const QUO_PHONE_NUMBER_EMOJI_MAP: Record<string, string> = {
+  "12014489324": "🟡",
+  "12133192404": "🇱🇦",
+  "12134718651": "🇱🇦",
+  "12132779445": "🇱🇦",
+  "17472988624": "🇱🇦",
+  "18188149252": "🇱🇦",
+  "13462263895": "🚚",
+  "13464060053": "🚐",
+  "12819426479": "🚨",
+  "13465779242": "🚨",
+  "18322097989": "🍓",
+  "14632098542": "⚡",
+  "13463539245": "🛠️",
+  "14697188444": "🤠",
+  "14708232133": "📱",
+  "14709448210": "📱",
+  "16193049048": "🇸🇩",
+  "18582643190": "🇸🇩",
+  "18582890634": "🇸🇩",
+  "16572230626": "🟠",
+  "16575716845": "🟠",
+  "16613628754": "🇸🇨",
+  "16692026712": "🇸🇯",
+  "16692366322": "🇸🇯",
+  "17866736371": "🟢",
+  "19542396751": "🟢",
+  "15614646940": "🟢",
+  "16822049388": "⚡",
+  "17372775713": "🚧",
+  "17374027035": "🇦🇺",
+  "19723626313": "🤠",
+  "19726324844": "🤠",
+  "13465949213": "❄️",
+  "16693378803": "🛁",
+  "18329816614": "🎨",
+  "14243339932": "🌴",
+  "12393067796": "🌴",
+  "13463537571": "🚪",
+  "14697785063": "🎄",
+  "18723287251": "🏙️",
+  "18722787204": "🏙️",
+  "19292983346": "🗽",
+  "17475887812": "📡",
+};
+
+/**
+ * Returns exact emoji icon for a QUO number from object or map
+ */
+export function getQuoNumberEmoji(
+  numObj?: { emoji?: string | null; number?: string | null } | null,
+  fallbackRawNumber?: string | null
+): string {
+  if (numObj?.emoji && numObj.emoji.trim() && numObj.emoji.trim() !== "Q") {
+    return numObj.emoji.trim();
+  }
+
+  const numToTest = numObj?.number || fallbackRawNumber || "";
+  const digits = numToTest.replace(/\D/g, "");
+
+  if (digits && QUO_PHONE_NUMBER_EMOJI_MAP[digits]) {
+    return QUO_PHONE_NUMBER_EMOJI_MAP[digits];
+  }
+
+  if (digits.length === 10 && QUO_PHONE_NUMBER_EMOJI_MAP[`1${digits}`]) {
+    return QUO_PHONE_NUMBER_EMOJI_MAP[`1${digits}`];
+  }
+
+  return "📱";
+}
+
 /**
  * Returns official QUO Number Name from DB object or dictionary mapping
  */

@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { getQuoNumberName, formatUsPhone } from "@/lib/quo-dashboard";
+import { getQuoNumberName, getQuoNumberEmoji, formatUsPhone } from "@/lib/quo-dashboard";
 
 export interface QuoNumberPrefItem {
   phone_number_id: string; // UUID from quo_phone_numbers
@@ -99,7 +99,7 @@ export default function ManageNumbersModal({
       const hidden = pref?.hidden ?? false;
       const sortOrder = pref?.sort_order ?? idx;
       const chatCount = chatCountsMap[num.id] || 0;
-      const emoji = pref?.emoji || "Q";
+      const emoji = getQuoNumberEmoji({ emoji: pref?.emoji, number: num.number }, num.number);
 
       return {
         id: num.id,
@@ -343,8 +343,8 @@ export default function ManageNumbersModal({
                     </div>
 
                     {/* Icon Badge Container */}
-                    <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-pink-500/20 to-indigo-500/20 border border-pink-500/30 flex items-center justify-center shrink-0 shadow-sm">
-                      <Heart className="h-4 w-4 text-pink-400 fill-pink-400/40" />
+                    <div className="h-9 w-9 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center shrink-0 text-base shadow-sm select-none">
+                      <span>{item.emoji}</span>
                     </div>
 
                     {/* Number Name Input & Chat Count Details */}
