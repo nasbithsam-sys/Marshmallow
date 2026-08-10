@@ -452,6 +452,13 @@ export default function QuoDashboardPage() {
 
       return true;
     });
+
+    const timeOf = (c: ConversationRow) =>
+      new Date(c.created_at || c.last_message_at || c.last_message_time || 0).getTime();
+
+    return [...filtered].sort((a, b) =>
+      timeSort === "desc" ? timeOf(b) - timeOf(a) : timeOf(a) - timeOf(b)
+    );
   }, [
     conversations,
     search,
@@ -462,7 +469,12 @@ export default function QuoDashboardPage() {
     endDate,
     todayNYStr,
     yesterdayNYStr,
+    numberNameFilter,
+    customerFilter,
+    timeSort,
+    numberDisplayMap,
   ]);
+
 
   // Analytics Computation
   const analyticsData = useMemo(() => {
