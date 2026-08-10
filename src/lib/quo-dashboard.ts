@@ -321,3 +321,62 @@ export function getQuoChatUrl(
   }
   return `https://my.quo.com/inbox?phone=${cleanPhone}`;
 }
+
+export interface QuoExtensionResponse {
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Sends a message via Chrome Extension postMessage and awaits QUO_SEND_MESSAGE_RESPONSE
+ */
+export function sendQuoMessageViaExtension(
+  chatUrl: string,
+  message: string,
+  timeoutMs: number = 45000
+): Promise<QuoExtensionResponse> {
+  return new Promise((resolve) => {
+    let timer: any = null;
+
+    function handleMessageResponse(event: MessageEvent) {
+      if (event.data && event.data.action === "QUO_SEND_MESSAGE_RESPONSE") {
+        window.removeEventListener("message", handleMessageResponse);
+        if (timer) clearTimeout(timer);
+        resolve({
+          success: !!event.data.success,
+          error: event.data.error,
+        });
+      }
+    }
+
+    window.addEventListener("message", handleMessageResponse);
+
+    // Timeout fallback (in case extension is not active/installed)
+    timer = setTimeout(() => {
+      window.removeEventListener("message", handleMessageResponse);
+      resolve({
+        success: false,
+        error: "Extension response timeout (please ensure the Chrome extension is active)",
+      });
+    }, timeoutMs);
+
+    // Post message to extension
+    try {
+      window.postMessage(
+        {
+          action: "QUO_SEND_MESSAGE",
+          chatUrl,
+          message,
+        },
+        "*"
+      );
+    } catch (err: any) {
+      window.removeEventListener("message", handleMessageResponse);
+      if (timer) clearTimeout(timer);
+      resolve({
+        success: false,
+        error: err?.message || "Failed to dispatch postMessage to window",
+      });
+    }
+  });
+}

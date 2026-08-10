@@ -16,6 +16,7 @@ import {
   formatEasternTime,
   formatUsPhone,
   getQuoChatUrl,
+  sendQuoMessageViaExtension,
   normalizeQuoLeadStatus,
   QUO_LEAD_STATUS_CONFIG,
   type QuoLeadStatus,
@@ -144,42 +145,24 @@ export default function QuoChatDialog({
 
     setMessages((prev) => [...prev, optimisticMsg]);
 
-    // Dispatch Chrome Extension postMessage trigger
     const chatUrl = getQuoChatUrl(
       (conversation as any).quo_conversation_id,
       conversation.customer_number,
       (conversation as any).quo_phone_number_id
     );
 
+    // Save message to Supabase database
     try {
-      window.postMessage(
-        {
-          action: "QUO_SEND_MESSAGE",
-          chatUrl: chatUrl,
-          message: textToSend,
-        },
-        "*"
-      );
-    } catch (postErr) {
-      console.warn("PostMessage dispatch error", postErr);
-    }
-
-    try {
-      // Insert into quo_messages database table
-      const { data, error } = await supabase.from("quo_messages").insert({
+      const { error } = await supabase.from("quo_messages").insert({
         conversation_id: conversation.id,
         sender: "agent",
         direction: "outbound",
         text: textToSend,
         message_time: nowIso,
         quo_message_id: `msg_web_${Date.now()}`,
-      }).select("id").single();
+      });
 
-      if (error) {
-        console.error("Failed to save message to DB", error);
-        toast.error("Failed to append message");
-      } else {
-        // Update conversation last_message_preview and last_message_at
+      if (!error) {
         await supabase
           .from("quo_conversations")
           .update({
@@ -189,11 +172,24 @@ export default function QuoChatDialog({
             last_agent_message_at: nowIso,
           })
           .eq("id", conversation.id);
-
-        toast.success("Message sent & dispatched to Chrome Extension");
       }
-    } catch (err) {
-      console.error("Send message exception", err);
+    } catch (dbErr) {
+      console.warn("DB save warning:", dbErr);
+    }
+
+    // Trigger Chrome Extension message and wait for QUO_SEND_MESSAGE_RESPONSE callback
+    const toastId = toast.loading("Sending via QUO Extension...");
+
+    try {
+      const extRes = await sendQuoMessageViaExtension(chatUrl, textToSend);
+
+      if (extRes.success) {
+        toast.success("Success! The message was pasted and sent via QUO.", { id: toastId });
+      } else {
+        toast.error(`Extension notice: ${extRes.error || "Failed to complete send"}`, { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(`Extension notice: ${err?.message || "Extension dispatch error"}`, { id: toastId });
     } finally {
       setSending(false);
     }
