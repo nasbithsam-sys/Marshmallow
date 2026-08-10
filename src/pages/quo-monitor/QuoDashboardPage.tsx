@@ -113,6 +113,56 @@ export default function QuoDashboardPage() {
   const [endDate, setEndDate] = useState<string>("");
   const [activeChatConversation, setActiveChatConversation] = useState<ConversationRow | null>(null);
 
+  // Column-header filters
+  const [numberNameFilter, setNumberNameFilter] = useState("");
+  const [customerFilter, setCustomerFilter] = useState("");
+  const [timeSort, setTimeSort] = useState<"desc" | "asc">("desc");
+  const [manageNumbersOpen, setManageNumbersOpen] = useState(false);
+
+  // Custom number display names / emojis (stored in quo_ai_settings)
+  const { data: numberDisplayMap = {} } = useQuery<QuoNumberDisplayMap>({
+    queryKey: ["quo-number-display-map"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quo_ai_settings" as any)
+        .select("value")
+        .eq("key", QUO_NUMBER_DISPLAY_SETTING_KEY)
+        .maybeSingle();
+      if (error) return {};
+      const value = (data as any)?.value;
+      return value && typeof value === "object" ? (value as QuoNumberDisplayMap) : {};
+    },
+  });
+
+  const saveDisplayMapMutation = useMutation({
+    mutationFn: async (map: QuoNumberDisplayMap) => {
+      const cleaned: QuoNumberDisplayMap = {};
+      Object.entries(map).forEach(([id, entry]) => {
+        const label = (entry?.label || "").trim();
+        const emoji = (entry?.emoji || "").trim();
+        if (label || emoji) cleaned[id] = { ...(label ? { label } : {}), ...(emoji ? { emoji } : {}) };
+      });
+      const { error } = await supabase.from("quo_ai_settings" as any).upsert(
+        {
+          key: QUO_NUMBER_DISPLAY_SETTING_KEY,
+          value: cleaned,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" }
+      );
+      if (error) throw error;
+      return cleaned;
+    },
+    onSuccess: (cleaned) => {
+      queryClient.setQueryData(["quo-number-display-map"], cleaned);
+      setManageNumbersOpen(false);
+      toast.success("Number names updated");
+    },
+    onError: (err: Error) => toast.error(`Failed to save names: ${err.message}`),
+  });
+
+
+
   // Fetch QUO Phone Numbers list
   const { data: phoneNumbers = [] } = useQuery<QuoPhoneNumber[]>({
     queryKey: ["quo-phone-numbers"],
