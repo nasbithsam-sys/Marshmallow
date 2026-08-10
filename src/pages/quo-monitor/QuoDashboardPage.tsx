@@ -849,20 +849,142 @@ export default function QuoDashboardPage() {
                     #
                   </TableHead>
                   <TableHead className="font-semibold text-xs text-foreground">
-                    Number Name
+                    <div className="flex items-center gap-1">
+                      <span>Number Name</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-6 w-6 ${numberNameFilter || selectedNumberIds.length ? "text-primary" : "text-muted-foreground"}`}
+                            title="Filter by number name"
+                          >
+                            <Filter className="h-3 w-3" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-[260px] p-3 space-y-2">
+                          <Label className="text-[11px] text-muted-foreground">Filter number name</Label>
+                          <Input
+                            value={numberNameFilter}
+                            onChange={(e) => setNumberNameFilter(e.target.value)}
+                            placeholder="e.g. Dallas"
+                            className="h-8 text-xs"
+                          />
+                          <div className="max-h-40 space-y-1 overflow-y-auto border-t pt-2">
+                            {phoneNumbers.map((num) => (
+                              <div
+                                key={num.id}
+                                onClick={() => handleToggleNumber(num.id)}
+                                className="flex cursor-pointer select-none items-center gap-2 rounded-lg p-1.5 text-xs hover:bg-muted/40"
+                              >
+                                <Checkbox checked={selectedNumberIds.includes(num.id)} />
+                                <span className="truncate">
+                                  {resolveQuoNumberDisplay(num, numberDisplayMap).full}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-full text-xs"
+                            onClick={() => {
+                              setNumberNameFilter("");
+                              setSelectedNumberIds([]);
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </TableHead>
                   <TableHead className="font-semibold text-xs text-foreground">
-                    Customer Number
+                    <div className="flex items-center gap-1">
+                      <span>Customer Number</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-6 w-6 ${customerFilter ? "text-primary" : "text-muted-foreground"}`}
+                            title="Filter customer"
+                          >
+                            <Filter className="h-3 w-3" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-[240px] p-3 space-y-2">
+                          <Label className="text-[11px] text-muted-foreground">Name or phone</Label>
+                          <Input
+                            value={customerFilter}
+                            onChange={(e) => setCustomerFilter(e.target.value)}
+                            placeholder="Search customer..."
+                            className="h-8 text-xs"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-full text-xs"
+                            onClick={() => setCustomerFilter("")}
+                          >
+                            Clear
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </TableHead>
                   <TableHead className="font-semibold text-xs text-foreground w-[120px]">
                     Chat
                   </TableHead>
                   <TableHead className="font-semibold text-xs text-foreground">
-                    Incoming time (ET)
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTimeSort((p) => (p === "desc" ? "asc" : "desc"))}
+                      className="h-6 gap-1 px-1 text-xs font-semibold text-foreground"
+                      title="Sort by incoming time"
+                    >
+                      <span>Incoming time (ET)</span>
+                      <ChevronDown
+                        className={`h-3 w-3 text-muted-foreground transition-transform ${
+                          timeSort === "asc" ? "rotate-180" : ""
+                        }`}
+                      />
+                    </Button>
                   </TableHead>
                   <TableHead className="font-semibold text-xs text-foreground">
-                    Lead Status
+                    <div className="flex items-center gap-1">
+                      <span>Lead Status</span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-6 w-6 ${selectedStatus !== "all" ? "text-primary" : "text-muted-foreground"}`}
+                            title="Filter by lead status"
+                          >
+                            <Filter className="h-3 w-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-[200px]">
+                          <DropdownMenuItem onClick={() => setSelectedStatus("all")} className="text-xs">
+                            All Statuses
+                          </DropdownMenuItem>
+                          {QUO_LEAD_STATUS_KEYS.map((key) => (
+                            <DropdownMenuItem
+                              key={key}
+                              onClick={() => setSelectedStatus(key)}
+                              className="flex items-center justify-between text-xs"
+                            >
+                              <span>{QUO_LEAD_STATUS_CONFIG[key].label}</span>
+                              {selectedStatus === key && <Check className="h-3.5 w-3.5 text-primary" />}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableHead>
+
                   <TableHead className="font-semibold text-xs text-foreground text-right w-[160px]">
                     Quo Chat Link
                   </TableHead>
