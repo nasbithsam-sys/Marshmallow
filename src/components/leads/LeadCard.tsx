@@ -1061,17 +1061,17 @@ function LeadCard({
 
   return (
     <motion.div
-      className="h-full"
+      className="h-full relative"
       whileHover={reduceMotion ? undefined : { y: -4, scale: 1.006 }}
       whileTap={reduceMotion ? undefined : { scale: 0.985 }}
       transition={{ type: "spring", stiffness: 200, damping: 24, mass: 0.6 }}
     >
+      {isAdmin && <FloatingQuoMessagePreview phone={lead.customer_phone} leadId={lead.id} />}
       <Card
-        className={`crm-lead-card group relative flex h-full flex-col rounded-[30px] transition-shadow duration-500 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
+        className={`crm-lead-card group relative flex h-full flex-col overflow-hidden rounded-[30px] transition-shadow duration-500 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
           isUrgent ? "ring-1 ring-destructive/15 border-destructive/15" : "border-border/60"
         }`}
       >
-        {isAdmin && <FloatingQuoMessagePreview phone={lead.customer_phone} leadId={lead.id} />}
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(194_100%_86%/0.18),transparent_32%),radial-gradient(circle_at_top_right,hsl(211_100%_88%/0.22),transparent_28%),radial-gradient(circle_at_bottom_left,hsl(188_100%_90%/0.14),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.26),transparent_42%)] opacity-100 dark:bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.14),transparent_28%),radial-gradient(circle_at_bottom_left,hsl(196_100%_72%/0.08),transparent_24%)]" />
         <div className="pointer-events-none absolute inset-x-6 top-0 h-16 rounded-b-[28px] bg-[linear-gradient(180deg,rgba(255,255,255,0.5),transparent)] blur-xl opacity-90 dark:hidden" />
 
@@ -1201,9 +1201,9 @@ function LeadCard({
                     <CopyValueButton value={value} label={label} className="h-6 w-6 rounded-full" />
                   </div>
                   {key === "phone" ? (
-                    <p className={`mt-1 text-[13px] font-medium leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>
+                    <a href={`tel:${value}`} className={`mt-1 text-[13px] font-medium leading-5 text-primary hover:underline inline-block ${wrap ? "break-words" : "truncate"}`} onClick={(e) => e.stopPropagation()}>
                       {value}
-                    </p>
+                    </a>
                   ) : key === "technician" && lead.tech_number ? (
                     <div className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>
                       {lead.tech_name ? <span>{lead.tech_name} {" · "}</span> : null}
