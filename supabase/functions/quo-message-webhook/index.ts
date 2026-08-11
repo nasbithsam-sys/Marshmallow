@@ -312,19 +312,6 @@ Deno.serve(async (req) => {
       { onConflict: "conversation_id", ignoreDuplicates: true },
     );
 
-    if (existingLead?.id) {
-      await supabase.from("ai_lead_links").upsert(
-        {
-          conversation_id: conversationRow.id,
-          lead_id: existingLead.id,
-          match_type: "exact_phone",
-          confidence: 1,
-          created_by_ai: true,
-        },
-        { onConflict: "conversation_id,lead_id" },
-      );
-    }
-
     if (eventData?.id) {
       await supabase
         .from("quo_webhook_events")
@@ -332,55 +319,13 @@ Deno.serve(async (req) => {
         .eq("id", eventData.id);
     }
 
-    let aiJobEnqueued = false;
-    if (shouldEnqueueQuoAiForEvent(eventType, message)) {
-      // Tag on every message trigger — no debounce delay.
-      const priority = message.sender !== "customer"
-        ? "medium"
-        : message.text.toLowerCase().match(/urgent|asap|angry|cancel|refund|complaint|emergency/)
-          ? "high"
-          : "medium";
-
-      const { data: jobData, error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
-        _conversation_id: conversationRow.id,
-        _latest_message_id: messageRow.id,
-        _job_type: "message_analysis",
-        _priority: priority,
-        _debounce_seconds: 0,
-      });
-
-      if (enqueueError) {
-        console.error("Failed to enqueue Quo AI job:", enqueueError.message);
-      } else {
-        aiJobEnqueued = true;
-
-        if (jobData) {
-          // Fire-and-forget: trigger immediate AI processing so the tag lands live.
-          const functionUrl = `${supabaseUrl}/functions/v1/ai-process-quo-jobs`;
-          const cronSecret = Deno.env.get("FUNCTION_CRON_SECRET");
-          fetch(functionUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${serviceRoleKey}`,
-              "apikey": serviceRoleKey,
-              "x-cron-secret": cronSecret || "",
-            },
-            body: JSON.stringify({ batch_size: 1, job_ids: [jobData] }),
-          }).catch((err) => {
-            console.error("Failed to trigger immediate AI job processing:", err.message);
-          });
-        }
-      }
-    }
-
     return jsonResponse({
       success: true,
       conversation_id: conversationRow.id,
       message_id: messageRow.id,
       linked_lead_id: existingLead?.id ?? conversationRow.linked_lead_id ?? null,
-      ai_job_enqueued: aiJobEnqueued,
     });
+
   } catch (error) {
     return jsonResponse(
       {
