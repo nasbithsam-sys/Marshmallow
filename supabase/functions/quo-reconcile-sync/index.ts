@@ -332,21 +332,9 @@ Deno.serve(async (req) => {
 
       if (!messageError) {
         insertedOrUpdated += 1;
-        // Only tag genuinely NEW inbound messages (last 2 hours). Never re-analyze history.
-        const isFresh = Date.now() - new Date(messageTime).getTime() < 2 * 60 * 60 * 1000;
-        if (message.sender === "customer" && isFresh) {
-          const { error: enqueueError } = await supabase.rpc("enqueue_quo_ai_job", {
-            _conversation_id: conversationRow.id,
-            _latest_message_id: messageRow?.id ?? null,
-            _job_type: "message_analysis",
-            _priority: "medium",
-            _debounce_seconds: 0,
-          });
-
-          if (!enqueueError) analyzed += 1;
-        }
       }
     }
+
 
     if (syncLogId) {
       await supabase
