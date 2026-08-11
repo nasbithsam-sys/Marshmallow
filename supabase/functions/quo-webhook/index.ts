@@ -6,7 +6,6 @@ import {
   jsonResponse,
   normalizeQuoContactPayload,
   normalizeQuoPayload,
-  shouldEnqueueQuoAiForEvent,
   verifySignature,
 } from "../_shared/quo-ai.ts";
 
