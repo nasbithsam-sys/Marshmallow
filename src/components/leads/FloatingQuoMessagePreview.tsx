@@ -100,16 +100,16 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
         return (
           <div
             key={msg.id}
-            className="group relative flex items-start gap-2 rounded-2xl border border-amber-300/70 bg-gradient-to-br from-amber-100 to-yellow-100/90 p-2.5 text-xs text-amber-950 shadow-[0_10px_25px_-5px_rgba(245,158,11,0.25)] backdrop-blur-md transition-all hover:scale-105 dark:border-amber-600/50 dark:from-amber-950/90 dark:to-yellow-950/80 dark:text-amber-100"
+            className="group relative flex items-start gap-2 rounded-xl border bg-background/95 p-2.5 text-xs text-foreground shadow-lg backdrop-blur-md transition-all hover:scale-105"
           >
             <div className="mt-0.5 shrink-0">
-              <MessageSquare className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
             <div className="min-w-0 flex-1 pr-3">
               <p className="line-clamp-2 font-medium leading-snug whitespace-pre-wrap break-words">
                 {msg.text}
               </p>
-              <span className="mt-1 block text-[9px] font-semibold text-amber-800/80 dark:text-amber-300/80">
+              <span className="mt-1 block text-[9px] font-medium text-muted-foreground">
                 {formatEasternTime(msg.createdAt, "time")} • {isOutbound ? "You" : "Customer"}
               </span>
             </div>
@@ -118,7 +118,7 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
             <button
               type="button"
               onClick={(e) => handleDismiss(msg.id, e)}
-              className="absolute right-1.5 top-1.5 rounded-full p-0.5 text-amber-800/70 hover:bg-amber-200 hover:text-amber-950 dark:text-amber-300 dark:hover:bg-amber-900 transition-colors"
+              className="absolute right-1.5 top-1.5 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               title="Dismiss preview"
             >
               <X className="h-3 w-3" />
