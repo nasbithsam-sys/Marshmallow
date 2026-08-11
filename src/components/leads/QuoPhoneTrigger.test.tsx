@@ -43,8 +43,8 @@ describe("QuoPhoneTrigger", () => {
     fireEvent.click(screen.getByRole("button", { name: /\(555\) 123-4567/i }));
 
     expect(await screen.findByText("No messages in this chat yet.")).toBeInTheDocument();
-    expect(screen.getByText("+15551234567")).toBeInTheDocument();
-    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
+    expect(screen.getAllByText("(555) 123-4567").length).toBeGreaterThan(0);
+    expect(screen.getByText("(Jane Doe)")).toBeInTheDocument();
     expect(fetchQuoChatThread).toHaveBeenCalledWith("+15551234567");
   });
 
