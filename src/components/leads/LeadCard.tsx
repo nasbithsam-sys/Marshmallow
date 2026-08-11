@@ -48,6 +48,7 @@ import StatusBadge from "./StatusBadge";
 import CopyValueButton from "./CopyValueButton";
 import CancellationRequestDialog from "./CancellationRequestDialog";
 import QuoPhoneTrigger from "./QuoPhoneTrigger";
+import FloatingQuoMessagePreview from "./FloatingQuoMessagePreview";
 import { adminApi } from "@/lib/admin-api";
 import { logActivity } from "@/lib/activity";
 import { buildCompleteLeadCopyText, copyTextToClipboard } from "@/lib/lead-copy";
@@ -1066,10 +1067,11 @@ function LeadCard({
       transition={{ type: "spring", stiffness: 200, damping: 24, mass: 0.6 }}
     >
       <Card
-        className={`crm-lead-card group relative flex h-full flex-col overflow-hidden rounded-[30px] transition-shadow duration-500 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
+        className={`crm-lead-card group relative flex h-full flex-col rounded-[30px] transition-shadow duration-500 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
           isUrgent ? "ring-1 ring-destructive/15 border-destructive/15" : "border-border/60"
         }`}
       >
+        {isAdmin && <FloatingQuoMessagePreview phone={lead.customer_phone} leadId={lead.id} />}
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(194_100%_86%/0.18),transparent_32%),radial-gradient(circle_at_top_right,hsl(211_100%_88%/0.22),transparent_28%),radial-gradient(circle_at_bottom_left,hsl(188_100%_90%/0.14),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.26),transparent_42%)] opacity-100 dark:bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.14),transparent_28%),radial-gradient(circle_at_bottom_left,hsl(196_100%_72%/0.08),transparent_24%)]" />
         <div className="pointer-events-none absolute inset-x-6 top-0 h-16 rounded-b-[28px] bg-[linear-gradient(180deg,rgba(255,255,255,0.5),transparent)] blur-xl opacity-90 dark:hidden" />
 
@@ -1160,8 +1162,18 @@ function LeadCard({
             </div>
 
 
-            <div className="flex shrink-0 flex-col items-end gap-1">
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
               <StatusBadge status={lead.status} size="sm" />
+              {isAdmin && (lead.customer_phone || lead.tech_number) && (
+                <QuoPhoneTrigger
+                  contactName={lead.customer_name}
+                  phone={lead.customer_phone || lead.tech_number}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-all no-underline shadow-sm"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  <span>Open Chat</span>
+                </QuoPhoneTrigger>
+              )}
               {quoNeedsAttention && (
                 <span
                   className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-300 animate-pulse"
@@ -1189,23 +1201,13 @@ function LeadCard({
                     <CopyValueButton value={value} label={label} className="h-6 w-6 rounded-full" />
                   </div>
                   {key === "phone" ? (
-                    <QuoPhoneTrigger
-                      contactName={lead.customer_name}
-                      phone={value}
-                      className={`mt-1 text-[13px] leading-5 ${wrap ? "break-words" : "truncate"}`}
-                    >
+                    <p className={`mt-1 text-[13px] font-medium leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>
                       {value}
-                    </QuoPhoneTrigger>
+                    </p>
                   ) : key === "technician" && lead.tech_number ? (
                     <div className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>
                       {lead.tech_name ? <span>{lead.tech_name} {" · "}</span> : null}
-                      <QuoPhoneTrigger
-                        contactName={lead.tech_name || "Technician"}
-                        phone={lead.tech_number}
-                        className="inline-flex"
-                      >
-                        {lead.tech_number}
-                      </QuoPhoneTrigger>
+                      <span>{lead.tech_number}</span>
                     </div>
                   ) : key === "source_url" ? (
                     <a

@@ -689,6 +689,16 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
+                {isAdmin && (lead.customer_phone || lead.tech_number) && (
+                  <QuoPhoneTrigger
+                    contactName={lead.customer_name}
+                    phone={lead.customer_phone || lead.tech_number}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-all no-underline shadow-sm"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    <span>Open Chat</span>
+                  </QuoPhoneTrigger>
+                )}
                 <CopyLeadButton lead={lead} />
 
                 <Button
