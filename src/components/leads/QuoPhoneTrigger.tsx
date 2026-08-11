@@ -159,7 +159,7 @@ export default function QuoPhoneTrigger({
 
   useEffect(() => {
     if (!open) return;
-    messagesEndRef.current?.scrollIntoView({ block: "end" });
+    messagesEndRef.current?.scrollIntoView?.({ block: "end" });
   }, [messages, open]);
 
   const handleSend = async () => {
