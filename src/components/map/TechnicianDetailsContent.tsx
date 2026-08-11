@@ -95,7 +95,7 @@ export function TechnicianDetailsContent({ technician, compact = false }: Props)
         <div className="pt-1">
           <Button asChild size="sm" variant="secondary" className="h-7 text-xs">
             <a href={technician.chat_link!.trim()} target="_blank" rel="noopener noreferrer">
-              <MessageCircle className="mr-1 h-3 w-3" /> Open Chat
+              <MessageCircle className="mr-1 h-3 w-3" /> Quick Chat
             </a>
           </Button>
         </div>

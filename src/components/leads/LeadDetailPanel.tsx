@@ -137,7 +137,7 @@ const StatusDropdownFiltered = ({
 };
 
 const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
-  const { user, role, profile } = useAuth();
+  const { user, role, profile, canAccess } = useAuth();
   const queryClient = useQueryClient();
 
   const [saved, setSaved] = useState(false);
@@ -593,12 +593,11 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       onUpdate();
     },
     onError: (err: unknown) => toast.error("Save failed: " + (err instanceof Error ? err.message : "Unknown error")),
-  });
-
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
   const isAdmin = role === "admin";
   const isCsAdmin = role === "cs_admin";
+  const hasQuickChatAccess = canAccess("quick_chat");
   // CS Admin has the same limited view of processor internals as CS users.
   const hideProcessorDetails = isCS || isCsAdmin;
 
@@ -689,14 +688,14 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                {isAdmin && (lead.customer_phone || lead.tech_number) && (
+                {hasQuickChatAccess && (lead.customer_phone || lead.tech_number) && (
                   <QuoPhoneTrigger
                     contactName={lead.customer_name}
                     phone={lead.customer_phone || lead.tech_number}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-all no-underline shadow-sm"
                   >
                     <MessageSquare className="h-4 w-4" />
-                    <span>Open Chat</span>
+                    <span>Quick Chat</span>
                   </QuoPhoneTrigger>
                 )}
                 <CopyLeadButton lead={lead} />
@@ -888,7 +887,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                       className="shrink-0 flex items-center gap-1.5 h-10 px-4 rounded-[14px]"
                     >
                       <ExternalLink className="h-4 w-4" />
-                      <span>Open Chat</span>
+                      <span>Quo Chat Thread</span>
                     </Button>
                   </div>
                 </div>

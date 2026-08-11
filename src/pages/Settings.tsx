@@ -54,6 +54,7 @@ const NAV_SECTION_LABELS: Record<string, string> = {
   schedule: "Schedule",
   areas: "Area Insights",
   cancellation_requests: "Lead Cancellation Requests",
+  quick_chat: "Quick Chat",
 };
 
 const roleColors: Record<AppRole, string> = {
@@ -725,7 +726,7 @@ const Settings = () => {
         {(
           [
             { key: "users", label: "Users", icon: Shield },
-            { key: "nav_permissions", label: "Tab Permissions", icon: Shield },
+            { key: "nav_permissions", label: "Feature Access", icon: Shield },
             { key: "status_permissions", label: "Status Visibility", icon: Eye },
             { key: "templates", label: "Templates", icon: FileText },
             { key: "security", label: "Security", icon: ShieldCheck },
@@ -905,11 +906,11 @@ const Settings = () => {
                   <Shield className="h-3.5 w-3.5 text-primary/70" />
                 </div>
                 <div>
-                  <span className="text-sm font-semibold text-foreground">Navigation Access per User</span>
-                  <p className="text-[12px] text-muted-foreground">Show only the tabs each teammate actually needs.</p>
+                  <span className="text-sm font-semibold text-foreground">Feature & Navigation Access</span>
+                  <p className="text-[12px] text-muted-foreground">Show only the tabs and features each teammate actually needs.</p>
                 </div>
               </div>
-              <span className="text-[11px] font-medium text-muted-foreground">{ALL_NAV_ITEMS.length} controllable tabs</span>
+              <span className="text-[11px] font-medium text-muted-foreground">{ALL_NAV_ITEMS.length} controllable items</span>
             </div>
 
             <div className="overflow-x-auto">

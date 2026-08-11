@@ -374,7 +374,7 @@ function LeadCard({
   initialPendingCancellationRequest,
 }: LeadCardProps) {
   const navigate = useNavigate();
-  const { user, role, profile } = useAuth();
+  const { user, role, profile, canAccess } = useAuth();
   const [changingStatus, setChangingStatus] = useState(false);
   const [csOpen, setCsOpen] = useState(false);
   const [processorOpen, setProcessorOpen] = useState(false);
@@ -511,6 +511,7 @@ function LeadCard({
   };
 
   const isAdmin = role === "admin";
+  const hasQuickChatAccess = canAccess("quick_chat");
   const isCS = role === "customer_service";
   const isCsAdmin = role === "cs_admin";
   const isProcessor = role === "processor";
@@ -1066,7 +1067,7 @@ function LeadCard({
       whileTap={reduceMotion ? undefined : { scale: 0.985 }}
       transition={{ type: "spring", stiffness: 200, damping: 24, mass: 0.6 }}
     >
-      {isAdmin && <FloatingQuoMessagePreview phone={lead.customer_phone} leadId={lead.id} />}
+      {hasQuickChatAccess && <FloatingQuoMessagePreview phone={lead.customer_phone} leadId={lead.id} />}
       <Card
         className={`crm-lead-card group relative flex h-full flex-col overflow-hidden rounded-[30px] transition-shadow duration-500 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
           isUrgent ? "ring-1 ring-destructive/15 border-destructive/15" : "border-border/60"
@@ -1164,14 +1165,14 @@ function LeadCard({
 
             <div className="flex shrink-0 flex-col items-end gap-1.5">
               <StatusBadge status={lead.status} size="sm" />
-              {isAdmin && (lead.customer_phone || lead.tech_number) && (
+              {hasQuickChatAccess && (lead.customer_phone || lead.tech_number) && (
                 <QuoPhoneTrigger
                   contactName={lead.customer_name}
                   phone={lead.customer_phone || lead.tech_number}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-all no-underline shadow-sm"
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
-                  <span>Open Chat</span>
+                  <span>Quick Chat</span>
                 </QuoPhoneTrigger>
               )}
               {quoNeedsAttention && (
@@ -1217,7 +1218,7 @@ function LeadCard({
                       className="mt-1 text-[13px] leading-5 text-primary hover:underline inline-flex items-center gap-1 font-medium"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <span>Open Chat Thread</span>
+                      <span>Quo Chat Thread</span>
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   ) : (
