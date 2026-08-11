@@ -536,6 +536,8 @@ export default function QuoDashboardPage() {
       {
         numberId: string;
         name: string;
+        emoji: string;
+
         phone: string;
         total: number;
         statusCounts: Record<QuoLeadStatus, number>;

@@ -34,8 +34,6 @@ async function deleteConversationArtifacts(
   conversation: { id: string; quo_conversation_id: string | null },
 ) {
   const cleanupResults = await Promise.all([
-    supabase.from("quo_ai_cost_logs").delete().eq("conversation_id", conversation.id),
-    supabase.from("ai_usage_logs").delete().eq("conversation_id", conversation.id),
     conversation.quo_conversation_id
       ? supabase.from("quo_webhook_events").delete().eq("quo_conversation_id", conversation.quo_conversation_id)
       : Promise.resolve({ error: null }),
@@ -66,8 +64,6 @@ async function deleteAllConversationArtifacts(
       .filter((id): id is string => Boolean(id));
 
     const cleanupResults = await Promise.all([
-      ids.length ? supabase.from("quo_ai_cost_logs").delete().in("conversation_id", ids) : Promise.resolve({ error: null }),
-      ids.length ? supabase.from("ai_usage_logs").delete().in("conversation_id", ids) : Promise.resolve({ error: null }),
       externalIds.length ? supabase.from("quo_webhook_events").delete().in("quo_conversation_id", externalIds) : Promise.resolve({ error: null }),
     ]);
     const cleanupError = cleanupResults.find((result) => result.error)?.error;
