@@ -90,6 +90,49 @@ export default function QuoPhoneTrigger({
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isAdmin = role === "admin";
+  // Quick Chat is available to admins and to any user an admin granted access to.
+  const canUseQuickChat = isAdmin || auth.canAccess?.("quick_chat") === true;
+  const [lastFromCustomer, setLastFromCustomer] = useState(false);
+
+  // Lightweight check of who sent the newest message (drives the green blinking dot).
+  useEffect(() => {
+    if (!canUseQuickChat || !normalizedPhone) return;
+    let active = true;
+    const contactKey = getPhoneKey(normalizedPhone);
+
+    const check = async () => {
+      const { data } = await supabase
+        .from("quo_conversations")
+        .select("last_customer_message_at, last_agent_message_at")
+        .or(`customer_number.eq.${normalizedPhone},customer_number.ilike.%${contactKey}`)
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .limit(1);
+      if (!active) return;
+      const row = data?.[0];
+      if (!row) {
+        setLastFromCustomer(false);
+        return;
+      }
+      const customerAt = row.last_customer_message_at ? new Date(row.last_customer_message_at).getTime() : 0;
+      const agentAt = row.last_agent_message_at ? new Date(row.last_agent_message_at).getTime() : 0;
+      setLastFromCustomer(customerAt > 0 && customerAt > agentAt);
+    };
+
+    void check();
+
+    const channel = supabase
+      .channel(`quo-quickchat-dot-${contactKey || normalizedPhone}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, () => {
+        void check();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [canUseQuickChat, normalizedPhone]);
+
 
   useEffect(() => {
     if (!isAdmin || !open || !normalizedPhone) return;
