@@ -593,6 +593,8 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
       onUpdate();
     },
     onError: (err: unknown) => toast.error("Save failed: " + (err instanceof Error ? err.message : "Unknown error")),
+  });
+
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
   const isAdmin = role === "admin";
