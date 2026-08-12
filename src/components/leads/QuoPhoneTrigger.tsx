@@ -135,7 +135,7 @@ export default function QuoPhoneTrigger({
 
 
   useEffect(() => {
-    if (!isAdmin || !open || !normalizedPhone) return;
+    if (!canUseQuickChat || !open || !normalizedPhone) return;
 
     let active = true;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -199,7 +199,7 @@ export default function QuoPhoneTrigger({
       if (refreshTimer) clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
-  }, [isAdmin, normalizedPhone, open]);
+  }, [canUseQuickChat, normalizedPhone, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -314,9 +314,12 @@ export default function QuoPhoneTrigger({
     return null;
   }
 
-  if (!isAdmin) {
+  if (!canUseQuickChat) {
     return <span className={className}>{triggerLabel}</span>;
   }
+
+  const latestMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  const showCustomerDot = latestMessage ? latestMessage.direction === "incoming" : lastFromCustomer;
 
   const currentStatusKey = normalizeQuoLeadStatus(conversationMeta?.status);
   const statusCfg = QUO_LEAD_STATUS_CONFIG[currentStatusKey];
@@ -336,6 +339,15 @@ export default function QuoPhoneTrigger({
       >
         <Phone className="h-3.5 w-3.5 shrink-0" />
         <span>{triggerLabel}</span>
+        {showCustomerDot && (
+          <span
+            className="relative ml-0.5 flex h-2 w-2 shrink-0"
+            title="Customer sent the last message"
+          >
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+        )}
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
