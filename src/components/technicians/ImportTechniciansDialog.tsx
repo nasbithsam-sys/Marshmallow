@@ -214,9 +214,7 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
     setInsertedCount(null);
     try {
       const { data: existing } = await supabase.from("technicians").select("name, area, phone_number");
-      const seen = new Set(
-        (existing ?? []).map((t) => `${normalizeAddress(t.name ?? "")}|${normalizeAddress(t.area ?? "")}`),
-      );
+      // Duplicate detection is based on the phone number ONLY.
       const seenPhones = new Set(
         (existing ?? [])
           .map((t) => String(t.phone_number ?? "").replace(/\D/g, ""))
