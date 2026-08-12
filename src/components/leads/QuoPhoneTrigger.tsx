@@ -60,7 +60,8 @@ export default function QuoPhoneTrigger({
   className,
   children,
 }: QuoPhoneTriggerProps) {
-  const { role } = useAuth();
+  const auth = useAuth();
+  const role = auth.role;
   const [open, setOpen] = useState(false);
 
   const trimmedPhone = phone?.trim() ?? "";
