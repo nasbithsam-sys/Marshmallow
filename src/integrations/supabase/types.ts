@@ -1730,6 +1730,7 @@ export type Database = {
     }
     Functions: {
       can_access_quo_ai: { Args: never; Returns: boolean }
+      can_use_quick_chat: { Args: { _user_id: string }; Returns: boolean }
       cron_quo_reconcile_sync: { Args: never; Returns: undefined }
       cron_quo_sync_contacts: { Args: never; Returns: undefined }
       get_top_nearby_populated_areas: {
