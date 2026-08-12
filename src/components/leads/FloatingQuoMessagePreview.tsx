@@ -64,8 +64,9 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
 
     void fetchLatestMessages();
 
+    const channelId = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(`floating-quo-msgs-${last10}`)
+      .channel(`floating-quo-msgs-${last10}-${channelId}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "quo_messages" },
