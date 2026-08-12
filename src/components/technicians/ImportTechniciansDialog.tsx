@@ -245,11 +245,6 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
           failures.push({ rowNumber: r.rowNumber, name: r.name, area: r.area, reason: "Row is empty" });
           continue;
         }
-        const key = `${normalizeAddress(r.name)}|${normalizeAddress(r.area)}`;
-        if (seen.has(key)) {
-          failures.push({ rowNumber: r.rowNumber, name: r.name, area: r.area, reason: "Duplicate of an existing technician" });
-          continue;
-        }
         // Import the technician; drop invalid phone but keep the record.
         const validPhone = r.phone_number && !r.phoneInvalid ? r.phone_number : null;
         if (r.phoneInvalid) {
@@ -257,11 +252,11 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
         } else if (validPhone) {
           const digits = validPhone.replace(/\D/g, "");
           if (digits.length >= 7 && seenPhones.has(digits)) {
-            failures.push({ rowNumber: r.rowNumber, name: r.name, area: r.area, reason: `Phone ${validPhone} already belongs to another technician — imported anyway` });
+            failures.push({ rowNumber: r.rowNumber, name: r.name, area: r.area, reason: `Duplicate phone ${validPhone} — already belongs to a technician` });
+            continue;
           }
           if (digits.length >= 7) seenPhones.add(digits);
         }
-        seen.add(key);
         toInsert.push({
           row: r,
           payload: {
