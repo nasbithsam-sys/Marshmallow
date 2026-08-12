@@ -18,13 +18,13 @@ interface LatestMessage {
 }
 
 export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessagePreviewProps) {
-  const { role } = useAuth();
-  const isAdmin = role === "admin";
+  const { role, canAccess } = useAuth();
+  const hasQuickChatAccess = canAccess("quick_chat");
   const [messages, setMessages] = useState<LatestMessage[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!isAdmin || !phone) return;
+    if (!hasQuickChatAccess || !phone) return;
 
     const digits = phone.replace(/\D/g, "");
     const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
@@ -79,9 +79,9 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
       active = false;
       void supabase.removeChannel(channel);
     };
-  }, [isAdmin, phone]);
+  }, [hasQuickChatAccess, phone]);
 
-  if (!isAdmin || !phone || messages.length === 0) return null;
+  if (!hasQuickChatAccess || !phone || messages.length === 0) return null;
 
   const visibleMessages = messages.filter((m) => !dismissedIds.has(m.id));
   if (visibleMessages.length === 0) return null;

@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { geocodeAddress, normalizeAddress } from "@/lib/geo";
+import { geocodeAddress, geocodeWithFallback, normalizeAddress } from "@/lib/geo";
 import { isLikelyPhone } from "@/lib/phone";
-import { Loader2, FileSpreadsheet, Download } from "lucide-react";
+import { Loader2, FileSpreadsheet, Download, MapPin } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -153,8 +153,10 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
   const [fileName, setFileName] = useState<string | null>(null);
   const [failed, setFailed] = useState<FailedRow[]>([]);
   const [insertedCount, setInsertedCount] = useState<number | null>(null);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [geocodeProgress, setGeocodeProgress] = useState({ processed: 0, total: 0 });
 
-  const reset = () => { setRows([]); setFileName(null); setFailed([]); setInsertedCount(null); };
+  const reset = () => { setRows([]); setFileName(null); setFailed([]); setInsertedCount(null); setIsGeocoding(false); setGeocodeProgress({ processed: 0, total: 0 }); };
 
   const handleFile = async (file: File) => {
     setFileName(file.name);
@@ -309,29 +311,65 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
         }
       }
 
-      if (insertedIds.length) {
-        (async () => {
-          for (const row of insertedIds) {
-            if (!row.area) continue;
-            const coords = await geocodeAddress(row.area);
-            if (coords) {
-              await supabase.from("technicians").update({ latitude: coords.latitude, longitude: coords.longitude }).eq("id", row.id);
-            }
-          }
-          onImported?.();
-        })();
-      }
-
       setInsertedCount(inserted);
       setFailed(failures);
 
       toast({
         title: "Import complete",
-        description: `${inserted} imported. ${failures.length} issue${failures.length === 1 ? "" : "s"}.`,
+        description: `${inserted} imported. ${failures.length} issue${failures.length === 1 ? "" : "s"}. Starting map backfill...`,
       });
+      
       onImported?.();
+      
+      // Start background geocoding backfill
+      startGeocodeBackfill();
+    } catch (e: any) {
+      toast({ title: "Import failed", description: e.message || "An error occurred", variant: "destructive" });
     } finally {
       setImporting(false);
+    }
+  };
+
+  const startGeocodeBackfill = async () => {
+    setIsGeocoding(true);
+    setGeocodeProgress({ processed: 0, total: 0 });
+    
+    try {
+      const { data: missing, error } = await supabase
+        .from("technicians")
+        .select("id, area")
+        .is("latitude", null)
+        .not("area", "is", null)
+        .neq("area", "");
+
+      if (error || !missing || missing.length === 0) {
+        setIsGeocoding(false);
+        return;
+      }
+
+      setGeocodeProgress({ processed: 0, total: missing.length });
+
+      let processed = 0;
+      for (const row of missing) {
+        const result = await geocodeWithFallback({ address: row.area });
+        if (result.coords) {
+          await supabase
+            .from("technicians")
+            .update({ latitude: result.coords.latitude, longitude: result.coords.longitude })
+            .eq("id", row.id);
+        }
+        
+        processed++;
+        setGeocodeProgress({ processed, total: missing.length });
+        
+        await new Promise((r) => setTimeout(r, 1100));
+      }
+      
+      onImported?.();
+    } catch (e) {
+      console.error("Geocoding backfill error", e);
+    } finally {
+      setIsGeocoding(false);
     }
   };
 
@@ -467,6 +505,19 @@ export function ImportTechniciansDialog({ open, onOpenChange, onImported }: Prop
                   All rows imported successfully.
                 </div>
               )}
+            </div>
+          )}
+
+          {isGeocoding && (
+            <div className="rounded-md border p-4 flex flex-col items-center justify-center space-y-2 mt-4 bg-muted/20">
+              <div className="flex items-center space-x-2 text-primary">
+                <MapPin className="h-5 w-5 animate-bounce" />
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+              <div className="text-sm font-medium">Resolving Map Locations...</div>
+              <div className="text-xs text-muted-foreground">
+                {geocodeProgress.processed} of {geocodeProgress.total} technicians processed. This ensures they appear on the map.
+              </div>
             </div>
           )}
         </div>
