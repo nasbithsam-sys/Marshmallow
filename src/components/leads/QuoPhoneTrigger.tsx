@@ -120,8 +120,9 @@ export default function QuoPhoneTrigger({
 
     void check();
 
+    const channelId = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(`quo-quickchat-dot-${contactKey || normalizedPhone}`)
+      .channel(`quo-quickchat-dot-${contactKey || normalizedPhone}-${channelId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, () => {
         void check();
       })
@@ -182,8 +183,9 @@ export default function QuoPhoneTrigger({
     setMessages([]);
     void loadThread(true);
 
+    const channelId = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(`quo-lead-chat-${contactKey || normalizedPhone}`)
+      .channel(`quo-lead-chat-${contactKey || normalizedPhone}-${channelId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, (payload) => {
         const row = (payload.new ?? payload.old) as { customer_number?: string | null } | null;
         if (!row?.customer_number || getPhoneKey(row.customer_number) === contactKey) {
