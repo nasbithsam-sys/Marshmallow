@@ -60,7 +60,8 @@ export default function QuoPhoneTrigger({
   className,
   children,
 }: QuoPhoneTriggerProps) {
-  const { role } = useAuth();
+  const auth = useAuth();
+  const role = auth.role;
   const [open, setOpen] = useState(false);
 
   const trimmedPhone = phone?.trim() ?? "";
@@ -89,9 +90,52 @@ export default function QuoPhoneTrigger({
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isAdmin = role === "admin";
+  // Quick Chat is available to admins and to any user an admin granted access to.
+  const canUseQuickChat = isAdmin || auth.canAccess?.("quick_chat") === true;
+  const [lastFromCustomer, setLastFromCustomer] = useState(false);
+
+  // Lightweight check of who sent the newest message (drives the green blinking dot).
+  useEffect(() => {
+    if (!canUseQuickChat || !normalizedPhone) return;
+    let active = true;
+    const contactKey = getPhoneKey(normalizedPhone);
+
+    const check = async () => {
+      const { data } = await supabase
+        .from("quo_conversations")
+        .select("last_customer_message_at, last_agent_message_at")
+        .or(`customer_number.eq.${normalizedPhone},customer_number.ilike.%${contactKey}`)
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .limit(1);
+      if (!active) return;
+      const row = data?.[0];
+      if (!row) {
+        setLastFromCustomer(false);
+        return;
+      }
+      const customerAt = row.last_customer_message_at ? new Date(row.last_customer_message_at).getTime() : 0;
+      const agentAt = row.last_agent_message_at ? new Date(row.last_agent_message_at).getTime() : 0;
+      setLastFromCustomer(customerAt > 0 && customerAt > agentAt);
+    };
+
+    void check();
+
+    const channel = supabase
+      .channel(`quo-quickchat-dot-${contactKey || normalizedPhone}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, () => {
+        void check();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [canUseQuickChat, normalizedPhone]);
+
 
   useEffect(() => {
-    if (!isAdmin || !open || !normalizedPhone) return;
+    if (!canUseQuickChat || !open || !normalizedPhone) return;
 
     let active = true;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -155,7 +199,7 @@ export default function QuoPhoneTrigger({
       if (refreshTimer) clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
-  }, [isAdmin, normalizedPhone, open]);
+  }, [canUseQuickChat, normalizedPhone, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -270,9 +314,12 @@ export default function QuoPhoneTrigger({
     return null;
   }
 
-  if (!isAdmin) {
+  if (!canUseQuickChat) {
     return <span className={className}>{triggerLabel}</span>;
   }
+
+  const latestMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  const showCustomerDot = latestMessage ? latestMessage.direction === "incoming" : lastFromCustomer;
 
   const currentStatusKey = normalizeQuoLeadStatus(conversationMeta?.status);
   const statusCfg = QUO_LEAD_STATUS_CONFIG[currentStatusKey];
@@ -292,6 +339,15 @@ export default function QuoPhoneTrigger({
       >
         <Phone className="h-3.5 w-3.5 shrink-0" />
         <span>{triggerLabel}</span>
+        {showCustomerDot && (
+          <span
+            className="relative ml-0.5 flex h-2 w-2 shrink-0"
+            title="Customer sent the last message"
+          >
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+        )}
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
