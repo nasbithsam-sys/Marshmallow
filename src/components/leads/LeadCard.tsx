@@ -74,6 +74,7 @@ interface LeadCardProps {
   disablePhotoPreview?: boolean;
   initialHasNotes?: { general: boolean; cs: boolean; processor: boolean };
   initialPhotoCount?: number;
+  initialPhotoPaths?: string[];
   initialPendingCancellationRequest?: LeadCancellationRequest | null;
 }
 
@@ -371,6 +372,7 @@ function LeadCard({
   disablePhotoPreview = false,
   initialHasNotes,
   initialPhotoCount,
+  initialPhotoPaths,
   initialPendingCancellationRequest,
 }: LeadCardProps) {
   const navigate = useNavigate();
@@ -555,13 +557,9 @@ function LeadCard({
         }
       } else {
         if (!originalUrl) {
-          const { data } = await supabase
-            .from("lead_photos")
-            .select("photo_url")
-            .eq("lead_id", lead.id)
-            .order("created_at", { ascending: true });
-          if (data && data[photoIndex]) {
-            const path = data[photoIndex].photo_url;
+          const knownPath = photoPaths[photoIndex];
+          if (knownPath) {
+            const path = knownPath;
             const { getSignedUrl } = await import("@/lib/storage");
             const original = await getSignedUrl(path);
             if (original) {
@@ -625,6 +623,12 @@ function LeadCard({
       return;
     }
 
+    if (initialPhotoPaths !== undefined) {
+      setPhotoPaths(initialPhotoPaths);
+      setPhotoCount(initialPhotoPaths.length);
+      return;
+    }
+
     const loadPhotos = async () => {
       const { data } = await supabase
         .from("lead_photos")
@@ -647,7 +651,7 @@ function LeadCard({
     return () => {
       cancelled = true;
     };
-  }, [disablePhotoPreview, lead.id, reloadKey]);
+  }, [disablePhotoPreview, initialPhotoPaths, lead.id, reloadKey]);
 
   const handleCopyPaymentScreenshot = async () => {
     if (!lead.payment_screenshot_url) return;
