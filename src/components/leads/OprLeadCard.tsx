@@ -12,26 +12,37 @@ import { motion } from "framer-motion";
 
 interface Props {
   lead: Lead;
+  initialPhotoPaths?: string[];
+  initialHasOprNotes?: boolean;
 }
 
-export default function OprLeadCard({ lead }: Props) {
+export default function OprLeadCard({ lead, initialPhotoPaths, initialHasOprNotes }: Props) {
   const [photos, setPhotos] = useState<string[]>([]);
+  const [photoPaths, setPhotoPaths] = useState<string[]>(initialPhotoPaths ?? []);
   const [originals, setOriginals] = useState<string[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [oprNotesOpen, setOprNotesOpen] = useState(false);
-  const [hasOprNotes, setHasOprNotes] = useState(false);
+  const [hasOprNotes, setHasOprNotes] = useState(initialHasOprNotes ?? false);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const { data } = await supabase
-        .from("lead_photos")
-        .select("photo_url")
-        .eq("lead_id", lead.id)
-        .order("created_at", { ascending: true });
-      if (!data || cancelled) return;
-      const paths = data.map((p: { photo_url: string }) => p.photo_url);
+      let paths = initialPhotoPaths;
+      if (paths === undefined) {
+        const { data } = await supabase
+          .from("lead_photos")
+          .select("photo_url")
+          .eq("lead_id", lead.id)
+          .order("created_at", { ascending: true });
+        if (!data || cancelled) return;
+        paths = data.map((p: { photo_url: string }) => p.photo_url);
+      }
+      setPhotoPaths(paths);
+      if (paths.length === 0) {
+        setPhotos([]);
+        return;
+      }
       const { getSignedUrls } = await import("@/lib/storage");
       const urls = await getSignedUrls(paths, { width: 240, height: 240, resize: "cover", quality: 55 });
       if (!cancelled) setPhotos(urls);
@@ -40,12 +51,16 @@ export default function OprLeadCard({ lead }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [lead.id]);
+  }, [initialPhotoPaths, lead.id]);
 
   // Check if OPR notes exist
   useEffect(() => {
     let cancelled = false;
     const checkNotes = async () => {
+      if (initialHasOprNotes !== undefined) {
+        setHasOprNotes(initialHasOprNotes);
+        return;
+      }
       const { data } = await supabase
         .from("lead_notes")
         .select("id")
@@ -58,23 +73,15 @@ export default function OprLeadCard({ lead }: Props) {
     };
     void checkNotes();
     return () => { cancelled = true; };
-  }, [lead.id]);
+  }, [initialHasOprNotes, lead.id]);
 
   const openLightbox = async (i: number) => {
     setLightboxIndex(i);
     setLightboxOpen(true);
-    if (originals.length === 0 && photos.length > 0) {
-      const { data } = await supabase
-        .from("lead_photos")
-        .select("photo_url")
-        .eq("lead_id", lead.id)
-        .order("created_at", { ascending: true });
-      if (data) {
-        const paths = data.map((p: { photo_url: string }) => p.photo_url);
-        const { getSignedUrls } = await import("@/lib/storage");
-        const urls = await getSignedUrls(paths);
-        setOriginals(urls);
-      }
+    if (originals.length === 0 && photoPaths.length > 0) {
+      const { getSignedUrls } = await import("@/lib/storage");
+      const urls = await getSignedUrls(photoPaths);
+      setOriginals(urls);
     }
   };
 

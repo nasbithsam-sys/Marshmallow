@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -220,7 +220,7 @@ export default function QuoDashboardPage() {
 
   // Fetch Conversations list
   const {
-    data: conversations = [],
+    data: rawConversations = [],
     isLoading,
     isRefetching,
     refetch,
@@ -229,76 +229,30 @@ export default function QuoDashboardPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quo_conversations")
-        .select(`
-          id,
-          quo_conversation_id,
-          customer_name,
-          customer_number,
-          number_id,
-          last_message_preview,
-          last_message_time,
-          last_message_at,
-          created_at,
-          status,
-          current_status,
-          quo_phone_numbers (
-            id,
-            quo_phone_number_id,
-            number,
-            name,
-            label,
-            display_number
-          )
-        `)
+        .select("id, quo_conversation_id, customer_name, customer_number, number_id, last_message_preview, last_message_time, last_message_at, created_at, status, current_status")
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.warn("Primary PostgREST fetch failed, running fallback fetch:", error.message);
-
-        // Fallback: Fetch conversations directly without relationship join
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from("quo_conversations")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (fallbackError) {
-          console.error("Fallback fetch failed:", fallbackError.message);
-          toast.error(`Database error: ${fallbackError.message}`);
-          return [];
-        }
-
-        return (fallbackData as ConversationRow[]) ?? [];
+        console.error("Conversation fetch failed:", error.message);
+        toast.error(`Database error: ${error.message}`);
+        return [];
       }
 
       return (data as ConversationRow[]) ?? [];
     },
     refetchInterval: 15000,
+    refetchIntervalInBackground: false,
   });
 
-  // Realtime subscription for instant incoming webhook chat updates
-  React.useEffect(() => {
-    const channel = supabase
-      .channel("quo-dashboard-realtime-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "quo_conversations" },
-        () => {
-          refetch();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "quo_messages" },
-        () => {
-          refetch();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [refetch]);
+  const conversations = useMemo<ConversationRow[]>(() => {
+    const numbersById = new Map(phoneNumbers.map((number) => [number.id, number]));
+    return rawConversations.map((conversation) => ({
+      ...conversation,
+      quo_phone_numbers: conversation.number_id
+        ? numbersById.get(conversation.number_id) ?? null
+        : null,
+    }));
+  }, [phoneNumbers, rawConversations]);
 
   // Mutation to update conversation Lead Status
   const updateStatusMutation = useMutation({

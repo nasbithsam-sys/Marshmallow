@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -38,78 +38,72 @@ interface CrmUpdate {
 
 /**
  * Shows CRM update popups to the current user one at a time.
- * - Single Realtime subscription for INSERT events on crm_updates.
- * - On mount, loads unread active updates targeted to the current role.
+ * - Loads unread active updates targeted to the current role.
+ * - Refreshes while the CRM is visible, without keeping an expensive
+ *   Postgres Changes subscription open for every authenticated session.
  * - Acknowledgement is persisted to `crm_update_receipts`.
  */
 export default function CrmUpdatePopup() {
   const { user, role, fullyAuthenticated } = useAuth();
   const [queue, setQueue] = useState<CrmUpdate[]>([]);
   const [ackingId, setAckingId] = useState<string | null>(null);
+  const refreshInFlight = useRef(false);
 
-  const isEligible = useCallback(
-    (u: CrmUpdate) => u.is_active && !!role && u.target_roles.includes(role),
-    [role],
-  );
-
-  // Initial load of unread notifications
-  useEffect(() => {
-    if (!user || !role || !fullyAuthenticated) return;
-    let cancelled = false;
-
-    (async () => {
+  const loadUnreadUpdates = useCallback(async () => {
+    if (!user || !role || !fullyAuthenticated || refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    try {
       const { data: updates, error } = await supabase
         .from("crm_updates" as never)
-        .select("*")
+        .select("id, title, description, affected_section, target_roles, priority, is_active, published_at")
         .eq("is_active", true)
         .contains("target_roles", [role])
         .order("published_at", { ascending: true });
 
-      if (error || !updates || cancelled) return;
+      if (error || !updates) return;
 
-      const { data: receipts } = await supabase
+      const { data: receipts, error: receiptsError } = await supabase
         .from("crm_update_receipts" as never)
         .select("notification_id")
         .eq("user_id", user.id);
+
+      if (receiptsError) return;
 
       const ackIds = new Set(
         ((receipts ?? []) as unknown as { notification_id: string }[]).map((r) => r.notification_id),
       );
       const unread = (updates as unknown as CrmUpdate[]).filter((u) => !ackIds.has(u.id));
-      if (!cancelled && unread.length > 0) {
+      if (unread.length > 0) {
         setQueue((prev) => {
           const existing = new Set(prev.map((x) => x.id));
           return [...prev, ...unread.filter((u) => !existing.has(u.id))];
         });
       }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    } finally {
+      refreshInFlight.current = false;
+    }
   }, [user, role, fullyAuthenticated]);
 
-  // One shared Realtime subscription per authenticated session
+  // CRM announcements are low-frequency. Visibility-aware polling keeps the
+  // same acknowledgement workflow while avoiding the project's hottest query.
   useEffect(() => {
     if (!user || !role || !fullyAuthenticated) return;
 
-    const channel = supabase
-      .channel(`crm-updates-user-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "crm_updates" },
-        (payload) => {
-          const u = payload.new as unknown as CrmUpdate;
-          if (!isEligible(u)) return;
-          setQueue((prev) => (prev.some((x) => x.id === u.id) ? prev : [...prev, u]));
-        },
-      )
-      .subscribe();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadUnreadUpdates();
+    };
+
+    refreshWhenVisible();
+    const intervalId = window.setInterval(refreshWhenVisible, 60_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
-      void supabase.removeChannel(channel);
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [user, role, fullyAuthenticated, isEligible]);
+  }, [user, role, fullyAuthenticated, loadUnreadUpdates]);
 
   const current = queue[0];
 

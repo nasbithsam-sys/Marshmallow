@@ -234,6 +234,16 @@ Deno.serve(async (req) => {
     if (eventError) throw eventError;
     webhookEventId = eventData?.id ?? null;
 
+    if (!eventData) {
+      return jsonResponse({
+        success: true,
+        ignored: true,
+        duplicate: true,
+        event_type: eventType,
+        quo_message_id: message.id,
+      });
+    }
+
     let phoneNumberRowId: string | null = null;
     if (conversation.phoneNumberId) {
       const { data: phoneRow, error: phoneError } = await supabase

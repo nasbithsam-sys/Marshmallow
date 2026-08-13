@@ -67,11 +67,12 @@ export default function LeadsPage() {
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showInstallDialog, setShowInstallDialog] = useState(false);
   const [pagedMetadata, setPagedMetadata] = useState<Record<string, {
-    hasNotes: { general: boolean; cs: boolean; processor: boolean };
+    hasNotes: { general: boolean; cs: boolean; processor: boolean; opr: boolean };
     photoCount: number;
+    photoPaths: string[];
     pendingCancellationRequest: LeadCancellationRequest | null;
   }>>({});
-  const [metadataLoading, setMetadataLoading] = useState(false);
+  const [metadataFallbackKey, setMetadataFallbackKey] = useState<string | null>(null);
   const deferredSearch = useDeferredValue(search);
 
   const rawStatusFilter = searchParams.get("status") || "all";
@@ -292,17 +293,21 @@ export default function LeadsPage() {
   }, [filtered.length, page, totalPages]);
 
   const pagedIdsStr = paged.map((l) => l.id).join(",");
+  const usingMetadataFallback = metadataFallbackKey === pagedIdsStr;
+  const pagedMetadataReady = usingMetadataFallback
+    || paged.every((lead) => pagedMetadata[lead.id] !== undefined);
 
   useEffect(() => {
     let active = true;
     const loadPagedMetadata = async () => {
-      const pagedIds = paged.map((l) => l.id);
+      const pagedIds = pagedIdsStr ? pagedIdsStr.split(",") : [];
       if (pagedIds.length === 0) {
         setPagedMetadata({});
+        setMetadataFallbackKey(null);
         return;
       }
 
-      setMetadataLoading(true);
+      setMetadataFallbackKey(null);
 
       try {
         const [notesRes, photosRes, cancelRes] = await Promise.all([
@@ -312,8 +317,9 @@ export default function LeadsPage() {
             .in("lead_id", pagedIds),
           supabase
             .from("lead_photos")
-            .select("lead_id, id")
-            .in("lead_id", pagedIds),
+            .select("lead_id, photo_url, created_at")
+            .in("lead_id", pagedIds)
+            .order("created_at", { ascending: true }),
           supabase
             .from("lead_cancellation_requests")
             .select("*")
@@ -322,17 +328,21 @@ export default function LeadsPage() {
         ]);
 
         if (!active) return;
+        const batchError = notesRes.error || photosRes.error || cancelRes.error;
+        if (batchError) throw batchError;
 
         const metadataMap: Record<string, {
-          hasNotes: { general: boolean; cs: boolean; processor: boolean };
+          hasNotes: { general: boolean; cs: boolean; processor: boolean; opr: boolean };
           photoCount: number;
+          photoPaths: string[];
           pendingCancellationRequest: LeadCancellationRequest | null;
         }> = {};
 
         pagedIds.forEach((id) => {
           metadataMap[id] = {
-            hasNotes: { general: false, cs: false, processor: false },
+            hasNotes: { general: false, cs: false, processor: false, opr: false },
             photoCount: 0,
+            photoPaths: [],
             pendingCancellationRequest: null,
           };
         });
@@ -344,6 +354,7 @@ export default function LeadsPage() {
               if (note.note_type === "general") mapItem.hasNotes.general = true;
               else if (note.note_type === "cs") mapItem.hasNotes.cs = true;
               else if (note.note_type === "processor") mapItem.hasNotes.processor = true;
+              else if (note.note_type === "opr") mapItem.hasNotes.opr = true;
             }
           });
         }
@@ -353,6 +364,7 @@ export default function LeadsPage() {
             const mapItem = metadataMap[photo.lead_id];
             if (mapItem) {
               mapItem.photoCount += 1;
+              mapItem.photoPaths.push(photo.photo_url);
             }
           });
         }
@@ -361,7 +373,7 @@ export default function LeadsPage() {
           cancelRes.data.forEach((req) => {
             const mapItem = metadataMap[req.lead_id];
             if (mapItem) {
-              const requestCopy = { ...req } as any;
+              const requestCopy = { ...req } as unknown as LeadCancellationRequest;
               if (requestCopy.requested_by) {
                 requestCopy.requester_name = profiles[requestCopy.requested_by] || requestCopy.requested_by_name || null;
               } else {
@@ -375,10 +387,7 @@ export default function LeadsPage() {
         setPagedMetadata(metadataMap);
       } catch (err) {
         console.error("Failed to load paged metadata", err);
-      } finally {
-        if (active) {
-          setMetadataLoading(false);
-        }
+        if (active) setMetadataFallbackKey(pagedIdsStr);
       }
     };
 
@@ -790,7 +799,7 @@ export default function LeadsPage() {
         </div>
       </motion.div>
 
-      {loading ? (
+      {loading || !pagedMetadataReady ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="h-56 rounded-xl skeleton-shimmer border border-border/30" />
@@ -836,22 +845,30 @@ export default function LeadsPage() {
           animate="animate"
           className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
         >
-          {paged.map((lead) => (
+          {paged.map((lead) => {
+            const metadata = usingMetadataFallback ? undefined : pagedMetadata[lead.id];
+            return (
             <motion.div key={lead.id} variants={cardGridItem}>
               {role === "opr" ? (
-                <OprLeadCard lead={lead} />
+                <OprLeadCard
+                  lead={lead}
+                  initialPhotoPaths={metadata?.photoPaths}
+                  initialHasOprNotes={metadata?.hasNotes.opr}
+                />
               ) : (
                 <LeadCard
                   lead={lead}
                   profiles={profiles}
                   onRefresh={handleRefresh}
-                  initialHasNotes={pagedMetadata[lead.id]?.hasNotes}
-                  initialPhotoCount={pagedMetadata[lead.id]?.photoCount}
-                  initialPendingCancellationRequest={pagedMetadata[lead.id]?.pendingCancellationRequest}
+                  initialHasNotes={metadata?.hasNotes}
+                  initialPhotoCount={metadata?.photoCount}
+                  initialPhotoPaths={metadata?.photoPaths}
+                  initialPendingCancellationRequest={metadata?.pendingCancellationRequest}
                 />
               )}
             </motion.div>
-          ))}
+            );
+          })}
         </motion.div>
       )}
 
@@ -898,5 +915,3 @@ export default function LeadsPage() {
     </div>
   );
 }
-
-

@@ -207,6 +207,16 @@ Deno.serve(async (req) => {
 
     if (eventError) throw new Error(`Failed to upsert webhook event: ${eventError.message}`);
 
+    if (!eventData) {
+      return jsonResponse({
+        success: true,
+        ignored: true,
+        duplicate: true,
+        event_type: eventType,
+        quo_message_id: message.id,
+      });
+    }
+
     let phoneNumberRowId: string | null = null;
     if (conversation.phoneNumberId) {
       const { data: phoneRow, error: phoneError } = await supabase
