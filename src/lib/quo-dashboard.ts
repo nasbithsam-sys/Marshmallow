@@ -365,7 +365,7 @@ export function sendQuoMessageViaExtension(
       window.removeEventListener("message", handleMessageResponse);
       resolve({
         success: false,
-        error: "Extension response timeout (please ensure the Chrome extension is active)",
+        error: "Extension not detected. If you just installed it, please refresh this CRM page once.",
       });
     }, timeoutMs);
 
@@ -420,7 +420,7 @@ export function scheduleQuoMessageViaExtension(
       window.removeEventListener("message", handleMessageResponse);
       resolve({
         success: false,
-        error: "Extension response timeout (please ensure the Chrome extension is active)",
+        error: "Extension not detected. If you just installed it, please refresh this CRM page once.",
       });
     }, timeoutMs);
 
