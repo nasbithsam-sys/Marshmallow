@@ -600,6 +600,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
   const isAdmin = role === "admin";
   const isCsAdmin = role === "cs_admin";
   const hasQuickChatAccess = canAccess("quick_chat");
+  const hasTechQuickChatAccess = canAccess("tech_quick_chat");
   // CS Admin has the same limited view of processor internals as CS users.
   const hideProcessorDetails = isCS || isCsAdmin;
 
@@ -701,7 +702,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                     <span>Quick Chat</span>
                   </QuoPhoneTrigger>
                 )}
-                {hasQuickChatAccess && lead.tech_number && (
+                {hasTechQuickChatAccess && lead.tech_number && (
                   <QuoPhoneTrigger
                     contactName={lead.tech_name || "Technician"}
                     phone={lead.tech_number}

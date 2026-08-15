@@ -33,10 +33,10 @@ describe("quo monitor navigation access", () => {
     expect(canAccessNavItem(null, "leads")).toBe(false);
   });
 
-  it("ignores non-admin navigation overrides for quo monitor", () => {
+  it("respects per-user navigation overrides for quo monitor", () => {
     const allowedOverride = [{ nav_section: "quo_monitor", allowed: true }] as NavigationPermission[];
 
-    expect(canAccessNavItem("processor", "quo_monitor", allowedOverride)).toBe(false);
-    expect(canAccessNavItem("customer_service", "quo_monitor", allowedOverride)).toBe(false);
+    expect(canAccessNavItem("processor", "quo_monitor", allowedOverride)).toBe(true);
+    expect(canAccessNavItem("customer_service", "quo_monitor", allowedOverride)).toBe(true);
   });
 });

@@ -33,10 +33,6 @@ export function canAccessNavItem(
     return true;
   }
 
-  if (navItem === "quo_monitor") {
-    return false;
-  }
-
   if (navItem === "payment_requests") {
     // Admin-only page
     return false;

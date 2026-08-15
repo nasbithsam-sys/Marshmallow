@@ -46,7 +46,7 @@ const generateCode = () => {
 
 const NAV_SECTION_LABELS: Record<string, string> = {
   leads: "All Leads",
-  quo_monitor: "Quo AI Assistant",
+  quo_monitor: "QUO Dashboard",
   calls: "Calls Log",
   analytics: "Analytics",
   settings: "Settings",
@@ -55,6 +55,7 @@ const NAV_SECTION_LABELS: Record<string, string> = {
   areas: "Area Insights",
   cancellation_requests: "Lead Cancellation Requests",
   quick_chat: "Quick Chat",
+  tech_quick_chat: "Tech Quickchat",
 };
 
 const roleColors: Record<AppRole, string> = {
@@ -373,10 +374,6 @@ const Settings = () => {
       const targetUser = getUserById(userId);
       const beforeAllowed = existing?.allowed ?? false;
 
-      if (section === "quo_monitor" && targetUser?.role !== "admin") {
-        throw new Error("Quo AI Assistant is admin-only.");
-      }
-
       if (existing) {
         await supabase
           .from("navigation_permissions")
@@ -583,10 +580,6 @@ const Settings = () => {
     const targetUser = getUserById(userId);
     const override = navPermissionByUserAndSection.get(`${userId}:${section}`);
 
-    if (section === "quo_monitor") {
-      return targetUser?.role === "admin";
-    }
-
     if (targetUser && section === "cancellation_requests" && canAccessCancellationRequests(targetUser.role)) {
       return true;
     }
@@ -635,9 +628,6 @@ const Settings = () => {
         return (
           count +
           ALL_NAV_ITEMS.filter((section) => {
-            if (section === "quo_monitor") {
-              return false;
-            }
             const override = navPermissionByUserAndSection.get(`${targetUser.id}:${section}`);
             return typeof override === "boolean" ? override : defaultAccess.has(section);
           }).length
@@ -954,21 +944,15 @@ const Settings = () => {
                       </td>
 
                       {ALL_NAV_ITEMS.map((section) => {
-                        const isAdminOnlyQuo = section === "quo_monitor";
                         return (
                           <td key={section} className="px-3 py-3 text-center">
                             <Switch
                               checked={getNavPermission(u.id, section)}
-                              disabled={isAdminOnlyQuo || (section === "cancellation_requests" && canAccessCancellationRequests(u.role))}
+                              disabled={section === "cancellation_requests" && canAccessCancellationRequests(u.role)}
                               onCheckedChange={(checked) =>
                                 toggleNavPermission.mutate({ userId: u.id, section, allowed: checked })
                               }
                             />
-                            {isAdminOnlyQuo && (
-                              <div className="mt-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
-                                Admin only
-                              </div>
-                            )}
                           </td>
                         );
                       })}

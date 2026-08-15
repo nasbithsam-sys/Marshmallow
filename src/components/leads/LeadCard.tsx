@@ -515,6 +515,7 @@ function LeadCard({
 
   const isAdmin = role === "admin";
   const hasQuickChatAccess = canAccess("quick_chat");
+  const hasTechQuickChatAccess = canAccess("tech_quick_chat");
   const isCS = role === "customer_service";
   const isCsAdmin = role === "cs_admin";
   const isProcessor = role === "processor";
@@ -1181,7 +1182,7 @@ function LeadCard({
                   <span>Quick Chat</span>
                 </QuoPhoneTrigger>
               )}
-              {hasQuickChatAccess && lead.tech_number && (
+              {hasTechQuickChatAccess && lead.tech_number && (
                 <QuoPhoneTrigger
                   contactName={lead.tech_name || "Technician"}
                   phone={lead.tech_number}

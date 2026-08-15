@@ -93,10 +93,10 @@ export default function QuoPhoneTrigger({
     status?: string;
   } | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isAdmin = role === "admin";
+  const requiredAccessKey = chatType === "tech" ? "tech_quick_chat" : "quick_chat";
   // Quick Chat is available to admins and to any user an admin granted access to.
-  const canUseQuickChat = isAdmin || auth.canAccess?.("quick_chat") === true;
+  const canUseQuickChat = isAdmin || auth.canAccess?.(requiredAccessKey) === true;
   const [lastFromCustomer, setLastFromCustomer] = useState(false);
 
   // Lightweight check of who sent the newest message (drives the green blinking dot).
