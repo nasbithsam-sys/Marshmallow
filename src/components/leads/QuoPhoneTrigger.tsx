@@ -422,7 +422,12 @@ export default function QuoPhoneTrigger({
       if (extRes.success) {
         toast.success("Success! The message was pasted and sent via QUO.", { id: toastId });
       } else {
-        toast.error(`Extension notice: ${extRes.error || "Failed to complete send"}`, { id: toastId });
+        let errorMsg = extRes.error || "Failed to complete send";
+        if (errorMsg.includes("Could not find message input editor")) {
+          const numName = conversationMeta?.numberName || "this number";
+          errorMsg = `You don't have access to ${numName}.`;
+        }
+        toast.error(`Extension notice: ${errorMsg}`, { id: toastId });
       }
     } catch (err: any) {
       toast.error(`Extension notice: ${err?.message || "Extension dispatch error"}`, { id: toastId });
@@ -462,7 +467,12 @@ export default function QuoPhoneTrigger({
       if (extRes.success) {
         toast.success(`Success! Message scheduled for "${scheduleTime}".`, { id: toastId });
       } else {
-        toast.error(`Failed to schedule: ${extRes.error || "Cancelled"}`, { id: toastId });
+        let errorMsg = extRes.error || "Cancelled";
+        if (errorMsg.includes("Could not find message input editor")) {
+          const numName = conversationMeta?.numberName || "this number";
+          errorMsg = `You don't have access to ${numName}.`;
+        }
+        toast.error(`Failed to schedule: ${errorMsg}`, { id: toastId });
       }
     } catch (err: any) {
       toast.error(`Failed to schedule: ${err?.message || "Extension error"}`, { id: toastId });
