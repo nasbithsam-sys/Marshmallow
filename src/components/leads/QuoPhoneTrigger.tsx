@@ -93,6 +93,7 @@ export default function QuoPhoneTrigger({
     status?: string;
   } | null>(null);
 
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isAdmin = role === "admin";
   const requiredAccessKey = chatType === "tech" ? "tech_quick_chat" : "quick_chat";
   // Quick Chat is available to admins and to any user an admin granted access to.
