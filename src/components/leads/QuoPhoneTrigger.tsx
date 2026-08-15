@@ -60,6 +60,7 @@ const quickChatUnreadWatchers = new Map<
 >();
 let quickChatUnreadRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let quickChatUnreadChannel: ReturnType<typeof supabase.channel> | null = null;
+let nextQuickChatUnreadWatcherId = 0;
 
 function scheduleQuickChatUnreadRefresh() {
   if (quickChatUnreadRefreshTimer) clearTimeout(quickChatUnreadRefreshTimer);
@@ -98,8 +99,9 @@ async function refreshQuickChatUnreadStatuses() {
     const chunk = phones.slice(index, index + QUICK_CHAT_UNREAD_CHUNK_SIZE);
     const { data, error } = await supabase
       .from("quo_conversations")
-      .select("customer_number,last_customer_message_at,last_agent_message_at,quo_phone_numbers(number,display_number,name)")
-      .in("customer_number", chunk);
+      .select("customer_number,last_customer_message_at,last_agent_message_at,last_message_at,quo_phone_numbers(number,display_number,name)")
+      .in("customer_number", chunk)
+      .order("last_message_at", { ascending: false, nullsFirst: false });
 
     if (error) {
       console.warn("Failed to refresh Quo unread status", error);
@@ -203,7 +205,8 @@ export default function QuoPhoneTrigger({
   useEffect(() => {
     if (!canUseQuickChat || !normalizedPhone) return;
 
-    const watcherKey = `${chatType ?? "customer"}:${normalizedPhone}`;
+    const watcherId = ++nextQuickChatUnreadWatcherId;
+    const watcherKey = `${chatType ?? "customer"}:${normalizedPhone}:${watcherId}`;
     quickChatUnreadWatchers.set(watcherKey, {
       phone: normalizedPhone,
       chatType,
@@ -262,9 +265,18 @@ export default function QuoPhoneTrigger({
           status: convStatus,
         });
 
-        if (response.conversation?.id) {
+        const conversationId = response.conversation?.id;
+
+        if (conversationId && conversationId !== subscribedConversationId) {
+          if (currentRealtimeChannel) {
+            void supabase.removeChannel(currentRealtimeChannel);
+            currentRealtimeChannel = null;
+          }
+
+          subscribedConversationId = conversationId;
+
           const realtimeChannel = supabase
-            .channel(`quo-lead-chat-${chatType || "cust"}-${contactKey || normalizedPhone}`)
+            .channel(`quo-lead-chat-${chatType || "cust"}-${contactKey || normalizedPhone}-${conversationId}`)
             .on(
               "postgres_changes",
               { event: "INSERT", schema: "public", table: "quo_conversations", filter: `customer_number=eq.${normalizedPhone}` },
@@ -277,12 +289,12 @@ export default function QuoPhoneTrigger({
             )
             .on(
               "postgres_changes",
-              { event: "INSERT", schema: "public", table: "quo_messages", filter: `conversation_id=eq.${response.conversation.id}` },
+              { event: "INSERT", schema: "public", table: "quo_messages", filter: `conversation_id=eq.${conversationId}` },
               scheduleLiveRefresh,
             )
             .on(
               "postgres_changes",
-              { event: "UPDATE", schema: "public", table: "quo_messages", filter: `conversation_id=eq.${response.conversation.id}` },
+              { event: "UPDATE", schema: "public", table: "quo_messages", filter: `conversation_id=eq.${conversationId}` },
               scheduleLiveRefresh,
             )
             .on(
@@ -297,9 +309,6 @@ export default function QuoPhoneTrigger({
             )
             .subscribe();
 
-          if (currentRealtimeChannel) {
-            void supabase.removeChannel(currentRealtimeChannel);
-          }
           currentRealtimeChannel = realtimeChannel;
         }
       } catch (fetchError) {
@@ -318,6 +327,7 @@ export default function QuoPhoneTrigger({
     };
 
     let currentRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+    let subscribedConversationId: string | null = null;
 
     setMessages([]);
     void loadThread(true);
@@ -329,6 +339,7 @@ export default function QuoPhoneTrigger({
         void supabase.removeChannel(currentRealtimeChannel);
         currentRealtimeChannel = null;
       }
+      subscribedConversationId = null;
     };
   }, [canUseQuickChat, normalizedPhone, open, chatType]);
 
