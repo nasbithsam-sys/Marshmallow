@@ -1179,7 +1179,7 @@ function LeadCard({
                   className="inline-flex items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-all no-underline shadow-sm"
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
-                  <span>Quick Chat</span>
+                  <span>CX Quick Chat</span>
                 </QuoPhoneTrigger>
               )}
               {hasTechQuickChatAccess && lead.tech_number && (

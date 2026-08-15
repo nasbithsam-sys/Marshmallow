@@ -699,7 +699,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                     className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-all no-underline shadow-sm"
                   >
                     <MessageSquare className="h-4 w-4" />
-                    <span>Quick Chat</span>
+                    <span>CX Quick Chat</span>
                   </QuoPhoneTrigger>
                 )}
                 {hasTechQuickChatAccess && lead.tech_number && (

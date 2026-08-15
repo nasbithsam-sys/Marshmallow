@@ -414,7 +414,7 @@ export default function QuoPhoneTrigger({
                     <div className="flex flex-col min-w-0">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-xs font-semibold tracking-tight truncate text-foreground">
-                          {chatType === "tech" ? "Tech Chat" : "Quick Chat"}: {formatUsPhone(panelPhone)}
+                          {chatType === "tech" ? "Tech Quick Chat" : "CX Quick Chat"}: {formatUsPhone(panelPhone)}
                         </span>
                         {contactName && (
                           <span className="text-[11px] font-normal text-muted-foreground truncate hidden sm:inline">
