@@ -209,17 +209,20 @@ export default function QuoPhoneTrigger({
     setMessages([]);
     void loadThread(true);
 
+    // Only listen to conversation metadata updates here (with strict filter!)
     const channelId = Math.random().toString(36).slice(2);
     const channel = supabase
       .channel(`quo-lead-chat-${chatType || "cust"}-${contactKey || normalizedPhone}-${channelId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, (payload) => {
-        const row = (payload.new ?? payload.old) as { customer_number?: string | null } | null;
-        if (!row?.customer_number || getPhoneKey(row.customer_number) === contactKey) {
-          scheduleLiveRefresh();
-        }
+      .on("postgres_changes", { 
+        event: "UPDATE", 
+        schema: "public", 
+        table: "quo_conversations",
+        filter: `customer_number=eq.${normalizedPhone}`
+      }, (payload) => {
+        // We only re-fetch the thread if we really need to update conversation meta
+        // But to save DB queries, we skip it entirely here because the separate
+        // message listeners below handle the actual chat bubbles!
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "quo_messages" }, scheduleLiveRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quo_outbound_messages" }, scheduleLiveRefresh)
       .subscribe();
 
     return () => {
@@ -228,6 +231,72 @@ export default function QuoPhoneTrigger({
       void supabase.removeChannel(channel);
     };
   }, [canUseQuickChat, normalizedPhone, open, chatType]);
+
+  // Realtime listener for Messages (lightweight, no queries)
+  useEffect(() => {
+    if (!open || !normalizedPhone) return;
+    
+    let active = true;
+    const channelId = Math.random().toString(36).slice(2);
+    const channel = supabase.channel(`quo-messages-live-${normalizedPhone}-${channelId}`);
+
+    // Listen to outbound queued messages
+    channel.on("postgres_changes", {
+      event: "*",
+      schema: "public",
+      table: "quo_outbound_messages",
+      filter: `to_number=eq.${normalizedPhone}`
+    }, (payload) => {
+      if (!active) return;
+      const row = payload.new as any;
+      if (!row || !row.id) return;
+      const newMsg: QuoChatMessage = {
+        id: `outbound-${row.id}`,
+        to: [row.to_number],
+        from: conversationMeta?.numberName ?? (chatType === "tech" ? "Tech" : ""),
+        text: row.body,
+        phoneNumberId: conversationMeta?.quoPhoneNumberId ?? "",
+        conversationId: conversationMeta?.id ?? null,
+        direction: "outgoing",
+        status: row.status,
+        createdAt: row.created_at,
+      };
+      setMessages((prev) => mergeQuoMessages([...prev, newMsg]));
+    });
+
+    if (conversationMeta?.id) {
+      // Listen to actual webhook messages
+      channel.on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "quo_messages",
+        filter: `conversation_id=eq.${conversationMeta.id}`
+      }, (payload) => {
+        if (!active) return;
+        const row = payload.new as any;
+        if (!row || !row.id) return;
+        const newMsg: QuoChatMessage = {
+          id: row.id,
+          to: Array.isArray(row.recipients) ? (row.recipients as unknown[]).map((entry) => String(entry)) : [],
+          from: row.sender ?? "",
+          text: row.text ?? "",
+          phoneNumberId: conversationMeta.quoPhoneNumberId ?? "",
+          conversationId: row.conversation_id,
+          direction: row.direction === "outgoing" ? "outgoing" : "incoming",
+          status: row.status,
+          createdAt: row.message_time ?? row.quo_created_at ?? row.created_at,
+        };
+        setMessages((prev) => mergeQuoMessages([...prev, newMsg]));
+      });
+    }
+
+    channel.subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [open, normalizedPhone, conversationMeta?.id, conversationMeta?.quoPhoneNumberId, conversationMeta?.numberName, chatType]);
 
   useEffect(() => {
     if (!open) return;
