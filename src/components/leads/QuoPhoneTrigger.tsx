@@ -112,7 +112,7 @@ export default function QuoPhoneTrigger({
         .select("last_customer_message_at, last_agent_message_at, quo_phone_numbers(number, display_number, name)")
         .or(`customer_number.eq.${normalizedPhone},customer_number.ilike.%${contactKey}`)
         .order("last_message_at", { ascending: false, nullsFirst: false })
-        .limit(10);
+        .limit(4);
 
       if (!active) return;
       if (!data || data.length === 0) {
@@ -140,9 +140,18 @@ export default function QuoPhoneTrigger({
     const channelId = Math.random().toString(36).slice(2);
     const channel = supabase
       .channel(`quo-quickchat-dot-${chatType || "cust"}-${contactKey || normalizedPhone}-${channelId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, () => {
-        void check();
-      })
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "quo_conversations",
+          filter: `customer_number=eq.${normalizedPhone}`,
+        },
+        () => {
+          void check();
+        }
+      )
       .subscribe();
 
     return () => {
