@@ -1028,7 +1028,7 @@ export default function LeadDetailPage() {
                 Contact
               </div>
               {form.customer_phone ? (
-                <QuoPhoneTrigger contactName={form.customer_name || "Lead"} phone={form.customer_phone} className="mt-2 text-sm font-semibold">
+                <QuoPhoneTrigger contactName={form.customer_name || "Lead"} phone={form.customer_phone} chatType="customer" className="mt-2 text-sm font-semibold">
                   {form.customer_phone}
                 </QuoPhoneTrigger>
               ) : (
@@ -1293,6 +1293,7 @@ export default function LeadDetailPage() {
                       <QuoPhoneTrigger
                         contactName={form.tech_name || "Technician"}
                         phone={form.tech_number}
+                        chatType="tech"
                         className="mt-2 text-xs font-medium"
                       >
                         {form.tech_number}

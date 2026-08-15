@@ -95,6 +95,15 @@ export const QUO_PHONE_NUMBER_NAME_MAP: Record<string, string> = {
   "14697188444": "Dallas Garage Door",
 };
 
+export const TECH_COMMUNICATIONS_NUMBER = "17475887812";
+export const TECH_COMMUNICATIONS_DIGITS = "7475887812";
+
+export function isTechLineNumber(num?: string | null): boolean {
+  if (!num) return false;
+  const digits = num.replace(/\D/g, "");
+  return digits.endsWith("7475887812") || digits === "17475887812" || digits === "7475887812";
+}
+
 export const QUO_PHONE_NUMBER_EMOJI_MAP: Record<string, string> = {
   "12014489324": "🟡",
   "12133192404": "🇱🇦",

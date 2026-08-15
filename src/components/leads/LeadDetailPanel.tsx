@@ -690,14 +690,26 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                {hasQuickChatAccess && (lead.customer_phone || lead.tech_number) && (
+                {hasQuickChatAccess && lead.customer_phone && (
                   <QuoPhoneTrigger
                     contactName={lead.customer_name}
-                    phone={lead.customer_phone || lead.tech_number}
+                    phone={lead.customer_phone}
+                    chatType="customer"
                     className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-all no-underline shadow-sm"
                   >
                     <MessageSquare className="h-4 w-4" />
                     <span>Quick Chat</span>
+                  </QuoPhoneTrigger>
+                )}
+                {hasQuickChatAccess && lead.tech_number && (
+                  <QuoPhoneTrigger
+                    contactName={lead.tech_name || "Technician"}
+                    phone={lead.tech_number}
+                    chatType="tech"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 transition-all no-underline shadow-sm"
+                  >
+                    <Wrench className="h-4 w-4" />
+                    <span>Tech Quick Chat</span>
                   </QuoPhoneTrigger>
                 )}
                 <CopyLeadButton lead={lead} />
@@ -805,6 +817,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                   <QuoPhoneTrigger
                     contactName={form.customer_name ?? "Lead"}
                     phone={String(form.customer_phone)}
+                    chatType="customer"
                     className="text-xs font-medium"
                   >
                     {String(form.customer_phone)}
@@ -966,6 +979,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                     <QuoPhoneTrigger
                       contactName={form.tech_name ?? "Technician"}
                       phone={String(form.tech_number)}
+                      chatType="tech"
                       className="text-xs font-medium"
                     >
                       {String(form.tech_number)}

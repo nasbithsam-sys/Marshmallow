@@ -41,10 +41,12 @@ function lastTen(value: string | null | undefined) {
   return digits.length >= 10 ? digits.slice(-10) : digits;
 }
 
+import { isTechLineNumber, TECH_COMMUNICATIONS_NUMBER } from "@/lib/quo-dashboard";
+
 /**
  * Reads the conversation stored by the Quo webhook (no Quo API calls).
  */
-export async function fetchQuoChatThread(participant: string): Promise<QuoChatThreadResponse> {
+export async function fetchQuoChatThread(participant: string, chatType?: "customer" | "tech"): Promise<QuoChatThreadResponse> {
   const digits = lastTen(participant);
 
   const { data: conversations, error: conversationError } = await supabase
@@ -54,13 +56,30 @@ export async function fetchQuoChatThread(participant: string): Promise<QuoChatTh
     )
     .or(`customer_number.eq.${participant},customer_number.ilike.%${digits}`)
     .order("last_message_time", { ascending: false, nullsFirst: false })
-    .limit(1);
+    .limit(10);
 
   if (conversationError) {
     throw new Error(conversationError.message || "Failed to load Quo chat");
   }
 
-  const conversation = conversations?.[0] ?? null;
+  let conversation = null;
+  if (conversations && conversations.length > 0) {
+    if (chatType === "tech") {
+      conversation = conversations.find((c: any) => {
+        const numRow = c.quo_phone_numbers;
+        return isTechLineNumber(numRow?.number || numRow?.display_number || numRow?.name);
+      }) ?? null;
+    } else if (chatType === "customer") {
+      conversation = conversations.find((c: any) => {
+        const numRow = c.quo_phone_numbers;
+        return !isTechLineNumber(numRow?.number || numRow?.display_number || numRow?.name);
+      }) ?? null;
+    }
+    if (!conversation) {
+      conversation = conversations[0];
+    }
+  }
+
   const numberRow = (conversation as unknown as {
     quo_phone_numbers?: {
       id: string;
@@ -111,7 +130,7 @@ export async function fetchQuoChatThread(participant: string): Promise<QuoChatTh
   const queued: QuoChatMessage[] = (outbound ?? []).map((row) => ({
     id: `outbound-${row.id}`,
     to: [row.to_number],
-    from: numberRow?.number ?? "",
+    from: numberRow?.number ?? (chatType === "tech" ? TECH_COMMUNICATIONS_NUMBER : ""),
     text: row.body,
     phoneNumberId: numberRow?.quo_phone_number_id ?? "",
     conversationId: conversation?.id ?? null,
@@ -124,9 +143,9 @@ export async function fetchQuoChatThread(participant: string): Promise<QuoChatTh
     contact: { participant },
     phoneNumber: {
       id: numberRow?.quo_phone_number_id ?? "",
-      number: numberRow?.number ?? "",
-      formattedNumber: numberRow?.display_number ?? numberRow?.number ?? "",
-      name: numberRow?.name ?? numberRow?.label ?? null,
+      number: numberRow?.number ?? (chatType === "tech" ? TECH_COMMUNICATIONS_NUMBER : ""),
+      formattedNumber: numberRow?.display_number ?? numberRow?.number ?? (chatType === "tech" ? "(747) 588-7812" : ""),
+      name: numberRow?.name ?? numberRow?.label ?? (chatType === "tech" ? "Technicians Communications (NEW)" : null),
     },
     conversation: conversation
       ? {
@@ -145,16 +164,22 @@ export async function fetchQuoChatThread(participant: string): Promise<QuoChatTh
 /**
  * Queues an outbound message. The CRM browser extension picks it up and sends it through Quo.
  */
-export async function sendQuoChatMessage(participant: string, content: string) {
+export async function sendQuoChatMessage(participant: string, content: string, chatType?: "customer" | "tech") {
   const { data: auth } = await supabase.auth.getUser();
+
+  const insertData: Record<string, any> = {
+    to_number: participant,
+    body: content,
+    created_by: auth.user?.id ?? null,
+  };
+
+  if (chatType === "tech") {
+    insertData.phone_number_id = TECH_COMMUNICATIONS_NUMBER;
+  }
 
   const { data, error } = await supabase
     .from("quo_outbound_messages")
-    .insert({
-      to_number: participant,
-      body: content,
-      created_by: auth.user?.id ?? null,
-    })
+    .insert(insertData)
     .select("id, to_number, body, status, created_at")
     .single();
 

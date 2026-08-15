@@ -41,6 +41,7 @@ interface QuoPhoneTriggerProps {
   phone?: string | null;
   className?: string;
   children?: ReactNode;
+  chatType?: "customer" | "tech";
 }
 
 function getPhoneKey(value: string | null | undefined) {
@@ -59,6 +60,7 @@ export default function QuoPhoneTrigger({
   phone,
   className,
   children,
+  chatType,
 }: QuoPhoneTriggerProps) {
   const auth = useAuth();
   const role = auth.role;
@@ -103,16 +105,27 @@ export default function QuoPhoneTrigger({
     const check = async () => {
       const { data } = await supabase
         .from("quo_conversations")
-        .select("last_customer_message_at, last_agent_message_at")
+        .select("last_customer_message_at, last_agent_message_at, quo_phone_numbers(number, display_number, name)")
         .or(`customer_number.eq.${normalizedPhone},customer_number.ilike.%${contactKey}`)
         .order("last_message_at", { ascending: false, nullsFirst: false })
-        .limit(1);
+        .limit(10);
+
       if (!active) return;
-      const row = data?.[0];
-      if (!row) {
+      if (!data || data.length === 0) {
         setLastFromCustomer(false);
         return;
       }
+
+      let row = data.find((c: any) => {
+        const numRow = c.quo_phone_numbers;
+        const isTech = isTechLineNumber(numRow?.number || numRow?.display_number || numRow?.name);
+        return chatType === "tech" ? isTech : !isTech;
+      });
+
+      if (!row) {
+        row = data[0];
+      }
+
       const customerAt = row.last_customer_message_at ? new Date(row.last_customer_message_at).getTime() : 0;
       const agentAt = row.last_agent_message_at ? new Date(row.last_agent_message_at).getTime() : 0;
       setLastFromCustomer(customerAt > 0 && customerAt > agentAt);
@@ -122,7 +135,7 @@ export default function QuoPhoneTrigger({
 
     const channelId = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(`quo-quickchat-dot-${contactKey || normalizedPhone}-${channelId}`)
+      .channel(`quo-quickchat-dot-${chatType || "cust"}-${contactKey || normalizedPhone}-${channelId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, () => {
         void check();
       })
@@ -132,7 +145,7 @@ export default function QuoPhoneTrigger({
       active = false;
       void supabase.removeChannel(channel);
     };
-  }, [canUseQuickChat, normalizedPhone]);
+  }, [canUseQuickChat, normalizedPhone, chatType]);
 
 
   useEffect(() => {
@@ -147,7 +160,7 @@ export default function QuoPhoneTrigger({
       setError(null);
 
       try {
-        const response = await fetchQuoChatThread(normalizedPhone);
+        const response = await fetchQuoChatThread(normalizedPhone, chatType);
         if (!active) return;
         setMessages(mergeQuoMessages(response.messages ?? []));
 
@@ -185,7 +198,7 @@ export default function QuoPhoneTrigger({
 
     const channelId = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(`quo-lead-chat-${contactKey || normalizedPhone}-${channelId}`)
+      .channel(`quo-lead-chat-${chatType || "cust"}-${contactKey || normalizedPhone}-${channelId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, (payload) => {
         const row = (payload.new ?? payload.old) as { customer_number?: string | null } | null;
         if (!row?.customer_number || getPhoneKey(row.customer_number) === contactKey) {
@@ -201,7 +214,7 @@ export default function QuoPhoneTrigger({
       if (refreshTimer) clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
-  }, [canUseQuickChat, normalizedPhone, open]);
+  }, [canUseQuickChat, normalizedPhone, open, chatType]);
 
   useEffect(() => {
     if (!open) return;
@@ -247,7 +260,7 @@ export default function QuoPhoneTrigger({
 
     // Save message via API / Supabase
     try {
-      await sendQuoChatMessage(normalizedPhone, content);
+      await sendQuoChatMessage(normalizedPhone, content, chatType);
     } catch (sendErr) {
       console.warn("sendQuoChatMessage save warning:", sendErr);
     }

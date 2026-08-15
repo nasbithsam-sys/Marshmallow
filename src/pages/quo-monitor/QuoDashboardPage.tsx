@@ -65,6 +65,7 @@ import {
   getQuoNumberName,
   getQuoNumberEmoji,
   normalizeQuoLeadStatus,
+  isTechLineNumber,
   QUO_LEAD_STATUS_CONFIG,
   QUO_LEAD_STATUS_KEYS,
   type QuoLeadStatus,
@@ -214,7 +215,8 @@ export default function QuoDashboardPage() {
         console.error("Failed to load QUO phone numbers", error);
         return [];
       }
-      return (data as QuoPhoneNumber[]) ?? [];
+      const list = (data as QuoPhoneNumber[]) ?? [];
+      return list.filter((p) => !isTechLineNumber(p.number || p.display_number || p.name));
     },
   });
 
@@ -364,6 +366,12 @@ export default function QuoDashboardPage() {
   // Filter conversations by Search, Selected Numbers, Status, and Eastern Time Date Range
   const filteredConversations = useMemo(() => {
     const filtered = conversations.filter((c) => {
+      // 0a. Exclude Technicians Communications line from QUO Dashboard
+      const lineNum = c.quo_phone_numbers?.number || c.quo_phone_numbers?.display_number || c.quo_phone_numbers?.name;
+      if (isTechLineNumber(lineNum)) {
+        return false;
+      }
+
       // 0. Hidden Numbers Filter (unless showHiddenNumbers is toggled on)
       if (!showHiddenNumbers && c.number_id && hiddenNumberIds.has(c.number_id)) {
         return false;
