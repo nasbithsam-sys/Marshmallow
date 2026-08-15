@@ -15,6 +15,7 @@ import {
   getQuoChatUrl,
   getQuoNumberEmoji,
   getQuoNumberName,
+  isTechLineNumber,
   normalizeQuoLeadStatus,
   QUO_LEAD_STATUS_CONFIG,
   sendQuoMessageViaExtension,
@@ -49,6 +50,104 @@ interface QuoPhoneTriggerProps {
 function getPhoneKey(value: string | null | undefined) {
   const digits = (value ?? "").replace(/\D/g, "");
   return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+
+const QUICK_CHAT_UNREAD_REFRESH_DELAY = 200;
+const QUICK_CHAT_UNREAD_CHUNK_SIZE = 50;
+const quickChatUnreadWatchers = new Map<
+  string,
+  { phone: string; chatType?: "customer" | "tech"; setState: (value: boolean) => void }
+>();
+let quickChatUnreadRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let quickChatUnreadChannel: ReturnType<typeof supabase.channel> | null = null;
+
+function scheduleQuickChatUnreadRefresh() {
+  if (quickChatUnreadRefreshTimer) clearTimeout(quickChatUnreadRefreshTimer);
+  quickChatUnreadRefreshTimer = setTimeout(() => {
+    void refreshQuickChatUnreadStatuses();
+  }, QUICK_CHAT_UNREAD_REFRESH_DELAY);
+}
+
+async function refreshQuickChatUnreadStatuses() {
+  const watchers = Array.from(quickChatUnreadWatchers.values());
+  if (watchers.length === 0) {
+    if (quickChatUnreadRefreshTimer) {
+      clearTimeout(quickChatUnreadRefreshTimer);
+      quickChatUnreadRefreshTimer = null;
+    }
+    if (quickChatUnreadChannel) {
+      void supabase.removeChannel(quickChatUnreadChannel);
+      quickChatUnreadChannel = null;
+    }
+    return;
+  }
+
+  const phones = Array.from(
+    new Set(
+      watchers
+        .map((watcher) => normalizePhoneE164(watcher.phone) ?? getPhoneKey(watcher.phone))
+        .filter(Boolean),
+    ),
+  );
+
+  if (!phones.length) return;
+
+  const rowsByPhone = new Map<string, any[]>();
+
+  for (let index = 0; index < phones.length; index += QUICK_CHAT_UNREAD_CHUNK_SIZE) {
+    const chunk = phones.slice(index, index + QUICK_CHAT_UNREAD_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from("quo_conversations")
+      .select("customer_number,last_customer_message_at,last_agent_message_at,quo_phone_numbers(number,display_number,name)")
+      .in("customer_number", chunk);
+
+    if (error) {
+      console.warn("Failed to refresh Quo unread status", error);
+      continue;
+    }
+
+    for (const row of data ?? []) {
+      const normalized = normalizePhoneE164(row.customer_number) ?? getPhoneKey(row.customer_number);
+      if (!normalized) continue;
+      const nextRows = rowsByPhone.get(normalized) ?? [];
+      nextRows.push(row);
+      rowsByPhone.set(normalized, nextRows);
+    }
+  }
+
+  watchers.forEach((watcher) => {
+    const normalized = normalizePhoneE164(watcher.phone) ?? getPhoneKey(watcher.phone);
+    const rows = normalized ? rowsByPhone.get(normalized) ?? [] : [];
+    let match: any | null = null;
+    if (rows.length > 0) {
+      match =
+        rows.find((row: any) => {
+          const numRow = row.quo_phone_numbers;
+          const isTech = isTechLineNumber(numRow?.number || numRow?.display_number || numRow?.name);
+          return watcher.chatType === "tech" ? isTech : !isTech;
+        }) ?? rows[0];
+    }
+
+    const customerAt = match?.last_customer_message_at ? new Date(match.last_customer_message_at).getTime() : 0;
+    const agentAt = match?.last_agent_message_at ? new Date(match.last_agent_message_at).getTime() : 0;
+    watcher.setState(customerAt > 0 && customerAt > agentAt);
+  });
+}
+
+function ensureQuickChatUnreadChannel() {
+  if (quickChatUnreadChannel) return quickChatUnreadChannel;
+
+  quickChatUnreadChannel = supabase
+    .channel("quo-quickchat-unread-sync")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "quo_conversations" }, () => {
+      scheduleQuickChatUnreadRefresh();
+    })
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "quo_conversations" }, () => {
+      scheduleQuickChatUnreadRefresh();
+    })
+    .subscribe();
+
+  return quickChatUnreadChannel;
 }
 
 function mergeQuoMessages(messages: QuoChatMessage[]) {
@@ -100,63 +199,34 @@ export default function QuoPhoneTrigger({
   const canUseQuickChat = isAdmin || auth.canAccess?.(requiredAccessKey) === true;
   const [lastFromCustomer, setLastFromCustomer] = useState(false);
 
-  // Lightweight check of who sent the newest message (drives the green blinking dot).
+  // Shared unread-status subscriber: batch all visible numbers to avoid one subscription per trigger.
   useEffect(() => {
     if (!canUseQuickChat || !normalizedPhone) return;
-    let active = true;
-    const contactKey = getPhoneKey(normalizedPhone);
 
-    const check = async () => {
-      const { data } = await supabase
-        .from("quo_conversations")
-        .select("last_customer_message_at, last_agent_message_at, quo_phone_numbers(number, display_number, name)")
-        .or(`customer_number.eq.${normalizedPhone},customer_number.ilike.%${contactKey}`)
-        .order("last_message_at", { ascending: false, nullsFirst: false })
-        .limit(4);
+    const watcherKey = `${chatType ?? "customer"}:${normalizedPhone}`;
+    quickChatUnreadWatchers.set(watcherKey, {
+      phone: normalizedPhone,
+      chatType,
+      setState: setLastFromCustomer,
+    });
 
-      if (!active) return;
-      if (!data || data.length === 0) {
-        setLastFromCustomer(false);
-        return;
-      }
-
-      let row = data.find((c: any) => {
-        const numRow = c.quo_phone_numbers;
-        const isTech = isTechLineNumber(numRow?.number || numRow?.display_number || numRow?.name);
-        return chatType === "tech" ? isTech : !isTech;
-      });
-
-      if (!row) {
-        row = data[0];
-      }
-
-      const customerAt = row.last_customer_message_at ? new Date(row.last_customer_message_at).getTime() : 0;
-      const agentAt = row.last_agent_message_at ? new Date(row.last_agent_message_at).getTime() : 0;
-      setLastFromCustomer(customerAt > 0 && customerAt > agentAt);
-    };
-
-    void check();
-
-    const channelId = Math.random().toString(36).slice(2);
-    const channel = supabase
-      .channel(`quo-quickchat-dot-${chatType || "cust"}-${contactKey || normalizedPhone}-${channelId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "quo_conversations",
-          filter: `customer_number=eq.${normalizedPhone}`,
-        },
-        () => {
-          void check();
-        }
-      )
-      .subscribe();
+    ensureQuickChatUnreadChannel();
+    scheduleQuickChatUnreadRefresh();
 
     return () => {
-      active = false;
-      void supabase.removeChannel(channel);
+      quickChatUnreadWatchers.delete(watcherKey);
+      if (quickChatUnreadWatchers.size === 0) {
+        if (quickChatUnreadRefreshTimer) {
+          clearTimeout(quickChatUnreadRefreshTimer);
+          quickChatUnreadRefreshTimer = null;
+        }
+        if (quickChatUnreadChannel) {
+          void supabase.removeChannel(quickChatUnreadChannel);
+          quickChatUnreadChannel = null;
+        }
+      } else {
+        scheduleQuickChatUnreadRefresh();
+      }
     };
   }, [canUseQuickChat, normalizedPhone, chatType]);
 
@@ -191,6 +261,47 @@ export default function QuoPhoneTrigger({
           numberEmoji: numEmoji,
           status: convStatus,
         });
+
+        if (response.conversation?.id) {
+          const realtimeChannel = supabase
+            .channel(`quo-lead-chat-${chatType || "cust"}-${contactKey || normalizedPhone}`)
+            .on(
+              "postgres_changes",
+              { event: "INSERT", schema: "public", table: "quo_conversations", filter: `customer_number=eq.${normalizedPhone}` },
+              () => scheduleLiveRefresh(),
+            )
+            .on(
+              "postgres_changes",
+              { event: "UPDATE", schema: "public", table: "quo_conversations", filter: `customer_number=eq.${normalizedPhone}` },
+              () => scheduleLiveRefresh(),
+            )
+            .on(
+              "postgres_changes",
+              { event: "INSERT", schema: "public", table: "quo_messages", filter: `conversation_id=eq.${response.conversation.id}` },
+              scheduleLiveRefresh,
+            )
+            .on(
+              "postgres_changes",
+              { event: "UPDATE", schema: "public", table: "quo_messages", filter: `conversation_id=eq.${response.conversation.id}` },
+              scheduleLiveRefresh,
+            )
+            .on(
+              "postgres_changes",
+              { event: "INSERT", schema: "public", table: "quo_outbound_messages", filter: `to_number=eq.${normalizedPhone}` },
+              scheduleLiveRefresh,
+            )
+            .on(
+              "postgres_changes",
+              { event: "UPDATE", schema: "public", table: "quo_outbound_messages", filter: `to_number=eq.${normalizedPhone}` },
+              scheduleLiveRefresh,
+            )
+            .subscribe();
+
+          if (currentRealtimeChannel) {
+            void supabase.removeChannel(currentRealtimeChannel);
+          }
+          currentRealtimeChannel = realtimeChannel;
+        }
       } catch (fetchError) {
         if (!active) return;
         setError(fetchError instanceof Error ? fetchError.message : "Failed to load Quo messages");
@@ -206,26 +317,18 @@ export default function QuoPhoneTrigger({
       refreshTimer = setTimeout(() => void loadThread(false), 450);
     };
 
+    let currentRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+
     setMessages([]);
     void loadThread(true);
-
-    const channelId = Math.random().toString(36).slice(2);
-    const channel = supabase
-      .channel(`quo-lead-chat-${chatType || "cust"}-${contactKey || normalizedPhone}-${channelId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quo_conversations" }, (payload) => {
-        const row = (payload.new ?? payload.old) as { customer_number?: string | null } | null;
-        if (!row?.customer_number || getPhoneKey(row.customer_number) === contactKey) {
-          scheduleLiveRefresh();
-        }
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "quo_messages" }, scheduleLiveRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quo_outbound_messages" }, scheduleLiveRefresh)
-      .subscribe();
 
     return () => {
       active = false;
       if (refreshTimer) clearTimeout(refreshTimer);
-      void supabase.removeChannel(channel);
+      if (currentRealtimeChannel) {
+        void supabase.removeChannel(currentRealtimeChannel);
+        currentRealtimeChannel = null;
+      }
     };
   }, [canUseQuickChat, normalizedPhone, open, chatType]);
 
@@ -292,7 +395,7 @@ export default function QuoPhoneTrigger({
       toast.error(`Extension notice: ${err?.message || "Extension dispatch error"}`, { id: toastId });
     } finally {
       setSending(false);
-      void fetchQuoChatThread(normalizedPhone)
+      void fetchQuoChatThread(normalizedPhone, chatType)
         .then((thread) => setMessages(mergeQuoMessages(thread.messages ?? [])))
         .catch(() => undefined);
     }
@@ -332,7 +435,7 @@ export default function QuoPhoneTrigger({
       toast.error(`Failed to schedule: ${err?.message || "Extension error"}`, { id: toastId });
     } finally {
       setSending(false);
-      void fetchQuoChatThread(normalizedPhone)
+      void fetchQuoChatThread(normalizedPhone, chatType)
         .then((thread) => setMessages(mergeQuoMessages(thread.messages ?? [])))
         .catch(() => undefined);
     }
