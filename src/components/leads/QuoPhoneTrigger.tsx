@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCheck, Loader2, MessageSquare, Phone, Send, Clock, ChevronDown } from "lucide-react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { CheckCheck, Loader2, MessageSquare, Phone, Send, Clock, ChevronDown, GripHorizontal, Minus, Maximize2, X, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -78,6 +80,7 @@ export default function QuoPhoneTrigger({
   const [sending, setSending] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [customScheduleTime, setCustomScheduleTime] = useState("");
+  const [isMinimized, setIsMinimized] = useState(false);
 
   // Conversation metadata for header details
   const [conversationMeta, setConversationMeta] = useState<{
@@ -365,221 +368,278 @@ export default function QuoPhoneTrigger({
         )}
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[580px] h-[85vh] max-h-[680px] p-0 flex flex-col overflow-hidden glass-panel-strong border-border/80 shadow-2xl">
-          {/* Modern Header - Identical to QUO Dashboard */}
-          <DialogHeader className="p-4 border-b border-border/50 bg-muted/30 shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary font-semibold text-sm shrink-0">
-                  <MessageSquare className="h-5 w-5" />
-                </span>
-                <div>
-                  <DialogTitle className="text-base font-semibold tracking-tight text-foreground flex items-center gap-2">
-                    <span>{formatUsPhone(panelPhone)}</span>
-                    {contactName && (
-                      <span className="text-xs font-normal text-muted-foreground">
-                        ({contactName})
-                      </span>
-                    )}
-                  </DialogTitle>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    {conversationMeta?.numberName && (
-                      <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                        <RenderEmoji emoji={conversationMeta.numberEmoji} size="sm" />
-                        <span>{conversationMeta.numberName}</span>
-                      </span>
-                    )}
-                    <Badge
-                      variant="outline"
-                      className={`text-[11px] font-semibold ${statusCfg.badgeClass}`}
+      {open &&
+        createPortal(
+          <div className="pointer-events-none fixed inset-0 z-[70] overflow-hidden">
+            <AnimatePresence>
+              <motion.div
+                drag
+                dragMomentum={false}
+                dragElastic={0.05}
+                initial={{ opacity: 0, scale: 0.94, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.94, y: 20 }}
+                transition={{ duration: 0.18 }}
+                className="pointer-events-auto absolute w-[92vw] max-w-[500px] rounded-2xl border border-border/80 bg-background/95 backdrop-blur-xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.75)] flex flex-col z-[70] overflow-hidden"
+                style={{
+                  bottom: "20px",
+                  right: chatType === "tech" ? "530px" : "20px",
+                  height: isMinimized ? "auto" : "540px",
+                }}
+              >
+                {/* Header Bar - Drag handle */}
+                <div className="group cursor-grab active:cursor-grabbing flex items-center justify-between border-b border-border/50 bg-muted/40 px-3.5 py-2.5 select-none shrink-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <GripHorizontal className="h-4 w-4 text-muted-foreground/60 group-hover:text-muted-foreground transition-colors shrink-0" />
+                    <span
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-lg font-semibold text-xs shrink-0",
+                        chatType === "tech"
+                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                          : "bg-primary/10 text-primary"
+                      )}
                     >
-                      {statusCfg.label}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </DialogHeader>
-
-          {/* Messages Stream Body - Identical to QUO Dashboard */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-background/40">
-            {loading ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground gap-2 text-xs">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                Loading chat messages...
-              </div>
-            ) : error ? (
-              <div className="flex items-center justify-center h-full text-center text-xs text-destructive">
-                {error}
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-1 text-xs">
-                <MessageSquare className="h-8 w-8 text-muted-foreground/40 mb-1" />
-                <span>No messages in this chat yet.</span>
-              </div>
-            ) : (
-              messages.map((message) => {
-                const isOutbound = message.direction === "outgoing" || message.from === "agent";
-
-                return (
-                  <div
-                    key={message.id}
-                    className={`flex flex-col ${isOutbound ? "items-end" : "items-start"}`}
-                  >
-                    <div
-                      className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm shadow-sm leading-relaxed ${
-                        isOutbound
-                          ? "bg-primary text-primary-foreground rounded-br-xs"
-                          : "bg-muted/90 text-foreground border border-border/50 rounded-bl-xs"
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap break-words">{message.text || "—"}</p>
-                    </div>
-                    <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-muted-foreground">
-                      <span>{formatEasternTime(message.createdAt, "time")}</span>
-                      {isOutbound && <CheckCheck className="h-3 w-3 text-primary/70" />}
+                      {chatType === "tech" ? <Wrench className="h-3.5 w-3.5" /> : <MessageSquare className="h-3.5 w-3.5" />}
+                    </span>
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs font-semibold tracking-tight truncate text-foreground">
+                          {chatType === "tech" ? "Tech Chat" : "Quick Chat"}: {formatUsPhone(panelPhone)}
+                        </span>
+                        {contactName && (
+                          <span className="text-[11px] font-normal text-muted-foreground truncate hidden sm:inline">
+                            ({contactName})
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {conversationMeta?.numberName && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <RenderEmoji emoji={conversationMeta.numberEmoji} size="sm" />
+                            <span className="truncate max-w-[130px]">{conversationMeta.numberName}</span>
+                          </span>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] px-1.5 py-0 font-semibold ${statusCfg.badgeClass}`}
+                        >
+                          {statusCfg.label}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
-                );
-              })
-            )}
-            <div ref={messagesEndRef} />
-          </div>
 
-          {/* Chat Input Footer - Identical to QUO Dashboard */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void handleSend();
-            }}
-            className="p-3 border-t border-border/50 bg-background/80 flex items-end gap-2 shrink-0"
-          >
-            <Textarea
-              value={messageDraft}
-              onChange={(event) => setMessageDraft(event.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void handleSend();
-                }
-              }}
-              placeholder="Type a message to append to chat thread..."
-              className="flex-1 min-h-[44px] max-h-[100px] resize-none text-xs bg-muted/30 focus-visible:ring-1 focus-visible:ring-primary/40 border-border/60"
-              disabled={!normalizedPhone || sending}
-            />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Button
-              type="submit"
-              disabled={!normalizedPhone || sending || !messageDraft.trim()}
-              size="sm"
-              className="h-[44px] px-4 gap-1.5 font-medium"
-            >
-              {sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  <span>Send</span>
-                </>
-              )}
-            </Button>
-
-            {/* Schedule Message Popover */}
-            <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!normalizedPhone || sending || !messageDraft.trim()}
-                  className="h-[44px] px-3 gap-1.5 border-border/80 bg-background/80 hover:bg-muted text-xs font-medium"
-                  title="Schedule message for later via Chrome Extension"
-                >
-                  <Clock className="h-4 w-4 text-amber-400" />
-                  <span className="hidden sm:inline">Schedule</span>
-                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[300px] p-3 space-y-3 glass-panel-strong border-border/80 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                    <Clock className="h-4 w-4 text-amber-400" />
-                    <span>Schedule Message</span>
-                  </div>
-                  <Badge variant="secondary" className="text-[10px]">Quo Extension</Badge>
-                </div>
-
-                {/* Quick Presets */}
-                <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-muted-foreground">Quick Presets</p>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
                     <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
-                      onClick={() => void handleSchedule("tomorrow at 9am")}
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsMinimized(!isMinimized)}
+                      className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                      title={isMinimized ? "Expand Chat" : "Minimize Chat"}
                     >
-                      Tomorrow 9:00 AM
+                      {isMinimized ? <Maximize2 className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
                     </Button>
                     <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
-                      onClick={() => void handleSchedule("tomorrow at 5pm")}
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setOpen(false)}
+                      className="h-7 w-7 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                      title="Close Chat"
                     >
-                      Tomorrow 5:00 PM
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
-                      onClick={() => void handleSchedule("in 1 hour")}
-                    >
-                      In 1 Hour
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
-                      onClick={() => void handleSchedule("in 2 hours")}
-                    >
-                      In 2 Hours
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
 
-                {/* Custom Time Input */}
-                <div className="space-y-1.5 pt-1 border-t border-border/40">
-                  <label className="text-[11px] font-medium text-muted-foreground">Custom Time Description</label>
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      value={customScheduleTime}
-                      onChange={(e) => setCustomScheduleTime(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && customScheduleTime.trim()) {
-                          e.preventDefault();
-                          void handleSchedule(customScheduleTime.trim());
-                        }
+                {/* Body & Footer (hidden when minimized) */}
+                {!isMinimized && (
+                  <>
+                    {/* Messages Stream Body */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-background/40">
+                      {loading ? (
+                        <div className="flex items-center justify-center h-full text-muted-foreground gap-2 text-xs">
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          Loading chat messages...
+                        </div>
+                      ) : error ? (
+                        <div className="flex items-center justify-center h-full text-center text-xs text-destructive">
+                          {error}
+                        </div>
+                      ) : messages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-1 text-xs">
+                          <MessageSquare className="h-8 w-8 text-muted-foreground/40 mb-1" />
+                          <span>No messages in this chat yet.</span>
+                        </div>
+                      ) : (
+                        messages.map((message) => {
+                          const isOutbound = message.direction === "outgoing" || message.from === "agent";
+
+                          return (
+                            <div
+                              key={message.id}
+                              className={`flex flex-col ${isOutbound ? "items-end" : "items-start"}`}
+                            >
+                              <div
+                                className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm shadow-sm leading-relaxed ${
+                                  isOutbound
+                                    ? "bg-primary text-primary-foreground rounded-br-xs"
+                                    : "bg-muted/90 text-foreground border border-border/50 rounded-bl-xs"
+                                }`}
+                              >
+                                <p className="whitespace-pre-wrap break-words">{message.text || "—"}</p>
+                              </div>
+                              <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-muted-foreground">
+                                <span>{formatEasternTime(message.createdAt, "time")}</span>
+                                {isOutbound && <CheckCheck className="h-3 w-3 text-primary/70" />}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Chat Input Footer */}
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void handleSend();
                       }}
-                      placeholder="e.g. tomorrow at 5pm"
-                      className="h-8 text-xs bg-muted/30"
-                    />
-                    <Button
-                      size="sm"
-                      disabled={!customScheduleTime.trim()}
-                      onClick={() => void handleSchedule(customScheduleTime.trim())}
-                      className="h-8 text-xs px-3 bg-amber-600 hover:bg-amber-700 text-white shrink-0 font-medium"
+                      className="p-3 border-t border-border/50 bg-background/80 flex items-end gap-2 shrink-0"
                     >
-                      Schedule
-                    </Button>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+                      <Textarea
+                        value={messageDraft}
+                        onChange={(event) => setMessageDraft(event.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            void handleSend();
+                          }
+                        }}
+                        placeholder="Type a message to append to chat thread..."
+                        className="flex-1 min-h-[44px] max-h-[100px] resize-none text-xs bg-muted/30 focus-visible:ring-1 focus-visible:ring-primary/40 border-border/60"
+                        disabled={!normalizedPhone || sending}
+                      />
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                          type="submit"
+                          disabled={!normalizedPhone || sending || !messageDraft.trim()}
+                          size="sm"
+                          className="h-[44px] px-4 gap-1.5 font-medium"
+                        >
+                          {sending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Send className="h-4 w-4" />
+                              <span>Send</span>
+                            </>
+                          )}
+                        </Button>
+
+                        {/* Schedule Message Popover */}
+                        <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={!normalizedPhone || sending || !messageDraft.trim()}
+                              className="h-[44px] px-3 gap-1.5 border-border/80 bg-background/80 hover:bg-muted text-xs font-medium"
+                              title="Schedule message for later via Chrome Extension"
+                            >
+                              <Clock className="h-4 w-4 text-amber-400" />
+                              <span className="hidden sm:inline">Schedule</span>
+                              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="end" className="w-[300px] p-3 space-y-3 glass-panel-strong border-border/80 shadow-2xl z-[80]">
+                            <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                              <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                                <Clock className="h-4 w-4 text-amber-400" />
+                                <span>Schedule Message</span>
+                              </div>
+                              <Badge variant="secondary" className="text-[10px]">Quo Extension</Badge>
+                            </div>
+
+                            {/* Quick Presets */}
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-medium text-muted-foreground">Quick Presets</p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
+                                  onClick={() => void handleSchedule("tomorrow at 9am")}
+                                >
+                                  Tomorrow 9:00 AM
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
+                                  onClick={() => void handleSchedule("tomorrow at 5pm")}
+                                >
+                                  Tomorrow 5:00 PM
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
+                                  onClick={() => void handleSchedule("in 1 hour")}
+                                >
+                                  In 1 Hour
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs justify-start border-border/60 hover:bg-muted/60"
+                                  onClick={() => void handleSchedule("in 2 hours")}
+                                >
+                                  In 2 Hours
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Custom Time Input */}
+                            <div className="space-y-1.5 pt-1 border-t border-border/40">
+                              <label className="text-[11px] font-medium text-muted-foreground">Custom Time Description</label>
+                              <div className="flex items-center gap-1.5">
+                                <Input
+                                  value={customScheduleTime}
+                                  onChange={(e) => setCustomScheduleTime(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && customScheduleTime.trim()) {
+                                      e.preventDefault();
+                                      void handleSchedule(customScheduleTime.trim());
+                                    }
+                                  }}
+                                  placeholder="e.g. tomorrow at 5pm"
+                                  className="h-8 text-xs bg-muted/30"
+                                />
+                                <Button
+                                  size="sm"
+                                  disabled={!customScheduleTime.trim()}
+                                  onClick={() => void handleSchedule(customScheduleTime.trim())}
+                                  className="h-8 text-xs px-3 bg-amber-600 hover:bg-amber-700 text-white shrink-0 font-medium"
+                                >
+                                  Schedule
+                                </Button>
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </form>
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>,
+          document.body
+        )}
     </>
   );
 }
