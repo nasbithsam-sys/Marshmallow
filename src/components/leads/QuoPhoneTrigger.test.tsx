@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import QuoPhoneTrigger from "@/components/leads/QuoPhoneTrigger";
@@ -46,6 +46,29 @@ describe("QuoPhoneTrigger", () => {
     expect(screen.getAllByText("(555) 123-4567").length).toBeGreaterThan(0);
     expect(screen.getByText("(Jane Doe)")).toBeInTheDocument();
     expect(fetchQuoChatThread).toHaveBeenCalledWith("+15551234567", undefined);
+  });
+
+  it("passes chat type when reloading the thread after sending", async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      role: "admin",
+      canAccess: vi.fn(() => true),
+    } as ReturnType<typeof useAuth>);
+
+    render(
+      <QuoPhoneTrigger contactName="Jane Doe" phone="(555) 123-4567" chatType="customer">
+        (555) 123-4567
+      </QuoPhoneTrigger>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /\(555\) 123-4567/i }));
+
+    const textarea = await screen.findByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "Hello there" } });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => {
+      expect(vi.mocked(fetchQuoChatThread).mock.calls.at(-1)).toEqual(["+15551234567", "customer"]);
+    });
   });
 
   it("renders plain text for non-admin users", () => {
