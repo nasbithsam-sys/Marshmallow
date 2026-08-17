@@ -20,6 +20,7 @@ import { Loader2, Send, MessageSquare, User, Phone, CheckCheck, Clock, ChevronDo
 import { toast } from "sonner";
 import {
   formatEasternTime,
+  formatLocalRelativeTime,
   formatUsPhone,
   getQuoChatUrl,
   sendQuoMessageViaExtension,
@@ -28,6 +29,7 @@ import {
   QUO_LEAD_STATUS_CONFIG,
   type QuoLeadStatus,
 } from "@/lib/quo-dashboard";
+import ImageLightbox from "@/components/leads/ImageLightbox";
 
 interface MessageItem {
   id: string;
@@ -36,6 +38,7 @@ interface MessageItem {
   direction?: string | null;
   message_time: string | null;
   created_at?: string;
+  media?: any[];
 }
 
 interface QuoChatDialogProps {
@@ -64,6 +67,9 @@ export default function QuoChatDialog({
   const [sending, setSending] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [customScheduleTime, setCustomScheduleTime] = useState("");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch messages when conversation changes or opens
@@ -77,7 +83,7 @@ export default function QuoChatDialog({
       try {
         const { data, error } = await supabase
           .from("quo_messages")
-          .select("id, sender, text, direction, message_time, created_at")
+          .select("id, sender, text, direction, message_time, created_at, media")
           .eq("conversation_id", conversation.id)
           .order("created_at", { ascending: true });
 
@@ -314,13 +320,68 @@ export default function QuoChatDialog({
                         : "bg-muted/90 text-foreground border border-border/50 rounded-bl-xs"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap break-words">{msg.text || "—"}</p>
+                    {msg.media && msg.media.length > 0 && (
+                      <div className="flex flex-col gap-2 mb-2">
+                        {msg.media.map((mediaItem, idx) => {
+                          const isAudio = mediaItem.type?.startsWith("audio") || mediaItem.mime_type?.startsWith("audio");
+                          const isImage = mediaItem.type?.startsWith("image") || mediaItem.mime_type?.startsWith("image");
+                          const url = mediaItem.url || mediaItem.src;
+                          if (!url) return null;
+
+                          if (isAudio) {
+                            return (
+                              <audio
+                                key={idx}
+                                controls
+                                src={url}
+                                className="w-full max-w-[240px] h-10"
+                                preload="metadata"
+                              />
+                            );
+                          } else if (isImage) {
+                            return (
+                              <img
+                                key={idx}
+                                src={url}
+                                alt="MMS attachment"
+                                className="w-48 h-auto max-h-48 object-cover rounded-md cursor-pointer hover:opacity-90 transition-opacity border border-white/20 shadow-sm"
+                                onClick={() => {
+                                  // collect all images in conversation
+                                  const allImages: string[] = [];
+                                  let clickedIndex = 0;
+                                  messages.forEach((m) => {
+                                    if (m.media) {
+                                      m.media.forEach((mi) => {
+                                        if ((mi.type?.startsWith("image") || mi.mime_type?.startsWith("image")) && (mi.url || mi.src)) {
+                                          if ((mi.url || mi.src) === url) clickedIndex = allImages.length;
+                                          allImages.push(mi.url || mi.src);
+                                        }
+                                      });
+                                    }
+                                  });
+                                  setLightboxImages(allImages);
+                                  setLightboxIndex(clickedIndex);
+                                  setLightboxOpen(true);
+                                }}
+                              />
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    )}
+                    {msg.text && (
+                      <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                    )}
+                    {!msg.text && (!msg.media || msg.media.length === 0) && (
+                      <p className="whitespace-pre-wrap break-words">—</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-muted-foreground">
                     <span>
-                      {formatEasternTime(
+                      {formatLocalRelativeTime(
                         msg.message_time || msg.created_at,
-                        "time"
+                        true
                       )}
                     </span>
                     {isOutbound && <CheckCheck className="h-3 w-3 text-primary/70" />}
@@ -458,6 +519,13 @@ export default function QuoChatDialog({
             </Popover>
           </div>
         </form>
+        {/* Image Lightbox */}
+        <ImageLightbox
+          images={lightboxImages}
+          initialIndex={lightboxIndex}
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
+        />
       </DialogContent>
     </Dialog>
   );

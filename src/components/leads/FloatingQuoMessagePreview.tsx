@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { MessageSquare, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatEasternTime } from "@/lib/quo-dashboard";
+import { formatLocalRelativeTime } from "@/lib/quo-dashboard";
 
 interface FloatingQuoMessagePreviewProps {
   phone?: string | null;
@@ -15,6 +15,7 @@ interface LatestMessage {
   sender: string;
   direction?: string;
   createdAt: string;
+  media?: any[];
 }
 
 export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessagePreviewProps) {
@@ -45,7 +46,7 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
 
       const { data: msgRows } = await supabase
         .from("quo_messages")
-        .select("id, sender, text, direction, message_time, created_at")
+        .select("id, sender, text, direction, message_time, created_at, media")
         .eq("conversation_id", convId)
         .order("created_at", { ascending: false })
         .limit(2);
@@ -57,6 +58,7 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
           sender: r.sender || "customer",
           direction: r.direction || "inbound",
           createdAt: r.message_time || r.created_at,
+          media: r.media,
         }));
         setMessages(formatted);
       }
@@ -108,10 +110,10 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
             </div>
             <div className="min-w-0 flex-1 pr-3">
               <p className="line-clamp-2 font-medium leading-snug whitespace-pre-wrap break-words">
-                {msg.text}
+                {msg.text || (msg.media && msg.media.length > 0 ? (msg.media[0].type?.startsWith("audio") || msg.media[0].mime_type?.startsWith("audio") ? "[ 🎵 Audio ]" : "[ 📷 Image ]") : "—")}
               </p>
               <span className="mt-1 block text-[9px] font-medium text-muted-foreground">
-                {formatEasternTime(msg.createdAt, "time")} • {isOutbound ? "You" : "Customer"}
+                {formatLocalRelativeTime(msg.createdAt, true)} • {isOutbound ? "You" : "Customer"}
               </span>
             </div>
 

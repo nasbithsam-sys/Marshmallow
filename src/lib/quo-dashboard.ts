@@ -271,6 +271,59 @@ export function formatEasternTime(
 }
 
 /**
+ * Formats timestamp into relative local PC time:
+ * - Today, 9:02 AM
+ * - Yesterday, 4:15 PM
+ * - Aug 12, 10:30 AM (if current year)
+ * - Aug 12, 2025, 10:30 AM (if previous year)
+ */
+export function formatLocalRelativeTime(
+  dateInput: string | Date | null | undefined,
+  includeTime: boolean = true
+): string {
+  if (!dateInput) return "—";
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return "—";
+
+  const now = new Date();
+  const isSameYear = date.getFullYear() === now.getFullYear();
+
+  // Local calendar day comparison
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    isSameYear;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear();
+
+  const timeStr = date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  if (isToday) {
+    return includeTime ? `Today, ${timeStr}` : "Today";
+  }
+  if (isYesterday) {
+    return includeTime ? `Yesterday, ${timeStr}` : "Yesterday";
+  }
+
+  const dateStr = date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: isSameYear ? undefined : "numeric",
+  });
+
+  return includeTime ? `${dateStr}, ${timeStr}` : dateStr;
+}
+
+/**
  * Converts a YYYY-MM-DD date string picked in Eastern Time into UTC timestamp bounds
  */
 export function getEasternDateBounds(dateStr: string, boundary: "start" | "end"): Date | null {
