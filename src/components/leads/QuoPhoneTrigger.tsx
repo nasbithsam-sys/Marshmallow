@@ -11,6 +11,7 @@ import { normalizePhoneE164, stripPhone } from "@/lib/phone";
 import { fetchQuoChatThread, sendQuoChatMessage, type QuoChatMessage } from "@/lib/quo-chat";
 import {
   formatEasternTime,
+  formatLocalRelativeTime,
   formatUsPhone,
   getQuoChatUrl,
   getQuoNumberEmoji,
@@ -21,6 +22,7 @@ import {
   sendQuoMessageViaExtension,
   scheduleQuoMessageViaExtension,
 } from "@/lib/quo-dashboard";
+import ImageLightbox from "@/components/leads/ImageLightbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,6 +184,10 @@ export default function QuoPhoneTrigger({
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [customScheduleTime, setCustomScheduleTime] = useState("");
   const [isMinimized, setIsMinimized] = useState(false);
+  
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   // Conversation metadata for header details
   const [conversationMeta, setConversationMeta] = useState<{
@@ -645,10 +651,64 @@ export default function QuoPhoneTrigger({
                                     : "bg-muted/90 text-foreground border border-border/50 rounded-bl-xs"
                                 }`}
                               >
-                                <p className="whitespace-pre-wrap break-words">{message.text || "—"}</p>
+                                {message.media && message.media.length > 0 && (
+                                  <div className="flex flex-col gap-2 mb-2">
+                                    {message.media.map((mediaItem, idx) => {
+                                      const isAudio = mediaItem.type?.startsWith("audio") || mediaItem.mime_type?.startsWith("audio");
+                                      const isImage = mediaItem.type?.startsWith("image") || mediaItem.mime_type?.startsWith("image");
+                                      const url = mediaItem.url || mediaItem.src;
+                                      if (!url) return null;
+
+                                      if (isAudio) {
+                                        return (
+                                          <audio
+                                            key={idx}
+                                            controls
+                                            src={url}
+                                            className="w-full max-w-[240px] h-10"
+                                            preload="metadata"
+                                          />
+                                        );
+                                      } else if (isImage) {
+                                        return (
+                                          <img
+                                            key={idx}
+                                            src={url}
+                                            alt="MMS attachment"
+                                            className="w-48 h-auto max-h-48 object-cover rounded-md cursor-pointer hover:opacity-90 transition-opacity border border-white/20 shadow-sm"
+                                            onClick={() => {
+                                              const allImages: string[] = [];
+                                              let clickedIndex = 0;
+                                              messages.forEach((m) => {
+                                                if (m.media) {
+                                                  m.media.forEach((mi) => {
+                                                    if ((mi.type?.startsWith("image") || mi.mime_type?.startsWith("image")) && (mi.url || mi.src)) {
+                                                      if ((mi.url || mi.src) === url) clickedIndex = allImages.length;
+                                                      allImages.push(mi.url || mi.src);
+                                                    }
+                                                  });
+                                                }
+                                              });
+                                              setLightboxImages(allImages);
+                                              setLightboxIndex(clickedIndex);
+                                              setLightboxOpen(true);
+                                            }}
+                                          />
+                                        );
+                                      }
+                                      return null;
+                                    })}
+                                  </div>
+                                )}
+                                {message.text && (
+                                  <p className="whitespace-pre-wrap break-words">{message.text}</p>
+                                )}
+                                {!message.text && (!message.media || message.media.length === 0) && (
+                                  <p className="whitespace-pre-wrap break-words">—</p>
+                                )}
                               </div>
                               <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-muted-foreground">
-                                <span>{formatEasternTime(message.createdAt, "time")}</span>
+                                <span>{formatLocalRelativeTime(message.createdAt, true)}</span>
                                 {isOutbound && <CheckCheck className="h-3 w-3 text-primary/70" />}
                               </div>
                             </div>
@@ -796,6 +856,14 @@ export default function QuoPhoneTrigger({
           </div>,
           document.body
         )}
+
+      {/* Image Lightbox */}
+      <ImageLightbox
+        images={lightboxImages}
+        initialIndex={lightboxIndex}
+        open={lightboxOpen}
+        onOpenChange={setLightboxOpen}
+      />
     </>
   );
 }

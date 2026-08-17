@@ -12,6 +12,7 @@ export interface QuoChatMessage {
   status?: string | null;
   createdAt: string;
   updatedAt?: string | null;
+  media?: any[];
 }
 
 export interface QuoChatThreadResponse {
@@ -96,7 +97,7 @@ export async function fetchQuoChatThread(participant: string, chatType?: "custom
   if (conversation) {
     const { data: rows, error: messageError } = await supabase
       .from("quo_messages")
-      .select("id, sender, recipients, text, direction, status, message_time, quo_created_at, created_at, conversation_id")
+      .select("id, sender, recipients, text, direction, status, message_time, quo_created_at, created_at, conversation_id, media")
       .eq("conversation_id", conversation.id)
       .order("message_time", { ascending: true, nullsFirst: false })
       .limit(500);
@@ -115,6 +116,7 @@ export async function fetchQuoChatThread(participant: string, chatType?: "custom
       direction: row.direction === "outgoing" ? "outgoing" : "incoming",
       status: row.status,
       createdAt: row.message_time ?? row.quo_created_at ?? row.created_at,
+      media: row.media,
     }));
   }
 
