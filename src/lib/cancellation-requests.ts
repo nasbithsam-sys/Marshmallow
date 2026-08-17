@@ -29,12 +29,12 @@ type ReviewCancellationRequestArgs = {
 const cancellationRequestsTable = () => supabase.from("lead_cancellation_requests");
 
 export const canCreateCancellationRequest = (role?: AppRole | null) =>
-  role === "customer_service" || role === "processor";
+  role === "customer_service" || role === "processor" || role === "cs_admin";
 
 export const canReviewCancellationRequest = (role: AppRole | null | undefined, request?: LeadCancellationRequest | null) => {
   if (!request || request.status !== "pending") return false;
   if (role === "admin") return true;
-  return role === "processor" && request.requested_by_role === "customer_service";
+  return role === "processor" && (request.requested_by_role === "customer_service" || request.requested_by_role === "cs_admin");
 };
 
 export const getCancellationApproverRoles = (requesterRole: AppRole): AppRole[] => {
@@ -86,7 +86,7 @@ export async function createCancellationRequest({
 
   if (!cleanComment) throw new Error("Cancellation comment is required");
   if (!canCreateCancellationRequest(requesterRole)) {
-    throw new Error("Only CS and Processor need cancellation requests");
+    throw new Error("Only CS, CS Admin, and Processor can create cancellation requests");
   }
 
   const { data: existing } = await cancellationRequestsTable()
