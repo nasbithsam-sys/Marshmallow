@@ -196,6 +196,7 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "job_in_progress",
     "needs_reschedule",
     "payment_pending",
+    "cancelled",
   ],
 };
 
