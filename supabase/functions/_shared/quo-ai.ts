@@ -121,14 +121,32 @@ function pickCallText(call: JsonObject, data: JsonObject, eventType: string) {
   const transcript =
     asString(call.transcript) ??
     asString(call.transcriptText) ??
-    asString(data.transcript);
+    asString(data.transcript) ??
+    asString(call.voicemailTranscript) ??
+    asString(data.voicemailTranscript);
   const duration =
     asString(call.duration) ??
     asString(call.durationSeconds) ??
     asString(data.duration);
 
-  if (eventType === "call.summary.completed") return summary ? `Call summary: ${summary}` : "Call summary completed.";
-  if (eventType === "call.transcript.completed") return transcript ? `Call transcript: ${transcript}` : "Call transcript completed.";
+  const parts = [];
+
+  if (summary) {
+    parts.push(`Call summary: ${summary}`);
+  } else if (eventType === "call.summary.completed") {
+    parts.push("Call summary completed.");
+  }
+  
+  if (transcript) {
+    parts.push(`Call transcript: ${transcript}`);
+  } else if (eventType === "call.transcript.completed") {
+    parts.push("Call transcript completed.");
+  }
+
+  if (parts.length > 0) {
+    return parts.join("\n\n");
+  }
+
   if (eventType === "call.recording.completed") return "Call recording completed.";
   return duration ? `Call completed. Duration: ${duration}` : "Call completed.";
 }
@@ -303,7 +321,10 @@ export function normalizeQuoPayload(payload: JsonObject, eventType = "message.re
     sender,
     from: normalizePhone(from),
     to: to.map((item) => normalizePhone(item) ?? item),
-    text: asString(message.text) ?? asString(message.body) ?? "",
+    text: [
+      asString(message.text) ?? asString(message.body) ?? "",
+      asString(message.voicemailTranscript) || asString(message.transcript) ? `Transcript: ${asString(message.voicemailTranscript) || asString(message.transcript)}` : "",
+    ].filter(Boolean).join("\n\n"),
     media: Array.isArray(message.media) ? message.media : [],
     status: asString(message.status),
     createdAt: asString(message.createdAt) ?? asString(message.created_at) ?? new Date().toISOString(),
