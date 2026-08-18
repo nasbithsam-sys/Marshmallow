@@ -97,12 +97,15 @@ export default function OprLeadCard({ lead, initialPhotoPaths, initialHasOprNote
 
   return (
     <motion.div whileHover={{ y: -2 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="h-full">
-      <Card className={`relative flex h-full flex-col overflow-hidden rounded-3xl ${
-        needsScheduleBlink
-          ? "ring-[3px] ring-yellow-400 border-yellow-400 bg-yellow-400/20 animate-pulse"
-          : "border-border/60"
-      }`}>
+      <Card className="relative flex h-full flex-col overflow-hidden rounded-3xl border-border/60">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-primary/70 to-transparent" />
+
+        {needsScheduleBlink && (
+          <div className="absolute top-4 right-4 flex h-3 w-3 items-center justify-center z-20" title="Schedule Requirement Needs Attention">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75"></span>
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-yellow-500"></span>
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-3 p-4 pb-2">
           <div className="flex items-center gap-2">

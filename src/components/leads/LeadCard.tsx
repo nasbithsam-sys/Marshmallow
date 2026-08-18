@@ -1081,11 +1081,7 @@ function LeadCard({
       {hasQuickChatAccess && <FloatingQuoMessagePreview phone={lead.customer_phone} leadId={lead.id} />}
       <Card
         className={`crm-lead-card group relative flex h-full flex-col overflow-hidden rounded-[30px] transition-shadow duration-500 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
-          needsScheduleBlink 
-            ? "ring-[3px] ring-yellow-400 border-yellow-400 bg-yellow-400/20 animate-pulse"
-            : isUrgent 
-              ? "ring-1 ring-destructive/15 border-destructive/15" 
-              : "border-border/60"
+          isUrgent ? "ring-1 ring-destructive/15 border-destructive/15" : "border-border/60"
         }`}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(194_100%_86%/0.18),transparent_32%),radial-gradient(circle_at_top_right,hsl(211_100%_88%/0.22),transparent_28%),radial-gradient(circle_at_bottom_left,hsl(188_100%_90%/0.14),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.26),transparent_42%)] opacity-100 dark:bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.14),transparent_28%),radial-gradient(circle_at_bottom_left,hsl(196_100%_72%/0.08),transparent_24%)]" />
@@ -1093,6 +1089,13 @@ function LeadCard({
 
         {isUrgent && (
           <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-destructive via-destructive/70 to-transparent" />
+        )}
+
+        {needsScheduleBlink && (
+          <div className="absolute top-4 right-4 flex h-3 w-3 items-center justify-center z-20" title="Schedule Requirement Needs Attention">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75"></span>
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-yellow-500"></span>
+          </div>
         )}
 
         <div className="relative p-4 pb-3">
