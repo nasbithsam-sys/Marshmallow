@@ -1092,10 +1092,7 @@ function LeadCard({
         )}
 
         {needsScheduleBlink && (
-          <div className="absolute top-4 right-4 flex h-3 w-3 items-center justify-center z-20" title="Schedule Requirement Needs Attention">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75"></span>
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-yellow-500"></span>
-          </div>
+          <div className="pointer-events-none absolute inset-0 z-0 animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_infinite] rounded-[30px] shadow-[0_0_20px_6px_rgba(250,204,21,0.45),inset_0_0_25px_8px_rgba(250,204,21,0.35)]" title="Schedule Requirement Needs Attention" />
         )}
 
         <div className="relative p-4 pb-3">
