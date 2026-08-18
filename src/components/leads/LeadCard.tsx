@@ -526,6 +526,11 @@ function LeadCard({
   const currentTag = lead.cs_tag ?? null;
   const assignableTags = getAssignableLeadTags(role);
 
+  const needsScheduleBlink =
+    currentTag === "ready_to_schedule" ||
+    currentTag === "confirmation_sent" ||
+    currentTag === "waiting_schedule_confirmation";
+
   const handleCompleteCopy = async () => {
     const text = buildCompleteLeadCopyText(lead);
     if (!text) {
@@ -1076,7 +1081,11 @@ function LeadCard({
       {hasQuickChatAccess && <FloatingQuoMessagePreview phone={lead.customer_phone} leadId={lead.id} />}
       <Card
         className={`crm-lead-card group relative flex h-full flex-col overflow-hidden rounded-[30px] transition-shadow duration-500 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
-          isUrgent ? "ring-1 ring-destructive/15 border-destructive/15" : "border-border/60"
+          needsScheduleBlink 
+            ? "ring-[3px] ring-yellow-400 border-yellow-400 bg-yellow-400/20 animate-pulse"
+            : isUrgent 
+              ? "ring-1 ring-destructive/15 border-destructive/15" 
+              : "border-border/60"
         }`}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(194_100%_86%/0.18),transparent_32%),radial-gradient(circle_at_top_right,hsl(211_100%_88%/0.22),transparent_28%),radial-gradient(circle_at_bottom_left,hsl(188_100%_90%/0.14),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.26),transparent_42%)] opacity-100 dark:bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.14),transparent_28%),radial-gradient(circle_at_bottom_left,hsl(196_100%_72%/0.08),transparent_24%)]" />
