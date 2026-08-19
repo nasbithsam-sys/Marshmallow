@@ -49,27 +49,29 @@ export default function ActivateCustomerNoteDialog({
     onOpenChange(nextOpen);
   };
 
-  const handleActivate = async (withNote: boolean) => {
+  const handleActivate = async () => {
     if (!user) return;
+    const trimmedNote = note.trim();
+    if (!trimmedNote) {
+      toast.error("Please enter a note for CS & CS Admin before activating.");
+      return;
+    }
+
     setSaving(true);
 
     try {
       const currentUserName = profile?.full_name || user.email || "Unknown user";
-      const trimmedNote = note.trim();
 
       // 1. Update lead status to activate_customer
       const statusUpdate: Record<string, unknown> = {
         status: "activate_customer",
         cs_tag: null, // clear schedule tags when changing status
+        cs_notes: trimmedNote,
         last_edited_by: user.id,
         last_edited_by_name: currentUserName,
         updated_at: new Date().toISOString(),
         last_edited_at: new Date().toISOString(),
       };
-
-      if (withNote && trimmedNote) {
-        statusUpdate.cs_notes = trimmedNote;
-      }
 
       const { error: leadError } = await supabase
         .from("leads")
@@ -79,18 +81,16 @@ export default function ActivateCustomerNoteDialog({
       if (leadError) throw leadError;
 
       // 2. Insert into lead_notes with note_type: "cs"
-      if (withNote && trimmedNote) {
-        const { error: noteError } = await supabase.from("lead_notes").insert({
-          lead_id: leadId,
-          user_id: user.id,
-          user_name: currentUserName,
-          note_type: "cs",
-          content: trimmedNote,
-        });
+      const { error: noteError } = await supabase.from("lead_notes").insert({
+        lead_id: leadId,
+        user_id: user.id,
+        user_name: currentUserName,
+        note_type: "cs",
+        content: trimmedNote,
+      });
 
-        if (noteError) {
-          console.warn("Failed to insert into lead_notes:", noteError.message);
-        }
+      if (noteError) {
+        console.warn("Failed to insert into lead_notes:", noteError.message);
       }
 
       // 3. Log activity
@@ -105,15 +105,11 @@ export default function ActivateCustomerNoteDialog({
             before: currentStatus,
             after: "activate_customer",
           },
-          ...(withNote && trimmedNote ? { cs_notes: { after: trimmedNote } } : {}),
+          cs_notes: { after: trimmedNote },
         },
       });
 
-      toast.success(
-        withNote && trimmedNote
-          ? "Status updated to Activate Customer & CS note added"
-          : "Status updated to Activate Customer"
-      );
+      toast.success("Status updated to Activate Customer & CS note added");
 
       setNote("");
       onOpenChange(false);
@@ -150,14 +146,15 @@ export default function ActivateCustomerNoteDialog({
             <p className="flex items-start gap-1.5 leading-relaxed font-medium">
               <MessageSquare className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
               <span>
-                Mention any instructions or notes below. This note will appear in the <strong>CS Notes</strong> thread for CS &amp; CS Admins, and the lead card will stay pinned and blinking until the status changes.
+                Please mention instructions or details below. This note will appear in the <strong>CS Notes</strong> thread for CS &amp; CS Admins, and the lead card will stay pinned and blinking until the status changes.
               </span>
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="activate-note" className="text-xs font-semibold text-foreground/90">
-              Note for CS &amp; CS Admin <span className="text-muted-foreground font-normal">(optional)</span>
+            <Label htmlFor="activate-note" className="text-xs font-semibold text-foreground/90 flex items-center gap-1">
+              <span>Note for CS &amp; CS Admin</span>
+              <span className="text-destructive font-bold">*</span>
             </Label>
             <Textarea
               id="activate-note"
@@ -169,7 +166,7 @@ export default function ActivateCustomerNoteDialog({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                   e.preventDefault();
-                  void handleActivate(true);
+                  void handleActivate();
                 }
               }}
             />
@@ -190,20 +187,10 @@ export default function ActivateCustomerNoteDialog({
           </Button>
           <Button
             type="button"
-            variant="outline"
             size="sm"
-            onClick={() => void handleActivate(false)}
-            disabled={saving}
-            className="rounded-xl text-xs border-border/80 hover:bg-muted"
-          >
-            Activate Without Note
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => void handleActivate(true)}
-            disabled={saving}
-            className="rounded-xl text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-md gap-1.5"
+            onClick={() => void handleActivate()}
+            disabled={saving || !note.trim()}
+            className="rounded-xl text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-md gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             <span>Save Note &amp; Activate</span>
