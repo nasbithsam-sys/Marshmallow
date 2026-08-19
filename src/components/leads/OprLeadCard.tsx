@@ -90,19 +90,10 @@ export default function OprLeadCard({ lead, initialPhotoPaths, initialHasOprNote
   // Build address from city/state
   const locationDisplay = [lead.city, lead.state].filter(Boolean).join(", ");
 
-  const needsScheduleBlink =
-    lead.cs_tag === "ready_to_schedule" ||
-    lead.cs_tag === "confirmation_sent" ||
-    lead.cs_tag === "waiting_schedule_confirmation";
-
   return (
     <motion.div whileHover={{ y: -2 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="h-full">
       <Card className="relative flex h-full flex-col overflow-hidden rounded-3xl border-border/60">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-primary/70 to-transparent" />
-
-        {needsScheduleBlink && (
-          <div className="pointer-events-none absolute inset-0 z-0 animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_infinite] rounded-3xl shadow-[0_0_20px_6px_rgba(250,204,21,0.45),inset_0_0_25px_8px_rgba(250,204,21,0.35)]" title="Schedule Requirement Needs Attention" />
-        )}
 
         <div className="flex items-center justify-between gap-3 p-4 pb-2">
           <div className="flex items-center gap-2">

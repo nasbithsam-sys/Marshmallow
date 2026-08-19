@@ -526,11 +526,6 @@ function LeadCard({
   const currentTag = lead.cs_tag ?? null;
   const assignableTags = getAssignableLeadTags(role);
 
-  const needsScheduleBlink =
-    currentTag === "ready_to_schedule" ||
-    currentTag === "confirmation_sent" ||
-    currentTag === "waiting_schedule_confirmation";
-
   const handleCompleteCopy = async () => {
     const text = buildCompleteLeadCopyText(lead);
     if (!text) {
@@ -1089,10 +1084,6 @@ function LeadCard({
 
         {isUrgent && (
           <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-destructive via-destructive/70 to-transparent" />
-        )}
-
-        {needsScheduleBlink && (
-          <div className="pointer-events-none absolute inset-0 z-0 animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_infinite] rounded-[30px] shadow-[0_0_20px_6px_rgba(250,204,21,0.45),inset_0_0_25px_8px_rgba(250,204,21,0.35)]" title="Schedule Requirement Needs Attention" />
         )}
 
         <div className="relative p-4 pb-3">
