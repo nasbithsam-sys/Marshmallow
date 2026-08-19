@@ -104,7 +104,7 @@ export default function OprLeadCard({ lead, initialPhotoPaths, initialHasOprNote
     <motion.div whileHover={{ y: -2 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="h-full">
       <Card className={`relative flex h-full flex-col overflow-hidden rounded-3xl ${
         needsScheduleBlink
-          ? "ring-[3px] ring-emerald-500 border-emerald-500 bg-emerald-500/20 animate-pulse"
+          ? "ring-[3px] ring-emerald-500 border-emerald-500 bg-emerald-500/20 animate-pulse hover:animate-none"
           : "border-border/60"
       }`}>
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-primary/70 to-transparent" />
