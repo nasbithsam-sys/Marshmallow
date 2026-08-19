@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsLastMessageFromCustomer } from "@/hooks/useIsLastMessageFromCustomer";
 import { Lead, LeadStatus, STATUS_LABELS, getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { CS_TAG_LABELS, type CsTag } from "@/types";
 import { Card } from "@/components/ui/card";
@@ -526,11 +527,14 @@ function LeadCard({
   const currentTag = lead.cs_tag ?? null;
   const assignableTags = getAssignableLeadTags(role);
 
-  const needsScheduleBlink =
+  const hasScheduleTag =
     currentTag === "ready_to_schedule" ||
     currentTag === "confirmation_sent" ||
     currentTag === "waiting_schedule_confirmation" ||
     currentTag === "booked";
+
+  const { isFromCustomer } = useIsLastMessageFromCustomer(lead.customer_phone, hasScheduleTag);
+  const needsScheduleBlink = hasScheduleTag && isFromCustomer;
 
   const handleCompleteCopy = async () => {
     const text = buildCompleteLeadCopyText(lead);
@@ -1083,7 +1087,7 @@ function LeadCard({
       <Card
         className={`crm-lead-card group relative flex h-full flex-col overflow-hidden rounded-[30px] transition-shadow duration-500 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
           needsScheduleBlink 
-            ? "ring-[3px] ring-yellow-400 border-yellow-400 bg-yellow-400/20 animate-pulse"
+            ? "ring-[3px] ring-emerald-500 border-emerald-500 bg-emerald-500/20 animate-pulse"
             : isUrgent 
               ? "ring-1 ring-destructive/15 border-destructive/15" 
               : "border-border/60"

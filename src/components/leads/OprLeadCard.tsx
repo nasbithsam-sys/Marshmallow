@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Lead } from "@/lib/constants";
 import { Wrench, MapPin, FileText, Image as ImageIcon, Briefcase, ChevronDown, MessageSquare, DollarSign, CalendarClock } from "lucide-react";
+import { useIsLastMessageFromCustomer } from "@/hooks/useIsLastMessageFromCustomer";
 import StatusBadge from "./StatusBadge";
 import ImageLightbox from "./ImageLightbox";
 import NoteThread from "./NoteThread";
@@ -90,17 +91,20 @@ export default function OprLeadCard({ lead, initialPhotoPaths, initialHasOprNote
   // Build address from city/state
   const locationDisplay = [lead.city, lead.state].filter(Boolean).join(", ");
 
-  const needsScheduleBlink =
+  const hasScheduleTag =
     lead.cs_tag === "ready_to_schedule" ||
     lead.cs_tag === "confirmation_sent" ||
     lead.cs_tag === "waiting_schedule_confirmation" ||
     lead.cs_tag === "booked";
 
+  const { isFromCustomer } = useIsLastMessageFromCustomer(lead.customer_phone, hasScheduleTag);
+  const needsScheduleBlink = hasScheduleTag && isFromCustomer;
+
   return (
     <motion.div whileHover={{ y: -2 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="h-full">
       <Card className={`relative flex h-full flex-col overflow-hidden rounded-3xl ${
         needsScheduleBlink
-          ? "ring-[3px] ring-yellow-400 border-yellow-400 bg-yellow-400/20 animate-pulse"
+          ? "ring-[3px] ring-emerald-500 border-emerald-500 bg-emerald-500/20 animate-pulse"
           : "border-border/60"
       }`}>
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-primary/70 to-transparent" />
