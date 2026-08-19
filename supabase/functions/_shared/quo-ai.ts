@@ -112,6 +112,21 @@ export function isProcessableQuoWebhookEvent(eventType: string) {
 }
 
 
+function extractTranscript(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map((v: any) => {
+      if (typeof v === "object" && v !== null && typeof v.content === "string") {
+        const speaker = v.userId ? "Agent" : "Customer";
+        return `${speaker}: ${v.content}`;
+      }
+      return "";
+    }).filter(Boolean).join("\n");
+  }
+  return null;
+}
+
 function pickCallText(call: JsonObject, data: JsonObject, eventType: string) {
   const summary =
     asString(call.summary) ??
@@ -119,11 +134,11 @@ function pickCallText(call: JsonObject, data: JsonObject, eventType: string) {
     asString(call.aiSummary) ??
     asString(data.summary);
   const transcript =
-    asString(call.transcript) ??
-    asString(call.transcriptText) ??
-    asString(data.transcript) ??
-    asString(call.voicemailTranscript) ??
-    asString(data.voicemailTranscript);
+    extractTranscript(call.transcript) ??
+    extractTranscript(call.transcriptText) ??
+    extractTranscript(data.transcript) ??
+    extractTranscript(call.voicemailTranscript) ??
+    extractTranscript(data.voicemailTranscript);
   const duration =
     asString(call.duration) ??
     asString(call.durationSeconds) ??
@@ -323,7 +338,7 @@ export function normalizeQuoPayload(payload: JsonObject, eventType = "message.re
     to: to.map((item) => normalizePhone(item) ?? item),
     text: [
       asString(message.text) ?? asString(message.body) ?? "",
-      asString(message.voicemailTranscript) || asString(message.transcript) ? `Transcript: ${asString(message.voicemailTranscript) || asString(message.transcript)}` : "",
+      extractTranscript(message.voicemailTranscript) || extractTranscript(message.transcript) ? `Transcript: \n${extractTranscript(message.voicemailTranscript) || extractTranscript(message.transcript)}` : "",
     ].filter(Boolean).join("\n\n"),
     media: Array.isArray(message.media) ? message.media : [],
     status: asString(message.status),
