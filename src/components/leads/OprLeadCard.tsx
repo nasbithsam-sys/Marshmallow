@@ -93,7 +93,8 @@ export default function OprLeadCard({ lead, initialPhotoPaths, initialHasOprNote
   const needsScheduleBlink =
     lead.cs_tag === "ready_to_schedule" ||
     lead.cs_tag === "confirmation_sent" ||
-    lead.cs_tag === "waiting_schedule_confirmation";
+    lead.cs_tag === "waiting_schedule_confirmation" ||
+    lead.cs_tag === "booked";
 
   return (
     <motion.div whileHover={{ y: -2 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="h-full">

@@ -529,7 +529,8 @@ function LeadCard({
   const needsScheduleBlink =
     currentTag === "ready_to_schedule" ||
     currentTag === "confirmation_sent" ||
-    currentTag === "waiting_schedule_confirmation";
+    currentTag === "waiting_schedule_confirmation" ||
+    currentTag === "booked";
 
   const handleCompleteCopy = async () => {
     const text = buildCompleteLeadCopyText(lead);
