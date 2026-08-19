@@ -531,7 +531,7 @@ export default function LeadDetailPage() {
     const currentUserName = profile?.full_name || user.email || "Unknown user";
     const noteInserts: { lead_id: string; user_id: string; user_name: string; note_type: "cs" | "processor" | "general"; content: string }[] = [];
 
-    if (!isProcessor && form.cs_notes.trim()) {
+    if ((!isProcessor || form.status === "activate_customer") && form.cs_notes.trim()) {
       noteInserts.push({
         lead_id: currentLeadId,
         user_id: user.id,
@@ -628,7 +628,7 @@ export default function LeadDetailPage() {
       service_details: form.service_details || null,
       customer_schedule_requirements: form.customer_schedule_requirements || null,
       reference_name: form.reference_name || null,
-      cs_notes: !isProcessor ? form.cs_notes || null : (originalLead?.cs_notes ?? null),
+      cs_notes: (!isProcessor || form.status === "activate_customer") ? form.cs_notes || null : (originalLead?.cs_notes ?? null),
       processor_notes: !hideProcessorDetails ? form.processor_notes || null : (originalLead?.processor_notes ?? null),
       general_notes: form.general_notes || null,
 

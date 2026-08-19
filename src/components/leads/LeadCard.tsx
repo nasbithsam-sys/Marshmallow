@@ -65,6 +65,7 @@ import { optimizeImageForUpload } from "@/lib/image-upload";
 import { getAssignableLeadTags } from "@/lib/lead-tags";
 import BookingDateTimeDialog, { formatBookingCompact, isBookingExpired } from "./BookingDateTimeDialog";
 import AssignLeadToOperatorDialog from "./AssignLeadToOperatorDialog";
+import ActivateCustomerNoteDialog from "./ActivateCustomerNoteDialog";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useQuoAttention } from "@/hooks/useQuoAttention";
 
@@ -395,6 +396,7 @@ function LeadCard({
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [bookingDialogMode, setBookingDialogMode] = useState<"add" | "edit">("add");
   const [assignOprOpen, setAssignOprOpen] = useState(false);
+  const [activateCustomerOpen, setActivateCustomerOpen] = useState(false);
   const [oprOpen, setOprOpen] = useState(false);
   // Tick every 30s so blinking/expiry state stays fresh without a full refetch.
   const [, setNowTick] = useState(0);
@@ -535,6 +537,8 @@ function LeadCard({
 
   const { isFromCustomer } = useIsLastMessageFromCustomer(lead.customer_phone, hasScheduleTag);
   const needsScheduleBlink = hasScheduleTag && isFromCustomer;
+  const isActivateCustomer = lead.status === "activate_customer";
+  const shouldBlinkCard = needsScheduleBlink || isActivateCustomer;
 
   const handleCompleteCopy = async () => {
     const text = buildCompleteLeadCopyText(lead);
@@ -713,6 +717,11 @@ function LeadCard({
     if (newStatus === "cancelled" && cancellationReason === undefined) {
       // Only open the dialog when not already coming from the dialog submit
       setCancelRequestOpen(true);
+      return;
+    }
+
+    if (newStatus === "activate_customer" && (isAdmin || isProcessor)) {
+      setActivateCustomerOpen(true);
       return;
     }
 
@@ -1086,7 +1095,7 @@ function LeadCard({
       {hasQuickChatAccess && <FloatingQuoMessagePreview phone={lead.customer_phone} leadId={lead.id} />}
       <Card
         className={`crm-lead-card group relative flex h-full flex-col overflow-hidden rounded-[30px] transition-shadow duration-500 hover:border-primary/28 hover:shadow-[0_42px_92px_-46px_rgba(59,130,246,0.34),0_20px_36px_-26px_rgba(125,211,252,0.2)] ${
-          needsScheduleBlink 
+          shouldBlinkCard 
             ? "ring-[3px] ring-emerald-500 border-emerald-500 bg-emerald-500/20 animate-pulse hover:animate-none"
             : isUrgent 
               ? "ring-1 ring-destructive/15 border-destructive/15" 
@@ -1143,6 +1152,14 @@ function LeadCard({
                     <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
                       <CalendarDays className="h-3 w-3" />
                       {formatDate(lead.created_at)}
+                    </span>
+                  )}
+                  {isActivateCustomer && (
+                    <span
+                      title="Pinned lead — customer is ready for activation"
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300"
+                    >
+                      📌 Pinned · Activate Customer
                     </span>
                   )}
                   {lead.cs_tag === "booked" && lead.booked_at && (
@@ -1587,6 +1604,19 @@ function LeadCard({
           onOpenChange={setAssignOprOpen}
           lead={lead}
           onSuccess={onRefresh}
+        />
+
+        <ActivateCustomerNoteDialog
+          open={activateCustomerOpen}
+          onOpenChange={setActivateCustomerOpen}
+          leadId={lead.id}
+          customerName={lead.customer_name}
+          jobId={lead.job_id}
+          currentStatus={lead.status}
+          onSuccess={() => {
+            onRefresh?.();
+            void refreshNotePresence();
+          }}
         />
 
       </Card>

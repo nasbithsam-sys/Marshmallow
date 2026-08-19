@@ -102,6 +102,7 @@ export const ALL_NAV_ITEMS = ["leads", "quo_monitor", "cancellation_requests", "
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
+  activate_customer: -10,
   urgent_job: 1,
   need_tech: 2,
   cancelled: 99,
