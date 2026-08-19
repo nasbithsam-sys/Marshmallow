@@ -536,6 +536,7 @@ function LeadCard({
     currentTag === "booked";
 
   const { isFromCustomer } = useIsLastMessageFromCustomer(lead.customer_phone, hasScheduleTag);
+  const needsScheduleBlink = hasScheduleTag && isFromCustomer;
   const isActivateCustomer = lead.status === "activate_customer";
   const isPinnedForCurrentUser = isActivateCustomer && (role === "cs_admin" || (Boolean(user?.id) && lead.created_by === user?.id));
   const shouldBlinkCard = needsScheduleBlink || isPinnedForCurrentUser;
