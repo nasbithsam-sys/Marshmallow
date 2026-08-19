@@ -536,9 +536,9 @@ function LeadCard({
     currentTag === "booked";
 
   const { isFromCustomer } = useIsLastMessageFromCustomer(lead.customer_phone, hasScheduleTag);
-  const needsScheduleBlink = hasScheduleTag && isFromCustomer;
   const isActivateCustomer = lead.status === "activate_customer";
-  const shouldBlinkCard = needsScheduleBlink || isActivateCustomer;
+  const isPinnedForCurrentUser = isActivateCustomer && (role === "cs_admin" || (Boolean(user?.id) && lead.created_by === user?.id));
+  const shouldBlinkCard = needsScheduleBlink || isPinnedForCurrentUser;
 
   const handleCompleteCopy = async () => {
     const text = buildCompleteLeadCopyText(lead);
@@ -1154,7 +1154,7 @@ function LeadCard({
                       {formatDate(lead.created_at)}
                     </span>
                   )}
-                  {isActivateCustomer && (
+                  {isPinnedForCurrentUser && (
                     <span
                       title="Pinned lead — customer is ready for activation"
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300"

@@ -102,11 +102,19 @@ export const ALL_NAV_ITEMS = ["leads", "quo_monitor", "cancellation_requests", "
 export type NavItem = (typeof ALL_NAV_ITEMS)[number];
 
 const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
-  activate_customer: -10,
   urgent_job: 1,
   need_tech: 2,
   cancelled: 99,
 };
+
+export function isLeadPinnedForUser(
+  lead: { status: string; created_by?: string | null },
+  userId?: string | null,
+  userRole?: string | null,
+): boolean {
+  if (lead.status !== "activate_customer") return false;
+  return userRole === "cs_admin" || (Boolean(userId) && lead.created_by === userId);
+}
 
 function getLeadCreatedAtTime(lead: Pick<Lead, "created_at">) {
   const timestamp = new Date(lead.created_at).getTime();
@@ -135,14 +143,28 @@ const TAG_PRIORITY_RANK: Record<string, number> = {
 };
 
 export function compareLeadDisplayPriority(
-  a: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
-  b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null },
+  a: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null; created_by?: string | null },
+  b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null; created_by?: string | null },
+  userId?: string | null,
+  userRole?: string | null,
 ) {
+  const aPinned = isLeadPinnedForUser(a, userId, userRole);
+  const bPinned = isLeadPinnedForUser(b, userId, userRole);
+
   const aTagged = Boolean(a.cs_tag) && TAG_ELIGIBLE_STATUSES[a.status] === true;
   const bTagged = Boolean(b.cs_tag) && TAG_ELIGIBLE_STATUSES[b.status] === true;
 
-  const rankA = aTagged ? (TAG_PRIORITY_RANK[a.cs_tag as string] ?? 0) : (LEAD_PRIORITY_RANK[a.status] ?? 10);
-  const rankB = bTagged ? (TAG_PRIORITY_RANK[b.cs_tag as string] ?? 0) : (LEAD_PRIORITY_RANK[b.status] ?? 10);
+  const rankA = aPinned
+    ? -10
+    : aTagged
+      ? (TAG_PRIORITY_RANK[a.cs_tag as string] ?? 0)
+      : (LEAD_PRIORITY_RANK[a.status] ?? 10);
+
+  const rankB = bPinned
+    ? -10
+    : bTagged
+      ? (TAG_PRIORITY_RANK[b.cs_tag as string] ?? 0)
+      : (LEAD_PRIORITY_RANK[b.status] ?? 10);
 
   if (rankA !== rankB) return rankA - rankB;
 

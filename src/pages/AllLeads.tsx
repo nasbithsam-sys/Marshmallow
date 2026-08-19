@@ -76,8 +76,8 @@ const AllLeads = () => {
       result = result.filter((l) => l.status === safeStatusFilter);
     }
 
-    return result.sort(compareLeadDisplayPriority);
-  }, [visibleLeads, search, safeStatusFilter]);
+    return result.sort((a, b) => compareLeadDisplayPriority(a, b, user?.id, role));
+  }, [visibleLeads, search, safeStatusFilter, user?.id, role]);
 
   const urgentCount = visibleLeads.filter((l) => l.status === "urgent_job").length;
   const scheduledCount = visibleLeads.filter((l) => l.status === "scheduled").length;

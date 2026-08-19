@@ -320,10 +320,10 @@ export default function LeadsPage() {
       );
     }
 
-    result.sort(compareLeadDisplayPriority);
+    result.sort((a, b) => compareLeadDisplayPriority(a, b, user?.id, role));
 
     return result;
-  }, [currentLeads, deferredSearch, safeStatusFilter]);
+  }, [currentLeads, deferredSearch, safeStatusFilter, user?.id, role]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);

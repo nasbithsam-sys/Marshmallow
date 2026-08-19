@@ -10,6 +10,7 @@ import NoteThread from "./NoteThread";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   lead: Lead;
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function OprLeadCard({ lead, initialPhotoPaths, initialHasOprNotes }: Props) {
+  const { user, role } = useAuth();
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoPaths, setPhotoPaths] = useState<string[]>(initialPhotoPaths ?? []);
   const [originals, setOriginals] = useState<string[]>([]);
@@ -100,7 +102,8 @@ export default function OprLeadCard({ lead, initialPhotoPaths, initialHasOprNote
   const { isFromCustomer } = useIsLastMessageFromCustomer(lead.customer_phone, hasScheduleTag);
   const needsScheduleBlink = hasScheduleTag && isFromCustomer;
   const isActivateCustomer = lead.status === "activate_customer";
-  const shouldBlinkCard = needsScheduleBlink || isActivateCustomer;
+  const isPinnedForCurrentUser = isActivateCustomer && (role === "cs_admin" || (Boolean(user?.id) && lead.created_by === user?.id));
+  const shouldBlinkCard = needsScheduleBlink || isPinnedForCurrentUser;
 
   return (
     <motion.div whileHover={{ y: -2 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="h-full">
