@@ -14,6 +14,7 @@ import {
   DollarSign,
   MessageSquare,
   Megaphone,
+  KeyRound,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -38,10 +39,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { motion } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import marshmallowLogo from "@/assets/marshmallow-logo.png.asset.json";
+import ChangePasswordDialog from "@/components/auth/ChangePasswordDialog";
 
 const navItems = [
   { title: "All Leads", url: "/leads", icon: Users, navKey: "leads" },
@@ -61,9 +63,10 @@ export default function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { profile, role, signOut, canAccess } = useAuth();
+  const { user, profile, role, signOut, canAccess } = useAuth();
   const { allowedStatuses } = useAllowedStatuses();
   const queryClient = useQueryClient();
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   // Fetch pending cancellation requests count for the sidebar badge
   const { data: pendingCancellationCount = 0 } = useQuery({
@@ -366,7 +369,11 @@ export default function AppSidebar() {
       <SidebarFooter className="p-3 pt-2">
         <div className="rounded-[24px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(194_100%_88%/0.2),transparent_34%),radial-gradient(circle_at_bottom_right,hsl(210_100%_88%/0.14),transparent_32%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.58))] p-3 shadow-[0_18px_28px_-22px_rgba(59,130,246,0.16)]">
           <div className="flex items-center gap-3">
-            <Avatar className="h-9 w-9 shrink-0 ring-1 ring-white/10 shadow-sm">
+            <Avatar
+              className="h-9 w-9 shrink-0 ring-1 ring-white/10 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => setChangePasswordOpen(true)}
+              title="Change Password"
+            >
               <AvatarFallback className="bg-gradient-to-br from-primary via-[hsl(258,88%,64%)] to-[hsl(278,82%,62%)] text-primary-foreground text-[10px] font-bold">
                 {initials}
               </AvatarFallback>
@@ -381,17 +388,37 @@ export default function AppSidebar() {
               </div>
             )}
 
+            {!collapsed && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 rounded-xl text-sidebar-foreground/50 transition-all duration-200 hover:bg-white/10 hover:text-sidebar-accent-foreground"
+                onClick={() => setChangePasswordOpen(true)}
+                title="Change Password"
+                aria-label="Change Password"
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+              </Button>
+            )}
+
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8 shrink-0 rounded-xl text-sidebar-foreground/28 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400"
               onClick={signOut}
+              title="Sign Out"
+              aria-label="Sign Out"
             >
               <LogOut className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
       </SidebarFooter>
+      <ChangePasswordDialog
+        open={changePasswordOpen}
+        onOpenChange={setChangePasswordOpen}
+        userEmail={user?.email || profile?.email || null}
+      />
     </Sidebar>
   );
 }
