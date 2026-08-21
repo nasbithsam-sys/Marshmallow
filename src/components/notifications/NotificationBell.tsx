@@ -3,7 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Bell, CheckCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
@@ -227,7 +226,7 @@ export default function NotificationBell() {
             </Button>
           )}
         </div>
-        <ScrollArea className="max-h-72">
+        <div className="max-h-80 overflow-y-auto overscroll-contain">
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center py-8 gap-2">
               <div className="w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center">
@@ -257,7 +256,7 @@ export default function NotificationBell() {
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </PopoverContent>
     </Popover>
   );
