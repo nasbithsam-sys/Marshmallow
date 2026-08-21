@@ -547,6 +547,7 @@ const Settings = () => {
       toast.success(`Password updated for ${passwordUserName}`);
       setPasswordDialogOpen(false);
       setNewPasswordValue("");
+      setShowSetPassword(false);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to set password");
     }
@@ -799,6 +800,7 @@ const Settings = () => {
                         setPasswordUserId(u.id);
                         setPasswordUserName(u.full_name || u.email || "User");
                         setNewPasswordValue("");
+                        setShowSetPassword(false);
                         setPasswordDialogOpen(true);
                       }}
                     >
@@ -1217,13 +1219,25 @@ const Settings = () => {
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label className="text-[11px] text-muted-foreground/60 font-medium">New Password</Label>
-              <Input
-                type="password"
-                value={newPasswordValue}
-                onChange={(e) => setNewPasswordValue(e.target.value)}
-                placeholder="********"
-                onKeyDown={(e) => e.key === "Enter" && handleSetPassword()}
-              />
+              <div className="relative">
+                <Input
+                  type={showSetPassword ? "text" : "password"}
+                  value={newPasswordValue}
+                  onChange={(e) => setNewPasswordValue(e.target.value)}
+                  placeholder="********"
+                  className="pr-10"
+                  onKeyDown={(e) => e.key === "Enter" && handleSetPassword()}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSetPassword((v) => !v)}
+                  aria-label={showSetPassword ? "Hide password" : "Show password"}
+                  title={showSetPassword ? "Hide password" : "Show password"}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground/60 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {showSetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
           </div>
 
