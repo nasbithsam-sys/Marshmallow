@@ -53,17 +53,29 @@ export function extractTranscriptFromPayload(payload: any): string | null {
   const call = data.call || {};
   const msg = data.message || {};
 
-  const extract = (value: unknown): string | null => {
+  const extract = (value: any): string | null => {
     if (!value) return null;
     if (typeof value === "string") return value;
     if (Array.isArray(value)) {
-      return value.map((v: any) => {
-        if (typeof v === "object" && v !== null && typeof v.content === "string") {
-          const speaker = v.userId ? "Agent" : "Customer";
-          return `${speaker}: ${v.content}`;
+      const extracted = value.map((v: any) => {
+        if (typeof v === "object" && v !== null) {
+          if (typeof v.content === "string") {
+            const speaker = v.userId ? "Agent" : "Customer";
+            return `${speaker}: ${v.content}`;
+          }
+          if (typeof v.text === "string") {
+            const speaker = v.user || v.userId ? "Agent" : "Customer";
+            return `${speaker}: ${v.text}`;
+          }
+          // If we can't find content or text, just stringify it so it doesn't show as empty
+          return JSON.stringify(v);
         }
-        return "";
+        return String(v);
       }).filter(Boolean).join("\n");
+      return extracted || null;
+    }
+    if (typeof value === "object") {
+      return JSON.stringify(value);
     }
     return null;
   };
