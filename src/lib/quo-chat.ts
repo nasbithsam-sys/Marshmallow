@@ -47,6 +47,36 @@ import { isTechLineNumber, TECH_COMMUNICATIONS_NUMBER } from "@/lib/quo-dashboar
 /**
  * Reads the conversation stored by the Quo webhook (no Quo API calls).
  */
+export function extractTranscriptFromPayload(payload: any): string | null {
+  if (!payload || !payload.data) return null;
+  const data = payload.data;
+  const call = data.call || {};
+  const msg = data.message || {};
+
+  const extract = (value: unknown): string | null => {
+    if (!value) return null;
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) {
+      return value.map((v: any) => {
+        if (typeof v === "object" && v !== null && typeof v.content === "string") {
+          const speaker = v.userId ? "Agent" : "Customer";
+          return `${speaker}: ${v.content}`;
+        }
+        return "";
+      }).filter(Boolean).join("\n");
+    }
+    return null;
+  };
+
+  return extract(call.transcript) || 
+         extract(call.transcriptText) || 
+         extract(data.transcript) || 
+         extract(call.voicemailTranscript) || 
+         extract(data.voicemailTranscript) ||
+         extract(msg.transcript) ||
+         extract(msg.voicemailTranscript);
+}
+
 export async function fetchQuoChatThread(participant: string, chatType?: "customer" | "tech"): Promise<QuoChatThreadResponse> {
   const digits = lastTen(participant);
 
@@ -97,7 +127,7 @@ export async function fetchQuoChatThread(participant: string, chatType?: "custom
   if (conversation) {
     const { data: rows, error: messageError } = await supabase
       .from("quo_messages")
-      .select("id, sender, recipients, text, direction, status, message_time, quo_created_at, created_at, conversation_id, media")
+      .select("id, sender, recipients, text, direction, status, message_time, quo_created_at, created_at, conversation_id, media, raw_payload")
       .eq("conversation_id", conversation.id)
       .order("message_time", { ascending: true, nullsFirst: false })
       .limit(500);
@@ -110,7 +140,7 @@ export async function fetchQuoChatThread(participant: string, chatType?: "custom
       id: row.id,
       to: Array.isArray(row.recipients) ? (row.recipients as unknown[]).map((entry) => String(entry)) : [],
       from: row.sender ?? "",
-      text: row.text ?? "",
+      text: row.text || extractTranscriptFromPayload(row.raw_payload) || "",
       phoneNumberId: numberRow?.quo_phone_number_id ?? "",
       conversationId: row.conversation_id,
       direction: row.direction === "outgoing" ? "outgoing" : "incoming",

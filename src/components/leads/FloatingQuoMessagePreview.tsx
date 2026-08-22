@@ -19,6 +19,8 @@ interface LatestMessage {
   status?: string;
 }
 
+import { extractTranscriptFromPayload } from "@/lib/quo-chat";
+
 export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessagePreviewProps) {
   const { role, canAccess } = useAuth();
   const hasQuickChatAccess = canAccess("quick_chat");
@@ -47,7 +49,7 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
 
       const { data: msgRows } = await supabase
         .from("quo_messages")
-        .select("id, sender, text, direction, message_time, created_at, media, status")
+        .select("id, sender, text, direction, message_time, created_at, media, status, raw_payload")
         .eq("conversation_id", convId)
         .order("created_at", { ascending: false })
         .limit(2);
@@ -55,7 +57,7 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
       if (msgRows && active) {
         const formatted = msgRows.map((r: any) => ({
           id: r.id,
-          text: r.text || "",
+          text: r.text || extractTranscriptFromPayload(r.raw_payload) || "",
           sender: r.sender || "customer",
           direction: r.direction || "inbound",
           createdAt: r.message_time || r.created_at,

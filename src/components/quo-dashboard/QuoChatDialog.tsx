@@ -29,6 +29,7 @@ import {
   QUO_LEAD_STATUS_CONFIG,
   type QuoLeadStatus,
 } from "@/lib/quo-dashboard";
+import { extractTranscriptFromPayload } from "@/lib/quo-chat";
 import ImageLightbox from "@/components/leads/ImageLightbox";
 
 interface MessageItem {
@@ -83,14 +84,18 @@ export default function QuoChatDialog({
       try {
         const { data, error } = await supabase
           .from("quo_messages")
-          .select("id, sender, text, direction, message_time, created_at, media")
+          .select("id, sender, text, direction, message_time, created_at, media, status, raw_payload")
           .eq("conversation_id", conversation.id)
           .order("created_at", { ascending: true });
 
         if (error) {
           console.error("Error fetching messages for chat", error);
         } else if (!isCancelled && data) {
-          setMessages(data as MessageItem[]);
+          const formatted = data.map((r: any) => ({
+            ...r,
+            text: r.text || extractTranscriptFromPayload(r.raw_payload) || ""
+          }));
+          setMessages(formatted as MessageItem[]);
         }
       } catch (err) {
         console.error("Failed to load messages", err);
