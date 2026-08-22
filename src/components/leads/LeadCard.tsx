@@ -310,7 +310,7 @@ function formatScheduleRequirementCompact(text?: string | null): { summary: stri
   // Split into option segments. Only split on " or " / ";" / " / " when followed by a capitalized token
   // (avoids breaking "Mon 3/4" style content).
   const rawSegs = workingText
-    .split(/\s+or\s+|\s*;\s*|\s*\/\s*(?=[A-Z])/i)
+    .split(/\n|\s+or\s+|\s*;\s*|\s*\/\s*(?=[A-Z])/i)
     .map((s) => s.trim())
     .filter(Boolean);
   const segments = rawSegs.length > 1 ? rawSegs : [workingText];
