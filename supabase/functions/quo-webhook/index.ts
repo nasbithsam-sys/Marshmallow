@@ -291,6 +291,8 @@ Deno.serve(async (req) => {
       phoneNumberRowId = phoneRow.id;
     }
 
+    const messageTime = new Date(message.createdAt).toISOString();
+
     if (conversation.id) {
       const { data: dbLead } = conversation.customerNumber
         ? await supabase
@@ -313,7 +315,6 @@ Deno.serve(async (req) => {
       const preservedLinkedLeadId =
         existingLead?.id ?? existingConversation?.linked_lead_id ?? null;
 
-      const messageTime = new Date(message.createdAt).toISOString();
       const existingLastAt = existingConversation?.last_message_at
         ? new Date(existingConversation.last_message_at).getTime()
         : 0;
