@@ -133,12 +133,15 @@ function pickCallText(call: JsonObject, data: JsonObject, eventType: string) {
     asString(call.callSummary) ??
     asString(call.aiSummary) ??
     asString(data.summary);
+  const dataObject = (data.object && typeof data.object === "object" ? data.object : null) as JsonObject | null;
   const transcript =
     extractTranscript(call.transcript) ??
     extractTranscript(call.transcriptText) ??
     extractTranscript(data.transcript) ??
     extractTranscript(call.voicemailTranscript) ??
-    extractTranscript(data.voicemailTranscript);
+    extractTranscript(data.voicemailTranscript) ??
+    extractTranscript(call.dialogue) ??
+    extractTranscript(dataObject?.dialogue);
   const duration =
     asString(call.duration) ??
     asString(call.durationSeconds) ??
@@ -217,14 +220,18 @@ function normalizeQuoCallPayload(payload: JsonObject, eventType: string) {
         ? call.conversation
         : {}) ?? {}) as JsonObject;
 
-  const callId = asString(call.id);
+  const callId = asString(call.id) ?? asString(dataObject?.callId) ?? asString(call.callId);
   const conversationId =
     asString(conversation.id) ??
     asString(call.conversationId) ??
     asString(call.conversation_id);
 
-  if (!callId || !conversationId) {
-    throw new Error("Invalid Quo call payload: missing call id or conversation id.");
+  if (!callId) {
+    throw new Error("Invalid Quo call payload: missing call id.");
+  }
+  
+  if (!conversationId && !eventType.includes("transcript") && !eventType.includes("summary")) {
+    throw new Error("Invalid Quo call payload: missing conversation id.");
   }
 
   const rawDirection = asString(call.direction)?.toLowerCase();
