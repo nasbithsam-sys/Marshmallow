@@ -704,7 +704,9 @@ export default function QuoPhoneTrigger({
                                   <p className="whitespace-pre-wrap break-words">{message.text}</p>
                                 )}
                                 {!message.text && (!message.media || message.media.length === 0) && (
-                                  <p className="whitespace-pre-wrap break-words">—</p>
+                                  <p className="whitespace-pre-wrap break-words italic opacity-70">
+                                    {message.status ? `[ ${message.status.replace(/\./g, ' ')} ]` : "—"}
+                                  </p>
                                 )}
                               </div>
                               <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-muted-foreground">

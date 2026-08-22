@@ -374,7 +374,9 @@ export default function QuoChatDialog({
                       <p className="whitespace-pre-wrap break-words">{msg.text}</p>
                     )}
                     {!msg.text && (!msg.media || msg.media.length === 0) && (
-                      <p className="whitespace-pre-wrap break-words">—</p>
+                      <p className="whitespace-pre-wrap break-words italic opacity-70">
+                        {msg.status ? `[ ${msg.status.replace(/\./g, ' ')} ]` : "—"}
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-muted-foreground">

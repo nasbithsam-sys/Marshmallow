@@ -102,8 +102,7 @@ export default function OprLeadCard({ lead, initialPhotoPaths, initialHasOprNote
   const { isFromCustomer } = useIsLastMessageFromCustomer(lead.customer_phone, hasScheduleTag);
   const needsScheduleBlink = hasScheduleTag && isFromCustomer;
   const isActivateCustomer = lead.status === "activate_customer";
-  const isPinnedForCurrentUser = isActivateCustomer && (role === "cs_admin" || (Boolean(user?.id) && lead.created_by === user?.id));
-  const shouldBlinkCard = needsScheduleBlink || isPinnedForCurrentUser;
+  const shouldBlinkCard = needsScheduleBlink || isActivateCustomer;
 
   return (
     <motion.div whileHover={{ y: -2 }} transition={{ type: "spring", stiffness: 220, damping: 24 }} className="h-full">

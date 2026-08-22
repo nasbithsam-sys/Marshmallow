@@ -16,6 +16,7 @@ interface LatestMessage {
   direction?: string;
   createdAt: string;
   media?: any[];
+  status?: string;
 }
 
 export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessagePreviewProps) {
@@ -46,7 +47,7 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
 
       const { data: msgRows } = await supabase
         .from("quo_messages")
-        .select("id, sender, text, direction, message_time, created_at, media")
+        .select("id, sender, text, direction, message_time, created_at, media, status")
         .eq("conversation_id", convId)
         .order("created_at", { ascending: false })
         .limit(2);
@@ -59,6 +60,7 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
           direction: r.direction || "inbound",
           createdAt: r.message_time || r.created_at,
           media: r.media,
+          status: r.status,
         }));
         setMessages(formatted);
       }
@@ -110,7 +112,7 @@ export default function FloatingQuoMessagePreview({ phone }: FloatingQuoMessageP
             </div>
             <div className="min-w-0 flex-1 pr-3">
               <p className="line-clamp-2 font-medium leading-snug whitespace-pre-wrap break-words">
-                {msg.text || (msg.media && msg.media.length > 0 ? (msg.media[0].type?.startsWith("audio") || msg.media[0].mime_type?.startsWith("audio") ? "[ 🎵 Audio ]" : "[ 📷 Image ]") : "—")}
+                {msg.text || (msg.media && msg.media.length > 0 ? (msg.media[0].type?.startsWith("audio") || msg.media[0].mime_type?.startsWith("audio") ? "[ 🎵 Audio ]" : "[ 📷 Image ]") : (msg.status ? `[ ${(msg.status as string).replace(/\./g, ' ')} ]` : "—"))}
               </p>
               <span className="mt-1 block text-[9px] font-medium text-muted-foreground">
                 {formatLocalRelativeTime(msg.createdAt, true)} • {isOutbound ? "You" : "Customer"}
