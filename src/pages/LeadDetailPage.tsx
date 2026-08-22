@@ -31,6 +31,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import MultiDateTimePicker from "@/components/leads/MultiDateTimePicker";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import PaymentDialog from "@/components/leads/PaymentDialog";
 import ImageLightbox from "@/components/leads/ImageLightbox";
@@ -1215,13 +1216,12 @@ export default function LeadDetailPage() {
 
               <div className="space-y-1.5">
                 <Label className={labelClass}>Customer Schedule Requirements</Label>
-                <Input
-                  value={form.customer_schedule_requirements}
-                  onChange={(e) => update("customer_schedule_requirements", e.target.value)}
-                  className={fieldClass}
-                  readOnly={isProcessor}
-                />
-              </div>
+                  <MultiDateTimePicker
+                    value={form.customer_schedule_requirements}
+                    onChange={(val) => update("customer_schedule_requirements", val)}
+                    readOnly={isProcessor}
+                  />
+                </div>
 
               <div className="space-y-1.5">
                 <Label className={labelClass}>Reference</Label>

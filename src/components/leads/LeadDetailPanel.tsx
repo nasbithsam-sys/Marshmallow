@@ -35,6 +35,7 @@ import CancellationRequestDialog from "./CancellationRequestDialog";
 import CancellationRequestPanel from "./CancellationRequestPanel";
 import NumberNameCombobox from "./NumberNameCombobox";
 import QuoPhoneTrigger from "./QuoPhoneTrigger";
+import MultiDateTimePicker from "./MultiDateTimePicker";
 import AssignLeadToOperatorDialog from "./AssignLeadToOperatorDialog";
 import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
 import { toast } from "sonner";
@@ -869,11 +870,10 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
               <div className="space-y-1.5">
                 <Label className={labelClass}>Schedule Requirements</Label>
-                <Input
+                <MultiDateTimePicker
                   value={form.customer_schedule_requirements ?? ""}
-                  onChange={(e) => update("customer_schedule_requirements", e.target.value)}
+                  onChange={(val) => update("customer_schedule_requirements", val)}
                   readOnly={isProcessor}
-                  className={fieldClass}
                 />
               </div>
 

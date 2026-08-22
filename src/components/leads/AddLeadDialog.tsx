@@ -30,6 +30,7 @@ import { logActivity } from "@/lib/activity";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { motion, AnimatePresence } from "framer-motion";
 import NumberNameCombobox from "./NumberNameCombobox";
+import MultiDateTimePicker from "./MultiDateTimePicker";
 
 interface Props {
   open: boolean;
@@ -616,15 +617,13 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className={labelClass}>Customer Schedule Requirements</Label>
-                  <Input
-                    value={form.customer_schedule_requirements}
-                    onChange={(e) => update("customer_schedule_requirements", e.target.value)}
-                    placeholder="Preferred times, availability..."
-                    className={fieldClass}
-                  />
-                </div>
+                  <div className="space-y-1.5">
+                    <Label className={labelClass}>Customer Schedule Requirements</Label>
+                    <MultiDateTimePicker
+                      value={form.customer_schedule_requirements}
+                      onChange={(val) => update("customer_schedule_requirements", val)}
+                    />
+                  </div>
 
                 <div className="space-y-1.5">
                   <Label className={labelClass}>Reference</Label>
