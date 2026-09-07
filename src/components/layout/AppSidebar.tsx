@@ -18,6 +18,8 @@ import {
   FileWarning,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { useNavigate } from "react-router-dom";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { STATUS_LABELS, STATUS_DOT_COLORS, ALL_LEAD_STATUSES } from "@/lib/constants";
@@ -65,6 +67,7 @@ export default function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, profile, role, signOut, canAccess } = useAuth();
   const { allowedStatuses } = useAllowedStatuses();
   const queryClient = useQueryClient();
@@ -175,10 +178,7 @@ export default function AppSidebar() {
             
             import("@/lib/notification-sound").then(({ playUrgentAlertSound }) => {
               playUrgentAlertSound();
-              import("sonner").then(({ toast }) => {
-                toast.info(`⚠️ New Quote Request! Lead "${newRow.customer_name || 'Customer'}" is waiting for a quote.`, {
-                  duration: 99999999, position: "top-right", action: { label: "Dismiss", onClick: () => {} }, className: "animate-pulse scale-[1.03] border-amber-500/60 shadow-[0_0_24px_rgba(245,158,11,0.25)] text-[14px]",
-                });
+              setUrgentQuoteLead(newRow);
               });
             });
           }
@@ -194,10 +194,7 @@ export default function AppSidebar() {
             
             import("@/lib/notification-sound").then(({ playUrgentAlertSound }) => {
               playUrgentAlertSound();
-              import("sonner").then(({ toast }) => {
-                toast.info(`⚠️ New Quote Request! Lead "${newRow.customer_name || 'Customer'}" is waiting for a quote.`, {
-                  duration: 99999999, position: "top-right", action: { label: "Dismiss", onClick: () => {} }, className: "animate-pulse scale-[1.03] border-amber-500/60 shadow-[0_0_24px_rgba(245,158,11,0.25)] text-[14px]",
-                });
+              setUrgentQuoteLead(newRow);
               });
             });
           }
@@ -232,10 +229,7 @@ export default function AppSidebar() {
             if (isRelevantUser) {
               import("@/lib/notification-sound").then(({ playAssignmentSound }) => {
                 playAssignmentSound();
-                import("sonner").then(({ toast }) => {
-                  toast.info(\?? Lead "\" is ready to Activate!\, {
-                    duration: 5000,
-                  });
+                setUrgentQuoteLead(newRow);
                 });
               });
             }
@@ -542,12 +536,37 @@ export default function AppSidebar() {
           </div>
         </div>
       </SidebarFooter>
-      <ChangePasswordDialog
+            <ChangePasswordDialog
         open={changePasswordOpen}
         onOpenChange={setChangePasswordOpen}
         userEmail={user?.email || profile?.email || null}
       />
+      
+      <AlertDialog open={!!urgentQuoteLead} onOpenChange={(open) => !open && setUrgentQuoteLead(null)}>
+        <AlertDialogContent className="border-amber-500/50 shadow-[0_0_40px_rgba(245,158,11,0.25)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl flex items-center gap-2 text-amber-500">
+              <FileWarning className="h-6 w-6" />
+              New Quote Request
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[15px] pt-2">
+              Lead <strong className="text-foreground">{urgentQuoteLead?.customer_name || 'Customer'}</strong> is waiting for a quote!
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel onClick={() => setUrgentQuoteLead(null)}>Dismiss</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              navigate("/quote-pending");
+              setUrgentQuoteLead(null);
+            }} className="bg-amber-500 hover:bg-amber-600 text-white">
+              View Request
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   );
 }
+
+
 
