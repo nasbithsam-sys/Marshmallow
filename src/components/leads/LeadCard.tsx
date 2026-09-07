@@ -827,7 +827,7 @@ function LeadCard({
   const needsScheduleBlink = hasScheduleTag && isFromCustomer;
   const isActivateCustomer = lead.status === "activate_customer";
   const isQuoteUpdatedForMe = lead.status === "quote_updated" && lead.quote_requested_by === user?.id;
-  const isPendingQuoteForMaster = lead.status === "pending_to_send" && (role === "admin" || profile?.is_quotation_master === true);
+  const isPendingQuoteForMaster = lead.status === "pending_to_send" && (role === "admin" || role === "cs_admin" || profile?.is_quotation_master === true);
   const baseShouldBlink = needsScheduleBlink || isActivateCustomer || isQuoteUpdatedForMe || isPendingQuoteForMaster;
 
   // Suppress blink if schedule requirement date is more than 3 days in the future

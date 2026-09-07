@@ -163,7 +163,7 @@ export default function AppSidebar() {
 
   // Realtime subscription for quote pending requests badge and notification
   useEffect(() => {
-    const isQuotationMaster = role === "admin" || profile?.is_quotation_master === true;
+    const isQuotationMaster = role === "admin" || role === "cs_admin" || profile?.is_quotation_master === true;
     if (!isQuotationMaster) return;
 
     const channel = supabase
