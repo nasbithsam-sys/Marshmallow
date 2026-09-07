@@ -177,7 +177,7 @@ export default function AppSidebar() {
               playAssignmentSound();
               import("sonner").then(({ toast }) => {
                 toast.info(`⚠️ New Quote Request! Lead "${newRow.customer_name || 'Customer'}" is waiting for a quote.`, {
-                  duration: 8000,
+                  duration: 99999999, position: "top-right", action: { label: "Dismiss", onClick: () => {} },
                 });
               });
             });
@@ -196,7 +196,7 @@ export default function AppSidebar() {
               playAssignmentSound();
               import("sonner").then(({ toast }) => {
                 toast.info(`⚠️ New Quote Request! Lead "${newRow.customer_name || 'Customer'}" is waiting for a quote.`, {
-                  duration: 8000,
+                  duration: 99999999, position: "top-right", action: { label: "Dismiss", onClick: () => {} },
                 });
               });
             });
