@@ -16,6 +16,7 @@ import {
   Megaphone,
   KeyRound,
   FileWarning,
+  Shield,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
@@ -48,7 +49,7 @@ import { supabase } from "@/integrations/supabase/client";
 import marshmallowLogo from "@/assets/marshmallow-logo.png.asset.json";
 import ChangePasswordDialog from "@/components/auth/ChangePasswordDialog";
 
-const navItems = [
+const getNavItems = (role: string) => [
   { title: "All Leads", url: "/leads", icon: Users, navKey: "leads", group: "Work" },
   { title: "QUO Inbox", url: "/quo-monitor", icon: MessageSquare, navKey: "quo_monitor", group: "Work" },
   { title: "Schedule", url: "/schedule", icon: Calendar, navKey: "schedule", group: "Work" },
@@ -60,7 +61,7 @@ const navItems = [
   { title: "Area Insights", url: "/areas", icon: MapPin, navKey: "areas", group: "Manage" },
   { title: "Analytics", url: "/analytics", icon: BarChart3, navKey: "analytics", group: "Insights" },
   { title: "Activity Logs", url: "/activity-logs", icon: ScrollText, navKey: "activity_logs", group: "Insights" },
-  { title: "Settings", url: "/settings", icon: Settings, navKey: "settings", group: "Admin" },
+  ...(role === "cs_admin" ? [{ title: "Users", url: "/settings", icon: Shield, navKey: "settings", group: "Manage" }] : [{ title: "Settings", url: "/settings", icon: Settings, navKey: "settings", group: "Admin" }]),
 ];
 
 export default function AppSidebar() {
@@ -241,7 +242,7 @@ export default function AppSidebar() {
     };
   }, [role, profile?.id]);
 
-  const visibleItems = navItems.filter((item) => canAccess(item.navKey));
+  const visibleItems = getNavItems(role || "").filter((item) => canAccess(item.navKey));
   const visibleGroups = ["Work", "Review", "Manage", "Insights", "Admin"].map((label) => ({
     label,
     items: visibleItems.filter((item) => item.group === label),
@@ -565,6 +566,10 @@ export default function AppSidebar() {
     </Sidebar>
   );
 }
+
+
+
+
 
 
 
