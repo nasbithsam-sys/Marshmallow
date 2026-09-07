@@ -106,4 +106,65 @@ describe("formatLeadForGoogleSheet", () => {
     expect(formatted["Processor Notes"]).toBe("");
     expect(formatted["Opr Notes"]).toBe("");
   });
+
+  it("should fetch all leads across multiple pages beyond 1000 rows limit", async () => {
+    const { fetchAllLeadsWithDetails } = await import("./google-sheets");
+    const { supabase } = await import("@/integrations/supabase/client");
+
+    const originalFrom = supabase.from;
+    const mockPage1 = Array.from({ length: 1000 }, (_, i) => ({
+      ...mockLead,
+      id: `lead-p1-${i}`,
+      job_id: `JOB-P1-${i}`,
+    }));
+    const mockPage2 = Array.from({ length: 250 }, (_, i) => ({
+      ...mockLead,
+      id: `lead-p2-${i}`,
+      job_id: `JOB-P2-${i}`,
+    }));
+
+    (supabase as any).from = (table: string) => {
+      if (table === "leads") {
+        return {
+          select: () => ({
+            order: () => ({
+              range: (from: number, to: number) => {
+                if (from === 0) {
+                  return Promise.resolve({ data: mockPage1, error: null });
+                }
+                if (from === 1000) {
+                  return Promise.resolve({ data: mockPage2, error: null });
+                }
+                return Promise.resolve({ data: [], error: null });
+              },
+            }),
+          }),
+        };
+      }
+      if (table === "profiles_public") {
+        return {
+          select: () => Promise.resolve({ data: [], error: null }),
+        };
+      }
+      if (table === "lead_notes" || table === "lead_photos") {
+        return {
+          select: () => ({
+            in: () => ({
+              order: () => Promise.resolve({ data: [], error: null }),
+            }),
+          }),
+        };
+      }
+      return originalFrom.call(supabase, table as any);
+    };
+
+    try {
+      const results = await fetchAllLeadsWithDetails();
+      expect(results.length).toBe(1250);
+      expect(results[0]["Lead ID"]).toBe("JOB-P1-0");
+      expect(results[1000]["Lead ID"]).toBe("JOB-P2-0");
+    } finally {
+      (supabase as any).from = originalFrom;
+    }
+  });
 });

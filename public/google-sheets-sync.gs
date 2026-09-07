@@ -194,6 +194,16 @@ function handleSyncAll(ss, leads) {
     sheetsCreated.push(sanitizedStatusSheetName);
   });
 
+  // Clear any existing status sheets that now have 0 leads
+  allExistingSheets.forEach(function(sheet) {
+    var name = sheet.getName();
+    if (name !== "All Leads" && name !== "Tagged Leads" && name.indexOf("Tag - ") !== 0) {
+      if (!leadsByStatus[name]) {
+        populateSheet(sheet, []);
+      }
+    }
+  });
+
   // 3. ONLY ONE sheet for tags: "Tagged Leads"
   var allTaggedLeads = [];
   sortedLeads.forEach(function(l) {
@@ -378,6 +388,16 @@ function populateSheet(sheet, leads) {
 
   // 2. Convert leads to 2D array
   var rows = leads.map(leadToRow);
+
+  // Ensure sheet has enough rows and columns for ALL leads
+  var requiredRows = Math.max(rows.length + 1, 2);
+  var currentMaxRows = sheet.getMaxRows();
+  if (currentMaxRows < requiredRows) {
+    sheet.insertRowsAfter(currentMaxRows, requiredRows - currentMaxRows);
+  }
+  if (sheet.getMaxColumns() < HEADERS.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), HEADERS.length - sheet.getMaxColumns());
+  }
 
   // 3. Write rows in batch
   var dataRange = sheet.getRange(2, 1, rows.length, HEADERS.length);

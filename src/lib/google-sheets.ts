@@ -185,21 +185,40 @@ export function formatLeadForGoogleSheet(
  * Fetch all leads along with their notes threads and photos
  */
 export async function fetchAllLeadsWithDetails(): Promise<GoogleSheetLeadRow[]> {
-  // 1. Fetch all leads
-  const { data: leads, error: leadsError } = await supabase
-    .from("leads")
-    .select("*")
-    .order("created_at", { ascending: false });
+  // 1. Fetch ALL leads in batches of 1000 using range pagination so we are never capped
+  const allLeads: Lead[] = [];
+  const PAGE_SIZE = 1000;
+  let from = 0;
 
-  if (leadsError) {
-    throw new Error(`Failed to load leads: ${leadsError.message}`);
+  while (true) {
+    const { data: chunk, error: leadsError } = await supabase
+      .from("leads")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (leadsError) {
+      throw new Error(`Failed to load leads: ${leadsError.message}`);
+    }
+
+    if (!chunk || chunk.length === 0) {
+      break;
+    }
+
+    allLeads.push(...(chunk as Lead[]));
+
+    if (chunk.length < PAGE_SIZE) {
+      break;
+    }
+
+    from += PAGE_SIZE;
   }
 
-  if (!leads || leads.length === 0) {
+  if (allLeads.length === 0) {
     return [];
   }
 
-  const typedLeads = leads as Lead[];
+  const typedLeads = allLeads;
   const leadIds = typedLeads.map((l) => l.id);
 
   // 2. Fetch all profiles for user name resolution in notes
@@ -213,10 +232,10 @@ export async function fetchAllLeadsWithDetails(): Promise<GoogleSheetLeadRow[]> 
     });
   }
 
-  // 3. Batch fetch lead_notes in chunks of 200
+  // 3. Batch fetch lead_notes in chunks of 100
   const noteSummaryByLead: Record<string, NoteSummary> = {};
-  for (let i = 0; i < leadIds.length; i += 200) {
-    const chunk = leadIds.slice(i, i + 200);
+  for (let i = 0; i < leadIds.length; i += 100) {
+    const chunk = leadIds.slice(i, i + 100);
     const { data: notes } = await supabase
       .from("lead_notes")
       .select("lead_id, note_type, content, user_id, user_name, created_at")
@@ -249,10 +268,10 @@ export async function fetchAllLeadsWithDetails(): Promise<GoogleSheetLeadRow[]> 
     }
   }
 
-  // 4. Batch fetch photos
+  // 4. Batch fetch photos in chunks of 100
   const photoUrlsByLead: Record<string, string[]> = {};
-  for (let i = 0; i < leadIds.length; i += 200) {
-    const chunk = leadIds.slice(i, i + 200);
+  for (let i = 0; i < leadIds.length; i += 100) {
+    const chunk = leadIds.slice(i, i + 100);
     const { data: photos } = await supabase
       .from("lead_photos")
       .select("lead_id, photo_url")
