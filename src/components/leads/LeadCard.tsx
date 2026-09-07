@@ -1074,7 +1074,7 @@ function LeadCard({
       const { data: roles } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("role", ["admin", "processor", "customer_service", "opr"]);
+        .in("role", ["admin", "processor", "customer_service", "cs_admin", "opr"]);
 
       if (roles) {
         const statusLabel = newStatus === "urgent_job" ? "Urgent Job" : "Need Tech";

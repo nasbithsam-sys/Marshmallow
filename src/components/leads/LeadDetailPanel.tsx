@@ -575,7 +575,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         (form.status === "job_in_progress" && lead?.expected_completion_date !== form.expected_completion_date && form.expected_completion_date)
       ) {
         const isJobInProgress = form.status === "job_in_progress";
-        const targetRoles = isJobInProgress ? ["admin", "processor"] : ["admin", "processor", "customer_service", "opr"];
+        const targetRoles = isJobInProgress ? ["admin", "processor"] : ["admin", "processor", "customer_service", "cs_admin", "opr"];
         const { data: roles } = await supabase
           .from("user_roles")
           .select("user_id, role")
