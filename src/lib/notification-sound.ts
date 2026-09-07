@@ -51,3 +51,20 @@ export function playAssignmentSound(): void {
   playTone(ctx, 587.33, now, 0.18, 0.25);         // D5
   playTone(ctx, 783.99, now + 0.15, 0.28, 0.20);   // G5
 }
+
+/**
+ * Plays an urgent repeating notification chime for about 4.5 seconds.
+ */
+export function playUrgentAlertSound(): void {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+
+  // Repeat the "ding-ding" 8 times over 4 seconds
+  for (let i = 0; i < 8; i++) {
+    const offset = i * 0.6; // repeat every 600ms
+    playTone(ctx, 587.33, now + offset, 0.18, 0.25);
+    playTone(ctx, 783.99, now + offset + 0.15, 0.28, 0.20);
+  }
+}
