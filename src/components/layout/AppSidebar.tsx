@@ -179,7 +179,6 @@ export default function AppSidebar() {
             import("@/lib/notification-sound").then(({ playUrgentAlertSound }) => {
               playUrgentAlertSound();
               setUrgentQuoteLead(newRow);
-              });
             });
           }
         }
@@ -195,7 +194,6 @@ export default function AppSidebar() {
             import("@/lib/notification-sound").then(({ playUrgentAlertSound }) => {
               playUrgentAlertSound();
               setUrgentQuoteLead(newRow);
-              });
             });
           }
         }
@@ -230,8 +228,7 @@ export default function AppSidebar() {
               import("@/lib/notification-sound").then(({ playAssignmentSound }) => {
                 playAssignmentSound();
                 setUrgentQuoteLead(newRow);
-                });
-              });
+            });
             }
           }
         }
@@ -567,6 +564,7 @@ export default function AppSidebar() {
     </Sidebar>
   );
 }
+
 
 
 
