@@ -124,8 +124,8 @@ export function isLeadPinnedForUser(
   userId?: string | null,
   userRole?: string | null,
 ): boolean {
-  if (lead.status === "quote_updated" && Boolean(userId) && lead.quote_requested_by === userId) {
-    return true;
+  if (lead.status === "quote_updated") {
+    return userRole === "cs_admin" || (Boolean(userId) && lead.quote_requested_by === userId);
   }
   if (lead.status !== "activate_customer") return false;
   return userRole === "cs_admin" || (Boolean(userId) && lead.created_by === userId);

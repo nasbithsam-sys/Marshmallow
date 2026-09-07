@@ -826,7 +826,7 @@ function LeadCard({
   const { isFromCustomer } = useIsLastMessageFromCustomer(lead.customer_phone, hasScheduleTag);
   const needsScheduleBlink = hasScheduleTag && isFromCustomer;
   const isActivateCustomer = lead.status === "activate_customer";
-  const isQuoteUpdatedForMe = lead.status === "quote_updated" && lead.quote_requested_by === user?.id;
+  const isQuoteUpdatedForMe = lead.status === "quote_updated" && (role === "cs_admin" || lead.quote_requested_by === user?.id);
   const isPendingQuoteForMaster = lead.status === "pending_to_send" && (role === "admin" || role === "cs_admin" || profile?.is_quotation_master === true);
   const baseShouldBlink = needsScheduleBlink || isActivateCustomer || isQuoteUpdatedForMe || isPendingQuoteForMaster;
 
@@ -1082,6 +1082,30 @@ function LeadCard({
           user_id: r.user_id,
           title: `[Alert] ${statusLabel}`,
           message: `Lead "${lead.customer_name}" changed to ${statusLabel}`,
+          lead_id: lead.id,
+          read: false,
+        }));
+        await supabase.from("notifications").insert(notifs);
+      }
+    }
+
+    if (newStatus === "quote_updated") {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .eq("role", "cs_admin");
+
+      const targetUserIds = new Set<string>();
+      if (lead.quote_requested_by) targetUserIds.add(lead.quote_requested_by);
+      if (roles) {
+        roles.forEach((r) => targetUserIds.add(r.user_id));
+      }
+
+      if (targetUserIds.size > 0) {
+        const notifs = Array.from(targetUserIds).map((userId) => ({
+          user_id: userId,
+          title: `[Alert] Quote Updated`,
+          message: `Quote for lead "${lead.customer_name}" has been updated`,
           lead_id: lead.id,
           read: false,
         }));

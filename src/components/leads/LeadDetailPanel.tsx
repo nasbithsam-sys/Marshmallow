@@ -598,6 +598,30 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         }
       }
 
+      if (lead?.status !== form.status && form.status === "quote_updated") {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("role", "cs_admin");
+
+        const targetUserIds = new Set<string>();
+        if (lead?.quote_requested_by) targetUserIds.add(lead.quote_requested_by);
+        if (roles) {
+          roles.forEach((r) => targetUserIds.add(r.user_id));
+        }
+
+        if (targetUserIds.size > 0) {
+          const notifs = Array.from(targetUserIds).map((userId) => ({
+            user_id: userId,
+            title: `[Alert] Quote Updated`,
+            message: `Quote for lead "${form.customer_name}" has been updated`,
+            lead_id: leadId,
+            read: false,
+          }));
+          await supabase.from("notifications").insert(notifs);
+        }
+      }
+
       if (Object.keys(changes).length > 0) {
         await logActivity(user.id, "updated", "lead", leadId, {
           target_name: lead?.job_id || leadId,
