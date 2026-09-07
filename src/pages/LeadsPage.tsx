@@ -31,7 +31,7 @@ import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import LeadReportDialog from "@/components/leads/LeadReportDialog";
 import InstallExtensionDialog from "@/components/leads/InstallExtensionDialog";
 import { toast } from "sonner";
-import { playAssignmentSound } from "@/lib/notification-sound";
+
 
 import { motion } from "framer-motion";
 import { heroTitle, premiumEase, silkySpring, cardGridContainer, cardGridItem } from "@/lib/motion";
@@ -306,21 +306,6 @@ export default function LeadsPage() {
         (payload) => {
           const newRow = payload.new as Lead | undefined;
           const oldRow = payload.old as Lead | undefined;
-
-          // If lead transitioned to activate_customer
-          if (newRow && newRow.status === "activate_customer" && oldRow?.status !== "activate_customer") {
-            const isRelevantUser =
-              role === "cs_admin" ||
-              role === "admin" ||
-              (role === "customer_service" && newRow.created_by === user.id);
-
-            if (isRelevantUser) {
-              playAssignmentSound();
-              toast.info(`📌 Lead "${newRow.customer_name || "Customer"}" is ready to Activate!`, {
-                duration: 5000,
-              });
-            }
-          }
 
           // Surgical merge — no full refetch needed
           if (payload.eventType === "INSERT" && newRow) {
@@ -1071,3 +1056,4 @@ export default function LeadsPage() {
     </div>
   );
 }
+

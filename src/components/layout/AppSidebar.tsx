@@ -210,6 +210,45 @@ export default function AppSidebar() {
     };
   }, [queryClient, role, profile?.is_quotation_master]);
 
+    // Global Leads Notifications (e.g. Activate Customer)
+  useEffect(() => {
+    if (!profile) return;
+
+    const channel = supabase
+      .channel("global-leads-notifications")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "leads" },
+        (payload) => {
+          const newRow = payload.new as any;
+          const oldRow = payload.old as any;
+
+          if (newRow && newRow.status === "activate_customer" && oldRow?.status !== "activate_customer") {
+            const isRelevantUser =
+              role === "cs_admin" ||
+              role === "admin" ||
+              (role === "customer_service" && newRow.created_by === profile.id);
+
+            if (isRelevantUser) {
+              import("@/lib/notification-sound").then(({ playAssignmentSound }) => {
+                playAssignmentSound();
+                import("sonner").then(({ toast }) => {
+                  toast.info(\?? Lead "\" is ready to Activate!\, {
+                    duration: 5000,
+                  });
+                });
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [role, profile?.id]);
+
   const visibleItems = navItems.filter((item) => canAccess(item.navKey));
   const visibleGroups = ["Work", "Review", "Manage", "Insights", "Admin"].map((label) => ({
     label,
@@ -511,3 +550,4 @@ export default function AppSidebar() {
     </Sidebar>
   );
 }
+
