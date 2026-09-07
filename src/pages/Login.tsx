@@ -261,6 +261,15 @@ const Login = () => {
             >
               Back to login
             </Button>
+              {hasAlternativeMfa && pendingMfaFactorId && pendingUserId && (
+                <Button
+                  variant="ghost"
+                  className="w-full text-sm text-primary hover:text-primary/80"
+                  onClick={() => startPendingMfa(pendingUserId, pendingMfaFactorId, true)}
+                >
+                  Use Authenticator App instead
+                </Button>
+              )}
           </motion.div>
         </motion.div>
       </div>
@@ -345,6 +354,15 @@ const Login = () => {
             >
               Back to login
             </Button>
+              {hasAlternativeAccessCode && pendingUserId && (
+                <Button
+                  variant="ghost"
+                  className="w-full text-sm text-primary hover:text-primary/80"
+                  onClick={() => startPendingAccessCode(pendingUserId, true, pendingMfaFactorId!)}
+                >
+                  Use Admin Access Code instead
+                </Button>
+              )}
           </motion.div>
         </motion.div>
       </div>
@@ -556,3 +574,6 @@ const Login = () => {
 };
 
 export default Login;
+
+
+

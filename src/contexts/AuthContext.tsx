@@ -10,12 +10,16 @@ const PENDING_AUTH_KEY = "auth_pending_state";
 type PendingStep = "none" | "access_code" | "mfa";
 
 interface PendingAuthState {
+  hasAlternativeAccessCode?: boolean;
+  hasAlternativeMfa?: boolean;
   step: PendingStep;
   userId: string | null;
   mfaFactorId?: string | null;
 }
 
 interface AuthContextType {
+  hasAlternativeAccessCode: boolean;
+  hasAlternativeMfa: boolean;
   session: Session | null;
   user: User | null;
   profile: Profile | null;
@@ -31,8 +35,8 @@ interface AuthContextType {
   canAccess: (navItem: string) => boolean;
   refetchProfile: () => Promise<void>;
   markFullyAuthenticated: (userId?: string) => void;
-  startPendingAccessCode: (userId: string) => void;
-  startPendingMfa: (userId: string, factorId: string) => void;
+  startPendingAccessCode: (userId: string, hasAltMfa?: boolean, factorId?: string) => void;
+  startPendingMfa: (userId: string, factorId: string, hasAltAccessCode?: boolean) => void;
   clearPendingAuth: () => void;
 }
 
@@ -59,6 +63,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [pendingStep, setPendingStep] = useState<PendingStep>("none");
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [pendingMfaFactorId, setPendingMfaFactorId] = useState<string | null>(null);
+  const [hasAlternativeAccessCode, setHasAlternativeAccessCode] = useState(false);
+  const [hasAlternativeMfa, setHasAlternativeMfa] = useState(false);
 
   const loadPendingFromStorage = (nextSession: Session | null) => {
     if (!nextSession?.user) {
@@ -66,6 +72,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPendingStep("none");
       setPendingUserId(null);
       setPendingMfaFactorId(null);
+        setHasAlternativeAccessCode(false);
+        setHasAlternativeMfa(false);
       return;
     }
 
@@ -74,6 +82,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPendingStep("none");
       setPendingUserId(null);
       setPendingMfaFactorId(null);
+        setHasAlternativeAccessCode(false);
+        setHasAlternativeMfa(false);
       return;
     }
 
@@ -84,17 +94,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setPendingStep(parsed.step);
         setPendingUserId(parsed.userId);
         setPendingMfaFactorId(parsed.mfaFactorId ?? null);
+          setHasAlternativeAccessCode(parsed.hasAlternativeAccessCode ?? false);
+          setHasAlternativeMfa(parsed.hasAlternativeMfa ?? false);
       } else {
         window.localStorage.removeItem(PENDING_AUTH_KEY);
         setPendingStep("none");
         setPendingUserId(null);
         setPendingMfaFactorId(null);
+        setHasAlternativeAccessCode(false);
+        setHasAlternativeMfa(false);
       }
     } catch {
       window.localStorage.removeItem(PENDING_AUTH_KEY);
       setPendingStep("none");
       setPendingUserId(null);
       setPendingMfaFactorId(null);
+        setHasAlternativeAccessCode(false);
+        setHasAlternativeMfa(false);
     }
   };
 
@@ -132,6 +148,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPendingStep("none");
     setPendingUserId(null);
     setPendingMfaFactorId(null);
+        setHasAlternativeAccessCode(false);
+        setHasAlternativeMfa(false);
   };
 
   const fetchUserData = async (userId: string) => {
@@ -234,6 +252,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPendingStep("none");
       setPendingUserId(null);
       setPendingMfaFactorId(null);
+        setHasAlternativeAccessCode(false);
+        setHasAlternativeMfa(false);
       return;
     }
 
@@ -241,22 +261,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPendingStep(state.step);
     setPendingUserId(state.userId);
     setPendingMfaFactorId(state.mfaFactorId ?? null);
+      setHasAlternativeAccessCode(state.hasAlternativeAccessCode ?? false);
+      setHasAlternativeMfa(state.hasAlternativeMfa ?? false);
   };
 
   const clearPendingAuth = () => {
     persistPendingAuth(null);
   };
 
-  const startPendingAccessCode = (userId: string) => {
+  const startPendingAccessCode = (userId: string, hasAltMfa?: boolean, factorId?: string) => {
     window.localStorage.removeItem(VERIFIED_USER_KEY);
     setFullyAuthenticated(false);
-    persistPendingAuth({ step: "access_code", userId, mfaFactorId: null });
+    persistPendingAuth({ step: "access_code", userId, mfaFactorId: factorId || null, hasAlternativeMfa: hasAltMfa });
   };
 
-  const startPendingMfa = (userId: string, factorId: string) => {
+  const startPendingMfa = (userId: string, factorId: string, hasAltAccessCode?: boolean) => {
     window.localStorage.removeItem(VERIFIED_USER_KEY);
     setFullyAuthenticated(false);
-    persistPendingAuth({ step: "mfa", userId, mfaFactorId: factorId });
+    persistPendingAuth({ step: "mfa", userId, mfaFactorId: factorId, hasAlternativeAccessCode: hasAltAccessCode });
   };
 
   const signOut = async () => {
@@ -273,6 +295,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPendingStep("none");
     setPendingUserId(null);
     setPendingMfaFactorId(null);
+        setHasAlternativeAccessCode(false);
+        setHasAlternativeMfa(false);
   };
 
   const canAccess = (navItem: string): boolean => {
@@ -334,3 +358,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+
+
