@@ -72,6 +72,7 @@ export default function AppSidebar() {
   const { allowedStatuses } = useAllowedStatuses();
   const queryClient = useQueryClient();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [urgentQuoteLead, setUrgentQuoteLead] = useState<any>(null);
 
   // Fetch pending cancellation requests count for the sidebar badge
   const { data: pendingCancellationCount = 0 } = useQuery({
