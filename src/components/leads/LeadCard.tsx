@@ -1063,6 +1063,13 @@ function LeadCard({
       },
     });
 
+    const { syncLeadUpsertToGoogleSheets } = await import("@/lib/google-sheets");
+    void syncLeadUpsertToGoogleSheets({ ...lead, status: newStatus } as never, lead.status, lead.cs_tag ?? undefined).catch((err) => {
+      console.error("Failed to sync status update to Google Sheets", err);
+    });
+
+    onRefresh();
+    
     if (newStatus === "urgent_job" || newStatus === "need_tech") {
       const { data: roles } = await supabase
         .from("user_roles")
@@ -1186,11 +1193,11 @@ function LeadCard({
         amount,
         status_from: lead.status,
         status_to: "paid",
-        changes: {
-          status: { before: lead.status, after: "paid" },
-          payment_amount: { before: lead.payment_amount ?? null, after: amount },
-          payment_screenshot_url: { before: lead.payment_screenshot_url ?? null, after: screenshotUrl ?? null },
-        },
+      });
+
+      const { syncLeadUpsertToGoogleSheets } = await import("@/lib/google-sheets");
+      void syncLeadUpsertToGoogleSheets({ ...lead, status: "paid" as never, amount, payment_amount: amount, payment_screenshot_url: screenshotUrl } as never, lead.status, lead.cs_tag ?? undefined).catch((err) => {
+        console.error("Failed to sync payment to Google Sheets", err);
       });
 
       toast.success("Payment recorded & status updated to Paid");
@@ -1249,6 +1256,11 @@ function LeadCard({
       toast.error("Failed to update tag");
       return false;
     }
+
+    const { syncLeadUpsertToGoogleSheets } = await import("@/lib/google-sheets");
+    void syncLeadUpsertToGoogleSheets({ ...lead, ...patch } as never, undefined, lead.cs_tag ?? undefined).catch((err) => {
+      console.error("Failed to sync tag update to Google Sheets", err);
+    });
     toast.success(newTag ? `Tag: ${CS_TAG_LABELS[newTag]}` : "Tag cleared");
     onRefresh();
     return true;
