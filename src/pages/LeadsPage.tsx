@@ -29,6 +29,7 @@ import LeadTable from "@/components/leads/LeadTable";
 import type { LeadCancellationRequest } from "@/types";
 import AddLeadDialog from "@/components/leads/AddLeadDialog";
 import LeadReportDialog from "@/components/leads/LeadReportDialog";
+import ExportLeadsDialog, { ExportOptions } from "@/components/leads/ExportLeadsDialog";
 import InstallExtensionDialog from "@/components/leads/InstallExtensionDialog";
 import { toast } from "sonner";
 
@@ -74,6 +75,8 @@ export default function LeadsPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showInstallDialog, setShowInstallDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">(() => {
     return (localStorage.getItem("leadsViewMode") as "grid" | "table") || "grid";
   });
@@ -504,16 +507,70 @@ export default function LeadsPage() {
   ).length;
   const hasActiveFilters = Boolean(search) || safeStatusFilter !== "all" || Boolean(scheduleDateRange?.from);
 
-  const exportData = async (format: "csv" | "xlsx") => {
-    const leadIds = filtered.map((lead) => lead.id);
-    const noteSummaryByLead: Record<string, { general: string; cs: string; processor: string }> = {};
+  const handleExportData = async (options: ExportOptions) => {
+    setIsExporting(true);
+    try {
+      let leadIdsToExport: string[] = [];
 
-    if (leadIds.length > 0) {
+      if (options.scope === "current") {
+        leadIdsToExport = filtered.map((l) => l.id);
+      } else {
+        leadIdsToExport = allData.map((l) => l.id);
+      }
+
+      // Apply Date Filter
+      if (options.dateRangePreset !== "all_time") {
+        const now = new Date();
+        let startDate: Date | undefined;
+        let endDate: Date | undefined = new Date();
+
+        if (options.dateRangePreset === "custom") {
+          if (options.customDateRange?.from) {
+            startDate = new Date(options.customDateRange.from);
+            startDate.setHours(0, 0, 0, 0);
+            endDate = options.customDateRange.to ? new Date(options.customDateRange.to) : new Date(options.customDateRange.from);
+            endDate.setHours(23, 59, 59, 999);
+          }
+        } else if (options.dateRangePreset === "today") {
+          startDate = new Date(now.setHours(0, 0, 0, 0));
+        } else if (options.dateRangePreset === "yesterday") {
+          startDate = new Date(now.setHours(0, 0, 0, 0));
+          startDate.setDate(startDate.getDate() - 1);
+          endDate = new Date(startDate);
+          endDate.setHours(23, 59, 59, 999);
+        } else if (options.dateRangePreset === "7d") {
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else if (options.dateRangePreset === "30d") {
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        }
+
+        if (startDate && endDate) {
+          leadIdsToExport = leadIdsToExport.filter((id) => {
+            const lead = allData.find((l) => l.id === id);
+            if (!lead || !lead.created_at) return false;
+            const created = new Date(lead.created_at).getTime();
+            return created >= startDate!.getTime() && created <= endDate!.getTime();
+          });
+        }
+      }
+
+      // Apply Limit
+      if (options.limit !== "all") {
+        leadIdsToExport = leadIdsToExport.slice(0, options.limit);
+      }
+
+      if (leadIdsToExport.length === 0) {
+        toast.error("No leads match the selected criteria for export.");
+        setIsExporting(false);
+        return;
+      }
+
+      const noteSummaryByLead: Record<string, { general: string; cs: string; processor: string }> = {};
       let noteRows: LeadNoteExportRow[] = [];
       const chunkSize = 100;
 
-      for (let i = 0; i < leadIds.length; i += chunkSize) {
-        const chunk = leadIds.slice(i, i + chunkSize);
+      for (let i = 0; i < leadIdsToExport.length; i += chunkSize) {
+        const chunk = leadIdsToExport.slice(i, i + chunkSize);
         const { data: chunkRows, error } = await supabase
           .from("lead_notes")
           .select("lead_id, note_type, content, user_id, user_name, created_at")
@@ -522,6 +579,7 @@ export default function LeadsPage() {
 
         if (error) {
           toast.error(`Failed to prepare note export: ${error.message}`);
+          setIsExporting(false);
           return;
         }
         if (chunkRows) {
@@ -534,62 +592,41 @@ export default function LeadsPage() {
         if (!noteSummaryByLead[note.lead_id]) {
           noteSummaryByLead[note.lead_id] = { general: "", cs: "", processor: "" };
         }
-
-        const authorName = (note.user_id ? profiles[note.user_id] : null) || note.user_name || "Unknown";
-        const timestamp = note.created_at ? new Date(note.created_at).toLocaleString() : "";
-        const line = timestamp ? `[${timestamp}] ${authorName}: ${note.content}` : `${authorName}: ${note.content}`;
-
-        noteSummaryByLead[note.lead_id][key] = noteSummaryByLead[note.lead_id][key]
-          ? `${noteSummaryByLead[note.lead_id][key]}\n${line}`
-          : line;
+        noteSummaryByLead[note.lead_id][key as keyof typeof noteSummaryByLead[string]] += `[${new Date(note.created_at || "").toLocaleString()}] ${note.user_name || "Unknown"}: ${note.content}\n\n`;
       });
+
+      const exportRows = leadIdsToExport.map((id) => {
+        const lead = allData.find((l) => l.id === id);
+        return {
+          "Job ID": lead?.job_id,
+          "Reference Name": lead?.reference_name,
+          Status: lead?.status,
+          "Customer Name": lead?.customer_name,
+          "Customer Phone": lead?.customer_phone,
+          "Customer Address": lead?.customer_address,
+          "Date Received": lead?.created_at ? new Date(lead.created_at).toLocaleString() : "",
+          "Schedule Requirement": lead?.schedule_requirement,
+          "Assigned Technician": lead?.assigned_technician_name || "",
+          "General Notes": noteSummaryByLead[id]?.general || "",
+          "CS Notes": noteSummaryByLead[id]?.cs || "",
+          "Processor Notes": noteSummaryByLead[id]?.processor || "",
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Leads");
+
+      const filename = `leads_${new Date().toISOString().slice(0, 10)}`;
+      XLSX.writeFile(wb, `${filename}.${options.format}`, options.format === "csv" ? { bookType: "csv" } : undefined);
+
+      toast.success(`Exported ${exportRows.length} leads successfully`);
+      setShowExportDialog(false);
+    } catch (err: any) {
+      toast.error(`Export failed: ${err.message}`);
+    } finally {
+      setIsExporting(false);
     }
-
-    const data = filtered.map((l) => ({
-      "Job ID": l.job_id,
-      "Customer Name": l.customer_name,
-      Phone: l.customer_phone || "",
-      Email: l.customer_email || "",
-      "Number Name": l.number_name || "",
-      Address: l.address || "",
-      City: l.city || "",
-      State: l.state || "",
-      "Zip Code": l.zip_code || "",
-      "Service Type": l.service_type || "",
-      Status: STATUS_LABELS[l.status],
-      "Scheduled Date": l.scheduled_date || "",
-      "Scheduled Time Start": l.scheduled_time_start || "",
-      "Scheduled Time End": l.scheduled_time_end || "",
-      Quote: l.quote || "",
-      "Service Details": l.service_details || "",
-      "Customer Schedule Requirements": l.customer_schedule_requirements || "",
-      Reference: l.reference_name || "",
-      "Tech Name": l.tech_name || "",
-      "Tech Number": l.tech_number || "",
-      Terms: l.terms || "",
-      "Labor Amount": l.labor_amount != null ? l.labor_amount : "",
-      "Material Amount": l.material_amount != null ? l.material_amount : "",
-      "For You Amount": l.for_you_amount != null ? l.for_you_amount : "",
-      "For Us Amount": l.for_us_amount != null ? l.for_us_amount : "",
-      "General Notes": noteSummaryByLead[l.id]?.general || "",
-      "CS Notes": noteSummaryByLead[l.id]?.cs || "",
-      "Processor Notes": noteSummaryByLead[l.id]?.processor || "",
-      "Payment Amount": l.payment_amount != null ? l.payment_amount : "",
-      "Created By": (l.created_by ? profiles[l.created_by] || l.created_by : null) || l.created_by_name || "Deleted user",
-      "Last Edited By": (l.last_edited_by ? profiles[l.last_edited_by] || l.last_edited_by : null) || l.last_edited_by_name || "",
-      "Created At": new Date(l.created_at).toLocaleString(),
-      "Updated At": l.updated_at ? new Date(l.updated_at).toLocaleString() : "",
-    }));
-
-    const XLSX = await import("xlsx");
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Leads");
-
-    const filename = `leads_${new Date().toISOString().slice(0, 10)}`;
-    XLSX.writeFile(wb, `${filename}.${format}`, format === "csv" ? { bookType: "csv" } : undefined);
-
-    toast.success(`Exported ${data.length} leads`);
   };
 
   const handleRefresh = useCallback(async () => {
@@ -719,6 +756,13 @@ export default function LeadsPage() {
             open={showReportDialog}
             onOpenChange={setShowReportDialog}
           />
+        <ExportLeadsDialog
+          open={showExportDialog}
+          onOpenChange={setShowExportDialog}
+          onExport={handleExportData}
+          isExporting={isExporting}
+          totalFiltered={filtered.length}
+        />
 
           <InstallExtensionDialog
             open={showInstallDialog}
@@ -1056,4 +1100,8 @@ export default function LeadsPage() {
     </div>
   );
 }
+
+
+
+
 

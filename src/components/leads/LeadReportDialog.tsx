@@ -21,7 +21,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { CheckCircle2, AlertTriangle, Monitor, RefreshCw, Smartphone, Users, Download } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Monitor, RefreshCw, Smartphone, Users, Download, CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { DateRange } from "react-day-picker";
+import { cn } from "@/lib/utils";
+import { subDays, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface LeadReportDialogProps {
@@ -49,10 +54,11 @@ interface LeadAuditRow {
 
 export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialogProps) {
   const { user, role } = useAuth();
-  const [range, setRange] = useState<"today" | "yesterday" | "7d" | "30d">("today");
+  const [range, setRange] = useState<"today" | "yesterday" | "7d" | "30d" | "custom">("today");
   const [loading, setLoading] = useState(false);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const [rawLeads, setRawLeads] = useState<any[]>([]);
+  const [customRange, setCustomRange] = useState<DateRange | undefined>();
 
   const isCS = role === "customer_service";
 
@@ -304,10 +310,50 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
                 <SelectItem value="yesterday">Yesterday</SelectItem>
                 <SelectItem value="7d">Last 7 Days</SelectItem>
                 <SelectItem value="30d">Last 30 Days</SelectItem>
-              </SelectContent>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
             </Select>
-
-            <Button
+              {range === "custom" && (
+                <div className="grid gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="date"
+                        variant={"outline"}
+                        className={cn(
+                          "w-auto justify-start text-left font-normal h-9",
+                          !customRange && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                        {customRange?.from ? (
+                          customRange.to ? (
+                            <>
+                              {format(customRange.from, "LLL dd, y")} -{" "}
+                              {format(customRange.to, "LLL dd, y")}
+                            </>
+                          ) : (
+                            format(customRange.from, "LLL dd, y")
+                          )
+                        ) : (
+                          <span>Pick a date range</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="center">
+                      <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={customRange?.from}
+                        selected={customRange}
+                        onSelect={setCustomRange}
+                        numberOfMonths={2}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+              <Button
               variant="outline"
               size="icon"
               className="h-9 w-9 rounded-xl border-border/60"
@@ -508,3 +554,7 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
     </Dialog>
   );
 }
+
+
+
+

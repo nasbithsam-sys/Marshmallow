@@ -1,0 +1,358 @@
+/* ==========================================================================
+   Quo CRM Lead Capture — Floating Field-Assign Menu
+   Design language: "Dispatch Console" — a dark, precise, live-line UI that
+   reads like a dispatcher's console overlaying the chat, not a generic
+   browser popup. Signature: a glowing teal rail on the left edge that
+   pulses gently, echoing an active phone line.
+   ========================================================================== */
+
+#quo-crm-floating-menu,
+#quo-crm-floating-menu[data-theme="light"] {
+  all: initial; /* Reset host page styles for this container */
+  --qc-bg: #f8fafc;
+  --qc-panel: #ffffff;
+  --qc-border: rgba(15, 23, 42, 0.12);
+  --qc-text: #0f172a;
+  --qc-text-dim: #475569;
+  --qc-signal: #0d9488;
+  --qc-signal-soft: rgba(13, 148, 136, 0.12);
+  --qc-signal-strong: #0f766e;
+
+  position: fixed;
+  z-index: 2147483647;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 208px;
+  padding: 10px;
+  padding-left: 13px;
+  border-radius: 14px;
+  background: linear-gradient(165deg, var(--qc-panel) 0%, var(--qc-bg) 100%);
+  border: 1px solid var(--qc-border);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.6) inset,
+    0 16px 36px -10px rgba(15, 23, 42, 0.18),
+    0 4px 12px -4px rgba(15, 23, 42, 0.10);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  animation: quo-menu-appear 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  isolation: isolate;
+  transition: background 0.25s ease, border-color 0.25s ease, color 0.2s ease;
+}
+
+#quo-crm-floating-menu[data-theme="dark"] {
+  --qc-bg: #0b1220;
+  --qc-panel: #111c30;
+  --qc-border: rgba(148, 178, 214, 0.16);
+  --qc-text: #e7edf7;
+  --qc-text-dim: #93a4c2;
+  --qc-signal: #2dd4bf;
+  --qc-signal-soft: rgba(45, 212, 191, 0.16);
+  --qc-signal-strong: #5eead4;
+
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+    0 20px 40px -12px rgba(2, 6, 16, 0.65),
+    0 4px 12px -4px rgba(2, 6, 16, 0.5);
+}
+
+/* Signature signal rail — a live-line indicator down the left edge */
+#quo-crm-floating-menu::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 3px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--qc-signal) 0%, rgba(45, 212, 191, 0.25) 100%);
+  box-shadow: 0 0 10px 1px rgba(45, 212, 191, 0.55);
+  animation: quo-rail-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #quo-crm-floating-menu::before {
+    animation: none;
+  }
+}
+
+#quo-crm-floating-menu.quo-hidden {
+  display: none !important;
+}
+
+@keyframes quo-menu-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes quo-rail-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+#quo-crm-floating-menu * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Header styling */
+.quo-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--qc-border);
+  padding: 2px 6px 8px 5px;
+  margin-bottom: 4px;
+}
+
+.quo-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.quo-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--qc-signal-strong);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+/* Close button */
+.quo-close-btn {
+  border: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--qc-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.quo-close-btn svg {
+  width: 10px;
+  height: 10px;
+  stroke-width: 3;
+}
+
+.quo-close-btn:hover {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+}
+
+.quo-close-btn:active {
+  transform: scale(0.9);
+}
+
+/* Action grid (vertical dropdown list) */
+.quo-action-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 1px;
+}
+
+/* Dropdown list items */
+.quo-field-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  color: #cbd6ea;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Shimmer sweep on hover — a quick light pass, like a scan line */
+.quo-field-btn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.16), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.quo-field-btn:hover::after {
+  left: 120%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quo-field-btn::after {
+    display: none;
+  }
+}
+
+.quo-field-btn svg {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  color: var(--qc-text-dim);
+  transition: color 0.15s ease;
+}
+
+.quo-field-btn:hover {
+  background: var(--qc-signal-soft);
+  border-color: rgba(45, 212, 191, 0.3);
+  color: var(--qc-signal-strong);
+}
+
+.quo-field-btn:hover svg {
+  color: var(--qc-signal-strong);
+}
+
+.quo-field-btn:active {
+  transform: scale(0.98);
+  background: rgba(45, 212, 191, 0.22);
+}
+
+.quo-field-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--qc-bg), 0 0 0 4px var(--qc-signal);
+}
+
+/* ==========================================================================
+   Reload Banner — shown when the extension's background connection drops
+   (extension reloaded/updated while this quo.com tab stayed open)
+   ========================================================================== */
+#quo-crm-reload-banner {
+  all: initial;
+  position: fixed;
+  z-index: 2147483647;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 460px);
+  padding: 10px 10px 10px 14px;
+  border-radius: 999px;
+  background: linear-gradient(165deg, #16233b 0%, #0b1220 100%);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 18px 36px -10px rgba(2, 6, 16, 0.65);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #f1f5f9;
+  animation: quo-banner-drop 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+#quo-crm-reload-banner * {
+  box-sizing: border-box;
+}
+
+@keyframes quo-banner-drop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.quo-reload-banner__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fbbf24;
+  box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.6);
+  animation: quo-dot-ping 1.6s ease-out infinite;
+}
+
+@keyframes quo-dot-ping {
+  0% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.55); }
+  70% { box-shadow: 0 0 0 7px rgba(251, 191, 36, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+}
+
+.quo-reload-banner__text {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #e7edf7;
+}
+
+.quo-reload-banner__btn {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #04211d;
+  background: linear-gradient(135deg, #5eead4 0%, #2dd4bf 100%);
+  cursor: pointer;
+  box-shadow: 0 6px 14px -4px rgba(45, 212, 191, 0.55);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.quo-reload-banner__btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow: 0 8px 18px -4px rgba(45, 212, 191, 0.65);
+}
+
+.quo-reload-banner__btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.quo-reload-banner__close {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #93a4c2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.quo-reload-banner__close svg {
+  width: 9px;
+  height: 9px;
+  stroke-width: 3;
+}
+
+.quo-reload-banner__close:hover {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fca5a5;
+}

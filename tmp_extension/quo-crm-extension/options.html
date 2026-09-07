@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quo CRM - Settings</title>
+    <!-- Google Fonts Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="settings">
+      <section class="settings__card">
+        <header class="settings__header">
+          <div class="settings__header-top">
+            <p class="eyebrow">Settings</p>
+            <!-- Advanced Animated Day/Night Celestial Theme Toggle -->
+            <button type="button" id="theme-toggle-btn" class="theme-toggle" role="switch" aria-checked="false" title="Switch to Dark Mode">
+              <span class="theme-toggle__track">
+                <span class="theme-toggle__clouds" aria-hidden="true">
+                  <span class="cloud cloud--1"></span>
+                  <span class="cloud cloud--2"></span>
+                </span>
+                <span class="theme-toggle__stars" aria-hidden="true">
+                  <span class="star star--1"></span>
+                  <span class="star star--2"></span>
+                  <span class="star star--3"></span>
+                  <span class="star star--4"></span>
+                </span>
+                <span class="theme-toggle__thumb" aria-hidden="true">
+                  <span class="celestial-sun">
+                    <span class="sun-core"></span>
+                    <span class="sun-rays">
+                      <span class="ray ray--1"></span>
+                      <span class="ray ray--2"></span>
+                      <span class="ray ray--3"></span>
+                      <span class="ray ray--4"></span>
+                    </span>
+                  </span>
+                  <span class="celestial-moon">
+                    <span class="crater crater--1"></span>
+                    <span class="crater crater--2"></span>
+                    <span class="crater crater--3"></span>
+                  </span>
+                </span>
+              </span>
+            </button>
+          </div>
+          <h1>CRM Configuration</h1>
+        </header>
+
+        <section id="settings-feedback" class="feedback" hidden></section>
+
+        <form id="settings-form" class="settings-form">
+          <div class="form-group">
+            <label for="api-base-url">CRM Website URL</label>
+            <input
+              id="api-base-url"
+              name="apiBaseUrl"
+              type="url"
+              placeholder="https://your-crm-domain.com"
+              required
+            />
+            <p class="field-desc">Used to build direct links to captured leads from the extension.</p>
+          </div>
+
+          <button type="submit" class="button">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <span>Save Settings</span>
+          </button>
+        </form>
+      </section>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>
