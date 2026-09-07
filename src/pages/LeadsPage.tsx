@@ -676,19 +676,16 @@ export default function LeadsPage() {
           transition={{ delay: 0.15, duration: 0.35 }}
           className="flex items-center gap-2 flex-wrap"
         >
-          {isAdmin && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5 text-[12px]">
-                  <Download className="h-3.5 w-3.5" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => void exportData("csv")}>Export as CSV</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void exportData("xlsx")}>Export as XLSX</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {(isAdmin || role === "cs_admin") && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-[12px] h-9 border-border/60 hover:bg-muted/30"
+              onClick={() => setShowExportDialog(true)}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export
+            </Button>
           )}
 
           <Button
