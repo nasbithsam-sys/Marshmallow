@@ -175,7 +175,6 @@ const Settings = () => {
   const [settingPassword, setSettingPassword] = useState(false);
 
   const isAdmin = currentRole === "admin";
-  const displayedUsers = isAdmin ? users : users.filter(u => u.role === "customer_service" || u.id === user?.id);
 
   const { data: users = [] } = useQuery<SettingsUser[]>({
     queryKey: ["settings-users"],
@@ -213,6 +212,8 @@ const Settings = () => {
         .filter((entry): entry is SettingsUser => entry !== null);
     },
   });
+
+  const displayedUsers = isAdmin ? users : users.filter(u => u.role === "customer_service" || u.id === user?.id);
 
   const { data: accessCodes = [] } = useQuery<AccessCodeRow[]>({
     queryKey: ["user-access-codes"],
@@ -1333,6 +1334,8 @@ const Settings = () => {
 };
 
 export default Settings;
+
+
 
 
 
