@@ -177,7 +177,7 @@ export default function AppSidebar() {
               playAssignmentSound();
               import("sonner").then(({ toast }) => {
                 toast.info(`⚠️ New Quote Request! Lead "${newRow.customer_name || 'Customer'}" is waiting for a quote.`, {
-                  duration: 99999999, position: "top-right", action: { label: "Dismiss", onClick: () => {} },
+                  duration: 99999999, position: "top-right", action: { label: "Dismiss", onClick: () => {} }, className: "animate-pulse scale-[1.03] border-amber-500/60 shadow-[0_0_24px_rgba(245,158,11,0.25)] text-[14px]",
                 });
               });
             });
@@ -196,7 +196,7 @@ export default function AppSidebar() {
               playAssignmentSound();
               import("sonner").then(({ toast }) => {
                 toast.info(`⚠️ New Quote Request! Lead "${newRow.customer_name || 'Customer'}" is waiting for a quote.`, {
-                  duration: 99999999, position: "top-right", action: { label: "Dismiss", onClick: () => {} },
+                  duration: 99999999, position: "top-right", action: { label: "Dismiss", onClick: () => {} }, className: "animate-pulse scale-[1.03] border-amber-500/60 shadow-[0_0_24px_rgba(245,158,11,0.25)] text-[14px]",
                 });
               });
             });
