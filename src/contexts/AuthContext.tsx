@@ -332,6 +332,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       pendingStep,
       pendingUserId,
       pendingMfaFactorId,
+      hasAlternativeAccessCode,
+      hasAlternativeMfa,
       signOut,
       canAccess,
       refetchProfile,
@@ -353,6 +355,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       pendingStep,
       pendingUserId,
       pendingMfaFactorId,
+      hasAlternativeAccessCode,
+      hasAlternativeMfa,
     ],
   );
 

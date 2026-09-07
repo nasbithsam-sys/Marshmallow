@@ -15,10 +15,13 @@ const Login = () => {
     session,
     markFullyAuthenticated,
     pendingStep,
+    pendingUserId,
     pendingMfaFactorId,
     startPendingAccessCode,
     startPendingMfa,
     clearPendingAuth,
+    hasAlternativeMfa,
+    hasAlternativeAccessCode,
   } = useAuth();
 
   const [email, setEmail] = useState("");
