@@ -139,7 +139,7 @@ export default function ExportLeadsDialog({
                       defaultMonth={customDateRange?.from}
                       selected={customDateRange}
                       onSelect={setCustomDateRange}
-                      numberOfMonths={2}
+                      numberOfMonths={1}
                     />
                   </PopoverContent>
                 </Popover>

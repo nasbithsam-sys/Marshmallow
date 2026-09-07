@@ -89,11 +89,26 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
     setLoading(true);
     try {
       let start = new Date();
-      if (range === "today") {
+      let end: Date | null = null;
+
+      if (range === "custom") {
+        if (!customRange?.from) {
+          setRawLeads([]);
+          setLoading(false);
+          return;
+        }
+        start = new Date(customRange.from);
+        start.setHours(0, 0, 0, 0);
+        end = customRange.to ? new Date(customRange.to) : new Date(customRange.from);
+        end.setHours(23, 59, 59, 999);
+      } else if (range === "today") {
         start.setHours(0, 0, 0, 0);
       } else if (range === "yesterday") {
         start.setDate(start.getDate() - 1);
         start.setHours(0, 0, 0, 0);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        end = todayStart;
       } else if (range === "7d") {
         start.setDate(start.getDate() - 7);
         start.setHours(0, 0, 0, 0);
@@ -107,10 +122,8 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
         .select("id, created_at, created_by, reference_name, job_id, customer_name, customer_phone, status")
         .gte("created_at", start.toISOString());
 
-      if (range === "yesterday") {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        query = query.lt("created_at", todayStart.toISOString());
+      if (end) {
+        query = query.lte("created_at", end.toISOString());
       }
 
       // If user is CS, Supabase RLS will automatically restrict results,
@@ -132,9 +145,12 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
 
   useEffect(() => {
     if (open) {
+      if (range === "custom" && !customRange?.from) {
+        return;
+      }
       void fetchReportData();
     }
-  }, [open, range]);
+  }, [open, range, customRange]);
 
   // Export to CSV helper
   const exportToCSV = () => {
@@ -280,11 +296,12 @@ export default function LeadReportDialog({ open, onOpenChange }: LeadReportDialo
       .slice(0, 20); // Top 20 for audit
   }, [rawLeads, profiles]);
 
-  const rangeLabels = {
+  const rangeLabels: Record<string, string> = {
     today: "Today",
     yesterday: "Yesterday",
     "7d": "Last 7 Days",
     "30d": "Last 30 Days",
+    custom: "Custom Range",
   };
 
   return (

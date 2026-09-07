@@ -510,13 +510,12 @@ export default function LeadsPage() {
   const handleExportData = async (options: ExportOptions) => {
     setIsExporting(true);
     try {
-      let leadIdsToExport: string[] = [];
+      const allLeadMap = new Map<string, Lead>();
+      leads.forEach((l) => allLeadMap.set(l.id, l));
+      sharedLeads.forEach((l) => allLeadMap.set(l.id, l));
+      const allLeadsList = Array.from(allLeadMap.values());
 
-      if (options.scope === "current") {
-        leadIdsToExport = filtered.map((l) => l.id);
-      } else {
-        leadIdsToExport = allData.map((l) => l.id);
-      }
+      let baseLeads = options.scope === "current" ? filtered : allLeadsList;
 
       // Apply Date Filter
       if (options.dateRangePreset !== "all_time") {
@@ -528,7 +527,9 @@ export default function LeadsPage() {
           if (options.customDateRange?.from) {
             startDate = new Date(options.customDateRange.from);
             startDate.setHours(0, 0, 0, 0);
-            endDate = options.customDateRange.to ? new Date(options.customDateRange.to) : new Date(options.customDateRange.from);
+            endDate = options.customDateRange.to
+              ? new Date(options.customDateRange.to)
+              : new Date(options.customDateRange.from);
             endDate.setHours(23, 59, 59, 999);
           }
         } else if (options.dateRangePreset === "today") {
@@ -545,8 +546,7 @@ export default function LeadsPage() {
         }
 
         if (startDate && endDate) {
-          leadIdsToExport = leadIdsToExport.filter((id) => {
-            const lead = allData.find((l) => l.id === id);
+          baseLeads = baseLeads.filter((lead) => {
             if (!lead || !lead.created_at) return false;
             const created = new Date(lead.created_at).getTime();
             return created >= startDate!.getTime() && created <= endDate!.getTime();
@@ -555,9 +555,12 @@ export default function LeadsPage() {
       }
 
       // Apply Limit
+      let finalLeads = baseLeads;
       if (options.limit !== "all") {
-        leadIdsToExport = leadIdsToExport.slice(0, options.limit);
+        finalLeads = finalLeads.slice(0, options.limit);
       }
+
+      const leadIdsToExport = finalLeads.map((l) => l.id);
 
       if (leadIdsToExport.length === 0) {
         toast.error("No leads match the selected criteria for export.");
@@ -596,7 +599,7 @@ export default function LeadsPage() {
       });
 
       const exportRows = leadIdsToExport.map((id) => {
-        const lead = allData.find((l) => l.id === id);
+        const lead = allLeadMap.get(id);
         return {
           "Job ID": lead?.job_id,
           "Reference Name": lead?.reference_name,
