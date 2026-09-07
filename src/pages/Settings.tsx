@@ -175,6 +175,7 @@ const Settings = () => {
   const [settingPassword, setSettingPassword] = useState(false);
 
   const isAdmin = currentRole === "admin";
+  const displayedUsers = isAdmin ? users : users.filter(u => u.role === "customer_service" || u.id === user?.id);
 
   const { data: users = [] } = useQuery<SettingsUser[]>({
     queryKey: ["settings-users"],
@@ -403,8 +404,7 @@ const Settings = () => {
         await logActivity(user.id, "updated", "user", userId, {
           target_name: targetUser?.full_name || targetUser?.email || userId,
           email: targetUser?.email || null,
-          changes: {
-            [`nav_${section}`]: {
+          changes: { [`nav_${section}`]: {
               before: beforeAllowed,
               after: allowed,
             },
@@ -586,6 +586,21 @@ const Settings = () => {
     onError: (error) => toast.error(`Failed to update Quotation Master: ${error.message}`),
   });
 
+  const toggleCanManageUsers = useMutation({
+    mutationFn: async ({ userId, canManage }: { userId: string; canManage: boolean }) => {
+      const { error } = await supabase.from("profiles").update({ can_manage_users: canManage } as never).eq("id", userId);
+      if (error) throw error;
+      return { userId, canManage };
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["settings-users"], (old: SettingsUser[] | undefined) =>
+        old ? old.map((u) => (u.id === data.userId ? { ...u, can_manage_users: data.canManage } : u)) : [],
+      );
+      toast.success(`CS Admin settings access `);
+    },
+    onError: (error) => toast.error(`Failed to update CS Admin access: ${error.message}`),
+  });
+
   const handleDeleteUser = async (userId: string) => {
     const targetUser = getUserById(userId);
 
@@ -711,8 +726,8 @@ const Settings = () => {
             </p>
           </div>
 
-          {isAdmin && (
-            <Button onClick={() => setCreateOpen(true)} className="gap-2 self-start lg:self-auto">
+          {(isAdmin || currentRole === "cs_admin") && (
+              <Button onClick={() => setCreateOpen(true)} className="gap-2 self-start lg:self-auto">
               <Plus className="h-4 w-4" />
               Create User
             </Button>
@@ -753,9 +768,11 @@ const Settings = () => {
         {(
           [
             { key: "users", label: "Users", icon: Shield },
-            { key: "nav_permissions", label: "Feature Access", icon: Shield },
-            { key: "status_permissions", label: "Status Visibility", icon: Eye },
-            { key: "templates", label: "Templates", icon: FileText },
+            ...(isAdmin ? [{ key: "nav_permissions" as const, label: "Feature Access", icon: Shield }] : []),
+              ...(isAdmin ? [{ key: "status_permissions" as const, label: "Status Visibility", icon: Eye }] : []),
+              ...(isAdmin ? [{ key: "templates" as const, label: "Templates", icon: FileText }] : []),
+            
+            
             { key: "security", label: "Security", icon: ShieldCheck },
             ...(isAdmin ? [{ key: "crm_updates" as const, label: "CRM Updates", icon: Megaphone }] : []),
             ...(isAdmin ? [{ key: "google_sheets" as const, label: "Google Sheets", icon: FileSpreadsheet }] : []),
@@ -793,7 +810,7 @@ const Settings = () => {
 
       {activeTab === "users" && (
         <div className="grid gap-3">
-          {users.map((u) => (
+          {displayedUsers.map((u) => (
             <Card key={u.id} className="overflow-hidden border-border/60 bg-card/95 hover:shadow-premium-md">
               <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
                 <Avatar className="h-9 w-9 shrink-0">
@@ -816,9 +833,9 @@ const Settings = () => {
                   {u.role.replace("_", " ")}
                 </span>
 
-                {isAdmin && (
+                {(isAdmin || currentRole === "cs_admin") && (
                   <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:items-center">
-                    <Select
+                    {isAdmin && <Select
                       value={u.role}
                       onValueChange={(v) => updateRole.mutate({ userId: u.id, role: v as AppRole })}
                     >
@@ -832,15 +849,25 @@ const Settings = () => {
                         <SelectItem value="cs_admin">CS Admin</SelectItem>
                         <SelectItem value="opr">OPR (Operator)</SelectItem>
                       </SelectContent>
-                    </Select>
+                    </Select>}
 
-                    <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-background/70 px-3 py-2">
+                    {isAdmin && <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-background/70 px-3 py-2">
                       <Switch 
                         checked={u.is_quotation_master || false}
                         onCheckedChange={(checked) => toggleQuotationMaster.mutate({ userId: u.id, isMaster: checked })}
                       />
                       <span className="text-[12px] font-medium leading-none">Quotation Master</span>
-                    </div>
+                    </div>}
+                    
+                    {isAdmin && u.role === "cs_admin" && (
+                      <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-background/70 px-3 py-2">
+                        <Switch 
+                          checked={u.can_manage_users || false}
+                          onCheckedChange={(checked) => toggleCanManageUsers.mutate({ userId: u.id, canManage: checked })}
+                        />
+                        <span className="text-[12px] font-medium leading-none">Can Manage CS Users</span>
+                      </div>
+                    )}
 
                     <Button
                       variant="outline"
@@ -1234,7 +1261,7 @@ const Settings = () => {
 
             <div className="space-y-1.5">
               <Label className="text-[11px] text-muted-foreground/60 font-medium">Role</Label>
-              <Select value={newRole} onValueChange={(v) => setNewRole(v as AppRole)}>
+              <Select value={newRole} onValueChange={(v) => setNewRole(v as AppRole)} disabled={!isAdmin}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -1306,4 +1333,22 @@ const Settings = () => {
 };
 
 export default Settings;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
