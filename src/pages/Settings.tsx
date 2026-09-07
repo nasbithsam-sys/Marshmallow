@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Plus, Shield, Eye, EyeOff, Trash2, ShieldCheck, Copy, RefreshCw, KeyRound, Lock, FileText, BookOpen, Megaphone, FileSpreadsheet } from "lucide-react";
+import { Plus, Shield, Eye, EyeOff, Trash2, ShieldCheck, ShieldOff, QrCode, Copy, RefreshCw, KeyRound, Lock, FileText, BookOpen, Megaphone, FileSpreadsheet } from "lucide-react";
 import { DocumentationTab } from "@/components/settings/DocumentationTab";
 import { GoogleSheetsTab } from "@/components/settings/GoogleSheetsTab";
 const CrmUpdates = lazy(() => import("@/pages/CrmUpdates"));
@@ -223,6 +223,70 @@ const Settings = () => {
       return data ?? [];
     },
   });
+
+  const { data: totpStatusData = [] } = useQuery<{ user_id: string; has_totp: boolean }[]>({
+    queryKey: ["users-totp-status"],
+    enabled: isAdmin || currentRole === "cs_admin",
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase.rpc("get_users_totp_status" as any);
+        if (error || !data) return [];
+        return data as { user_id: string; has_totp: boolean }[];
+      } catch {
+        return [];
+      }
+    },
+    refetchInterval: 15000,
+  });
+
+  const userTotpMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    totpStatusData.forEach((row) => {
+      map[row.user_id] = row.has_totp;
+    });
+    return map;
+  }, [totpStatusData]);
+
+  const [totpDialogOpen, setTotpDialogOpen] = useState(false);
+  const [totpData, setTotpData] = useState<{ userId: string; userName: string; qrCode: string; secret: string } | null>(null);
+  const [totpLoadingUser, setTotpLoadingUser] = useState<string | null>(null);
+
+  const handleEnrollTotp = async (userId: string, userName: string) => {
+    setTotpLoadingUser(userId);
+    try {
+      const res = await adminApi.enrollTotpUser(userId);
+      if (res?.qr_code && res?.secret) {
+        setTotpData({
+          userId,
+          userName,
+          qrCode: res.qr_code,
+          secret: res.secret,
+        });
+        setTotpDialogOpen(true);
+        queryClient.invalidateQueries({ queryKey: ["users-totp-status"] });
+        toast.success(`TOTP credentials generated for ${userName}`);
+      } else {
+        toast.error("Failed to generate TOTP credentials");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to setup TOTP");
+    } finally {
+      setTotpLoadingUser(null);
+    }
+  };
+
+  const handleDeleteTotp = async (userId: string, userName: string) => {
+    setTotpLoadingUser(userId);
+    try {
+      await adminApi.deleteTotpUser(userId);
+      queryClient.invalidateQueries({ queryKey: ["users-totp-status"] });
+      toast.success(`TOTP deleted for ${userName}`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete TOTP");
+    } finally {
+      setTotpLoadingUser(null);
+    }
+  };
 
   const { data: navPermissions = [] } = useQuery<NavPermissionRow[]>({
     queryKey: ["settings-nav-permissions"],
@@ -928,6 +992,74 @@ const Settings = () => {
                           )}
                         </div>
 
+                        {(isAdmin || (currentRole === "cs_admin" && u.role === "customer_service")) && (
+                          <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-border/60 bg-background/70 px-3 py-2">
+                            <div className="flex items-center gap-1.5 mr-1 text-[11px] font-medium text-muted-foreground">
+                              <Shield className="h-3.5 w-3.5 text-primary" />
+                              <span>TOTP:</span>
+                            </div>
+                            {userTotpMap[u.id] ? (
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="h-6 gap-1 border-emerald-500/30 bg-emerald-500/10 text-[11px] font-semibold text-emerald-500">
+                                  <ShieldCheck className="h-3 w-3" />
+                                  Active
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                  onClick={() => handleEnrollTotp(u.id, u.full_name || u.email || "user")}
+                                  disabled={totpLoadingUser === u.id}
+                                  title="Recreate / Reset TOTP"
+                                >
+                                  <RefreshCw className={`h-3 w-3 ${totpLoadingUser === u.id ? "animate-spin" : ""}`} />
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                                      disabled={totpLoadingUser === u.id}
+                                      title="Delete TOTP"
+                                    >
+                                      <ShieldOff className="h-3 w-3" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete TOTP for {u.full_name || u.email}?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This will remove the user's authenticator configuration. They will no longer be prompted for TOTP codes when logging in.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteTotp(u.id, u.full_name || u.email || "user")}
+                                        className="bg-destructive text-destructive-foreground"
+                                      >
+                                        Delete TOTP
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 text-[11px] h-7"
+                                onClick={() => handleEnrollTotp(u.id, u.full_name || u.email || "user")}
+                                disabled={totpLoadingUser === u.id}
+                              >
+                                <QrCode className="h-3 w-3" />
+                                {totpLoadingUser === u.id ? "Generating..." : "Setup TOTP"}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
@@ -1325,6 +1457,55 @@ const Settings = () => {
             </Button>
             <Button onClick={handleSetPassword} disabled={settingPassword || !newPasswordValue}>
               {settingPassword ? "Saving..." : "Set Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={totpDialogOpen} onOpenChange={setTotpDialogOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl border border-border/60 bg-card/95 shadow-brand backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">
+              TOTP Setup for {totpData?.userName}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              Scan this QR code with Google Authenticator or enter the secret key manually.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {totpData?.qrCode && (
+              <div className="flex justify-center p-3 rounded-2xl bg-white border border-border/40 w-48 h-48 mx-auto">
+                <img src={totpData.qrCode} alt="TOTP QR Code" className="w-full h-full object-contain" />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Secret Key</Label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded-xl border border-border/50 bg-muted/60 p-2.5 font-mono text-xs font-bold text-foreground break-all select-all">
+                  {totpData?.secret}
+                </code>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 h-10 w-10"
+                  onClick={() => {
+                    if (totpData?.secret) {
+                      navigator.clipboard.writeText(totpData.secret);
+                      toast.success("Secret copied to clipboard");
+                    }
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button onClick={() => setTotpDialogOpen(false)} className="w-full">
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

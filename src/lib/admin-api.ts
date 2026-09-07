@@ -59,4 +59,13 @@ export const adminApi = {
 
   deleteLead: (lead_id: string) =>
     callAdminFunction({ action: 'delete_lead', lead_id }),
+
+  listTotpFactors: (user_id: string) =>
+    callAdminFunction({ action: 'list_totp_factors', user_id }),
+
+  enrollTotpUser: (user_id: string) =>
+    callAdminFunction({ action: 'enroll_totp_user', user_id }),
+
+  deleteTotpUser: (user_id: string) =>
+    callAdminFunction({ action: 'delete_totp_user', user_id }),
 };

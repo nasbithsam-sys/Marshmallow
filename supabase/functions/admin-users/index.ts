@@ -30,6 +30,52 @@ function getErrorMessage(error: unknown) {
   return String(error);
 }
 
+function base32ToBytes(base32: string): Uint8Array {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = 0, value = 0, index = 0;
+  const clean = base32.toUpperCase().replace(/=+$/, "");
+  const output = new Uint8Array(((clean.length * 5) / 8) | 0);
+  for (let i = 0; i < clean.length; i++) {
+    const val = chars.indexOf(clean[i]);
+    if (val === -1) continue;
+    value = (value << 5) | val;
+    bits += 5;
+    if (bits >= 8) {
+      output[index++] = (value >>> (bits - 8)) & 255;
+      bits -= 8;
+    }
+  }
+  return output;
+}
+
+async function generateTotpCode(secret: string): Promise<string> {
+  const epoch = Math.floor(Date.now() / 1000);
+  const timeStep = Math.floor(epoch / 30);
+  const timeBuffer = new ArrayBuffer(8);
+  const timeView = new DataView(timeBuffer);
+  timeView.setBigUint64(0, BigInt(timeStep));
+
+  const keyBytes = base32ToBytes(secret);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyBytes,
+    { name: "HMAC", hash: "SHA-1" },
+    false,
+    ["sign"],
+  );
+
+  const signature = await crypto.subtle.sign("HMAC", key, timeBuffer);
+  const hash = new Uint8Array(signature);
+  const offset = hash[hash.length - 1] & 0xf;
+  const binary =
+    ((hash[offset] & 0x7f) << 24) |
+    ((hash[offset + 1] & 0xff) << 16) |
+    ((hash[offset + 2] & 0xff) << 8) |
+    (hash[offset + 3] & 0xff);
+
+  const otp = binary % 1000000;
+  return otp.toString().padStart(6, "0");
+}
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -432,6 +478,173 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true });
     }
 
+    if (action === "list_totp_factors") {
+      const { user_id } = body;
+      if (!user_id) return jsonResponse({ error: "User ID required" }, 400);
+
+      if (!isAdmin) {
+        const { data: targetRoleData } = await adminClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user_id)
+          .single();
+
+        if (targetRoleData?.role !== "customer_service") {
+          return jsonResponse({ error: "CS Admins can only manage customer_service users" }, 403);
+        }
+      }
+
+      const { data: factorData, error: factorError } = await adminClient.auth.admin.mfa.listFactors({
+        userId: user_id,
+      });
+
+      if (factorError) {
+        return jsonResponse({ error: factorError.message }, 400);
+      }
+
+      const totpFactors = factorData?.factors?.filter((f: any) => f.factor_type === "totp") || [];
+      return jsonResponse({
+        success: true,
+        factors: totpFactors,
+        has_active_totp: totpFactors.some((f: any) => f.status === "verified"),
+      });
+    }
+
+    if (action === "enroll_totp_user") {
+      const { user_id } = body;
+      if (!user_id) return jsonResponse({ error: "User ID required" }, 400);
+
+      if (!isAdmin) {
+        const { data: targetRoleData } = await adminClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user_id)
+          .single();
+
+        if (targetRoleData?.role !== "customer_service") {
+          return jsonResponse({ error: "CS Admins can only manage customer_service users" }, 403);
+        }
+      }
+
+      const { data: { user: targetUser }, error: targetUserError } = await adminClient.auth.admin.getUserById(user_id);
+      if (targetUserError || !targetUser?.email) {
+        return jsonResponse({ error: "Target user not found" }, 404);
+      }
+
+      // Delete any existing factors first
+      const { data: existingFactors } = await adminClient.auth.admin.mfa.listFactors({ userId: user_id });
+      for (const factor of existingFactors?.factors || []) {
+        if (factor.factor_type === "totp") {
+          await adminClient.auth.admin.mfa.deleteFactor({ userId: user_id, id: factor.id });
+        }
+      }
+
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+      if (!anonKey) {
+        return jsonResponse({ error: "Server configuration missing (SUPABASE_ANON_KEY)" }, 500);
+      }
+
+      const anonClient = createClient(supabaseUrl, anonKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+
+      const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+        type: "magiclink",
+        email: targetUser.email,
+      });
+
+      if (linkError || !linkData?.properties?.hashed_token) {
+        return jsonResponse({ error: "Failed to generate session link for MFA enrollment" }, 500);
+      }
+
+      const { data: sessionData, error: verifyOtpError } = await anonClient.auth.verifyOtp({
+        token_hash: linkData.properties.hashed_token,
+        type: "magiclink",
+      });
+
+      if (verifyOtpError || !sessionData?.session?.access_token) {
+        return jsonResponse({ error: "Failed to create session for enrollment: " + (verifyOtpError?.message || "") }, 500);
+      }
+
+      const userClient = createClient(supabaseUrl, anonKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${sessionData.session.access_token}` } },
+      });
+
+      const { data: enrollData, error: enrollError } = await userClient.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: "Marshmallow Authenticator",
+        issuer: "Marshmallow",
+      });
+
+      if (enrollError || !enrollData) {
+        return jsonResponse({ error: "Enrollment failed: " + (enrollError?.message || "") }, 500);
+      }
+
+      // Auto-verify with computed TOTP code so it becomes active immediately
+      try {
+        const secret = enrollData.totp.secret;
+        const totpCode = await generateTotpCode(secret);
+
+        const { data: challengeData } = await userClient.auth.mfa.challenge({
+          factorId: enrollData.id,
+        });
+
+        if (challengeData) {
+          await userClient.auth.mfa.verify({
+            factorId: enrollData.id,
+            challengeId: challengeData.id,
+            code: totpCode,
+          });
+        }
+      } catch (verifyErr) {
+        console.warn("Auto-verify warning:", verifyErr);
+      }
+
+      return jsonResponse({
+        success: true,
+        factorId: enrollData.id,
+        qr_code: enrollData.totp.qr_code,
+        secret: enrollData.totp.secret,
+        uri: enrollData.totp.uri,
+      });
+    }
+
+    if (action === "delete_totp_user") {
+      const { user_id } = body;
+      if (!user_id) return jsonResponse({ error: "User ID required" }, 400);
+
+      if (!isAdmin) {
+        const { data: targetRoleData } = await adminClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user_id)
+          .single();
+
+        if (targetRoleData?.role !== "customer_service") {
+          return jsonResponse({ error: "CS Admins can only manage customer_service users" }, 403);
+        }
+      }
+
+      const { data: factorData, error: factorError } = await adminClient.auth.admin.mfa.listFactors({
+        userId: user_id,
+      });
+
+      if (factorError) {
+        return jsonResponse({ error: factorError.message }, 400);
+      }
+
+      for (const factor of factorData?.factors || []) {
+        if (factor.factor_type === "totp") {
+          await adminClient.auth.admin.mfa.deleteFactor({
+            userId: user_id,
+            id: factor.id,
+          });
+        }
+      }
+
+      return jsonResponse({ success: true, message: "TOTP factor deleted" });
+    }
     return jsonResponse({ error: "Unknown action: " + action }, 400);
   } catch (err) {
     console.error("Edge function error:", err);
