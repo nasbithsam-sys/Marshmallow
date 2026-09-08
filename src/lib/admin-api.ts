@@ -1,8 +1,29 @@
 import { supabase } from '@/integrations/supabase/client';
 
+async function getFreshAccessToken(): Promise<string> {
+  let { data: { session } } = await supabase.auth.getSession();
+
+  // Refresh when the token is missing or expires within the next 60 seconds,
+  // otherwise the edge function rejects it with "invalid token".
+  const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0;
+  if (!session || expiresAt - Date.now() < 60_000) {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error || !data.session) {
+      await supabase.auth.signOut();
+      throw new Error('Your session expired. Please log in again.');
+    }
+    session = data.session;
+  }
+
+  return session.access_token;
+}
+
 async function callAdminFunction(body: Record<string, unknown>) {
+  const accessToken = await getFreshAccessToken();
+
   const { data, error } = await supabase.functions.invoke('admin-users', {
     body,
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
 
   if (error) {
