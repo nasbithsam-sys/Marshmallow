@@ -248,41 +248,52 @@ Deno.serve(async (req) => {
     let matched = "";
     let accuracy: "coordinates" | "address" | "street_zip" | "city_state" | "zip_centroid" | "unknown" = "unknown";
 
-    if (!hasCoords) {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 20000);
-      try {
-        if (normalizedAddress) {
-          const q = addressHasInlineLocation
-            ? normalizedAddress
-            : [normalizedAddress, city, state, zip].filter(Boolean).join(", ");
-          const r = await nominatimFree(q, controller.signal);
-          if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "address"; }
-        }
-        if (lat === null && (city || zip) && state) {
-          const r = await nominatimStructured({ city, state, postalcode: zip || undefined }, controller.signal);
-          if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "city_state"; }
-        }
-        if (lat === null && zip) {
-          const r = await zipCentroid(zip, controller.signal);
-          if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "zip_centroid"; }
-        }
-        if (lat === null && zip) {
-          const r = await nominatimFree(`${zip}, USA`, controller.signal);
-          if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "zip_centroid"; }
-        }
-        if (lat === null && streetAddress && zip) {
-          const r = await nominatimStructured({ street: streetAddress, postalcode: zip }, controller.signal);
-          if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "street_zip"; }
-        }
-      } catch (e) {
-        log("geocoding_exception", { message: e instanceof Error ? e.message : String(e) });
-      } finally {
-        clearTimeout(t);
+    // Always re-geocode from the current address to avoid stale stored coords.
+    // Only fall back to stored coords if every geocoding attempt fails.
+    const storedLat = lat;
+    const storedLng = lng;
+    lat = null;
+    lng = null;
+
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 20000);
+    try {
+      if (normalizedAddress) {
+        const q = addressHasInlineLocation
+          ? normalizedAddress
+          : [normalizedAddress, city, state, zip].filter(Boolean).join(", ");
+        const r = await nominatimFree(q, controller.signal);
+        if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "address"; }
       }
-    } else {
+      if (lat === null && (city || zip) && state) {
+        const r = await nominatimStructured({ city, state, postalcode: zip || undefined }, controller.signal);
+        if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "city_state"; }
+      }
+      if (lat === null && zip) {
+        const r = await zipCentroid(zip, controller.signal);
+        if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "zip_centroid"; }
+      }
+      if (lat === null && zip) {
+        const r = await nominatimFree(`${zip}, USA`, controller.signal);
+        if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "zip_centroid"; }
+      }
+      if (lat === null && streetAddress && zip) {
+        const r = await nominatimStructured({ street: streetAddress, postalcode: zip }, controller.signal);
+        if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "street_zip"; }
+      }
+    } catch (e) {
+      log("geocoding_exception", { message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      clearTimeout(t);
+    }
+
+    // Fall back to stored coordinates only if geocoding produced nothing.
+    if (lat === null && storedLat !== null && storedLng !== null) {
+      lat = storedLat;
+      lng = storedLng;
       accuracy = "coordinates";
       matched = sourceAddress;
+      log("geocoding_fallback_to_stored", { storedLat, storedLng });
     }
 
     if (lat === null || lng === null || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
@@ -294,7 +305,8 @@ Deno.serve(async (req) => {
     }
     log("coords_resolved", { accuracy });
 
-    if (!hasCoords) {
+    // Always update stored coords so they stay in sync with the current address.
+    if (lat !== storedLat || lng !== storedLng) {
       await admin.from("leads").update({ latitude: lat, longitude: lng }).eq("id", leadId);
     }
 
