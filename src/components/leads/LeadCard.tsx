@@ -19,6 +19,7 @@ import {
   UserRound,
   Trash2,
   Pencil,
+  Eye,
   MessageSquare,
   Wrench,
   ChevronDown,
@@ -1697,7 +1698,7 @@ function LeadCard({
             hasNotes: hasNotes.general,
           })}
 
-          {(isCS || isCsAdmin || isProcessor || isAdmin) &&
+          {(isCS || isCsAdmin || isProcessor || isAdmin || isOpr) &&
             renderCollapsible({
               open: csOpen,
               setOpen: setCsOpen,
@@ -1769,10 +1770,10 @@ function LeadCard({
         <div className="mt-auto border-t border-white/30 px-4 pb-4 pt-4 dark:border-white/5">
           <div className="crm-lead-card-footer rounded-[24px] p-2.5 shadow-[0_24px_40px_-28px_rgba(59,130,246,0.18)] dark:shadow-none">
             <div className="mb-2.5 flex items-center gap-2">
-              <Select value={lead.status} onValueChange={handleStatusChange} disabled={changingStatus || isPaid}>
+              <Select value={lead.status} onValueChange={handleStatusChange} disabled={changingStatus || isPaid || isOpr}>
                 <SelectTrigger
                   className={`crm-lead-card-inner h-10 flex-1 rounded-[16px] text-[12px] font-medium shadow-[0_18px_28px_-24px_rgba(59,130,246,0.16)] ${
-                    isPaid ? "cursor-not-allowed opacity-60" : ""
+                    isPaid || isOpr ? "cursor-not-allowed opacity-60" : ""
                   }`}
                 >
                   <SelectValue />
@@ -1813,8 +1814,8 @@ function LeadCard({
                 className="crm-lead-card-inner h-11 min-w-0 w-full overflow-hidden rounded-[14px] px-1.5 text-[10px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
                 onClick={() => navigate(`/leads/${lead.id}`)}
               >
-                <Pencil className="h-3 w-3 shrink-0" />
-                <span className="truncate">Edit Lead</span>
+                {isOpr ? <Eye className="h-3 w-3 shrink-0" /> : <Pencil className="h-3 w-3 shrink-0" />}
+                <span className="truncate">{isOpr ? "View Lead" : "Edit Lead"}</span>
               </Button>
 
               {canCompleteCopy && (

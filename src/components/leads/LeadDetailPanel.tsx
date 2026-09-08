@@ -126,9 +126,10 @@ const StatusDropdownFiltered = ({
   role?: string | null;
 }) => {
   const changeable = getChangeableStatuses(role);
+  const isOpr = role === "opr";
 
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange} disabled={isOpr}>
       <SelectTrigger className="h-11 rounded-xl border-border/60 bg-background text-foreground shadow-sm">
         <SelectValue />
       </SelectTrigger>

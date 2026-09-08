@@ -606,6 +606,10 @@ export default function LeadDetailPage() {
 
   const handleSave = async () => {
     if (!user) return;
+    if (isOpr) {
+      toast.error("Operators cannot edit leads");
+      return;
+    }
 
     if (!form.customer_name.trim()) {
       toast.error("Customer Name is required");
@@ -1086,19 +1090,21 @@ export default function LeadDetailPage() {
               </motion.div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={handleSave} disabled={saving || isDuplicate} className="gap-2">
-                {saved ? (
-                  <>
-                    <Check className="h-4 w-4" /> Saved
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4" /> {saving ? "Saving..." : isNew ? "Create Lead" : "Save Lead"}
-                  </>
-                )}
-              </Button>
-            </div>
+            {!isOpr && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={handleSave} disabled={saving || isDuplicate} className="gap-2">
+                  {saved ? (
+                    <>
+                      <Check className="h-4 w-4" /> Saved
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" /> {saving ? "Saving..." : isNew ? "Create Lead" : "Save Lead"}
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-3 border-t border-border/50 pt-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -1181,7 +1187,7 @@ export default function LeadDetailPage() {
                   value={form.customer_name}
                   onChange={(e) => update("customer_name", e.target.value)}
                   className={fieldClass}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                 />
               </div>
 
@@ -1190,7 +1196,7 @@ export default function LeadDetailPage() {
                 <NumberNameCombobox
                   value={form.number_name}
                   onChange={(value) => update("number_name", value)}
-                  disabled={isProcessor}
+                  disabled={isProcessor || isOpr}
                   className={fieldClass}
                 />
               </div>
@@ -1204,7 +1210,7 @@ export default function LeadDetailPage() {
                   onChange={(e) => update("customer_phone", e.target.value)}
                   maxLength={14}
                   className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive" : ""}`}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                 />
                 {form.customer_phone && (
                   <QuoPhoneTrigger
@@ -1231,7 +1237,7 @@ export default function LeadDetailPage() {
                   value={form.customer_email}
                   onChange={(e) => update("customer_email", e.target.value)}
                   className={fieldClass}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                 />
               </div>
             </div>
@@ -1255,7 +1261,7 @@ export default function LeadDetailPage() {
                   onChange={(e) => update("address", e.target.value)}
                   placeholder="123 Main St, City, State, Zip"
                   className={fieldClass}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                 />
               </div>
 
@@ -1267,7 +1273,7 @@ export default function LeadDetailPage() {
                     value={form.service_type || ""}
                     onChange={(val) => update("service_type", val)}
                     className={fieldClass}
-                    disabled={isProcessor}
+                    disabled={isProcessor || isOpr}
                   />
                 </div>
 
@@ -1277,7 +1283,7 @@ export default function LeadDetailPage() {
                     value={form.quote}
                     onChange={(e) => update("quote", e.target.value)}
                     className={fieldClass}
-                    readOnly={isProcessor}
+                    readOnly={isProcessor || isOpr}
                   />
                 </div>
               </div>
@@ -1289,7 +1295,7 @@ export default function LeadDetailPage() {
                   onChange={(e) => update("service_details", e.target.value)}
                   rows={3}
                   className={`${fieldClass} resize-none min-h-[96px]`}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                 />
               </div>
 
@@ -1298,7 +1304,7 @@ export default function LeadDetailPage() {
                   <MultiDateTimePicker
                     value={form.customer_schedule_requirements}
                     onChange={(val) => update("customer_schedule_requirements", val)}
-                    readOnly={isProcessor}
+                    readOnly={isProcessor || isOpr}
                   />
                 </div>
 
@@ -1308,7 +1314,7 @@ export default function LeadDetailPage() {
                   value={form.reference_name}
                   onChange={(e) => update("reference_name", e.target.value)}
                   className={fieldClass}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                 />
               </div>
 
@@ -1320,7 +1326,7 @@ export default function LeadDetailPage() {
                     onChange={(e) => update("cs_notes", e.target.value)}
                     rows={4}
                     className={`${fieldClass} resize-none min-h-[110px]`}
-                    readOnly={isProcessor}
+                    readOnly={isProcessor || isOpr}
                   />
                 </div>
               ) : (
@@ -1357,6 +1363,7 @@ export default function LeadDetailPage() {
                         value={form.tech_name}
                         onChange={(e) => update("tech_name", e.target.value)}
                         className={fieldClass}
+                        readOnly={isOpr}
                       />
                     </div>
 
@@ -1367,6 +1374,7 @@ export default function LeadDetailPage() {
                       onChange={(e) => update("tech_number", e.target.value)}
                       maxLength={14}
                       className={fieldClass}
+                      readOnly={isOpr}
                     />
                     {form.tech_number && (
                       <QuoPhoneTrigger
@@ -1397,7 +1405,7 @@ export default function LeadDetailPage() {
 
                 <div className="space-y-1.5">
                   <Label className={labelClass}>Terms</Label>
-                  <Select value={form.terms} onValueChange={(v) => update("terms", v)}>
+                  <Select value={form.terms} onValueChange={(v) => update("terms", v)} disabled={isOpr}>
                     <SelectTrigger className={fieldClass}>
                       <SelectValue placeholder="Select terms..." />
                     </SelectTrigger>
@@ -1423,6 +1431,7 @@ export default function LeadDetailPage() {
                           value={form.labor_amount}
                           onChange={(e) => update("labor_amount", e.target.value)}
                           className={fieldClass}
+                          readOnly={isOpr}
                         />
                       </div>
 
@@ -1434,6 +1443,7 @@ export default function LeadDetailPage() {
                           value={form.material_amount}
                           onChange={(e) => update("material_amount", e.target.value)}
                           className={fieldClass}
+                          readOnly={isOpr}
                         />
                       </div>
 
@@ -1445,6 +1455,7 @@ export default function LeadDetailPage() {
                           value={form.for_you_amount}
                           onChange={(e) => update("for_you_amount", e.target.value)}
                           className={fieldClass}
+                          readOnly={isOpr}
                         />
                       </div>
 
@@ -1456,32 +1467,35 @@ export default function LeadDetailPage() {
                           value={form.for_us_amount}
                           onChange={(e) => update("for_us_amount", e.target.value)}
                           className={fieldClass}
+                          readOnly={isOpr}
                         />
                       </div>
                     </div>
                   </div>
                 )}
 
-                {isNew ? (
-                  <div className="space-y-1.5">
-                    <Label className="text-[12px] font-semibold text-foreground">Processor Notes</Label>
-                    <Textarea
-                      value={form.processor_notes}
-                      onChange={(e) => update("processor_notes", e.target.value)}
-                      rows={4}
-                      className={`${fieldClass} resize-none min-h-[110px]`}
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div>
+                {!isOpr && (
+                  isNew ? (
+                    <div className="space-y-1.5">
                       <Label className="text-[12px] font-semibold text-foreground">Processor Notes</Label>
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        This thread stays hidden from CS and is editable by processors and admins.
-                      </p>
+                      <Textarea
+                        value={form.processor_notes}
+                        onChange={(e) => update("processor_notes", e.target.value)}
+                        rows={4}
+                        className={`${fieldClass} resize-none min-h-[110px]`}
+                      />
                     </div>
-                    {leadId && <NoteThread leadId={leadId} noteType="processor" label="Processor Notes" />}
-                  </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div>
+                        <Label className="text-[12px] font-semibold text-foreground">Processor Notes</Label>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          This thread stays hidden from CS and is editable by processors and admins.
+                        </p>
+                      </div>
+                      {leadId && <NoteThread leadId={leadId} noteType="processor" label="Processor Notes" />}
+                    </div>
+                  )
                 )}
               </CollapsibleContent>
             </Collapsible>
@@ -1516,7 +1530,7 @@ export default function LeadDetailPage() {
             <CollapsibleContent className="mt-3 space-y-4 px-1">
               <div className="space-y-1.5">
                 <Label className={labelClass}>Status</Label>
-                <Select value={form.status} onValueChange={(v) => update("status", v)}>
+                <Select value={form.status} onValueChange={(v) => update("status", v)} disabled={isOpr}>
                   <SelectTrigger className={fieldClass}>
                     <SelectValue />
                   </SelectTrigger>
@@ -1720,6 +1734,18 @@ export default function LeadDetailPage() {
               leadId && <NoteThread leadId={leadId} noteType="general" label="General Notes" />
             )}
           </div>
+
+          {(isAdmin || isProcessor || isOpr) && leadId && (
+            <div className={sectionClass}>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/60">OPR Notes</p>
+                <p className="mt-1 text-[12px] leading-5 text-muted-foreground">
+                  Notes shared with assigned operators.
+                </p>
+              </div>
+              <NoteThread leadId={leadId} noteType="opr" label="OPR Notes" />
+            </div>
+          )}
         </CardContent>
       </Card>
 
