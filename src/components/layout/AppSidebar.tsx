@@ -264,6 +264,18 @@ export default function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border/45 bg-[hsl(var(--sidebar-background)/0.8)]">
       <SidebarHeader className="p-4 pb-3">
+        {collapsed ? (
+          <div className="flex items-center justify-center">
+            <motion.div
+              whileHover={{ scale: 1.06, rotate: -3 }}
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 280, damping: 18 }}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl overflow-hidden shadow-[0_14px_32px_-12px_hsl(var(--primary)/0.65)] ring-1 ring-white/18"
+            >
+              <img src={marshmallowLogo.url} alt="Marshmallow" className="h-full w-full object-cover" />
+            </motion.div>
+          </div>
+        ) : (
         <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -282,7 +294,6 @@ export default function AppSidebar() {
               <img src={marshmallowLogo.url} alt="Marshmallow" className="h-full w-full object-cover" />
             </motion.div>
 
-            {!collapsed && (
               <motion.div
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -299,9 +310,9 @@ export default function AppSidebar() {
                   {role?.replace("_", " ")}
                 </span>
               </motion.div>
-            )}
           </div>
         </motion.div>
+        )}
       </SidebarHeader>
 
       <SidebarContent className="overflow-y-auto px-2 pb-2">
@@ -488,6 +499,29 @@ export default function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-3 pt-2">
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-2">
+            <Avatar
+              className="h-9 w-9 shrink-0 ring-1 ring-white/10 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => setChangePasswordOpen(true)}
+              title="Change Password"
+            >
+              <AvatarFallback className="bg-gradient-to-br from-primary via-[hsl(258,88%,64%)] to-[hsl(278,82%,62%)] text-primary-foreground text-[10px] font-bold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-xl text-sidebar-foreground/28 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400"
+              onClick={signOut}
+              title="Sign Out"
+              aria-label="Sign Out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ) : (
         <div className="rounded-[24px] border border-white/36 bg-[radial-gradient(circle_at_top_left,hsl(194_100%_88%/0.2),transparent_34%),radial-gradient(circle_at_bottom_right,hsl(210_100%_88%/0.14),transparent_32%),linear-gradient(180deg,hsl(var(--sidebar-accent)/0.9),hsl(var(--sidebar-accent)/0.58))] p-3 shadow-[0_18px_28px_-22px_rgba(59,130,246,0.16)]">
           <div className="flex items-center gap-3">
             <Avatar
@@ -500,16 +534,13 @@ export default function AppSidebar() {
               </AvatarFallback>
             </Avatar>
 
-            {!collapsed && (
               <div className="min-w-0 flex-1">
                 <span className="block truncate text-[13px] font-semibold tracking-[-0.01em] text-sidebar-accent-foreground">
                   {profile?.full_name}
                 </span>
                 <span className="block truncate text-[10px] text-sidebar-foreground/38">{profile?.email}</span>
               </div>
-            )}
 
-            {!collapsed && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -520,7 +551,6 @@ export default function AppSidebar() {
               >
                 <KeyRound className="h-3.5 w-3.5" />
               </Button>
-            )}
 
             <Button
               variant="ghost"
@@ -534,6 +564,7 @@ export default function AppSidebar() {
             </Button>
           </div>
         </div>
+        )}
       </SidebarFooter>
             <ChangePasswordDialog
         open={changePasswordOpen}
