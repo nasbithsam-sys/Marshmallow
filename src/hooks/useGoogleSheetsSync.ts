@@ -9,6 +9,7 @@ import type { Lead } from "@/types";
 export function useGoogleSheetsSync() {
   const isEnabledRef = useRef(true);
   const pendingSyncsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const leadIdToJobIdMap = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     let isMounted = true;
@@ -19,6 +20,20 @@ export function useGoogleSheetsSync() {
         isEnabledRef.current = Boolean(config.autoSync && config.webhookUrl);
       }
     });
+
+    // Pre-populate lead ID to job_id mapping for reliable deletion tracking
+    void supabase
+      .from("leads")
+      .select("id, job_id")
+      .then(({ data }) => {
+        if (data && isMounted) {
+          data.forEach((l) => {
+            if (l.id && l.job_id) {
+              leadIdToJobIdMap.current.set(l.id, l.job_id);
+            }
+          });
+        }
+      });
 
     const channel = supabase
       .channel("google-sheets-lead-sync")
@@ -37,8 +52,12 @@ export function useGoogleSheetsSync() {
           if (eventType === "DELETE") {
             const oldRow = payload.old as Partial<Lead> | undefined;
             const leadId = oldRow?.id;
-            const jobId = (oldRow as { job_id?: string } | undefined)?.job_id;
+            const jobId =
+              (oldRow as { job_id?: string } | undefined)?.job_id ||
+              (leadId ? leadIdToJobIdMap.current.get(leadId) : undefined);
+
             if (leadId) {
+              leadIdToJobIdMap.current.delete(leadId);
               void syncLeadDeleteToGoogleSheets(leadId, jobId).catch((err) => {
                 console.warn("Failed to sync lead deletion to Google Sheet:", err);
               });
@@ -50,6 +69,10 @@ export function useGoogleSheetsSync() {
             const rawLead = payload.new as Lead | undefined;
             const leadId = rawLead?.id;
             if (!leadId) return;
+
+            if (rawLead.job_id) {
+              leadIdToJobIdMap.current.set(leadId, rawLead.job_id);
+            }
 
             const oldRow = payload.old as Partial<Lead> | undefined;
 

@@ -167,4 +167,77 @@ describe("formatLeadForGoogleSheet", () => {
       (supabase as any).from = originalFrom;
     }
   });
+
+  it("should dispatch correct delete payload with job_id and db_id", async () => {
+    const { syncLeadDeleteToGoogleSheets } = await import("./google-sheets");
+    const { supabase } = await import("@/integrations/supabase/client");
+
+    let dispatchedBody: any = null;
+    const originalFrom = supabase.from;
+    const proto = Object.getPrototypeOf(supabase);
+    const originalDescriptor =
+      Object.getOwnPropertyDescriptor(proto, "functions") ||
+      Object.getOwnPropertyDescriptor(supabase, "functions");
+
+    Object.defineProperty(supabase, "functions", {
+      configurable: true,
+      value: {
+        invoke: (fnName: string, options: any) => {
+          if (fnName === "google-sheets-sync") {
+            dispatchedBody = options.body;
+            return Promise.resolve({ data: { success: true }, error: null });
+          }
+          return Promise.resolve({ data: null, error: null });
+        },
+      },
+    });
+
+    (supabase as any).from = (table: string) => {
+      if (table === "quo_ai_settings") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: {
+                    value: {
+                      autoSync: true,
+                      webhookUrl: "https://script.google.com/macros/s/test/exec",
+                    },
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+      return originalFrom.call(supabase, table as any);
+    };
+
+    localStorage.setItem(
+      "marshmallow_google_sheets_config",
+      JSON.stringify({
+        autoSync: true,
+        webhookUrl: "https://script.google.com/macros/s/test/exec",
+      })
+    );
+
+    try {
+      await syncLeadDeleteToGoogleSheets("uuid-abc-123", "JOB-5544");
+      expect(dispatchedBody).not.toBeNull();
+      expect(dispatchedBody.action).toBe("delete");
+      expect(dispatchedBody.lead_id).toBe("JOB-5544");
+      expect(dispatchedBody.job_id).toBe("JOB-5544");
+      expect(dispatchedBody.db_id).toBe("uuid-abc-123");
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(supabase, "functions", originalDescriptor);
+      } else {
+        delete (supabase as any).functions;
+      }
+      (supabase as any).from = originalFrom;
+      localStorage.removeItem("marshmallow_google_sheets_config");
+    }
+  });
 });
+

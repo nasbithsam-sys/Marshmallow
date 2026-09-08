@@ -54,6 +54,7 @@ import CancellationRequestSheet from "./CancellationRequestSheet";
 import QuoPhoneTrigger from "./QuoPhoneTrigger";
 import FloatingQuoMessagePreview from "./FloatingQuoMessagePreview";
 import { adminApi } from "@/lib/admin-api";
+import { syncLeadDeleteToGoogleSheets } from "@/lib/google-sheets";
 import { logActivity } from "@/lib/activity";
 import { buildCompleteLeadCopyText, copyTextToClipboard } from "@/lib/lead-copy";
 import {
@@ -1237,7 +1238,14 @@ function LeadCard({
 
   const handleDelete = async () => {
     try {
-      await adminApi.deleteLead(lead.id);
+      // 1. Immediately delete from Google Sheets while lead data (id & job_id) is fully available
+      try {
+        await syncLeadDeleteToGoogleSheets(lead.id, lead.job_id);
+      } catch (sheetErr) {
+        console.warn("Google Sheets delete sync warning:", sheetErr);
+      }
+
+      await adminApi.deleteLead(lead.id, lead.job_id);
 
       await logActivity(user!.id, "deleted", "lead", lead.id, {
         target_name: lead.job_id,

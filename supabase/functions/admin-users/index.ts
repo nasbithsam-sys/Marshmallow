@@ -458,7 +458,20 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete_lead") {
-      const { lead_id } = body;
+      const { lead_id, job_id } = body;
+
+      // Retrieve lead's job_id if not already supplied
+      let resolvedJobId = job_id;
+      if (!resolvedJobId && lead_id) {
+        const { data: leadRecord } = await adminClient
+          .from("leads")
+          .select("job_id")
+          .eq("id", lead_id)
+          .maybeSingle();
+        if (leadRecord?.job_id) {
+          resolvedJobId = leadRecord.job_id;
+        }
+      }
 
       await Promise.all([
         adminClient.from("lead_notes").delete().eq("lead_id", lead_id),
@@ -475,7 +488,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: error.message }, 400);
       }
 
-      return jsonResponse({ success: true });
+      return jsonResponse({ success: true, job_id: resolvedJobId });
     }
 
     if (action === "list_totp_factors") {

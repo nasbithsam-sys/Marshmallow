@@ -495,10 +495,27 @@ export async function syncLeadDeleteToGoogleSheets(
     return;
   }
 
+  let resolvedJobId = jobId;
+  // If jobId is not provided, try to fetch it from Supabase in case lead hasn't been deleted yet
+  if (!resolvedJobId && leadId) {
+    try {
+      const { data } = await supabase
+        .from("leads")
+        .select("job_id")
+        .eq("id", leadId)
+        .maybeSingle();
+      if (data?.job_id) {
+        resolvedJobId = data.job_id;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   await dispatchToWebhook({
     action: "delete",
-    lead_id: leadId,
-    job_id: jobId || undefined,
+    lead_id: resolvedJobId || leadId,
+    job_id: resolvedJobId || undefined,
     db_id: leadId,
   });
 }

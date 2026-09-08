@@ -284,6 +284,52 @@ function handleDelete(ss, id1, id2, id3) {
 }
 
 /**
+ * Normalizes an identifier string for robust comparison
+ */
+function normalizeId(id) {
+  if (id === null || id === undefined) return "";
+  var s = String(id).trim().toLowerCase();
+  // Strip trailing decimals like .0 or .00
+  s = s.replace(/\.0+$/, "");
+  return s;
+}
+
+/**
+ * Strips common prefixes and formatting (e.g. "JOB-", "Lead-", commas, hashes, spaces)
+ */
+function stripId(id) {
+  var s = normalizeId(id);
+  return s.replace(/^(job|lead)[-\s#:]*/i, "").replace(/[,\s#\-]/g, "");
+}
+
+/**
+ * Check if cell value matches any target ID
+ */
+function matchesAnyId(cellVal, dispVal, targetIds) {
+  var normCell = normalizeId(cellVal);
+  var normDisp = normalizeId(dispVal);
+  var strippedCell = stripId(cellVal);
+  var strippedDisp = stripId(dispVal);
+
+  for (var i = 0; i < targetIds.length; i++) {
+    var target = targetIds[i];
+    if (!target) continue;
+    var normTarget = normalizeId(target);
+    var strippedTarget = stripId(target);
+
+    // Exact string match (raw or display)
+    if (normCell && normCell === normTarget) return true;
+    if (normDisp && normDisp === normTarget) return true;
+
+    // Stripped match (e.g. "JOB-1024" == "1024", "1,024" == "1024")
+    if (strippedCell && strippedTarget && strippedCell === strippedTarget) return true;
+    if (strippedDisp && strippedTarget && strippedDisp === strippedTarget) return true;
+  }
+
+  return false;
+}
+
+/**
  * Find row by Lead ID, Job ID, or Database UUID (Column A) and delete it.
  * sheet.deleteRow() automatically moves rows below it UP to fill the empty space!
  */
@@ -291,22 +337,24 @@ function deleteRowById(sheet, id1, id2, id3) {
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return false;
 
-  var match1 = id1 ? String(id1).trim().toLowerCase() : "";
-  var match2 = id2 ? String(id2).trim().toLowerCase() : "";
-  var match3 = id3 ? String(id3).trim().toLowerCase() : "";
+  var targetIds = [];
+  if (id1) targetIds.push(id1);
+  if (id2) targetIds.push(id2);
+  if (id3) targetIds.push(id3);
+  if (targetIds.length === 0) return false;
 
-  var idRange = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var range = sheet.getRange(2, 1, lastRow - 1, 1);
+  var values = range.getValues();
+  var displayValues = range.getDisplayValues();
   var deleted = false;
 
   // Loop in reverse so deleting a row does not alter preceding row indices
-  for (var i = idRange.length - 1; i >= 0; i--) {
-    var cellVal = String(idRange[i][0]).trim().toLowerCase();
-    if (!cellVal) continue;
-    if (
-      (match1 && cellVal === match1) ||
-      (match2 && cellVal === match2) ||
-      (match3 && cellVal === match3)
-    ) {
+  for (var i = values.length - 1; i >= 0; i--) {
+    var rawVal = values[i][0];
+    var dispVal = displayValues[i][0];
+    if (rawVal === "" && dispVal === "") continue;
+
+    if (matchesAnyId(rawVal, dispVal, targetIds)) {
       sheet.deleteRow(i + 2);
       deleted = true;
     }
@@ -323,20 +371,20 @@ function upsertRowInSheet(sheet, leadId, rowData, dbId, jobId) {
   var lastRow = sheet.getLastRow();
   var foundRow = -1;
 
-  var match1 = leadId ? String(leadId).trim().toLowerCase() : "";
-  var match2 = dbId ? String(dbId).trim().toLowerCase() : "";
-  var match3 = jobId ? String(jobId).trim().toLowerCase() : "";
+  var targetIds = [];
+  if (leadId) targetIds.push(leadId);
+  if (dbId) targetIds.push(dbId);
+  if (jobId) targetIds.push(jobId);
 
   if (lastRow > 1) {
-    var idRange = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-    for (var i = 0; i < idRange.length; i++) {
-      var cellVal = String(idRange[i][0]).trim().toLowerCase();
-      if (!cellVal) continue;
-      if (
-        (match1 && cellVal === match1) ||
-        (match2 && cellVal === match2) ||
-        (match3 && cellVal === match3)
-      ) {
+    var range = sheet.getRange(2, 1, lastRow - 1, 1);
+    var values = range.getValues();
+    var displayValues = range.getDisplayValues();
+    for (var i = 0; i < values.length; i++) {
+      var rawVal = values[i][0];
+      var dispVal = displayValues[i][0];
+      if (rawVal === "" && dispVal === "") continue;
+      if (matchesAnyId(rawVal, dispVal, targetIds)) {
         foundRow = i + 2;
         break;
       }
