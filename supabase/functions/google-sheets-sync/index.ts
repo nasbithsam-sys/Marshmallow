@@ -104,12 +104,35 @@ Deno.serve(async (req) => {
       action: action || "sync_all",
     };
 
-    const googleRes = await fetch(targetWebhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(forwardPayload),
-      redirect: "follow",
-    });
+    // Google Apps Script can hang far past the edge runtime's 150s idle limit.
+    // Abort well before that so the caller gets a clear error instead of a 504.
+    const controller = new AbortController();
+    const timeoutMs = Number(body.timeoutMs) > 0 ? Math.min(Number(body.timeoutMs), 110_000) : 60_000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    let googleRes: Response;
+    try {
+      googleRes = await fetch(targetWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(forwardPayload),
+        redirect: "follow",
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      const aborted = fetchErr instanceof DOMException && fetchErr.name === "AbortError";
+      return jsonResponse(
+        {
+          error: aborted
+            ? `Google Sheets script did not respond within ${Math.round(timeoutMs / 1000)}s. If you are syncing all leads, sync in smaller batches.`
+            : `Could not reach the Google Sheets script: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`,
+          code: aborted ? "GOOGLE_SCRIPT_TIMEOUT" : "GOOGLE_SCRIPT_UNREACHABLE",
+        },
+        aborted ? 504 : 502,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
 
     const textOutput = await googleRes.text();
     let parsedOutput: Record<string, unknown>;
