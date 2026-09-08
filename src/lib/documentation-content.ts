@@ -15,7 +15,7 @@ export interface DocSection {
 
 export const DOC_TITLE = "Marshmallow";
 export const DOC_SUBTITLE = "Complete System Documentation";
-export const DOC_VERSION = "Version 1.0 · July 2026";
+export const DOC_VERSION = "Version 1.1 · September 2026";
 
 export const DOC_SECTIONS: DocSection[] = [
   {
@@ -37,12 +37,15 @@ export const DOC_SECTIONS: DocSection[] = [
         rows: [
           ["admin", "Full system control, approvals, reviews.", "Yes", "All pages"],
           ["customer_service (CS)", "First contact, quoting, follow-up with customer.", "Yes", "Leads, Schedule"],
+          ["cs_admin", "Supervises CS work; restricted pages and Processor Details hidden.", "Yes", "Leads, Schedule"],
           ["processor", "Backend processing, tech assignment, payment.", "No", "Leads, Schedule, Cancellation Requests"],
           ["opr", "Operator with a strictly narrow view.", "No", "Leads only (urgent_job + partial_paid)"],
         ],
       },
-      { type: "p", italic: true, text: "Only Admin and CS can create leads. Admins can grant additional pages per user via navigation_permissions." },
+      { type: "p", italic: true, text: "Only Admin, CS and CS Admin can create leads. Admins can grant additional pages per user via navigation_permissions. 'no_role' is never offered in the role picker." },
       { type: "p", text: "Sidebar visibility is computed from the role default plus per-user overrides in navigation_permissions. Admin bypasses all checks. quo_monitor is admin-only; payment_requests is admin-only." },
+      { type: "p", text: "Quotation Master is a per-user flag (profiles.is_quotation_master), not a role. It grants access to the \"Quote Pending to Send\" queue alongside Admins." },
+      { type: "p", text: "CS Admin restrictions: Processor Details (tech name/number, financial split) and processor-only workflows are hidden in the Lead Detail Panel." },
     ],
   },
   {
@@ -85,9 +88,10 @@ export const DOC_SECTIONS: DocSection[] = [
         type: "table",
         headers: ["Role", "Visible statuses by default"],
         rows: [
-          ["Admin", "All 20 statuses (bypasses all checks)."],
-          ["CS", "All 20 statuses."],
-          ["Processor", "All 20 statuses."],
+          ["Admin", "All 23 statuses (bypasses all checks)."],
+          ["CS", "All statuses except scammed."],
+          ["CS Admin", "All statuses except scammed."],
+          ["Processor", "All 23 statuses."],
           ["OPR", "urgent_job and partial_paid only."],
         ],
       },
