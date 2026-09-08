@@ -19,7 +19,6 @@ import {
   UserRound,
   Trash2,
   Pencil,
-  Eye,
   MessageSquare,
   Wrench,
   ChevronDown,
@@ -1803,20 +1802,24 @@ function LeadCard({
                   ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_36px_36px_36px]"
                   : isProcessor
                     ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_36px]"
-                    : canCompleteCopy
-                      ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]"
-                      : "grid-cols-1"
+                    : isOpr
+                      ? (canCompleteCopy ? "grid-cols-1" : "hidden")
+                      : canCompleteCopy
+                        ? "grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]"
+                        : "grid-cols-1"
               }`}
             >
-              <Button
-                variant="outline"
-                size="sm"
-                className="crm-lead-card-inner h-11 min-w-0 w-full overflow-hidden rounded-[14px] px-1.5 text-[10px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
-                onClick={() => navigate(`/leads/${lead.id}`)}
-              >
-                {isOpr ? <Eye className="h-3 w-3 shrink-0" /> : <Pencil className="h-3 w-3 shrink-0" />}
-                <span className="truncate">{isOpr ? "View Lead" : "Edit Lead"}</span>
-              </Button>
+              {!isOpr && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="crm-lead-card-inner h-11 min-w-0 w-full overflow-hidden rounded-[14px] px-1.5 text-[10px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-primary/[0.05] hover:shadow-[0_18px_28px_-20px_rgba(59,130,246,0.2)] dark:hover:bg-primary/[0.10] dark:hover:shadow-none"
+                  onClick={() => navigate(`/leads/${lead.id}`)}
+                >
+                  <Pencil className="h-3 w-3 shrink-0" />
+                  <span className="truncate">Edit Lead</span>
+                </Button>
+              )}
 
               {canCompleteCopy && (
                 <Button

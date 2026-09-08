@@ -5,12 +5,12 @@ const DEFAULT_NAV_ACCESS: Record<AppRole, Set<NavItem>> = {
   admin: new Set(ALL_NAV_ITEMS),
   processor: new Set(["leads", "schedule", "cancellation_requests", "map_view", "technicians"]),
   customer_service: new Set(["leads", "schedule"]),
-  opr: new Set(["leads", "schedule", "cancellation_requests", "map_view", "technicians"]),
+  opr: new Set(["leads"]),
   cs_admin: new Set(["leads", "schedule", "quote_pending_requests"]),
 };
 
 export const canAccessCancellationRequests = (role: AppRole | null | undefined) =>
-  role === "admin" || role === "processor" || role === "opr";
+  role === "admin" || role === "processor";
 
 export function getDefaultNavAccess(role: AppRole): Set<NavItem> {
   return new Set(DEFAULT_NAV_ACCESS[role]);
