@@ -383,7 +383,7 @@ export const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "tech",
-    title: "21. Technical Stack",
+    title: "25. Technical Stack",
     blocks: [
       {
         type: "table",
