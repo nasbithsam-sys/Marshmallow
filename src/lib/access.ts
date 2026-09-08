@@ -69,7 +69,10 @@ export function getDefaultVisibleStatuses(role: AppRole | null | undefined): Set
   
   const baseExclude = ["scammed", "quote_change", ...ADMIN_ONLY_STATUSES];
   
-  if (role === "processor" || role === "opr") {
+  if (role === "opr") {
+    return new Set<LeadStatus>(["urgent_job"]);
+  }
+  if (role === "processor") {
     return new Set(ALL_LEAD_STATUSES.filter((s) => !ADMIN_ONLY_STATUSES.includes(s)));
   }
   if (role === "cs_admin") {

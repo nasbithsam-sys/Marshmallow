@@ -762,7 +762,7 @@ const Settings = () => {
             return !userOverride;
           }
 
-          return !(statusVisibilityByRoleAndStatus.get(`${targetUser.role}:${status}`) ?? true);
+          return !getRoleStatusVisibility(targetUser.role, status);
         }).length;
         return count + hiddenForUser;
       }, 0),
