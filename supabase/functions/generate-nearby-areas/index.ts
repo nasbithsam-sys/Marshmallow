@@ -199,7 +199,6 @@ Deno.serve(async (req) => {
     const leadId = String(body.leadId ?? "");
     if (!leadId) return json({ code: "BAD_REQUEST", message: "leadId is required" }, 400);
 
-    // Always fetch latest lead data from DB (never trust client-provided location).
     const { data: lead, error: leadErr } = await admin
       .from("leads")
       .select("id, address, half_address, city, state, zip_code, latitude, longitude")
@@ -212,14 +211,18 @@ Deno.serve(async (req) => {
     if (!lead) return json({ code: "LEAD_NOT_FOUND", message: "Lead not found" }, 404);
     log("lead_loaded", { leadId });
 
-    const addressRaw = (lead.address ?? lead.half_address ?? "").trim();
-    const { placeName, addr } = separateBusinessName(addressRaw);
+    // Use frontend-provided address fields if available (so we can geocode unsaved changes),
+    // otherwise fall back to the database fields.
+    const rawAddress = (body.customerAddress !== undefined ? body.customerAddress : (lead.address ?? lead.half_address)) || "";
+    const rawCity = (body.customerCity !== undefined ? body.customerCity : lead.city) || "";
+    const rawState = (body.customerState !== undefined ? body.customerState : lead.state) || "";
+    const rawZip = (body.customerZip !== undefined ? body.customerZip : lead.zip_code) || "";
+
+    const { placeName, addr } = separateBusinessName(rawAddress.trim());
     const inferred = inferInlineAddressParts(addr);
-    const city =
-      normalizeAddress((lead.city ?? "").trim()).replace(/,$/, "").trim() || inferred.city;
-    const stateRaw = (lead.state ?? "").trim();
-    const state = stateRaw ? normalizeStateToken(stateRaw) : inferred.state;
-    const zip = normalizeZipToken((lead.zip_code ?? "").trim()) || inferred.zip;
+    const city = normalizeAddress(rawCity.trim()).replace(/,$/, "").trim() || inferred.city;
+    const state = rawState.trim() ? normalizeStateToken(rawState.trim()) : inferred.state;
+    const zip = normalizeZipToken(rawZip.trim()) || inferred.zip;
     let lat: number | null =
       typeof lead.latitude === "number" && Number.isFinite(lead.latitude) ? lead.latitude : null;
     let lng: number | null =

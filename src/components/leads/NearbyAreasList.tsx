@@ -195,7 +195,13 @@ export default function NearbyAreasList({
     setErrorMsg(null);
     try {
       const { data: resp, error } = await supabase.functions.invoke("generate-nearby-areas", {
-        body: { leadId },
+        body: {
+          leadId,
+          customerAddress,
+          customerCity,
+          customerState,
+          customerZip
+        },
       });
       if (error) {
         // supabase-js wraps non-2xx as FunctionsHttpError with a Response in `context`.
