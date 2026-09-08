@@ -15,22 +15,11 @@ interface UrgentNotification {
 }
 
 const POLL_MS = 20000;
-const BASELINE_KEY = "urgent_popup_baseline_at";
-
-function getOrInitBaseline(): string {
-  let v = window.sessionStorage.getItem(BASELINE_KEY);
-  if (!v) {
-    v = new Date().toISOString();
-    window.sessionStorage.setItem(BASELINE_KEY, v);
-  }
-  return v;
-}
 
 export default function UrgentLeadPopup() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<UrgentNotification[]>([]);
-  const baselineRef = useRef<string>(getOrInitBaseline());
 
   // Every role gets urgent popups
   const eligible = Boolean(role);
@@ -44,7 +33,6 @@ export default function UrgentLeadPopup() {
       .eq("user_id", user.id)
       .eq("read", false)
       .ilike("title", "%Urgent Job%")
-      .gt("created_at", baselineRef.current)
       .order("created_at", { ascending: false })
       .limit(10);
 
@@ -52,6 +40,13 @@ export default function UrgentLeadPopup() {
       setItems((prev) => {
         const existing = new Set(prev.map((i) => i.id));
         const next = (data as UrgentNotification[]).filter((n) => !existing.has(n.id));
+        
+        if (next.length > 0) {
+          import("@/lib/notification-sound").then(({ playUrgentAlertSound }) => {
+            playUrgentAlertSound();
+          });
+        }
+        
         return [...next, ...prev];
       });
     }
