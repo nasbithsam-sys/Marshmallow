@@ -659,6 +659,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
 
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
+  const isOpr = role === "opr";
   const isAdmin = role === "admin";
   const isCsAdmin = role === "cs_admin";
   const hasQuickChatAccess = canAccess("quick_chat");
@@ -997,7 +998,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               <Input
                 value={form.address ?? ""}
                 onChange={(e) => update("address", e.target.value)}
-                readOnly={isProcessor}
+                readOnly={isProcessor || isOpr}
                 placeholder="Full address"
                 className={fieldClass}
               />
@@ -1008,7 +1009,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
               <Input
                 value={form.half_address ?? ""}
                 onChange={(e) => update("half_address", e.target.value)}
-                readOnly={isProcessor}
+                readOnly={isProcessor || isOpr}
                 placeholder="Shortened address shown to operators"
                 className={fieldClass}
               />
@@ -1265,7 +1266,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             <NoteThread leadId={leadId} noteType="cs" label="CS Notes" />
           </motion.div>
 
-          {!hideProcessorDetails && (
+          {!hideProcessorDetails && !isOpr && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1281,7 +1282,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
             </motion.div>
           )}
 
-          {(isAdmin || isProcessor) && (
+          {(isAdmin || isProcessor || isOpr) && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}

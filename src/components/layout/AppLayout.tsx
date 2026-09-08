@@ -1,4 +1,4 @@
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/layout/AppSidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import UrgentLeadPopup from "@/components/notifications/UrgentLeadPopup";
@@ -70,9 +70,8 @@ export default function AppLayout() {
     <NotepadProvider>
       <SidebarProvider>
         <GlobalCommandMenu />
-        <div className="min-h-screen flex w-full bg-background">
-          <AppSidebar />
-          <div className="flex-1 flex flex-col min-w-0">
+        <AppSidebar />
+        <SidebarInset className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden">
             <header className="sticky top-0 z-30 shrink-0 border-b border-border/70 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-6">
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
@@ -138,13 +137,12 @@ export default function AppLayout() {
                 </motion.div>
               </AnimatePresence>
             </main>
-          </div>
           {!isQuoMonitor && <UrgentLeadPopup />}
           {!isQuoMonitor && <JobInProgressPopup />}
           {!isQuoMonitor && <QuoteUpdatedPopup />}
           <CrmUpdatePopup />
           <FloatingNotepad />
-        </div>
+        </SidebarInset>
       </SidebarProvider>
     </NotepadProvider>
   );

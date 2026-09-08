@@ -595,7 +595,7 @@ function NoteCollapsible({
               <span className="font-medium">{label}</span>
             </span>
             {hasNotes && (
-              <span className={`text-[10px] font-semibold ${tone === "cs" ? "text-amber-600 dark:text-amber-300" : tone === "processor" ? "text-sky-600 dark:text-sky-300" : "text-primary"}`}>
+              <span className={`text-[10px] font-semibold ${tone === "cs" ? "text-amber-600 dark:text-amber-300" : tone === "processor" ? "text-sky-600 dark:text-sky-300" : tone === "opr" ? "text-emerald-600 dark:text-emerald-300" : "text-primary"}`}>
                 has notes
               </span>
             )}
@@ -810,9 +810,10 @@ function LeadCard({
   const isCS = role === "customer_service";
   const isCsAdmin = role === "cs_admin";
   const isProcessor = role === "processor";
+  const isOpr = role === "opr";
   const isPaid = lead.status === "paid";
   const isUrgent = lead.status === "urgent_job";
-  const canCompleteCopy = isAdmin || isProcessor;
+  const canCompleteCopy = isAdmin || isProcessor || isOpr;
   const pictureLabel = photoCount === 1 ? "Picture attached" : "Pictures attached";
   const currentTag = lead.cs_tag ?? null;
   const assignableTags = getAssignableLeadTags(role);
@@ -1711,8 +1712,7 @@ function LeadCard({
               tone: "processor",
               hasNotes: hasNotes.processor,
             })}
-
-          {(isProcessor || isAdmin) &&
+          {(isProcessor || isAdmin || isOpr) &&
             renderCollapsible({
               open: oprOpen,
               setOpen: setOprOpen,

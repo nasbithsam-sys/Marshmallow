@@ -142,7 +142,7 @@ export default function QuotePendingRequests() {
       </motion.section>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Skeleton key={i} className="h-[340px] rounded-2xl" />
           ))}
@@ -157,7 +157,7 @@ export default function QuotePendingRequests() {
           variants={cardGridContainer}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
         >
           {filteredLeads.map((lead) => (
             <motion.div key={lead.id} variants={cardGridItem} className="relative">

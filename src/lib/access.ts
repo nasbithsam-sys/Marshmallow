@@ -5,12 +5,12 @@ const DEFAULT_NAV_ACCESS: Record<AppRole, Set<NavItem>> = {
   admin: new Set(ALL_NAV_ITEMS),
   processor: new Set(["leads", "schedule", "cancellation_requests", "map_view", "technicians"]),
   customer_service: new Set(["leads", "schedule"]),
-  opr: new Set(["leads"]),
+  opr: new Set(["leads", "schedule", "cancellation_requests", "map_view", "technicians"]),
   cs_admin: new Set(["leads", "schedule", "quote_pending_requests"]),
 };
 
 export const canAccessCancellationRequests = (role: AppRole | null | undefined) =>
-  role === "admin" || role === "processor";
+  role === "admin" || role === "processor" || role === "opr";
 
 export function getDefaultNavAccess(role: AppRole): Set<NavItem> {
   return new Set(DEFAULT_NAV_ACCESS[role]);
@@ -69,11 +69,8 @@ export function getDefaultVisibleStatuses(role: AppRole | null | undefined): Set
   
   const baseExclude = ["scammed", "quote_change", ...ADMIN_ONLY_STATUSES];
   
-  if (role === "processor") {
+  if (role === "processor" || role === "opr") {
     return new Set(ALL_LEAD_STATUSES.filter((s) => !ADMIN_ONLY_STATUSES.includes(s)));
-  }
-  if (role === "opr") {
-    return new Set(ALL_LEAD_STATUSES.filter((s) => !baseExclude.includes(s)));
   }
   if (role === "cs_admin") {
     const csAdminExclude = ["scammed", "quote_change", "quote_updated", ...CS_ADMIN_HIDDEN_STATUSES];
