@@ -63,7 +63,8 @@ function normalizeAddress(raw: string): string {
 }
 
 function extractZipAndState(raw: string): { zip: string; state: string; matchText: string } {
-  const match = raw.match(/\b([A-Z]{2})?\s*(\d{5})(?:-\d{4})?\b/i);
+  // Use negative lookahead to match the LAST 5-digit number, avoiding house numbers like 11009.
+  const match = raw.match(/\b([A-Z]{2})?\s*(\d{5})(?:-\d{4})?\b(?!.*\b\d{5}\b)/i);
   const possibleState = match?.[1]?.toUpperCase() ?? "";
   return {
     zip: match?.[2] ?? "",
