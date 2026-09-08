@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import * as XLSX from "xlsx";
 import { useDeferredValue } from "react";
 import { useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -606,10 +607,10 @@ export default function LeadsPage() {
           Status: lead?.status,
           "Customer Name": lead?.customer_name,
           "Customer Phone": lead?.customer_phone,
-          "Customer Address": lead?.customer_address,
+          "Customer Address": lead?.address,
           "Date Received": lead?.created_at ? new Date(lead.created_at).toLocaleString() : "",
-          "Schedule Requirement": lead?.schedule_requirement,
-          "Assigned Technician": lead?.assigned_technician_name || "",
+          "Schedule Requirement": lead?.customer_schedule_requirements,
+          "Assigned Technician": lead?.tech_name || "",
           "General Notes": noteSummaryByLead[id]?.general || "",
           "CS Notes": noteSummaryByLead[id]?.cs || "",
           "Processor Notes": noteSummaryByLead[id]?.processor || "",

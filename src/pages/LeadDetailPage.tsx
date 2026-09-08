@@ -41,7 +41,7 @@ import ReminderButton from "@/components/leads/ReminderButton";
 import NoteThread from "@/components/leads/NoteThread";
 import NearbyAreasList, { type NearbyAreasData } from "@/components/leads/NearbyAreasList";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
+import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest, type AppRole } from "@/types";
 import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { updateLeadById } from "@/lib/lead-updates";
@@ -82,7 +82,7 @@ const sendNotifications = async (
 ) => {
   if (status !== "urgent_job" && status !== "need_tech" && status !== "job_in_progress") return;
 
-  const targetRoles = (status === "urgent_job" || status === "need_tech")
+  const targetRoles: AppRole[] = (status === "urgent_job" || status === "need_tech")
     ? ["admin", "processor", "customer_service", "cs_admin", "opr"]
     : ["admin", "processor"];
   const { data: roles } = await supabase.from("user_roles").select("user_id, role").in("role", targetRoles);

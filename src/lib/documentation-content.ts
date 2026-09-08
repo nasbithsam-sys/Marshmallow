@@ -15,7 +15,7 @@ export interface DocSection {
 
 export const DOC_TITLE = "Marshmallow";
 export const DOC_SUBTITLE = "Complete System Documentation";
-export const DOC_VERSION = "Version 1.0 · July 2026";
+export const DOC_VERSION = "Version 1.1 · September 2026";
 
 export const DOC_SECTIONS: DocSection[] = [
   {
@@ -37,12 +37,15 @@ export const DOC_SECTIONS: DocSection[] = [
         rows: [
           ["admin", "Full system control, approvals, reviews.", "Yes", "All pages"],
           ["customer_service (CS)", "First contact, quoting, follow-up with customer.", "Yes", "Leads, Schedule"],
+          ["cs_admin", "Supervises CS work; restricted pages and Processor Details hidden.", "Yes", "Leads, Schedule"],
           ["processor", "Backend processing, tech assignment, payment.", "No", "Leads, Schedule, Cancellation Requests"],
           ["opr", "Operator with a strictly narrow view.", "No", "Leads only (urgent_job + partial_paid)"],
         ],
       },
-      { type: "p", italic: true, text: "Only Admin and CS can create leads. Admins can grant additional pages per user via navigation_permissions." },
+      { type: "p", italic: true, text: "Only Admin, CS and CS Admin can create leads. Admins can grant additional pages per user via navigation_permissions. 'no_role' is never offered in the role picker." },
       { type: "p", text: "Sidebar visibility is computed from the role default plus per-user overrides in navigation_permissions. Admin bypasses all checks. quo_monitor is admin-only; payment_requests is admin-only." },
+      { type: "p", text: "Quotation Master is a per-user flag (profiles.is_quotation_master), not a role. It grants access to the \"Quote Pending to Send\" queue alongside Admins." },
+      { type: "p", text: "CS Admin restrictions: Processor Details (tech name/number, financial split) and processor-only workflows are hidden in the Lead Detail Panel." },
     ],
   },
   {
@@ -85,9 +88,10 @@ export const DOC_SECTIONS: DocSection[] = [
         type: "table",
         headers: ["Role", "Visible statuses by default"],
         rows: [
-          ["Admin", "All 20 statuses (bypasses all checks)."],
-          ["CS", "All 20 statuses."],
-          ["Processor", "All 20 statuses."],
+          ["Admin", "All 23 statuses (bypasses all checks)."],
+          ["CS", "All statuses except scammed."],
+          ["CS Admin", "All statuses except scammed."],
+          ["Processor", "All 23 statuses."],
           ["OPR", "urgent_job and partial_paid only."],
         ],
       },
@@ -105,7 +109,7 @@ export const DOC_SECTIONS: DocSection[] = [
     id: "statuses",
     title: "7. Lead Statuses (Complete Reference)",
     blocks: [
-      { type: "p", text: "Twenty statuses exist. Each has a semantic color token and a stable machine key. \"Paid\" is strictly locked once set and cannot be modified again." },
+      { type: "p", text: "Twenty-three statuses exist. Each has a semantic color token and a stable machine key. \"Paid\" is strictly locked once set and cannot be modified again." },
       {
         type: "table",
         headers: ["Key", "Label", "Color", "Meaning"],
@@ -130,12 +134,15 @@ export const DOC_SECTIONS: DocSection[] = [
           ["paid", "Paid", "Green", "Locked; cannot be modified again once set."],
           ["partial_paid", "Partial Paid", "Emerald", "Partial payment received; balance outstanding."],
           ["payment_requested", "Paid Approval Pending", "Green (pulse)", "Processor requested Paid; awaiting Admin approval."],
+          ["pending_to_send", "Pending to Send", "Amber", "Quote requested; sits in the Quote Pending to Send queue for the Quotation Master."],
+          ["quote_updated", "Quote Updated", "Blue", "Processor/Quotation Master finished the quote; the lead is pinned to the top for the requester."],
+          ["scammed", "Scammed", "Red", "Fraudulent lead. Admin and Processor only."],
         ],
       },
       { type: "p", text: "Who can set which status (STATUS_CHANGE_ACCESS in src/lib/constants.ts):" },
       { type: "kv", label: "Admin", value: "Every status except cancellation_requested and payment_requested (those are workflow outcomes only)." },
-      { type: "kv", label: "CS", value: "need_tech, urgent_job, waiting_customer_response, waiting_complete_details, quote_sent_waiting, quote_sent_need_follow_up, needs_quote, needs_reschedule, cancelled, partial_paid." },
-      { type: "kv", label: "Processor", value: "post_visit_quote_sent_waiting, activate_customer, tech_making_quote, waiting_customer_response, scheduled, urgent_job, job_in_progress, paid, payment_pending, job_done, needs_reschedule, cancelled, partial_paid." },
+      { type: "kv", label: "CS / CS Admin", value: "need_tech, urgent_job, waiting_customer_response, waiting_complete_details, quote_sent_waiting, quote_sent_need_follow_up, needs_quote, needs_reschedule, cancelled, partial_paid, pending_to_send." },
+      { type: "kv", label: "Processor", value: "post_visit_quote_sent_waiting, activate_customer, tech_making_quote, waiting_customer_response, scheduled, urgent_job, job_in_progress, paid, payment_pending, job_done, needs_reschedule, cancelled, partial_paid, quote_updated, scammed." },
       { type: "kv", label: "OPR", value: "partial_paid only." },
       { type: "p", text: "Priority sorting on LeadCard lists:" },
       { type: "bullet", text: "CS-tagged leads win first: ready_to_schedule → confirmation_sent → waiting_schedule_confirmation → booked." },
@@ -331,8 +338,52 @@ export const DOC_SECTIONS: DocSection[] = [
     ],
   },
   {
+    id: "quotation",
+    title: "21. Quote Request Workflow (Quotation Master)",
+    blocks: [
+      { type: "p", text: "A dedicated queue routes quote work to users flagged as Quotation Master." },
+      { type: "bullet", text: "Admin, CS or CS Admin sets a lead to \"Pending to Send\" to request a quote; quote_requested_by records who asked." },
+      { type: "bullet", text: "The \"Quote Pending to Send\" page lists those leads. Access: Admin plus any user with the Quotation Master flag enabled in Settings > Users." },
+      { type: "bullet", text: "The sidebar shows an amber alert dot and plays an alert sound while requests are pending." },
+      { type: "bullet", text: "When the quote is ready, the status moves to \"Quote Updated\"; the lead is pinned to the top of the requester's list with a blinking highlight until it is opened." },
+      { type: "bullet", text: "show_quote_to_opr controls whether the quote text is visible to OPR users." },
+    ],
+  },
+  {
+    id: "technicians",
+    title: "22. Technicians & Map View",
+    blocks: [
+      { type: "p", text: "Technicians and the map live under one \"Technicians\" navigation entry. The map is off by default and toggled on demand for performance." },
+      { type: "bullet", text: "Manual add/edit of technicians, plus CSV/TSV import with duplicate detection by phone number only." },
+      { type: "bullet", text: "Multi-select with bulk delete and copy-as-TSV; export is Admin-only." },
+      { type: "bullet", text: "Server-side search through the search_technicians RPC." },
+      { type: "bullet", text: "Map shows Urgent Leads and Technicians and matches techs to leads within a 50-mile radius; markers are diffed on update so the map never freezes." },
+      { type: "bullet", text: "Geocoding uses Nominatim with throttling and a fallback, cached in localStorage; rate limits are retried instead of dropping pins." },
+    ],
+  },
+  {
+    id: "nearby-areas",
+    title: "23. Top 5 Nearby Populated Areas",
+    blocks: [
+      { type: "p", text: "The lead form shows the five largest nearby population centres for the entered address, to help judge coverage." },
+      { type: "bullet", text: "us_places holds 31,839 US places (2024 Census Gazetteer geometry + 2023 ACS population); refresh yearly with the \"Sync Population Data\" button in Settings > Documentation." },
+      { type: "bullet", text: "A PostGIS distance RPC finds nearest places; the generate-nearby-areas edge function composes the result and it is stored as JSONB on the lead." },
+      { type: "bullet", text: "Lookup failures are silent in the UI (no global error overlay) and the box simply stays empty." },
+    ],
+  },
+  {
+    id: "crm-updates",
+    title: "24. CRM Updates & Quick Chat",
+    blocks: [
+      { type: "p", text: "CRM Updates: Admins publish release/announcement notes (crm_updates); each user's read state is tracked in crm_update_receipts and delivered live over Realtime as a popup." },
+      { type: "p", text: "Quick Chat: gated by the quick_chat navigation permission and the can_use_quick_chat(uuid) RLS check. A blinking green dot appears on a lead when the customer sent the last message." },
+      { type: "p", text: "Login and new-user forms include show/hide password toggles." },
+      { type: "p", text: "The former Quo AI assistant (auto-tagging, daily briefs, AI job queue and its tables) has been fully removed; Quo is now webhook chat only." },
+    ],
+  },
+  {
     id: "tech",
-    title: "21. Technical Stack",
+    title: "25. Technical Stack",
     blocks: [
       {
         type: "table",
@@ -343,7 +394,7 @@ export const DOC_SECTIONS: DocSection[] = [
           ["UI/UX", "Inter font, custom shadow tokens, Framer Motion (butterSpring)"],
           ["Map", "Leaflet (plain, not react-leaflet), localStorage geocoding cache"],
           ["Backend", "Supabase Postgres + RLS, Storage (lead-photos), Edge Functions (Deno)"],
-          ["AI", "OpenAI + Lovable AI Gateway (models set via AI_MODEL_* env vars)"],
+          ["Geo data", "PostGIS + us_places (Census Gazetteer/ACS), Nominatim geocoding"],
           ["Telephony", "OpenPhone / Quo API (api.openphone.com/v1) via webhook + reconcile jobs"],
           ["Testing", "Vitest, Playwright"],
         ],
