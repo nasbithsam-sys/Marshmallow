@@ -394,7 +394,7 @@ export const DOC_SECTIONS: DocSection[] = [
           ["UI/UX", "Inter font, custom shadow tokens, Framer Motion (butterSpring)"],
           ["Map", "Leaflet (plain, not react-leaflet), localStorage geocoding cache"],
           ["Backend", "Supabase Postgres + RLS, Storage (lead-photos), Edge Functions (Deno)"],
-          ["AI", "OpenAI + Lovable AI Gateway (models set via AI_MODEL_* env vars)"],
+          ["Geo data", "PostGIS + us_places (Census Gazetteer/ACS), Nominatim geocoding"],
           ["Telephony", "OpenPhone / Quo API (api.openphone.com/v1) via webhook + reconcile jobs"],
           ["Testing", "Vitest, Playwright"],
         ],
