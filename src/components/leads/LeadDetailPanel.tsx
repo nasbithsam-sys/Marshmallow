@@ -781,26 +781,28 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 )}
                 <CopyLeadButton lead={lead} />
 
-                <Button
-                  onClick={() => saveMutation.mutate()}
-                  disabled={saveMutation.isPending || isDuplicate}
-                  size="sm"
-                  className="min-w-[92px] gap-1.5 rounded-xl shadow-sm"
-                >
-                  {saved ? (
-                    <>
-                      <Check className="h-3.5 w-3.5" />
-                      Saved
-                    </>
-                  ) : saveMutation.isPending ? (
-                    "Saving..."
-                  ) : (
-                    <>
-                      <Save className="h-3.5 w-3.5" />
-                      Save
-                    </>
-                  )}
-                </Button>
+                {!isOpr && (
+                  <Button
+                    onClick={() => saveMutation.mutate()}
+                    disabled={saveMutation.isPending || isDuplicate}
+                    size="sm"
+                    className="min-w-[92px] gap-1.5 rounded-xl shadow-sm"
+                  >
+                    {saved ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        Saved
+                      </>
+                    ) : saveMutation.isPending ? (
+                      "Saving..."
+                    ) : (
+                      <>
+                        <Save className="h-3.5 w-3.5" />
+                        Save
+                      </>
+                    )}
+                  </Button>
+                )}
 
                 <button
                   onClick={onClose}
@@ -865,7 +867,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <Input
                   value={form.customer_name ?? ""}
                   onChange={(e) => update("customer_name", e.target.value)}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                   className={fieldClass}
                 />
               </div>
@@ -875,7 +877,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <NumberNameCombobox
                   value={form.number_name}
                   onChange={(value) => update("number_name", value)}
-                  disabled={isProcessor}
+                  disabled={isProcessor || isOpr}
                   className={fieldClass}
                 />
               </div>
@@ -885,7 +887,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <Input
                   value={form.customer_phone ?? ""}
                   onChange={(e) => update("customer_phone", e.target.value)}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                   className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive/40" : ""}`}
                 />
                 {form.customer_phone && (
@@ -905,7 +907,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <Input
                   value={form.customer_email ?? ""}
                   onChange={(e) => update("customer_email", e.target.value)}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                   className={fieldClass}
                 />
               </div>
@@ -915,7 +917,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <ServiceCombobox
                   value={form.service_type ?? ""}
                   onChange={(val) => update("service_type", val)}
-                  disabled={isProcessor}
+                  disabled={isProcessor || isOpr}
                   className={fieldClass}
                 />
               </div>
@@ -925,7 +927,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <Input
                   value={form.quote ?? ""}
                   onChange={(e) => update("quote", e.target.value)}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                   className={fieldClass}
                 />
               </div>
@@ -935,7 +937,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <Textarea
                   value={form.service_details ?? ""}
                   onChange={(e) => update("service_details", e.target.value)}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                   rows={4}
                   className={`${areaClass} min-h-[108px]`}
                 />
@@ -946,7 +948,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <MultiDateTimePicker
                   value={form.customer_schedule_requirements ?? ""}
                   onChange={(val) => update("customer_schedule_requirements", val)}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                 />
               </div>
 
@@ -955,7 +957,7 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
                 <Input
                   value={form.reference_name ?? ""}
                   onChange={(e) => update("reference_name", e.target.value)}
-                  readOnly={isProcessor}
+                  readOnly={isProcessor || isOpr}
                   className={fieldClass}
                 />
               </div>

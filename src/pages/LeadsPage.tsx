@@ -148,45 +148,6 @@ export default function LeadsPage() {
 
     if (!isBackground) setLoading(true);
 
-    // Operator: only see explicitly assigned leads
-    if (role === "opr") {
-      const { data: assignments, error: assignError } = await supabase
-        .from("lead_operator_assignments")
-        .select("lead_id")
-        .eq("operator_user_id", user.id);
-
-      if (assignError) {
-        toast.error(assignError.message);
-        setLeads([]);
-        if (!isBackground) setLoading(false);
-        return;
-      }
-
-      if (!assignments || assignments.length === 0) {
-        setLeads([]);
-        if (!isBackground) setLoading(false);
-        return;
-      }
-
-      const leadIds = assignments.map((a: { lead_id: string }) => a.lead_id);
-
-      const { data, error } = await supabase
-        .from("leads")
-        .select("*")
-        .in("id", leadIds)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        toast.error(error.message);
-        setLeads([]);
-      } else {
-        setLeads((data ?? []) as Lead[]);
-      }
-
-      if (!isBackground) setLoading(false);
-      return;
-    }
-
     let query = supabase.from("leads").select("*").order("created_at", { ascending: false });
 
     // CS can see only own created leads
@@ -269,30 +230,8 @@ export default function LeadsPage() {
     return () => clearInterval(intervalId);
   }, [fetchLeads, fetchSharedLeads, user, role]);
 
-  // Realtime subscription for operator: auto-refresh when assignments change
-  useEffect(() => {
-    if (!user || role !== "opr") return;
 
-    const channel = supabase
-      .channel(`opr-assignments:${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "lead_operator_assignments",
-          filter: `operator_user_id=eq.${user.id}`,
-        },
-        () => {
-          void fetchLeads(true);
-        },
-      )
-      .subscribe();
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [fetchLeads, role, user]);
 
   // Realtime subscription for leads table updates & Activate Customer chime
   useEffect(() => {
@@ -1035,23 +974,15 @@ export default function LeadsPage() {
             const metadata = usingMetadataFallback ? undefined : pagedMetadata[lead.id];
             return (
             <motion.div key={lead.id} variants={cardGridItem}>
-              {role === "opr" ? (
-                <OprLeadCard
-                  lead={lead}
-                  initialPhotoPaths={metadata?.photoPaths}
-                  initialHasOprNotes={metadata?.hasNotes.opr}
-                />
-              ) : (
-                <LeadCard
-                  lead={lead}
-                  profiles={profiles}
-                  onRefresh={handleRefresh}
-                  initialHasNotes={metadata?.hasNotes}
-                  initialPhotoCount={metadata?.photoCount}
-                  initialPhotoPaths={metadata?.photoPaths}
-                  initialPendingCancellationRequest={metadata?.pendingCancellationRequest}
-                />
-              )}
+              <LeadCard
+                lead={lead}
+                profiles={profiles}
+                onRefresh={handleRefresh}
+                initialHasNotes={metadata?.hasNotes}
+                initialPhotoCount={metadata?.photoCount}
+                initialPhotoPaths={metadata?.photoPaths}
+                initialPendingCancellationRequest={metadata?.pendingCancellationRequest}
+              />
             </motion.div>
             );
           })}
