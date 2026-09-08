@@ -3,7 +3,7 @@ import { canAccessNavItem, getDefaultNavAccess } from "@/lib/access";
 import type { NavigationPermission } from "@/types";
 
 describe("cancellation request navigation access", () => {
-  it.each(["admin", "processor"] as const)("is always visible to %s", (role) => {
+  it.each(["admin", "processor", "opr"] as const)("is always visible to %s", (role) => {
     const deniedOverride = [{ nav_section: "cancellation_requests", allowed: false }] as NavigationPermission[];
 
     expect(getDefaultNavAccess(role).has("cancellation_requests")).toBe(true);
@@ -12,7 +12,7 @@ describe("cancellation request navigation access", () => {
 
   it("remains hidden from roles outside the requested audience", () => {
     expect(canAccessNavItem("customer_service", "cancellation_requests")).toBe(false);
-    expect(canAccessNavItem("opr", "cancellation_requests")).toBe(false);
+    expect(canAccessNavItem("cs_admin", "cancellation_requests")).toBe(false);
     expect(canAccessNavItem(null, "cancellation_requests")).toBe(false);
   });
 });

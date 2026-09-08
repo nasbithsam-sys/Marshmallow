@@ -2,18 +2,30 @@ import { supabase } from "@/integrations/supabase/client";
 
 type LeadUpdatePayload = Record<string, unknown>;
 
-const NO_ROW_UPDATED_MESSAGE = "Lead update was not applied. Check your permissions and refresh the page.";
+export const NO_ROW_UPDATED_MESSAGE = "Lead update was not applied. Check your permissions and refresh the page.";
 
 export async function updateLeadById(leadId: string, changes: LeadUpdatePayload) {
-  const { data, error } = await supabase
+  if (!leadId) {
+    throw new Error("Missing lead ID for update.");
+  }
+
+  // Strip undefined values and convert NaN to null
+  const cleanChanges: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(changes)) {
+    if (value !== undefined) {
+      cleanChanges[key] = typeof value === "number" && Number.isNaN(value) ? null : value;
+    }
+  }
+
+  const { error } = await supabase
     .from("leads")
-    .update(changes as never)
-    .eq("id", leadId)
-    .select("id")
-    .single();
+    .update(cleanChanges as never)
+    .eq("id", leadId);
 
-  if (error) throw error;
-  if (!data) throw new Error(NO_ROW_UPDATED_MESSAGE);
+  if (error) {
+    console.error("updateLeadById failed:", error);
+    throw new Error(error.message || NO_ROW_UPDATED_MESSAGE);
+  }
 
-  return data;
+  return { id: leadId };
 }

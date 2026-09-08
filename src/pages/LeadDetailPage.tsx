@@ -80,38 +80,42 @@ const sendNotifications = async (
   leadId: string,
   expectedCompletionDate?: string | null,
 ) => {
-  if (status !== "urgent_job" && status !== "need_tech" && status !== "job_in_progress") return;
+  try {
+    if (status !== "urgent_job" && status !== "need_tech" && status !== "job_in_progress") return;
 
-  const targetRoles: AppRole[] = (status === "urgent_job" || status === "need_tech")
-    ? ["admin", "processor", "customer_service", "cs_admin", "opr"]
-    : ["admin", "processor"];
-  const { data: roles } = await supabase.from("user_roles").select("user_id, role").in("role", targetRoles);
+    const targetRoles: AppRole[] = (status === "urgent_job" || status === "need_tech")
+      ? ["admin", "processor", "customer_service", "cs_admin", "opr"]
+      : ["admin", "processor"];
+    const { data: roles, error: rolesError } = await supabase.from("user_roles").select("user_id, role").in("role", targetRoles);
 
-  if (!roles || roles.length === 0) return;
+    if (rolesError || !roles || roles.length === 0) return;
 
-  let title = "";
-  let message = "";
+    let title = "";
+    let message = "";
 
-  if (status === "job_in_progress") {
-    title = "[Reminder] Job in Progress";
-    message = expectedCompletionDate
-      ? `Lead "${leadName}" is In Progress. Expected completion: ${expectedCompletionDate}`
-      : `Lead "${leadName}" changed to Job in Progress`;
-  } else {
-    const statusLabel = status === "urgent_job" ? "Urgent Job" : "Need Tech";
-    title = `[Alert] ${statusLabel}`;
-    message = `Lead "${leadName}" changed to ${statusLabel}`;
+    if (status === "job_in_progress") {
+      title = "[Reminder] Job in Progress";
+      message = expectedCompletionDate
+        ? `Lead "${leadName}" is In Progress. Expected completion: ${expectedCompletionDate}`
+        : `Lead "${leadName}" changed to Job in Progress`;
+    } else {
+      const statusLabel = status === "urgent_job" ? "Urgent Job" : "Need Tech";
+      title = `[Alert] ${statusLabel}`;
+      message = `Lead "${leadName}" changed to ${statusLabel}`;
+    }
+
+    const notifications = roles.map((r: { user_id: string }) => ({
+      user_id: r.user_id,
+      title,
+      message,
+      lead_id: leadId,
+      read: false,
+    }));
+
+    await supabase.from("notifications").insert(notifications);
+  } catch (err) {
+    console.warn("sendNotifications caught error:", err);
   }
-
-  const notifications = roles.map((r: { user_id: string }) => ({
-    user_id: r.user_id,
-    title,
-    message,
-    lead_id: leadId,
-    read: false,
-  }));
-
-  await supabase.from("notifications").insert(notifications);
 };
 
 const SectionHeader = ({
@@ -147,6 +151,7 @@ export default function LeadDetailPage() {
   const isNew = id === "new";
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
+  const isOpr = role === "opr";
   const isAdmin = role === "admin";
   const isCsAdmin = role === "cs_admin";
   const hideProcessorDetails = isCS || isCsAdmin;
@@ -454,6 +459,15 @@ export default function LeadDetailPage() {
     return `${h.toString().padStart(2, "0")}:${minute}`;
   };
 
+  const parseAmount = (val?: string | number | null): number | null => {
+    if (val === null || val === undefined || val === "") return null;
+    if (typeof val === "number") return isNaN(val) ? null : val;
+    const cleaned = String(val).replace(/[^0-9.-]+/g, "");
+    if (!cleaned) return null;
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
+  };
+
   const handlePhotoAdd = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setNewPhotos((prev) => [...prev, ...Array.from(e.target.files!)]);
@@ -662,27 +676,19 @@ export default function LeadDetailPage() {
       terms: !hideProcessorDetails ? form.terms || null : (originalLead?.terms ?? null),
       labor_amount:
         !hideProcessorDetails
-          ? form.labor_amount
-            ? parseFloat(form.labor_amount)
-            : null
+          ? parseAmount(form.labor_amount)
           : (originalLead?.labor_amount ?? null),
       material_amount:
         !hideProcessorDetails
-          ? form.material_amount
-            ? parseFloat(form.material_amount)
-            : null
+          ? parseAmount(form.material_amount)
           : (originalLead?.material_amount ?? null),
       for_you_amount:
         !hideProcessorDetails
-          ? form.for_you_amount
-            ? parseFloat(form.for_you_amount)
-            : null
+          ? parseAmount(form.for_you_amount)
           : (originalLead?.for_you_amount ?? null),
       for_us_amount:
         !hideProcessorDetails
-          ? form.for_us_amount
-            ? parseFloat(form.for_us_amount)
-            : null
+          ? parseAmount(form.for_us_amount)
           : (originalLead?.for_us_amount ?? null),
 
       last_edited_by: user.id,
@@ -716,11 +722,24 @@ export default function LeadDetailPage() {
         await insertInitialNotes(newLeadId);
 
         if (newPhotos.length > 0) {
-          await uploadNewPhotos(newLeadId);
+          try {
+            await uploadNewPhotos(newLeadId);
+          } catch (photoErr) {
+            console.warn("Failed to upload new photos for lead:", photoErr);
+          }
         }
 
-        await sendNotifications(form.customer_name, form.status, newLeadId, form.expected_completion_date);
-        await logActivity(user.id, "created", "lead", newLeadId, { customer_name: form.customer_name });
+        try {
+          await sendNotifications(form.customer_name, form.status, newLeadId, form.expected_completion_date);
+        } catch (notifErr) {
+          console.warn("Notification dispatch failed:", notifErr);
+        }
+
+        try {
+          await logActivity(user.id, "created", "lead", newLeadId, { customer_name: form.customer_name });
+        } catch (actErr) {
+          console.warn("Activity logging failed:", actErr);
+        }
 
         toast.success("Lead created!");
 
@@ -734,7 +753,7 @@ export default function LeadDetailPage() {
       const previousStatus = originalLead?.status;
       const updatePayload: Record<string, unknown> = { ...payload };
       if (form.status === "paid" && form.amount) {
-        updatePayload.amount = parseFloat(form.amount);
+        updatePayload.amount = parseAmount(form.amount);
       }
       if (previousStatus !== form.status) {
         updatePayload.cs_tag = null;
@@ -753,22 +772,35 @@ export default function LeadDetailPage() {
       }
 
       if (newPhotos.length > 0) {
-        await uploadNewPhotos(leadId);
+        try {
+          await uploadNewPhotos(leadId);
+        } catch (photoErr) {
+          console.error("Failed to upload new photos:", photoErr);
+          toast.error("Lead updated, but some photos failed to upload.");
+        }
       }
 
       if (
         (previousStatus !== form.status && (form.status === "urgent_job" || form.status === "need_tech" || form.status === "job_in_progress")) ||
         (form.status === "job_in_progress" && originalLead?.expected_completion_date !== form.expected_completion_date && form.expected_completion_date)
       ) {
-        await sendNotifications(form.customer_name, form.status, leadId, form.expected_completion_date);
+        try {
+          await sendNotifications(form.customer_name, form.status, leadId, form.expected_completion_date);
+        } catch (notifErr) {
+          console.warn("Failed to dispatch notifications:", notifErr);
+        }
       }
 
-      const changedDetails: Record<string, unknown> = { customer_name: form.customer_name };
-      if (previousStatus && previousStatus !== form.status) {
-        changedDetails.status_from = LEAD_STATUS_CONFIG[previousStatus]?.label || previousStatus;
-        changedDetails.status_to = LEAD_STATUS_CONFIG[form.status]?.label || form.status;
+      try {
+        const changedDetails: Record<string, unknown> = { customer_name: form.customer_name };
+        if (previousStatus && previousStatus !== form.status) {
+          changedDetails.status_from = LEAD_STATUS_CONFIG[previousStatus]?.label || previousStatus;
+          changedDetails.status_to = LEAD_STATUS_CONFIG[form.status]?.label || form.status;
+        }
+        await logActivity(user.id, "updated", "lead", leadId, changedDetails);
+      } catch (actErr) {
+        console.warn("Failed to log activity:", actErr);
       }
-      await logActivity(user.id, "updated", "lead", leadId, changedDetails);
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -776,6 +808,7 @@ export default function LeadDetailPage() {
       await fetchLead();
       toast.success("Lead updated!");
     } catch (err: unknown) {
+      console.error("Failed to save lead:", err);
       const message = err instanceof Error ? err.message : "Failed to save lead";
       toast.error(message);
     } finally {

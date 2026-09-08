@@ -57,6 +57,7 @@ import {
   fetchPendingCancellationRequest,
   reviewCancellationRequest,
 } from "@/lib/cancellation-requests";
+import { updateLeadById } from "@/lib/lead-updates";
 
 interface Props {
   leadId: string;
@@ -552,73 +553,75 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         (updateData as Record<string, unknown>).cs_tag = null;
       }
 
-      let updateQuery = supabase.from("leads").update(updateData as never).eq("id", leadId);
-
-      if (role === "customer_service") {
-        updateQuery = updateQuery.eq("created_by", user.id);
-      }
-
-      let { error } = await updateQuery;
-      if (error && error.message?.includes("expected_completion_date")) {
-        const { expected_completion_date: _, ...fallbackData } = updateData as Record<string, unknown>;
-        let fallbackQuery = supabase.from("leads").update(fallbackData as never).eq("id", leadId);
-        if (role === "customer_service") {
-          fallbackQuery = fallbackQuery.eq("created_by", user.id);
+      try {
+        await updateLeadById(leadId, updateData as Record<string, unknown>);
+      } catch (saveErr: unknown) {
+        const msg = saveErr instanceof Error ? saveErr.message : String(saveErr);
+        if (msg.includes("expected_completion_date")) {
+          const { expected_completion_date: _, ...fallbackData } = updateData as Record<string, unknown>;
+          await updateLeadById(leadId, fallbackData);
+        } else {
+          throw saveErr;
         }
-        const fallbackRes = await fallbackQuery;
-        error = fallbackRes.error;
       }
-      if (error) throw error;
 
       if (
         (lead?.status !== form.status && (form.status === "urgent_job" || form.status === "need_tech" || form.status === "job_in_progress")) ||
         (form.status === "job_in_progress" && lead?.expected_completion_date !== form.expected_completion_date && form.expected_completion_date)
       ) {
-        const isJobInProgress = form.status === "job_in_progress";
-        const targetRoles = isJobInProgress ? ["admin", "processor"] : ["admin", "processor", "customer_service", "cs_admin", "opr"];
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("user_id, role")
-          .in("role", targetRoles as any);
+        try {
+          const isJobInProgress = form.status === "job_in_progress";
+          const targetRoles = isJobInProgress ? ["admin", "processor"] : ["admin", "processor", "customer_service", "cs_admin", "opr"];
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("user_id, role")
+            .in("role", targetRoles as any);
 
-        if (roles) {
-          const statusLabel = form.status === "urgent_job" ? "Urgent Job" : form.status === "need_tech" ? "Need Tech" : "Job in Progress";
-          const title = isJobInProgress ? `[Reminder] ${statusLabel}` : `[Alert] ${statusLabel}`;
-          const message = isJobInProgress && form.expected_completion_date
-            ? `Lead "${form.customer_name}" is In Progress. Expected completion: ${form.expected_completion_date}`
-            : `Lead "${form.customer_name}" changed to ${statusLabel}`;
-          const notifs = roles.map((r: { user_id: string }) => ({
-            user_id: r.user_id,
-            title,
-            message,
-            lead_id: leadId,
-            read: false,
-          }));
-          await supabase.from("notifications").insert(notifs);
+          if (roles) {
+            const statusLabel = form.status === "urgent_job" ? "Urgent Job" : form.status === "need_tech" ? "Need Tech" : "Job in Progress";
+            const title = isJobInProgress ? `[Reminder] ${statusLabel}` : `[Alert] ${statusLabel}`;
+            const message = isJobInProgress && form.expected_completion_date
+              ? `Lead "${form.customer_name}" is In Progress. Expected completion: ${form.expected_completion_date}`
+              : `Lead "${form.customer_name}" changed to ${statusLabel}`;
+            const notifs = roles.map((r: { user_id: string }) => ({
+              user_id: r.user_id,
+              title,
+              message,
+              lead_id: leadId,
+              read: false,
+            }));
+            await supabase.from("notifications").insert(notifs);
+          }
+        } catch (notifErr) {
+          console.warn("Failed to dispatch notifications:", notifErr);
         }
       }
 
       if (lead?.status !== form.status && form.status === "quote_updated") {
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("user_id, role")
-          .eq("role", "cs_admin");
+        try {
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("user_id, role")
+            .eq("role", "cs_admin");
 
-        const targetUserIds = new Set<string>();
-        if (lead?.quote_requested_by) targetUserIds.add(lead.quote_requested_by);
-        if (roles) {
-          roles.forEach((r) => targetUserIds.add(r.user_id));
-        }
+          const targetUserIds = new Set<string>();
+          if (lead?.quote_requested_by) targetUserIds.add(lead.quote_requested_by);
+          if (roles) {
+            roles.forEach((r) => targetUserIds.add(r.user_id));
+          }
 
-        if (targetUserIds.size > 0) {
-          const notifs = Array.from(targetUserIds).map((userId) => ({
-            user_id: userId,
-            title: `[Alert] Quote Updated`,
-            message: `Quote for lead "${form.customer_name}" has been updated`,
-            lead_id: leadId,
-            read: false,
-          }));
-          await supabase.from("notifications").insert(notifs);
+          if (targetUserIds.size > 0) {
+            const notifs = Array.from(targetUserIds).map((userId) => ({
+              user_id: userId,
+              title: `[Alert] Quote Updated`,
+              message: `Quote for lead "${form.customer_name}" has been updated`,
+              lead_id: leadId,
+              read: false,
+            }));
+            await supabase.from("notifications").insert(notifs);
+          }
+        } catch (quoteNotifErr) {
+          console.warn("Failed to dispatch quote notifications:", quoteNotifErr);
         }
       }
 
