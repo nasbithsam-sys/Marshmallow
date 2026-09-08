@@ -261,28 +261,62 @@ Deno.serve(async (req) => {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 20000);
     try {
-      if (normalizedAddress) {
+      const expectedStateCode = state.toUpperCase();
+      const expectedFullState = Object.keys(STATE_ABBR).find(k => STATE_ABBR[k] === expectedStateCode) || "";
+      
+      const isValidMatch = (displayName: string) => {
+        if (!displayName) return true;
+        const lower = displayName.toLowerCase();
+        
+        let hasZip = false;
+        let hasState = false;
+        
+        if (zip && lower.includes(zip)) hasZip = true;
+        
+        if (expectedStateCode) {
+            const reAbbr = new RegExp(`\\b${expectedStateCode.toLowerCase()}\\b`);
+            if (reAbbr.test(lower) || (expectedFullState && lower.includes(expectedFullState))) {
+                hasState = true;
+            }
+        }
+        
+        if (zip && expectedStateCode) return hasZip || hasState;
+        if (zip) return hasZip;
+        if (expectedStateCode) return hasState;
+        return true;
+      };
+
+      // 1. Try structured city/state/zip first to prevent drifting
+      if ((city || zip) && state) {
+        const r = await nominatimStructured({ city, state, postalcode: zip || undefined }, controller.signal);
+        if (r && isValidMatch(r.matched)) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "city_state"; }
+      }
+
+      // 2. Try street + zip structured
+      if (lat === null && streetAddress && zip) {
+        const r = await nominatimStructured({ street: streetAddress, postalcode: zip }, controller.signal);
+        if (r && isValidMatch(r.matched)) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "street_zip"; }
+      }
+
+      // 3. Try free text for full address, but validate it
+      if (lat === null && normalizedAddress) {
         const q = addressHasInlineLocation
           ? normalizedAddress
           : [normalizedAddress, city, state, zip].filter(Boolean).join(", ");
         const r = await nominatimFree(q, controller.signal);
-        if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "address"; }
+        if (r && isValidMatch(r.matched)) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "address"; }
       }
-      if (lat === null && (city || zip) && state) {
-        const r = await nominatimStructured({ city, state, postalcode: zip || undefined }, controller.signal);
-        if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "city_state"; }
-      }
+      
+      // 4. Fallback to reliable zip centroid
       if (lat === null && zip) {
         const r = await zipCentroid(zip, controller.signal);
         if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "zip_centroid"; }
       }
+
+      // 5. Fallback to zip text search
       if (lat === null && zip) {
         const r = await nominatimFree(`${zip}, USA`, controller.signal);
         if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "zip_centroid"; }
-      }
-      if (lat === null && streetAddress && zip) {
-        const r = await nominatimStructured({ street: streetAddress, postalcode: zip }, controller.signal);
-        if (r) { lat = r.lat; lng = r.lng; matched = r.matched; accuracy = "street_zip"; }
       }
     } catch (e) {
       log("geocoding_exception", { message: e instanceof Error ? e.message : String(e) });
