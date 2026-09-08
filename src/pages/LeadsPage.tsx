@@ -111,7 +111,12 @@ export default function LeadsPage() {
 
   const { filterLeads, allowedStatuses } = useAllowedStatuses();
 
-  const safeStatusFilter = rawStatusFilter === "all" || allowedStatuses.has(rawStatusFilter) ? rawStatusFilter : "all";
+  const safeStatusFilter =
+    rawStatusFilter === "all" ||
+    allowedStatuses.has(rawStatusFilter) ||
+    (role === "opr" && leads.some((l) => Boolean(l.cs_tag) && l.status === rawStatusFilter))
+      ? rawStatusFilter
+      : "all";
 
   useEffect(() => {
     if (rawStatusFilter !== safeStatusFilter) {
@@ -865,7 +870,7 @@ export default function LeadsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                {ALL_LEAD_STATUSES.filter((s) => allowedStatuses.has(s)).map((s) => (
+                {ALL_LEAD_STATUSES.filter((s) => allowedStatuses.has(s) || (role === "opr" && leads.some((l) => Boolean(l.cs_tag) && l.status === s))).map((s) => (
                   <SelectItem key={s} value={s}>
                     <span className="flex items-center gap-2">
                       <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT_COLORS[s]}`} />

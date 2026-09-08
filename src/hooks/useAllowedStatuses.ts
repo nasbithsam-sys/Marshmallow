@@ -59,8 +59,8 @@ export function useAllowedStatuses() {
 
   const statuses = allowedStatuses ?? getDefaultVisibleStatuses(role);
 
-  const filterLeads = <T extends { status: string }>(leads: T[]): T[] => {
-    return leads.filter((lead) => statuses.has(lead.status));
+  const filterLeads = <T extends { status: string; cs_tag?: string | null }>(leads: T[]): T[] => {
+    return leads.filter((lead) => statuses.has(lead.status) || (role === "opr" && Boolean(lead.cs_tag)));
   };
 
   return {

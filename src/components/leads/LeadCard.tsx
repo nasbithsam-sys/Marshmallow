@@ -1300,6 +1300,10 @@ function LeadCard({
   };
 
   const handleCsTagChange = async (value: string) => {
+    if (isOpr) {
+      toast.error("Operators cannot change lead tags");
+      return;
+    }
     const newTag = value === "__clear__" ? null : (value as CsTag);
     if (newTag && !assignableTags.includes(newTag)) {
       toast.error("You do not have permission to assign this tag");
@@ -1317,6 +1321,10 @@ function LeadCard({
   };
 
   const handleBookingConfirm = async (iso: string) => {
+    if (isOpr) {
+      toast.error("Operators cannot edit booking details");
+      return;
+    }
     if (bookingDialogMode === "edit") {
       // Editing an already-booked lead — keep tag, just update booked_at.
       const { error } = await supabase
@@ -1455,23 +1463,36 @@ function LeadCard({
                     </span>
                   )}
                   {lead.cs_tag === "booked" && lead.booked_at && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setBookingDialogMode("edit");
-                        setBookingDialogOpen(true);
-                      }}
-                      title={isBookingExpired(lead.booked_at) ? "Booking overdue — click to reschedule" : "Edit booking date/time"}
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
-                        isBookingExpired(lead.booked_at)
-                          ? "border-rose-500/50 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse"
-                          : "border-emerald-500/40 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
-                      }`}
-                    >
-                      <CalendarDays className="h-3 w-3" />
-                      {formatBookingCompact(lead.booked_at)}
-                    </button>
+                    isOpr ? (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                          isBookingExpired(lead.booked_at)
+                            ? "border-rose-500/50 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse"
+                            : "border-emerald-500/40 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                        }`}
+                      >
+                        <CalendarDays className="h-3 w-3" />
+                        {formatBookingCompact(lead.booked_at)}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBookingDialogMode("edit");
+                          setBookingDialogOpen(true);
+                        }}
+                        title={isBookingExpired(lead.booked_at) ? "Booking overdue — click to reschedule" : "Edit booking date/time"}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                          isBookingExpired(lead.booked_at)
+                            ? "border-rose-500/50 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse"
+                            : "border-emerald-500/40 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                        }`}
+                      >
+                        <CalendarDays className="h-3 w-3" />
+                        {formatBookingCompact(lead.booked_at)}
+                      </button>
+                    )
                   )}
                   {(() => {
                     const sched = formatScheduleRequirementCompact(lead.customer_schedule_requirements);
@@ -1682,6 +1703,36 @@ function LeadCard({
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {isOpr && currentTag && (
+          <div className="px-4 pt-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  currentTag === "booked"
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-200"
+                    : currentTag === "ready_to_schedule"
+                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-400/20 dark:text-indigo-200"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
+                }`}
+              >
+                📌 {CS_TAG_LABELS[currentTag]}
+              </p>
+              {currentTag === "booked" && lead.booked_at && (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                    isBookingExpired(lead.booked_at)
+                      ? "border-rose-500/50 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse"
+                      : "border-emerald-500/40 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                  }`}
+                >
+                  <CalendarDays className="h-3 w-3" />
+                  {formatBookingCompact(lead.booked_at)}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
