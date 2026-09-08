@@ -1024,6 +1024,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          can_manage_users: boolean | null
           created_at: string | null
           email: string
           full_name: string
@@ -1031,6 +1032,7 @@ export type Database = {
           is_quotation_master: boolean | null
         }
         Insert: {
+          can_manage_users?: boolean | null
           created_at?: string | null
           email: string
           full_name: string
@@ -1038,6 +1040,7 @@ export type Database = {
           is_quotation_master?: boolean | null
         }
         Update: {
+          can_manage_users?: boolean | null
           created_at?: string | null
           email?: string
           full_name?: string
@@ -1770,6 +1773,13 @@ export type Database = {
           population: number
           state_code: string
           state_name: string
+        }[]
+      }
+      get_users_totp_status: {
+        Args: never
+        Returns: {
+          has_totp: boolean
+          user_id: string
         }[]
       }
       has_role:
