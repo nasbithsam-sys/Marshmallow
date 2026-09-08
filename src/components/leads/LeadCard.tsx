@@ -700,7 +700,7 @@ function LeadCard({
     initialPhotoCount !== undefined ? initialPhotoCount : 0
   );
   const [hasNotes, setHasNotes] = useState<{ general: boolean; cs: boolean; processor: boolean; opr: boolean }>(
-    initialHasNotes !== undefined ? { ...initialHasNotes, opr: false } : {
+    initialHasNotes !== undefined ? { ...initialHasNotes } : {
       general: false,
       cs: false,
       processor: false,
@@ -717,7 +717,7 @@ function LeadCard({
 
   useEffect(() => {
     if (initialHasNotes !== undefined) {
-      setHasNotes({ ...initialHasNotes, opr: false });
+      setHasNotes({ ...initialHasNotes });
     }
   }, [initialHasNotes]);
 
