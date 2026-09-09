@@ -3,6 +3,7 @@ import type { AppRole, Lead, LeadStatus } from "@/types";
 import { logActivity } from "@/lib/activity";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { updateLeadById } from "@/lib/lead-updates";
+import { deliverLeadNotification } from "@/lib/lead-notifications";
 
 export const PAYMENT_REQUEST_STATUS: LeadStatus = "payment_requested" as LeadStatus;
 
@@ -147,15 +148,16 @@ export async function createPaymentRequest({
     .eq("role", "admin");
 
   if (admins?.length) {
-    await supabase.from("notifications").insert(
-      admins.map((row: { user_id: string }) => ({
-        user_id: row.user_id,
+    try {
+      await deliverLeadNotification({
+        leadId: lead.id,
         title: "Paid approval request",
         message: `${lead.customer_name} needs Paid approval`,
-        lead_id: lead.id,
-        read: false,
-      })),
-    );
+        userIds: admins.map((row: { user_id: string }) => row.user_id),
+      });
+    } catch (notificationError) {
+      console.error("Failed to notify paid approvers", notificationError);
+    }
   }
 
   await logActivity(userId, "payment_requested", "lead", lead.id, {

@@ -3,6 +3,7 @@ import type { AppRole, Lead, LeadCancellationRequest, LeadStatus } from "@/types
 import { logActivity } from "@/lib/activity";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { updateLeadById } from "@/lib/lead-updates";
+import { deliverLeadNotification } from "@/lib/lead-notifications";
 
 export const CANCELLATION_REQUEST_STATUS: LeadStatus = "cancellation_requested";
 
@@ -140,17 +141,14 @@ export async function createCancellationRequest({
     .in("role", approverRoles);
 
   if (roles?.length) {
-    const { error: notificationError } = await supabase.from("notifications").insert(
-      roles.map((row: { user_id: string; role: string }) => ({
-        user_id: row.user_id,
+    try {
+      await deliverLeadNotification({
+        leadId: lead.id,
         title: "Lead cancellation request",
         message: `${lead.customer_name} needs cancellation approval`,
-        lead_id: lead.id,
-        read: false,
-      })),
-    );
-
-    if (notificationError) {
+        userIds: roles.map((row: { user_id: string; role: string }) => row.user_id),
+      });
+    } catch (notificationError) {
       console.error("Failed to notify cancellation approvers", notificationError);
     }
   }

@@ -2,6 +2,7 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/s
 import AppSidebar from "@/components/layout/AppSidebar";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import UrgentLeadPopup from "@/components/notifications/UrgentLeadPopup";
+import { NotificationPopupProvider } from "@/components/notifications/popup-slot";
 import JobInProgressPopup from "@/components/notifications/JobInProgressPopup";
 import QuoteUpdatedPopup from "@/components/notifications/QuoteUpdatedPopup";
 import CrmUpdatePopup from "@/components/notifications/CrmUpdatePopup";
@@ -137,9 +138,11 @@ export default function AppLayout() {
                 </motion.div>
               </AnimatePresence>
             </main>
-          {!isQuoMonitor && <UrgentLeadPopup />}
-          {!isQuoMonitor && <JobInProgressPopup />}
-          {!isQuoMonitor && <QuoteUpdatedPopup />}
+          <NotificationPopupProvider>
+            {!isQuoMonitor && <UrgentLeadPopup />}
+            {!isQuoMonitor && <JobInProgressPopup />}
+            {!isQuoMonitor && <QuoteUpdatedPopup />}
+          </NotificationPopupProvider>
           <CrmUpdatePopup />
           <FloatingNotepad />
         </SidebarInset>

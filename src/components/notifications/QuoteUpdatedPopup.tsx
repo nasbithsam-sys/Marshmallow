@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileCheck, X, ArrowUpRight } from "lucide-react";
+import { useNotificationPopupSlot } from "./popup-slot";
 
 interface QuoteUpdatedNotification {
   id: string;
@@ -28,15 +29,21 @@ const POLL_MS = 20000;
 const FETCH_LIMIT = 100;
 /** How many lead names the summary lists before collapsing the rest into "+N more". */
 const PREVIEW_LIMIT = 4;
-const BASELINE_KEY = "quote_updated_popup_baseline_at";
+/** Per user: a second account signing in on the same tab must not inherit the first one's cutoff. */
+const baselineKey = (userId: string) => `quote_updated_popup_baseline_at:${userId}`;
 
-function getOrInitBaseline(): string {
-  let v = window.sessionStorage.getItem(BASELINE_KEY);
-  if (!v) {
-    v = new Date().toISOString();
-    window.sessionStorage.setItem(BASELINE_KEY, v);
+function getOrInitBaseline(userId: string): string {
+  try {
+    const key = baselineKey(userId);
+    let v = window.sessionStorage.getItem(key);
+    if (!v) {
+      v = new Date().toISOString();
+      window.sessionStorage.setItem(key, v);
+    }
+    return v;
+  } catch {
+    return new Date().toISOString();
   }
-  return v;
 }
 
 /** Messages embed the customer name in quotes: Quote for lead "Jane Doe" has been updated. */
@@ -49,8 +56,11 @@ export default function QuoteUpdatedPopup() {
   const { user, role, fullyAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<QuoteUpdatedNotification[]>([]);
-  const baselineRef = useRef<string>(getOrInitBaseline());
+  const baselineRef = useRef<string | null>(null);
   const seenIds = useRef<Set<string>>(new Set());
+  // Ids dismissed locally but whose `read` write may not have landed yet — without this a poll
+  // in that window refetches them as unread and the card the user just dismissed comes back.
+  const dismissedIds = useRef<Set<string>>(new Set());
 
   // Only CS and CS Admin receive these popups
   const isEligible =
@@ -60,6 +70,8 @@ export default function QuoteUpdatedPopup() {
 
   const fetchUpdated = useCallback(async () => {
     if (!user || !isEligible) return;
+
+    if (!baselineRef.current) baselineRef.current = getOrInitBaseline(user.id);
 
     const { data } = await supabase
       .from("notifications")
@@ -73,7 +85,7 @@ export default function QuoteUpdatedPopup() {
 
     if (!data) return;
 
-    const rows = data as QuoteUpdatedNotification[];
+    const rows = (data as QuoteUpdatedNotification[]).filter((n) => !dismissedIds.current.has(n.id));
     const hasNew = rows.some((n) => !seenIds.current.has(n.id));
     rows.forEach((n) => seenIds.current.add(n.id));
 
@@ -148,9 +160,12 @@ export default function QuoteUpdatedPopup() {
     return [...byLead.values()];
   }, [items]);
 
+  const isVisible = useNotificationPopupSlot("quoteUpdated", isEligible && groups.length > 0);
+
   const markRead = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return;
     const dismissed = new Set(ids);
+    ids.forEach((id) => dismissedIds.current.add(id));
     setItems((prev) => prev.filter((n) => !dismissed.has(n.id)));
     await supabase.from("notifications").update({ read: true }).in("id", ids);
   }, []);
@@ -172,7 +187,8 @@ export default function QuoteUpdatedPopup() {
     navigate("/leads?status=quote_updated");
   }, [dismissAll, navigate]);
 
-  if (!isEligible || groups.length === 0) return null;
+  // Only one full-screen popup renders at a time; this one has the lowest priority.
+  if (!isVisible) return null;
 
   const single = groups.length === 1 ? groups[0] : null;
   const preview = groups.slice(0, PREVIEW_LIMIT);

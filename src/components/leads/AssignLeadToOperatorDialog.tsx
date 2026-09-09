@@ -15,6 +15,7 @@ import { UserPlus, MapPin, Wrench, FileText, Image as ImageIcon, X, ImagePlus, S
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { logActivity } from "@/lib/activity";
 import { motion, AnimatePresence } from "framer-motion";
+import { deliverLeadNotification } from "@/lib/lead-notifications";
 
 interface Props {
   open: boolean;
@@ -301,14 +302,12 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
 
       // 6. Send notification to assigned operators
       if (newAssignments.length > 0) {
-        const notifs = newAssignments.map((oprId) => ({
-          user_id: oprId,
+        await deliverLeadNotification({
+          leadId: lead.id,
           title: "Lead Assigned",
           message: `Lead "${lead.customer_name || lead.job_id}" has been assigned to you by ${profile?.full_name || "Admin/Processor"}.`,
-          lead_id: lead.id,
-          read: false,
-        }));
-        await supabase.from("notifications").insert(notifs);
+          userIds: newAssignments,
+        });
       }
 
       // 7. Log activity

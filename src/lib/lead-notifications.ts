@@ -2,8 +2,14 @@ import { supabase } from "@/integrations/supabase/client";
 import type { AppRole } from "@/types";
 
 /**
- * Single place where lead status alerts (Urgent Job / Need Tech / Job in Progress /
- * Quote Updated) are dispatched.
+ * Single place where lead notifications are dispatched.
+ *
+ * Two rules hold for every notification sent from here:
+ *
+ * 1. A recipient must be able to open the lead. Role alone is not enough — a plain
+ *    customer_service user can only SELECT leads they created, are assigned to, or had shared
+ *    with them, so alerting every CS user produced popups that dead-ended in "Lead not found".
+ * 2. The person who caused the notification never receives it.
  *
  * Delivery goes through the `dispatch_lead_status_notification` RPC, which keeps at most one
  * unread alert per (user, lead, title) — re-flagging the same lead refreshes the existing row
@@ -11,7 +17,8 @@ import type { AppRole } from "@/types";
  * falls back to the previous direct insert so alerts still go out.
  */
 
-const ALERT_ROLES: AppRole[] = ["admin", "processor", "customer_service", "cs_admin", "opr"];
+/** Roles whose lead SELECT policy is not scoped to individual leads. */
+const FULL_VISIBILITY_ROLES: AppRole[] = ["admin", "processor", "cs_admin"];
 const REMINDER_ROLES: AppRole[] = ["admin", "processor"];
 
 export type LeadNotificationStatus = "urgent_job" | "need_tech" | "job_in_progress" | "quote_updated";
@@ -66,28 +73,67 @@ function buildContent(params: DispatchParams, status: LeadNotificationStatus) {
   };
 }
 
+async function usersWithRoles(roles: AppRole[]): Promise<string[]> {
+  const { data } = await supabase.from("user_roles").select("user_id").in("role", roles);
+  return (data ?? []).map((r: { user_id: string }) => r.user_id);
+}
+
+/**
+ * Everyone individually attached to this lead: the CS who created it, the assigned CS, anyone
+ * it was shared with, and the operators it was assigned to. These are exactly the links the
+ * leads SELECT policy and the operator notification filter care about.
+ */
+async function usersAttachedToLead(leadId: string): Promise<string[]> {
+  const attached: string[] = [];
+
+  const [leadRes, sharesRes, assignmentsRes] = await Promise.all([
+    supabase.from("leads").select("created_by, assigned_cs").eq("id", leadId).maybeSingle(),
+    supabase.from("lead_shares").select("shared_with_user_id").eq("lead_id", leadId),
+    supabase.from("lead_operator_assignments").select("operator_user_id").eq("lead_id", leadId),
+  ]);
+
+  const lead = leadRes.data as { created_by: string | null; assigned_cs: string | null } | null;
+  if (lead?.created_by) attached.push(lead.created_by);
+  if (lead?.assigned_cs) attached.push(lead.assigned_cs);
+
+  ((sharesRes.data ?? []) as { shared_with_user_id: string }[]).forEach((s) => {
+    if (s.shared_with_user_id) attached.push(s.shared_with_user_id);
+  });
+
+  ((assignmentsRes.data ?? []) as { operator_user_id: string }[]).forEach((a) => {
+    if (a.operator_user_id) attached.push(a.operator_user_id);
+  });
+
+  return attached;
+}
+
 async function resolveRecipients(
   status: LeadNotificationStatus,
+  leadId: string,
   quoteRequestedBy?: string | null,
 ): Promise<string[]> {
   const recipients = new Set<string>();
 
   if (status === "quote_updated") {
     if (quoteRequestedBy) recipients.add(quoteRequestedBy);
-
-    const { data: csAdmins } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "cs_admin");
-
-    csAdmins?.forEach((r: { user_id: string }) => recipients.add(r.user_id));
+    (await usersWithRoles(["cs_admin"])).forEach((id) => recipients.add(id));
     return [...recipients];
   }
 
-  const targetRoles = status === "job_in_progress" ? REMINDER_ROLES : ALERT_ROLES;
-  const { data: roles } = await supabase.from("user_roles").select("user_id").in("role", targetRoles);
+  if (status === "job_in_progress") {
+    (await usersWithRoles(REMINDER_ROLES)).forEach((id) => recipients.add(id));
+    return [...recipients];
+  }
 
-  roles?.forEach((r: { user_id: string }) => recipients.add(r.user_id));
+  // Urgent Job / Need Tech: roles that can see every lead, plus the people tied to this one.
+  const [broad, attached] = await Promise.all([
+    usersWithRoles(FULL_VISIBILITY_ROLES),
+    usersAttachedToLead(leadId),
+  ]);
+
+  broad.forEach((id) => recipients.add(id));
+  attached.forEach((id) => recipients.add(id));
+
   return [...recipients];
 }
 
@@ -98,13 +144,31 @@ function isMissingFunction(error: { code?: string; message?: string } | null): b
   return Boolean(error.message && /Could not find the function|does not exist/i.test(error.message));
 }
 
-async function deliver(leadId: string, title: string, message: string, userIds: string[]) {
+/** The signed-in user, read from the cached session rather than a round trip to the auth server. */
+async function currentUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.id ?? null;
+}
+
+/**
+ * Sends one lead notification to a set of users, deduped per (user, lead, title) and never to
+ * the person who triggered it. Exported so every dispatch path shares the same rules.
+ */
+export async function deliverLeadNotification(params: {
+  leadId: string;
+  title: string;
+  message: string;
+  userIds: string[];
+}): Promise<void> {
+  const actorId = await currentUserId();
+  const userIds = [...new Set(params.userIds)].filter((id) => Boolean(id) && id !== actorId);
+
   if (userIds.length === 0) return;
 
   const { error } = await supabase.rpc("dispatch_lead_status_notification" as never, {
-    p_lead_id: leadId,
-    p_title: title,
-    p_message: message,
+    p_lead_id: params.leadId,
+    p_title: params.title,
+    p_message: params.message,
     p_user_ids: userIds,
   } as never);
 
@@ -116,9 +180,9 @@ async function deliver(leadId: string, title: string, message: string, userIds: 
   await supabase.from("notifications").insert(
     userIds.map((userId) => ({
       user_id: userId,
-      title,
-      message,
-      lead_id: leadId,
+      title: params.title,
+      message: params.message,
+      lead_id: params.leadId,
       read: false,
     })),
   );
@@ -132,11 +196,16 @@ export async function dispatchLeadStatusNotification(params: DispatchParams): Pr
   try {
     if (!isNotificationStatus(params.status)) return;
 
-    const recipients = await resolveRecipients(params.status, params.quoteRequestedBy);
+    const recipients = await resolveRecipients(params.status, params.leadId, params.quoteRequestedBy);
     if (recipients.length === 0) return;
 
     const { title, message } = buildContent(params, params.status);
-    await deliver(params.leadId, title, message, recipients);
+    await deliverLeadNotification({
+      leadId: params.leadId,
+      title,
+      message,
+      userIds: recipients,
+    });
   } catch (err) {
     console.warn("Failed to dispatch lead status notification:", err);
   }
@@ -156,21 +225,14 @@ export async function dispatchIncompleteDetailsNotification(params: {
   try {
     const recipients = new Set<string>();
     if (params.createdBy) recipients.add(params.createdBy);
+    (await usersWithRoles(["cs_admin"])).forEach((id) => recipients.add(id));
 
-    const { data: csAdmins } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "cs_admin");
-
-    csAdmins?.forEach((r: { user_id: string }) => recipients.add(r.user_id));
-    if (recipients.size === 0) return;
-
-    await deliver(
-      params.leadId,
-      INCOMPLETE_DETAILS_TITLE,
-      `Lead "${params.leadName}" is missing details - please complete the lead information`,
-      [...recipients],
-    );
+    await deliverLeadNotification({
+      leadId: params.leadId,
+      title: INCOMPLETE_DETAILS_TITLE,
+      message: `Lead "${params.leadName}" is missing details - please complete the lead information`,
+      userIds: [...recipients],
+    });
   } catch (err) {
     console.warn("Failed to dispatch incomplete details notification:", err);
   }

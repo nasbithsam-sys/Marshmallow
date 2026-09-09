@@ -68,39 +68,60 @@ export default function NotificationBell() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  // Counted separately from the displayed page: the list is capped at NOTIFICATION_LIMIT rows
+  // regardless of read state, so counting unread within it hid older unread notifications.
+  const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const shownCancellationPopups = useRef(new Set<string>());
+
+  // Operators only ever see notifications for leads assigned to them. The same restriction is
+  // applied to the list, the unread badge and "mark all read" so they cannot disagree.
+  const operatorLeadScope = useCallback(async () => {
+    if (role !== 'opr' || !user) return null;
+    const assignedLeadIds = await getAssignedLeadIdsForOperator(user.id);
+    return Array.from(assignedLeadIds);
+  }, [role, user]);
+
+  const applyOperatorScope = <T extends { or: (f: string) => T; is: (c: string, v: null) => T }>(
+    query: T,
+    assignedLeadIdList: string[] | null,
+  ): T => {
+    if (assignedLeadIdList === null) return query;
+    return assignedLeadIdList.length > 0
+      ? query.or(`lead_id.is.null,lead_id.in.(${assignedLeadIdList.join(',')})`)
+      : query.is('lead_id', null);
+  };
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
 
-    if (role === 'opr') {
-      const assignedLeadIds = await getAssignedLeadIdsForOperator(user.id);
-      const assignedLeadIdList = Array.from(assignedLeadIds);
-      let query = supabase
+    const assignedLeadIdList = await operatorLeadScope();
+
+    const listQuery = applyOperatorScope(
+      supabase
         .from('notifications')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(NOTIFICATION_LIMIT);
+        .limit(NOTIFICATION_LIMIT),
+      assignedLeadIdList,
+    );
 
-      query = assignedLeadIdList.length > 0
-        ? query.or(`lead_id.is.null,lead_id.in.(${assignedLeadIdList.join(',')})`)
-        : query.is('lead_id', null);
+    // Counted across every unread row, not just the page being displayed.
+    const countQuery = applyOperatorScope(
+      supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false),
+      assignedLeadIdList,
+    );
 
-      const { data } = await query;
-      if (data) setNotifications(data as Notification[]);
-      return;
-    }
+    const [listResult, countResult] = await Promise.all([listQuery, countQuery]);
 
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(NOTIFICATION_LIMIT);
-    if (data) setNotifications(data as Notification[]);
-  }, [role, user]);
+    if (listResult.data) setNotifications(listResult.data as Notification[]);
+    if (typeof countResult.count === 'number') setUnreadCount(countResult.count);
+  }, [operatorLeadScope, user]);
 
   useEffect(() => {
     shownCancellationPopups.current = user ? loadShownCancellationPopupIds(user.id) : new Set<string>();
@@ -117,7 +138,9 @@ export default function NotificationBell() {
   }, [fetchNotifications, open]);
 
   useEffect(() => {
-    if (role !== 'admin' || !user) return;
+    // Processors approve cancellations alongside admins (getCancellationApproverRoles), so they
+    // get the same toast rather than a silent bell row.
+    if ((role !== 'admin' && role !== 'processor') || !user) return;
 
     let displayedNewPopup = false;
 
@@ -184,25 +207,30 @@ export default function NotificationBell() {
     };
   }, [fetchNotifications, role, user]);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-
   const markAllRead = async () => {
     if (!user) return;
-    await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', user.id)
-      .eq('read', false);
-    fetchNotifications();
+
+    // Scoped to what this user can actually see, so an operator cannot silently clear alerts
+    // for leads that were filtered out of their bell. No `read` filter: rows where `read` is
+    // NULL also count as unread here and would otherwise be impossible to clear.
+    const assignedLeadIdList = await operatorLeadScope();
+
+    await applyOperatorScope(
+      supabase.from('notifications').update({ read: true }).eq('user_id', user.id),
+      assignedLeadIdList,
+    );
+
+    await fetchNotifications();
   };
 
   const handleClick = async (n: Notification) => {
     if (!n.read) {
       await supabase.from('notifications').update({ read: true }).eq('id', n.id);
+      setUnreadCount((prev) => Math.max(0, prev - 1));
     }
     setOpen(false);
     if (n.lead_id) navigate(`/leads/${n.lead_id}`);
-    fetchNotifications();
+    void fetchNotifications();
   };
 
   return (

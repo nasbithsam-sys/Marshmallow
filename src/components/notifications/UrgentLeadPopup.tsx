@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, X, ArrowUpRight } from "lucide-react";
+import { useNotificationPopupSlot } from "./popup-slot";
 
 interface UrgentNotification {
   id: string;
@@ -41,6 +42,9 @@ export default function UrgentLeadPopup() {
   const navigate = useNavigate();
   const [items, setItems] = useState<UrgentNotification[]>([]);
   const seenIds = useRef<Set<string>>(new Set());
+  // Ids dismissed locally but whose `read` write may not have landed yet — without this a poll
+  // in that window refetches them as unread and the card the user just dismissed comes back.
+  const dismissedIds = useRef<Set<string>>(new Set());
 
   // Every role gets urgent popups
   const eligible = Boolean(role);
@@ -59,7 +63,7 @@ export default function UrgentLeadPopup() {
 
     if (!data) return;
 
-    const rows = data as UrgentNotification[];
+    const rows = (data as UrgentNotification[]).filter((n) => !dismissedIds.current.has(n.id));
     const hasNew = rows.some((n) => !seenIds.current.has(n.id));
     rows.forEach((n) => seenIds.current.add(n.id));
 
@@ -134,9 +138,12 @@ export default function UrgentLeadPopup() {
     return [...byLead.values()];
   }, [items]);
 
+  const isVisible = useNotificationPopupSlot("urgent", eligible && groups.length > 0);
+
   const markRead = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return;
     const dismissed = new Set(ids);
+    ids.forEach((id) => dismissedIds.current.add(id));
     setItems((prev) => prev.filter((n) => !dismissed.has(n.id)));
     await supabase.from("notifications").update({ read: true }).in("id", ids);
   }, []);
@@ -158,7 +165,8 @@ export default function UrgentLeadPopup() {
     navigate("/leads?status=urgent_job");
   }, [dismissAll, navigate]);
 
-  if (!eligible || groups.length === 0) return null;
+  // Only one full-screen popup renders at a time; Urgent Job outranks the others.
+  if (!isVisible) return null;
 
   const single = groups.length === 1 ? groups[0] : null;
   const preview = groups.slice(0, PREVIEW_LIMIT);

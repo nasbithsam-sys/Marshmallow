@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Clock, X, ArrowUpRight, Wrench, MapPin, AlertCircle, Calendar } from "lucide-react";
+import { useNotificationPopupSlot } from "./popup-slot";
 
 interface JobInProgressItem {
   notificationIds: string[];
@@ -29,6 +30,9 @@ export default function JobInProgressPopup() {
   const { user, role, fullyAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<JobInProgressItem[]>([]);
+  // Ids dismissed locally but whose `read` write may not have landed yet — without this a poll
+  // in that window refetches them as unread and the card the user just dismissed comes back.
+  const dismissedIds = useRef<Set<string>>(new Set());
 
   // Only Admins and Processors receive Job in Progress popups
   const isEligible = (role === "admin" || role === "processor") && Boolean(user) && fullyAuthenticated;
@@ -47,13 +51,19 @@ export default function JobInProgressPopup() {
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT);
 
-      if (error || !notifications || notifications.length === 0) {
+      if (error || !notifications) {
+        setItems([]);
+        return;
+      }
+
+      const visible = notifications.filter((n) => !dismissedIds.current.has(n.id));
+      if (visible.length === 0) {
         setItems([]);
         return;
       }
 
       // 2. Extract lead IDs to get up-to-date expected details
-      const leadIds = notifications
+      const leadIds = visible
         .map((n) => n.lead_id)
         .filter((id): id is string => typeof id === "string" && id.length > 0);
 
@@ -80,7 +90,7 @@ export default function JobInProgressPopup() {
       // 3. One entry per lead — the same job reminded twice is still one job.
       const byLead = new Map<string, JobInProgressItem>();
 
-      for (const n of notifications) {
+      for (const n of visible) {
         const key = n.lead_id ?? `notification:${n.id}`;
         const existing = byLead.get(key);
 
@@ -149,6 +159,7 @@ export default function JobInProgressPopup() {
   const markRead = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return;
     const dismissed = new Set(ids);
+    ids.forEach((id) => dismissedIds.current.add(id));
     setItems((prev) => prev.filter((i) => !i.notificationIds.some((id) => dismissed.has(id))));
     await supabase.from("notifications").update({ read: true }).in("id", ids);
   }, []);
@@ -172,6 +183,8 @@ export default function JobInProgressPopup() {
     navigate("/leads?status=job_in_progress");
   }, [dismissAll, navigate]);
 
+  const isVisible = useNotificationPopupSlot("jobInProgress", isEligible && items.length > 0);
+
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const overdueCount = useMemo(
@@ -179,7 +192,8 @@ export default function JobInProgressPopup() {
     [items, today],
   );
 
-  if (!isEligible || items.length === 0) return null;
+  // Only one full-screen popup renders at a time; Urgent Job outranks this one.
+  if (!isVisible) return null;
 
   const single = items.length === 1 ? items[0] : null;
   const preview = items.slice(0, PREVIEW_LIMIT);
