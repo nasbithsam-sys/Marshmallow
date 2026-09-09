@@ -5,6 +5,7 @@ import type { ChangeEvent, ElementType } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { logActivity } from "@/lib/activity";
+import { dispatchLeadStatusNotification } from "@/lib/lead-notifications";
 import { formatUSPhone } from "@/lib/phone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,7 @@ import ReminderButton from "@/components/leads/ReminderButton";
 import NoteThread from "@/components/leads/NoteThread";
 import NearbyAreasList, { type NearbyAreasData } from "@/components/leads/NearbyAreasList";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest, type AppRole } from "@/types";
+import { LEAD_STATUS_CONFIG, type Lead, type LeadStatus, type LeadCancellationRequest } from "@/types";
 import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { updateLeadById } from "@/lib/lead-updates";
@@ -72,50 +73,6 @@ const generateJobId = () => {
   let result = "LD-";
   for (let i = 0; i < 6; i++) result += chars[Math.floor(Math.random() * chars.length)];
   return result;
-};
-
-const sendNotifications = async (
-  leadName: string,
-  status: string,
-  leadId: string,
-  expectedCompletionDate?: string | null,
-) => {
-  try {
-    if (status !== "urgent_job" && status !== "need_tech" && status !== "job_in_progress") return;
-
-    const targetRoles: AppRole[] = (status === "urgent_job" || status === "need_tech")
-      ? ["admin", "processor", "customer_service", "cs_admin", "opr"]
-      : ["admin", "processor"];
-    const { data: roles, error: rolesError } = await supabase.from("user_roles").select("user_id, role").in("role", targetRoles);
-
-    if (rolesError || !roles || roles.length === 0) return;
-
-    let title = "";
-    let message = "";
-
-    if (status === "job_in_progress") {
-      title = "[Reminder] Job in Progress";
-      message = expectedCompletionDate
-        ? `Lead "${leadName}" is In Progress. Expected completion: ${expectedCompletionDate}`
-        : `Lead "${leadName}" changed to Job in Progress`;
-    } else {
-      const statusLabel = status === "urgent_job" ? "Urgent Job" : "Need Tech";
-      title = `[Alert] ${statusLabel}`;
-      message = `Lead "${leadName}" changed to ${statusLabel}`;
-    }
-
-    const notifications = roles.map((r: { user_id: string }) => ({
-      user_id: r.user_id,
-      title,
-      message,
-      lead_id: leadId,
-      read: false,
-    }));
-
-    await supabase.from("notifications").insert(notifications);
-  } catch (err) {
-    console.warn("sendNotifications caught error:", err);
-  }
 };
 
 const SectionHeader = ({
@@ -734,7 +691,12 @@ export default function LeadDetailPage() {
         }
 
         try {
-          await sendNotifications(form.customer_name, form.status, newLeadId, form.expected_completion_date);
+          await dispatchLeadStatusNotification({
+            leadId: newLeadId,
+            leadName: form.customer_name,
+            status: form.status,
+            expectedCompletionDate: form.expected_completion_date,
+          });
         } catch (notifErr) {
           console.warn("Notification dispatch failed:", notifErr);
         }
@@ -789,7 +751,12 @@ export default function LeadDetailPage() {
         (form.status === "job_in_progress" && originalLead?.expected_completion_date !== form.expected_completion_date && form.expected_completion_date)
       ) {
         try {
-          await sendNotifications(form.customer_name, form.status, leadId, form.expected_completion_date);
+          await dispatchLeadStatusNotification({
+            leadId: leadId,
+            leadName: form.customer_name,
+            status: form.status,
+            expectedCompletionDate: form.expected_completion_date,
+          });
         } catch (notifErr) {
           console.warn("Failed to dispatch notifications:", notifErr);
         }

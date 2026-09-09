@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -14,12 +14,33 @@ interface UrgentNotification {
   read: boolean;
 }
 
+/** One entry per lead, carrying every unread urgent notification for that lead. */
+interface UrgentLeadGroup {
+  key: string;
+  leadId: string | null;
+  leadName: string;
+  title: string;
+  message: string;
+  notificationIds: string[];
+}
+
 const POLL_MS = 20000;
+/** Enough headroom to count a full backlog after the user has been away. */
+const FETCH_LIMIT = 100;
+/** How many lead names the summary lists before collapsing the rest into "+N more". */
+const PREVIEW_LIMIT = 4;
+
+/** Messages embed the customer name in quotes: Lead "Jane Doe" changed to Urgent Job. */
+function extractLeadName(message: string): string {
+  const match = message.match(/"([^"]+)"/);
+  return match ? match[1] : message;
+}
 
 export default function UrgentLeadPopup() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<UrgentNotification[]>([]);
+  const seenIds = useRef<Set<string>>(new Set());
 
   // Every role gets urgent popups
   const eligible = Boolean(role);
@@ -34,22 +55,21 @@ export default function UrgentLeadPopup() {
       .eq("read", false)
       .ilike("title", "%Urgent Job%")
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(FETCH_LIMIT);
 
-    if (data) {
-      setItems((prev) => {
-        const existing = new Set(prev.map((i) => i.id));
-        const next = (data as UrgentNotification[]).filter((n) => !existing.has(n.id));
-        
-        if (next.length > 0) {
-          import("@/lib/notification-sound").then(({ playUrgentAlertSound }) => {
-            playUrgentAlertSound();
-          });
-        }
-        
-        return [...next, ...prev];
+    if (!data) return;
+
+    const rows = data as UrgentNotification[];
+    const hasNew = rows.some((n) => !seenIds.current.has(n.id));
+    rows.forEach((n) => seenIds.current.add(n.id));
+
+    if (hasNew) {
+      void import("@/lib/notification-sound").then(({ playUrgentAlertSound }) => {
+        playUrgentAlertSound();
       });
     }
+
+    setItems(rows);
   }, [user, eligible]);
 
   useEffect(() => {
@@ -59,17 +79,61 @@ export default function UrgentLeadPopup() {
     return () => clearInterval(interval);
   }, [fetchUrgent, eligible]);
 
-  const dismiss = async (id: string) => {
-    setItems((prev) => prev.filter((n) => n.id !== id));
-    await supabase.from("notifications").update({ read: true }).eq("id", id);
-  };
+  // Collapse per lead — the same lead flipped to Urgent twice is still one lead.
+  const groups = useMemo<UrgentLeadGroup[]>(() => {
+    const byLead = new Map<string, UrgentLeadGroup>();
 
-  const openLead = async (n: UrgentNotification) => {
-    await dismiss(n.id);
-    if (n.lead_id) navigate(`/leads/${n.lead_id}`);
-  };
+    for (const n of items) {
+      const key = n.lead_id ?? `notification:${n.id}`;
+      const existing = byLead.get(key);
 
-  if (!eligible || items.length === 0) return null;
+      if (existing) {
+        existing.notificationIds.push(n.id);
+        continue;
+      }
+
+      byLead.set(key, {
+        key,
+        leadId: n.lead_id,
+        leadName: extractLeadName(n.message),
+        title: n.title,
+        message: n.message,
+        notificationIds: [n.id],
+      });
+    }
+
+    return [...byLead.values()];
+  }, [items]);
+
+  const markRead = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const dismissed = new Set(ids);
+    setItems((prev) => prev.filter((n) => !dismissed.has(n.id)));
+    await supabase.from("notifications").update({ read: true }).in("id", ids);
+  }, []);
+
+  const dismissAll = useCallback(() => {
+    void markRead(groups.flatMap((g) => g.notificationIds));
+  }, [groups, markRead]);
+
+  const openLead = useCallback(
+    async (group: UrgentLeadGroup) => {
+      await markRead(group.notificationIds);
+      if (group.leadId) navigate(`/leads/${group.leadId}`);
+    },
+    [markRead, navigate],
+  );
+
+  const viewAllUrgent = useCallback(() => {
+    dismissAll();
+    navigate("/leads?status=urgent_job");
+  }, [dismissAll, navigate]);
+
+  if (!eligible || groups.length === 0) return null;
+
+  const single = groups.length === 1 ? groups[0] : null;
+  const preview = groups.slice(0, PREVIEW_LIMIT);
+  const hiddenCount = groups.length - preview.length;
 
   return (
     <>
@@ -79,62 +143,84 @@ export default function UrgentLeadPopup() {
       <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center p-4">
         <div className="pointer-events-auto flex w-full max-w-[520px] flex-col gap-3">
           <AnimatePresence initial={false}>
-            {items.map((n, idx) => (
-              <motion.div
-                key={n.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.92, y: -10, transition: { duration: 0.18 } }}
-                transition={{ type: "spring", stiffness: 280, damping: 26 }}
-                className="relative overflow-hidden rounded-3xl border-2 border-amber-400/60 bg-card shadow-[0_40px_80px_-20px_rgba(234,179,8,0.55)]"
-              >
-                <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-300/50 animate-pulse" />
+            <motion.div
+              key={single ? single.key : "urgent-summary"}
+              layout
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: -10, transition: { duration: 0.18 } }}
+              transition={{ type: "spring", stiffness: 280, damping: 26 }}
+              className="relative overflow-hidden rounded-3xl border-2 border-amber-400/60 bg-card shadow-[0_40px_80px_-20px_rgba(234,179,8,0.55)]"
+            >
+              <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-300/50 animate-pulse" />
 
-                <div className="flex items-start gap-4 p-6">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-400/15 text-amber-600 ring-2 ring-amber-400/30 dark:text-amber-300">
-                    <AlertTriangle className="h-7 w-7" />
-                  </div>
+              <div className="flex items-start gap-4 p-6">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-400/15 text-amber-600 ring-2 ring-amber-400/30 dark:text-amber-300">
+                  <AlertTriangle className="h-7 w-7" />
+                </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[15px] font-bold text-amber-600 dark:text-amber-300">{n.title}</p>
-                      {items.length > 1 && (
-                        <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-200">
-                          {idx + 1} / {items.length}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1.5 text-[14px] leading-6 text-foreground/90">{n.message}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-bold text-amber-600 dark:text-amber-300">
+                    {single ? single.title : `${groups.length} leads marked Urgent Job`}
+                  </p>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {n.lead_id && (
+                  {single ? (
+                    <p className="mt-1.5 text-[14px] leading-6 text-foreground/90">{single.message}</p>
+                  ) : (
+                    <>
+                      <p className="mt-1.5 text-[14px] leading-6 text-foreground/90">
+                        {groups.length} leads need attention right now.
+                      </p>
+                      <ul className="mt-2 space-y-1">
+                        {preview.map((g) => (
+                          <li key={g.key} className="truncate text-[13px] leading-5 text-muted-foreground">
+                            • {g.leadName}
+                          </li>
+                        ))}
+                        {hiddenCount > 0 && (
+                          <li className="text-[13px] leading-5 text-muted-foreground">+ {hiddenCount} more</li>
+                        )}
+                      </ul>
+                    </>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {single ? (
+                      single.leadId && (
                         <button
-                          onClick={() => openLead(n)}
+                          onClick={() => openLead(single)}
                           className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-[13px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(234,179,8,0.7)] transition-transform hover:-translate-y-0.5 hover:bg-amber-600"
                         >
                           Open lead <ArrowUpRight className="h-3.5 w-3.5" />
                         </button>
-                      )}
+                      )
+                    ) : (
                       <button
-                        onClick={() => dismiss(n.id)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-4 py-2 text-[13px] font-semibold text-foreground transition-colors hover:bg-muted"
+                        onClick={viewAllUrgent}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-[13px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(234,179,8,0.7)] transition-transform hover:-translate-y-0.5 hover:bg-amber-600"
                       >
-                        Dismiss
+                        View urgent leads <ArrowUpRight className="h-3.5 w-3.5" />
                       </button>
-                    </div>
-                  </div>
+                    )}
 
-                  <button
-                    onClick={() => dismiss(n.id)}
-                    aria-label="Close"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+                    <button
+                      onClick={dismissAll}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-4 py-2 text-[13px] font-semibold text-foreground transition-colors hover:bg-muted"
+                    >
+                      {single ? "Dismiss" : "Dismiss all"}
+                    </button>
+                  </div>
                 </div>
-              </motion.div>
-            ))}
+
+                <button
+                  onClick={dismissAll}
+                  aria-label="Close"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </motion.div>
           </AnimatePresence>
         </div>
       </div>

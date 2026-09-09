@@ -28,6 +28,7 @@ import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
 import { formatUSPhone } from "@/lib/phone";
 import { logActivity } from "@/lib/activity";
+import { dispatchLeadStatusNotification } from "@/lib/lead-notifications";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { motion, AnimatePresence } from "framer-motion";
 import NumberNameCombobox from "./NumberNameCombobox";
@@ -81,29 +82,6 @@ const generateJobId = () => {
   let result = "LD-";
   for (let i = 0; i < 6; i++) result += chars[Math.floor(Math.random() * chars.length)];
   return result;
-};
-
-const sendNotifications = async (leadName: string, status: string, leadId: string) => {
-  if (status !== "urgent_job" && status !== "need_tech") return;
-
-  const { data: roles } = await supabase
-    .from("user_roles")
-    .select("user_id, role")
-    .in("role", ["admin", "processor", "customer_service", "opr"]);
-
-  if (!roles || roles.length === 0) return;
-
-  const statusLabel = status === "urgent_job" ? "Urgent Job" : "Need Tech";
-
-  const notifications = roles.map((r: { user_id: string }) => ({
-    user_id: r.user_id,
-    title: `[Alert] ${statusLabel}`,
-    message: `New lead "${leadName}" requires attention - marked as ${statusLabel}`,
-    lead_id: leadId,
-    read: false,
-  }));
-
-  await supabase.from("notifications").insert(notifications);
 };
 
 const SectionHeader = ({
@@ -345,7 +323,12 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
         await supabase.from("lead_notes").insert(noteInserts);
       }
 
-      await sendNotifications(form.customer_name, form.status, data.id);
+      await dispatchLeadStatusNotification({
+        leadId: data.id,
+        leadName: form.customer_name,
+        status: form.status,
+        isNewLead: true,
+      });
       await logActivity(user.id, "created", "lead", data.id, {
         customer_name: form.customer_name,
         status: form.status,

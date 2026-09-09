@@ -58,6 +58,7 @@ import {
   reviewCancellationRequest,
 } from "@/lib/cancellation-requests";
 import { updateLeadById } from "@/lib/lead-updates";
+import { dispatchLeadStatusNotification } from "@/lib/lead-notifications";
 
 interface Props {
   leadId: string;
@@ -570,60 +571,21 @@ const LeadDetailPanel = ({ leadId, onClose, onUpdate }: Props) => {
         (lead?.status !== form.status && (form.status === "urgent_job" || form.status === "need_tech" || form.status === "job_in_progress")) ||
         (form.status === "job_in_progress" && lead?.expected_completion_date !== form.expected_completion_date && form.expected_completion_date)
       ) {
-        try {
-          const isJobInProgress = form.status === "job_in_progress";
-          const targetRoles = isJobInProgress ? ["admin", "processor"] : ["admin", "processor", "customer_service", "cs_admin", "opr"];
-          const { data: roles } = await supabase
-            .from("user_roles")
-            .select("user_id, role")
-            .in("role", targetRoles as any);
-
-          if (roles) {
-            const statusLabel = form.status === "urgent_job" ? "Urgent Job" : form.status === "need_tech" ? "Need Tech" : "Job in Progress";
-            const title = isJobInProgress ? `[Reminder] ${statusLabel}` : `[Alert] ${statusLabel}`;
-            const message = isJobInProgress && form.expected_completion_date
-              ? `Lead "${form.customer_name}" is In Progress. Expected completion: ${form.expected_completion_date}`
-              : `Lead "${form.customer_name}" changed to ${statusLabel}`;
-            const notifs = roles.map((r: { user_id: string }) => ({
-              user_id: r.user_id,
-              title,
-              message,
-              lead_id: leadId,
-              read: false,
-            }));
-            await supabase.from("notifications").insert(notifs);
-          }
-        } catch (notifErr) {
-          console.warn("Failed to dispatch notifications:", notifErr);
-        }
+        await dispatchLeadStatusNotification({
+          leadId,
+          leadName: form.customer_name,
+          status: form.status,
+          expectedCompletionDate: form.expected_completion_date,
+        });
       }
 
       if (lead?.status !== form.status && form.status === "quote_updated") {
-        try {
-          const { data: roles } = await supabase
-            .from("user_roles")
-            .select("user_id, role")
-            .eq("role", "cs_admin");
-
-          const targetUserIds = new Set<string>();
-          if (lead?.quote_requested_by) targetUserIds.add(lead.quote_requested_by);
-          if (roles) {
-            roles.forEach((r) => targetUserIds.add(r.user_id));
-          }
-
-          if (targetUserIds.size > 0) {
-            const notifs = Array.from(targetUserIds).map((userId) => ({
-              user_id: userId,
-              title: `[Alert] Quote Updated`,
-              message: `Quote for lead "${form.customer_name}" has been updated`,
-              lead_id: leadId,
-              read: false,
-            }));
-            await supabase.from("notifications").insert(notifs);
-          }
-        } catch (quoteNotifErr) {
-          console.warn("Failed to dispatch quote notifications:", quoteNotifErr);
-        }
+        await dispatchLeadStatusNotification({
+          leadId,
+          leadName: form.customer_name,
+          status: form.status,
+          quoteRequestedBy: lead?.quote_requested_by,
+        });
       }
 
       if (Object.keys(changes).length > 0) {
