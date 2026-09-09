@@ -81,8 +81,9 @@ async function callAdminFunction(body: Record<string, unknown>) {
       throw new Error('Admin backend is not deployed. Please redeploy the edge function from Supabase dashboard.');
     }
     if (msg.includes('Unauthorized') || msg.includes('401')) {
-      throw new Error('Session expired. Please log out and log back in.');
+      await forceReauth('Your session is no longer valid. Please log in again.');
     }
+
     if (msg.includes('Admin access required') || msg.includes('403')) {
       throw new Error('You do not have admin permissions.');
     }
