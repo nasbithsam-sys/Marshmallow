@@ -81,7 +81,7 @@ interface LeadCardProps {
   onRefresh: () => void;
   photoUrls?: string[];
   disablePhotoPreview?: boolean;
-  initialHasNotes?: { general: boolean; cs: boolean; processor: boolean };
+  initialHasNotes?: { general: boolean; cs: boolean; processor: boolean; opr?: boolean };
   initialPhotoCount?: number;
   initialPhotoPaths?: string[];
   initialPendingCancellationRequest?: LeadCancellationRequest | null;
