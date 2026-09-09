@@ -124,10 +124,6 @@ export function isLeadPinnedForUser(
   userId?: string | null,
   userRole?: string | null,
 ): boolean {
-  // Incomplete details is raised against the CS who created the lead, whatever the status is.
-  if (lead.cs_tag === "incomplete_details") {
-    return userRole === "cs_admin" || (Boolean(userId) && lead.created_by === userId);
-  }
   if (lead.status === "quote_updated") {
     return userRole === "cs_admin" || (Boolean(userId) && lead.quote_requested_by === userId);
   }
@@ -162,6 +158,10 @@ const TAG_PRIORITY_RANK: Record<string, number> = {
   booked: -1,
 };
 
+function hasTagRank(tag: string | null | undefined): tag is string {
+  return Boolean(tag) && TAG_PRIORITY_RANK[tag as string] !== undefined;
+}
+
 export function compareLeadDisplayPriority(
   a: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null; created_by?: string | null; quote_requested_by?: string | null },
   b: Pick<Lead, "status" | "created_at"> & { cs_tag?: string | null; created_by?: string | null; quote_requested_by?: string | null },
@@ -171,19 +171,22 @@ export function compareLeadDisplayPriority(
   const aPinned = isLeadPinnedForUser(a, userId, userRole);
   const bPinned = isLeadPinnedForUser(b, userId, userRole);
 
-  const aTagged = Boolean(a.cs_tag) && TAG_ELIGIBLE_STATUSES[a.status] === true;
-  const bTagged = Boolean(b.cs_tag) && TAG_ELIGIBLE_STATUSES[b.status] === true;
+  // Only the scheduling tags carry an ordering rank. A tag without one (Incomplete details)
+  // leaves the lead sorted by its status, rather than falling into the `?? 0` bucket - which
+  // would have floated it above even Urgent Job.
+  const aTagged = hasTagRank(a.cs_tag) && TAG_ELIGIBLE_STATUSES[a.status] === true;
+  const bTagged = hasTagRank(b.cs_tag) && TAG_ELIGIBLE_STATUSES[b.status] === true;
 
   const rankA = aPinned
     ? -10
     : aTagged
-      ? (TAG_PRIORITY_RANK[a.cs_tag as string] ?? 0)
+      ? TAG_PRIORITY_RANK[a.cs_tag as string]
       : (LEAD_PRIORITY_RANK[a.status] ?? 10);
 
   const rankB = bPinned
     ? -10
     : bTagged
-      ? (TAG_PRIORITY_RANK[b.cs_tag as string] ?? 0)
+      ? TAG_PRIORITY_RANK[b.cs_tag as string]
       : (LEAD_PRIORITY_RANK[b.status] ?? 10);
 
   if (rankA !== rankB) return rankA - rankB;

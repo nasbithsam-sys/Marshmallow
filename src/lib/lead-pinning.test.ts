@@ -12,35 +12,36 @@ const baseLead = {
   cs_tag: null as string | null,
 };
 
-describe("incomplete details pinning", () => {
-  it("pins the lead for the CS who created it", () => {
+describe("incomplete details tag", () => {
+  it("does not pin the lead for the CS who created it", () => {
     const lead = { ...baseLead, cs_tag: "incomplete_details" };
-    expect(isLeadPinnedForUser(lead, CS_USER, "customer_service")).toBe(true);
+    expect(isLeadPinnedForUser(lead, CS_USER, "customer_service")).toBe(false);
   });
 
-  it("pins the lead for CS Admins", () => {
+  it("does not pin the lead for CS Admins", () => {
     const lead = { ...baseLead, cs_tag: "incomplete_details" };
-    expect(isLeadPinnedForUser(lead, OTHER_USER, "cs_admin")).toBe(true);
+    expect(isLeadPinnedForUser(lead, OTHER_USER, "cs_admin")).toBe(false);
   });
 
-  it("does not pin it for anyone else", () => {
-    const lead = { ...baseLead, cs_tag: "incomplete_details" };
-    expect(isLeadPinnedForUser(lead, OTHER_USER, "customer_service")).toBe(false);
-    expect(isLeadPinnedForUser(lead, OTHER_USER, "processor")).toBe(false);
-  });
-
-  it("only pins when the tag is set", () => {
-    expect(isLeadPinnedForUser(baseLead, CS_USER, "customer_service")).toBe(false);
-  });
-
-  it("sorts a tagged lead above an untagged one for its creator", () => {
+  it("leaves ordering alone - a newer lead still sorts first", () => {
     const tagged = { ...baseLead, cs_tag: "incomplete_details", created_at: "2026-09-01T10:00:00.000Z" };
     const newer = { ...baseLead, created_at: "2026-09-05T10:00:00.000Z" };
 
-    const sorted = [newer, tagged].sort((a, b) =>
+    const sorted = [tagged, newer].sort((a, b) =>
       compareLeadDisplayPriority(a, b, CS_USER, "customer_service"),
     );
 
-    expect(sorted[0]).toBe(tagged);
+    expect(sorted[0]).toBe(newer);
+  });
+});
+
+describe("statuses that do pin", () => {
+  it("pins an Activate Customer lead for the CS who created it", () => {
+    const lead = { ...baseLead, status: "activate_customer" as LeadStatus };
+    expect(isLeadPinnedForUser(lead, CS_USER, "customer_service")).toBe(true);
+  });
+
+  it("does not pin an ordinary lead", () => {
+    expect(isLeadPinnedForUser(baseLead, CS_USER, "customer_service")).toBe(false);
   });
 });

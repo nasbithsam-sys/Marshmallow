@@ -43,7 +43,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { isQuotationMaster } from "@/lib/lead-tags";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import marshmallowLogo from "@/assets/marshmallow-logo.png.asset.json";
@@ -74,6 +75,8 @@ export default function AppSidebar() {
   const queryClient = useQueryClient();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [urgentQuoteLead, setUrgentQuoteLead] = useState<any>(null);
+  // Leads already announced as Pending to Send, so one status change alerts exactly once.
+  const announcedQuotePendingIds = useRef<Set<string>>(new Set());
 
   // Fetch pending cancellation requests count for the sidebar badge
   const { data: pendingCancellationCount = 0 } = useQuery({
@@ -163,42 +166,39 @@ export default function AppSidebar() {
 
   // Realtime subscription for quote pending requests badge and notification
   useEffect(() => {
-    const isQuotationMaster = role === "admin" || role === "cs_admin" || profile?.is_quotation_master === true;
-    if (!isQuotationMaster) return;
+    // CS Admins do not work the Quote to Send queue, so they are not alerted for it.
+    if (!isQuotationMaster(role, profile?.is_quotation_master)) return;
+
+    const announceQuotePending = (newRow: { id?: string; status?: string } | undefined) => {
+      if (!newRow || newRow.status !== "pending_to_send" || !newRow.id) return;
+
+      queryClient.invalidateQueries({ queryKey: ["pending-quote-requests-count"] });
+
+      // Announce a lead once per session. The previous guard compared payload.old.status, but
+      // Postgres only ships the old row's other columns under REPLICA IDENTITY FULL — with the
+      // default identity `old` carries just the primary key, so `old.status` was undefined and
+      // every later edit to a lead already Pending to Send re-fired the alarm. Re-subscribing
+      // (role/profile arriving) could double-fire it too.
+      if (announcedQuotePendingIds.current.has(newRow.id)) return;
+      announcedQuotePendingIds.current.add(newRow.id);
+
+      void import("@/lib/notification-sound").then(({ playUrgentAlertSound }) => {
+        playUrgentAlertSound();
+        setUrgentQuoteLead(newRow);
+      });
+    };
 
     const channel = supabase
       .channel("quote-pending-sidebar-realtime")
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "leads" },
-        (payload) => {
-          const newRow = payload.new as any;
-          const oldRow = payload.old as any;
-
-          if (newRow && newRow.status === "pending_to_send" && oldRow?.status !== "pending_to_send") {
-            queryClient.invalidateQueries({ queryKey: ["pending-quote-requests-count"] });
-            
-            import("@/lib/notification-sound").then(({ playUrgentAlertSound }) => {
-              playUrgentAlertSound();
-              setUrgentQuoteLead(newRow);
-            });
-          }
-        }
+        (payload) => announceQuotePending(payload.new as { id?: string; status?: string } | undefined),
       )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "leads" },
-        (payload) => {
-          const newRow = payload.new as any;
-          if (newRow && newRow.status === "pending_to_send") {
-            queryClient.invalidateQueries({ queryKey: ["pending-quote-requests-count"] });
-            
-            import("@/lib/notification-sound").then(({ playUrgentAlertSound }) => {
-              playUrgentAlertSound();
-              setUrgentQuoteLead(newRow);
-            });
-          }
-        }
+        (payload) => announceQuotePending(payload.new as { id?: string; status?: string } | undefined),
       )
       .subscribe();
 

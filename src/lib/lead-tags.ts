@@ -16,12 +16,15 @@ const TAGS_BY_ROLE: Record<AppRole, CsTag[]> = {
   cs_admin: [...SCHEDULE_TAGS],
 };
 
-/** Quotation Master is a per-user flag rather than a role; admins and CS Admins count as one. */
+/**
+ * Quotation Master is a per-user flag rather than a role; Admins count as one implicitly.
+ * CS Admins do not — they are on the receiving end of quote work, not the queue that does it.
+ */
 export function isQuotationMaster(
   role: AppRole | null | undefined,
   isQuotationMasterFlag?: boolean | null,
 ): boolean {
-  return role === "admin" || role === "cs_admin" || isQuotationMasterFlag === true;
+  return role === "admin" || isQuotationMasterFlag === true;
 }
 
 interface AssignableTagOptions {

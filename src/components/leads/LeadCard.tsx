@@ -65,7 +65,7 @@ import {
 import { createPaymentRequest } from "@/lib/payment-requests";
 import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
-import { getAssignableLeadTags } from "@/lib/lead-tags";
+import { getAssignableLeadTags, isQuotationMaster } from "@/lib/lead-tags";
 import { dispatchLeadStatusNotification, dispatchIncompleteDetailsNotification } from "@/lib/lead-notifications";
 import BookingDateTimeDialog, { formatBookingCompact, isBookingExpired } from "./BookingDateTimeDialog";
 import AssignLeadToOperatorDialog from "./AssignLeadToOperatorDialog";
@@ -830,11 +830,9 @@ function LeadCard({
   const needsScheduleBlink = hasScheduleTag && isFromCustomer;
   const isActivateCustomer = lead.status === "activate_customer";
   const isQuoteUpdatedForMe = lead.status === "quote_updated" && (role === "cs_admin" || lead.quote_requested_by === user?.id);
-  const isPendingQuoteForMaster = lead.status === "pending_to_send" && (role === "admin" || role === "cs_admin" || profile?.is_quotation_master === true);
-  const isIncompleteDetailsForMe =
-    currentTag === "incomplete_details" && (role === "cs_admin" || lead.created_by === user?.id);
+  const isPendingQuoteForMaster = lead.status === "pending_to_send" && isQuotationMaster(role, profile?.is_quotation_master);
   const baseShouldBlink =
-    needsScheduleBlink || isActivateCustomer || isQuoteUpdatedForMe || isPendingQuoteForMaster || isIncompleteDetailsForMe;
+    needsScheduleBlink || isActivateCustomer || isQuoteUpdatedForMe || isPendingQuoteForMaster;
 
   // Suppress blink if schedule requirement date is more than 3 days in the future
   const isFarFutureSchedule = isScheduleRequirementFarFuture(lead.customer_schedule_requirements, 3);

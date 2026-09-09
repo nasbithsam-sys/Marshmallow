@@ -25,12 +25,13 @@ describe("incomplete details tag access", () => {
     expect(canAssignLeadTag("admin", "incomplete_details")).toBe(true);
   });
 
-  it("is available to Quotation Masters, including CS Admins", () => {
-    expect(canAssignLeadTag("cs_admin", "incomplete_details")).toBe(true);
+  it("is available to anyone flagged as a Quotation Master", () => {
     expect(canAssignLeadTag("customer_service", "incomplete_details", { isQuotationMaster: true })).toBe(true);
   });
 
-  it("is not available to plain CS or Operators", () => {
+  it("is not available to CS Admins, plain CS, or Operators", () => {
+    // CS Admins receive the Incomplete details alert; they do not raise it.
+    expect(canAssignLeadTag("cs_admin", "incomplete_details")).toBe(false);
     expect(canAssignLeadTag("customer_service", "incomplete_details")).toBe(false);
     expect(canAssignLeadTag("opr", "incomplete_details")).toBe(false);
     expect(canAssignLeadTag("opr", "incomplete_details", { isQuotationMaster: true })).toBe(false);

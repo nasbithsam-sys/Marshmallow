@@ -301,7 +301,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const canAccess = (navItem: string): boolean => {
     if (navItem === "quote_pending_requests") {
-      return role === "admin" || role === "cs_admin" || profile?.is_quotation_master === true;
+      // CS Admins do not work the Quote to Send queue.
+      return role === "admin" || profile?.is_quotation_master === true;
     }
     if (navItem === "settings") {
       return role === "admin" || (role === "cs_admin" && profile?.can_manage_users === true);

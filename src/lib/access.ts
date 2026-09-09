@@ -6,7 +6,7 @@ const DEFAULT_NAV_ACCESS: Record<AppRole, Set<NavItem>> = {
   processor: new Set(["leads", "schedule", "cancellation_requests", "map_view", "technicians"]),
   customer_service: new Set(["leads", "schedule"]),
   opr: new Set(["leads"]),
-  cs_admin: new Set(["leads", "schedule", "quote_pending_requests"]),
+  cs_admin: new Set(["leads", "schedule"]),
 };
 
 export const canAccessCancellationRequests = (role: AppRole | null | undefined) =>
