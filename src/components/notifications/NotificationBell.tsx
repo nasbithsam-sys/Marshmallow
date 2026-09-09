@@ -36,9 +36,6 @@ const saveShownPopupIds = (kind: string, userId: string, ids: Set<string>) => {
 const isCancellationRequestNotification = (notification: Notification) =>
   notification.title.toLowerCase().includes('cancellation request');
 
-const isIncompleteDetailsNotification = (notification: Notification) =>
-  notification.title.toLowerCase().includes('incomplete details');
-
 interface Notification {
   id: string;
   title: string;
@@ -80,7 +77,6 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const shownCancellationPopups = useRef(new Set<string>());
-  const shownIncompleteDetailsPopups = useRef(new Set<string>());
 
   // Operators only ever see notifications for leads assigned to them. The same restriction is
   // applied to the list, the unread badge and "mark all read" so they cannot disagree.
@@ -133,9 +129,6 @@ export default function NotificationBell() {
 
   useEffect(() => {
     shownCancellationPopups.current = user ? loadShownPopupIds('cancellation', user.id) : new Set<string>();
-    shownIncompleteDetailsPopups.current = user
-      ? loadShownPopupIds('incomplete-details', user.id)
-      : new Set<string>();
   }, [user]);
 
   useEffect(() => {
@@ -179,39 +172,6 @@ export default function NotificationBell() {
       saveShownPopupIds('cancellation', user.id, shownCancellationPopups.current);
     }
   }, [notifications, role, user]);
-
-  // The realtime handler below only fires while the tab is open. Anything raised while the user
-  // was away still needs to reach them, so unread Incomplete details alerts are toasted once on
-  // load as well, remembered per user so they are not repeated on every refresh.
-  useEffect(() => {
-    if ((role !== 'customer_service' && role !== 'cs_admin') || !user) return;
-
-    const unseen = notifications.filter(
-      (notification) =>
-        !notification.read &&
-        isIncompleteDetailsNotification(notification) &&
-        !shownIncompleteDetailsPopups.current.has(notification.id),
-    );
-
-    if (unseen.length === 0) return;
-
-    unseen.forEach((notification) => {
-      shownIncompleteDetailsPopups.current.add(notification.id);
-      toast('📝 Incomplete details', {
-        id: `incomplete-details-${notification.lead_id ?? notification.id}`,
-        description: notification.message,
-        duration: 10000,
-        closeButton: true,
-        position: 'top-center',
-        action: notification.lead_id
-          ? { label: 'Open lead', onClick: () => navigate(`/leads/${notification.lead_id}`) }
-          : undefined,
-      });
-    });
-
-    playAssignmentSound();
-    saveShownPopupIds('incomplete-details', user.id, shownIncompleteDetailsPopups.current);
-  }, [notifications, navigate, role, user]);
 
   useEffect(() => {
     if (!user) return;

@@ -7,7 +7,7 @@ function Popup({
   id,
   wantsToShow,
 }: {
-  id: "urgent" | "jobInProgress" | "quoteUpdated";
+  id: "urgent" | "jobInProgress" | "incompleteDetails" | "quoteUpdated";
   wantsToShow: boolean;
 }) {
   const isVisible = useNotificationPopupSlot(id, wantsToShow);
@@ -49,6 +49,30 @@ describe("notification popup slot", () => {
 
     expect(screen.queryByTestId("urgent")).not.toBeInTheDocument();
     expect(screen.getByTestId("jobInProgress")).toBeInTheDocument();
+  });
+
+  it("puts Incomplete details ahead of Quote Updated but behind Job in Progress", () => {
+    const { rerender } = render(
+      <NotificationPopupProvider>
+        <Popup id="jobInProgress" wantsToShow />
+        <Popup id="incompleteDetails" wantsToShow />
+        <Popup id="quoteUpdated" wantsToShow />
+      </NotificationPopupProvider>,
+    );
+
+    expect(screen.getByTestId("jobInProgress")).toBeInTheDocument();
+    expect(screen.queryByTestId("incompleteDetails")).not.toBeInTheDocument();
+
+    rerender(
+      <NotificationPopupProvider>
+        <Popup id="jobInProgress" wantsToShow={false} />
+        <Popup id="incompleteDetails" wantsToShow />
+        <Popup id="quoteUpdated" wantsToShow />
+      </NotificationPopupProvider>,
+    );
+
+    expect(screen.getByTestId("incompleteDetails")).toBeInTheDocument();
+    expect(screen.queryByTestId("quoteUpdated")).not.toBeInTheDocument();
   });
 
   it("shows nothing when no popup has anything to display", () => {
