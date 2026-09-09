@@ -3,11 +3,17 @@ import { canAccessNavItem, getDefaultNavAccess } from "@/lib/access";
 import type { NavigationPermission } from "@/types";
 
 describe("cancellation request navigation access", () => {
-  it.each(["admin", "processor", "opr"] as const)("is always visible to %s", (role) => {
+  it.each(["admin", "processor"] as const)("is always visible to %s", (role) => {
     const deniedOverride = [{ nav_section: "cancellation_requests", allowed: false }] as NavigationPermission[];
 
     expect(getDefaultNavAccess(role).has("cancellation_requests")).toBe(true);
     expect(canAccessNavItem(role, "cancellation_requests", deniedOverride)).toBe(true);
+  });
+
+  // Operators were narrowed to All Leads only in "set default nav access for opr to only all leads".
+  it("is not part of the Operator default navigation", () => {
+    expect(getDefaultNavAccess("opr").has("cancellation_requests")).toBe(false);
+    expect(canAccessNavItem("opr", "cancellation_requests")).toBe(false);
   });
 
   it("remains hidden from roles outside the requested audience", () => {
