@@ -1,18 +1,61 @@
 import type { AppRole, CsTag } from "@/types";
 
+/** Tags that drive the scheduling flow — the only ones Operators are meant to see. */
+export const SCHEDULE_TAGS: CsTag[] = [
+  "ready_to_schedule",
+  "confirmation_sent",
+  "waiting_schedule_confirmation",
+  "booked",
+];
+
 const TAGS_BY_ROLE: Record<AppRole, CsTag[]> = {
-  admin: ["ready_to_schedule", "confirmation_sent", "waiting_schedule_confirmation", "booked"],
-  customer_service: ["ready_to_schedule", "confirmation_sent", "waiting_schedule_confirmation", "booked"],
-  processor: ["ready_to_schedule", "waiting_schedule_confirmation"],
+  admin: [...SCHEDULE_TAGS, "incomplete_details"],
+  customer_service: [...SCHEDULE_TAGS],
+  processor: ["ready_to_schedule", "waiting_schedule_confirmation", "incomplete_details"],
   opr: [],
-  cs_admin: ["ready_to_schedule", "confirmation_sent", "waiting_schedule_confirmation", "booked"],
+  cs_admin: [...SCHEDULE_TAGS],
 };
 
-export function getAssignableLeadTags(role: AppRole | null | undefined): CsTag[] {
-  if (!role) return [];
-  return TAGS_BY_ROLE[role] ?? [];
+/** Quotation Master is a per-user flag rather than a role; admins and CS Admins count as one. */
+export function isQuotationMaster(
+  role: AppRole | null | undefined,
+  isQuotationMasterFlag?: boolean | null,
+): boolean {
+  return role === "admin" || role === "cs_admin" || isQuotationMasterFlag === true;
 }
 
-export function canAssignLeadTag(role: AppRole | null | undefined, tag: CsTag): boolean {
-  return getAssignableLeadTags(role).includes(tag);
+interface AssignableTagOptions {
+  /** `profiles.is_quotation_master` for the current user. */
+  isQuotationMaster?: boolean | null;
+}
+
+export function getAssignableLeadTags(
+  role: AppRole | null | undefined,
+  options: AssignableTagOptions = {},
+): CsTag[] {
+  if (!role) return [];
+
+  // Operators never assign tags, whatever else is flagged on their profile.
+  if (role === "opr") return [];
+
+  const tags = [...(TAGS_BY_ROLE[role] ?? [])];
+
+  // Quotation Masters flag incomplete leads back to the CS who created them.
+  if (isQuotationMaster(role, options.isQuotationMaster) && !tags.includes("incomplete_details")) {
+    tags.push("incomplete_details");
+  }
+
+  return tags;
+}
+
+export function canAssignLeadTag(
+  role: AppRole | null | undefined,
+  tag: CsTag,
+  options: AssignableTagOptions = {},
+): boolean {
+  return getAssignableLeadTags(role, options).includes(tag);
+}
+
+export function isScheduleTag(tag: string | null | undefined): boolean {
+  return Boolean(tag) && SCHEDULE_TAGS.includes(tag as CsTag);
 }

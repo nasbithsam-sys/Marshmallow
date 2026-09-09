@@ -164,9 +164,11 @@ export const DOC_SECTIONS: DocSection[] = [
           ["confirmation_sent", "Confirmation sent to CX", "Admin, CS"],
           ["waiting_schedule_confirmation", "Waiting for CX for schedule confirmation", "Admin, CS, Processor"],
           ["booked", "Booked", "Admin, CS"],
+          ["incomplete_details", "Incomplete details", "Admin, Processor, Quotation Master (incl. CS Admin)"],
         ],
       },
       { type: "p", text: "Tags are only meaningful on the pre-scheduling statuses (waiting_complete_details through needs_reschedule). Tag assignment is enforced by the enforce_lead_tag_role_access() trigger." },
+      { type: "p", text: "Incomplete details is the exception: it applies on any status, pins the lead to the top for the CS who created it (and for CS Admins), blinks their card, and sends an \"[Alert] Incomplete Details\" notification to that CS and every CS Admin. Operators never see it - their tag visibility is limited to the four scheduling tags." },
     ],
   },
   {

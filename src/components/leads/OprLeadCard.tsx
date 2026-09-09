@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { isScheduleTag } from "@/lib/lead-tags";
 
 interface Props {
   lead: Lead;
@@ -93,11 +94,7 @@ export default function OprLeadCard({ lead, initialPhotoPaths, initialHasOprNote
   // Build address from city/state
   const locationDisplay = [lead.city, lead.state].filter(Boolean).join(", ");
 
-  const hasScheduleTag =
-    lead.cs_tag === "ready_to_schedule" ||
-    lead.cs_tag === "confirmation_sent" ||
-    lead.cs_tag === "waiting_schedule_confirmation" ||
-    lead.cs_tag === "booked";
+  const hasScheduleTag = isScheduleTag(lead.cs_tag);
 
   const { isFromCustomer } = useIsLastMessageFromCustomer(lead.customer_phone, hasScheduleTag);
   const needsScheduleBlink = hasScheduleTag && isFromCustomer;

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getDefaultVisibleStatuses } from "@/lib/access";
+import { isScheduleTag } from "@/lib/lead-tags";
 import type { LeadStatus } from "@/types";
 
 type VisibilityRow = {
@@ -60,7 +61,8 @@ export function useAllowedStatuses() {
   const statuses = allowedStatuses ?? getDefaultVisibleStatuses(role);
 
   const filterLeads = <T extends { status: string; cs_tag?: string | null }>(leads: T[]): T[] => {
-    return leads.filter((lead) => statuses.has(lead.status) || (role === "opr" && Boolean(lead.cs_tag)));
+    // Operators see tagged leads, but only for the scheduling tags their workflow covers.
+    return leads.filter((lead) => statuses.has(lead.status) || (role === "opr" && isScheduleTag(lead.cs_tag)));
   };
 
   return {

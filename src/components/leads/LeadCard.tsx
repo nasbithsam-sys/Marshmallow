@@ -66,6 +66,7 @@ import { createPaymentRequest } from "@/lib/payment-requests";
 import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { getAssignableLeadTags } from "@/lib/lead-tags";
+import { dispatchLeadStatusNotification, dispatchIncompleteDetailsNotification } from "@/lib/lead-notifications";
 import BookingDateTimeDialog, { formatBookingCompact, isBookingExpired } from "./BookingDateTimeDialog";
 import AssignLeadToOperatorDialog from "./AssignLeadToOperatorDialog";
 import ActivateCustomerNoteDialog from "./ActivateCustomerNoteDialog";
@@ -817,7 +818,7 @@ function LeadCard({
   const canCompleteCopy = isAdmin || isProcessor || isOpr;
   const pictureLabel = photoCount === 1 ? "Picture attached" : "Pictures attached";
   const currentTag = lead.cs_tag ?? null;
-  const assignableTags = getAssignableLeadTags(role);
+  const assignableTags = getAssignableLeadTags(role, { isQuotationMaster: profile?.is_quotation_master });
 
   const hasScheduleTag =
     currentTag === "ready_to_schedule" ||
@@ -830,7 +831,10 @@ function LeadCard({
   const isActivateCustomer = lead.status === "activate_customer";
   const isQuoteUpdatedForMe = lead.status === "quote_updated" && (role === "cs_admin" || lead.quote_requested_by === user?.id);
   const isPendingQuoteForMaster = lead.status === "pending_to_send" && (role === "admin" || role === "cs_admin" || profile?.is_quotation_master === true);
-  const baseShouldBlink = needsScheduleBlink || isActivateCustomer || isQuoteUpdatedForMe || isPendingQuoteForMaster;
+  const isIncompleteDetailsForMe =
+    currentTag === "incomplete_details" && (role === "cs_admin" || lead.created_by === user?.id);
+  const baseShouldBlink =
+    needsScheduleBlink || isActivateCustomer || isQuoteUpdatedForMe || isPendingQuoteForMaster || isIncompleteDetailsForMe;
 
   // Suppress blink if schedule requirement date is more than 3 days in the future
   const isFarFutureSchedule = isScheduleRequirementFarFuture(lead.customer_schedule_requirements, 3);
@@ -1072,47 +1076,14 @@ function LeadCard({
 
     onRefresh();
     
-    if (newStatus === "urgent_job" || newStatus === "need_tech") {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("role", ["admin", "processor", "customer_service", "cs_admin", "opr"]);
-
-      if (roles) {
-        const statusLabel = newStatus === "urgent_job" ? "Urgent Job" : "Need Tech";
-        const notifs = roles.map((r: { user_id: string }) => ({
-          user_id: r.user_id,
-          title: `[Alert] ${statusLabel}`,
-          message: `Lead "${lead.customer_name}" changed to ${statusLabel}`,
-          lead_id: lead.id,
-          read: false,
-        }));
-        await supabase.from("notifications").insert(notifs);
-      }
-    }
-
-    if (newStatus === "quote_updated") {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .eq("role", "cs_admin");
-
-      const targetUserIds = new Set<string>();
-      if (lead.quote_requested_by) targetUserIds.add(lead.quote_requested_by);
-      if (roles) {
-        roles.forEach((r) => targetUserIds.add(r.user_id));
-      }
-
-      if (targetUserIds.size > 0) {
-        const notifs = Array.from(targetUserIds).map((userId) => ({
-          user_id: userId,
-          title: `[Alert] Quote Updated`,
-          message: `Quote for lead "${lead.customer_name}" has been updated`,
-          lead_id: lead.id,
-          read: false,
-        }));
-        await supabase.from("notifications").insert(notifs);
-      }
+    // Job in Progress reminders stay owned by the detail views, same as before.
+    if (newStatus === "urgent_job" || newStatus === "need_tech" || newStatus === "quote_updated") {
+      await dispatchLeadStatusNotification({
+        leadId: lead.id,
+        leadName: lead.customer_name,
+        status: newStatus,
+        quoteRequestedBy: lead.quote_requested_by,
+      });
     }
 
     onRefresh();
@@ -1294,6 +1265,14 @@ function LeadCard({
     void syncLeadUpsertToGoogleSheets({ ...lead, ...patch } as never, undefined, lead.cs_tag ?? undefined).catch((err) => {
       console.error("Failed to sync tag update to Google Sheets", err);
     });
+    if (newTag === "incomplete_details" && lead.cs_tag !== "incomplete_details") {
+      await dispatchIncompleteDetailsNotification({
+        leadId: lead.id,
+        leadName: lead.customer_name,
+        createdBy: lead.created_by,
+      });
+    }
+
     toast.success(newTag ? `Tag: ${CS_TAG_LABELS[newTag]}` : "Tag cleared");
     onRefresh();
     return true;
@@ -1678,7 +1657,9 @@ function LeadCard({
                       ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-200"
                       : currentTag === "ready_to_schedule"
                         ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-400/20 dark:text-indigo-200"
-                        : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
+                        : currentTag === "incomplete_details"
+                          ? "bg-rose-100 text-rose-800 dark:bg-rose-400/20 dark:text-rose-200"
+                          : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
                   }`}
                 >
                   📌 {CS_TAG_LABELS[currentTag]}

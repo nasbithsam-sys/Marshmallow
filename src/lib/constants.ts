@@ -120,10 +120,14 @@ const LEAD_PRIORITY_RANK: Partial<Record<LeadStatus, number>> = {
 };
 
 export function isLeadPinnedForUser(
-  lead: { status: string; created_by?: string | null; quote_requested_by?: string | null },
+  lead: { status: string; cs_tag?: string | null; created_by?: string | null; quote_requested_by?: string | null },
   userId?: string | null,
   userRole?: string | null,
 ): boolean {
+  // Incomplete details is raised against the CS who created the lead, whatever the status is.
+  if (lead.cs_tag === "incomplete_details") {
+    return userRole === "cs_admin" || (Boolean(userId) && lead.created_by === userId);
+  }
   if (lead.status === "quote_updated") {
     return userRole === "cs_admin" || (Boolean(userId) && lead.quote_requested_by === userId);
   }
