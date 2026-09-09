@@ -1,22 +1,52 @@
 import { supabase } from '@/integrations/supabase/client';
 
+async function forceReauth(message: string): Promise<never> {
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.localStorage.removeItem('auth_verified_user_id');
+    window.localStorage.removeItem('auth_pending_state');
+  } catch {
+    /* ignore */
+  }
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.assign('/login');
+  }
+  throw new Error(message);
+}
+
 async function getFreshAccessToken(): Promise<string> {
   let { data: { session } } = await supabase.auth.getSession();
 
   // Refresh when the token is missing or expires within the next 60 seconds,
   // otherwise the edge function rejects it with "invalid token".
   const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0;
-  if (!session || expiresAt - Date.now() < 60_000) {
+  if (!session?.access_token || expiresAt - Date.now() < 60_000) {
     const { data, error } = await supabase.auth.refreshSession();
-    if (error || !data.session) {
-      await supabase.auth.signOut();
-      throw new Error('Your session expired. Please log in again.');
+    if (error || !data.session?.access_token) {
+      return forceReauth('Your session expired. Please log in again.');
+    }
+    session = data.session;
+  }
+
+  // The cached session can point at a session that was revoked server-side
+  // (deleted user, signed out elsewhere). Validate it against the auth server
+  // and refresh once before giving up, so we never send a dead token.
+  const { error: verifyError } = await supabase.auth.getUser();
+  if (verifyError) {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error || !data.session?.access_token) {
+      return forceReauth('Your session is no longer valid. Please log in again.');
     }
     session = data.session;
   }
 
   return session.access_token;
 }
+
 
 async function callAdminFunction(body: Record<string, unknown>) {
   const accessToken = await getFreshAccessToken();
@@ -51,8 +81,9 @@ async function callAdminFunction(body: Record<string, unknown>) {
       throw new Error('Admin backend is not deployed. Please redeploy the edge function from Supabase dashboard.');
     }
     if (msg.includes('Unauthorized') || msg.includes('401')) {
-      throw new Error('Session expired. Please log out and log back in.');
+      await forceReauth('Your session is no longer valid. Please log in again.');
     }
+
     if (msg.includes('Admin access required') || msg.includes('403')) {
       throw new Error('You do not have admin permissions.');
     }

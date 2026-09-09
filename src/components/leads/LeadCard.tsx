@@ -81,7 +81,7 @@ interface LeadCardProps {
   onRefresh: () => void;
   photoUrls?: string[];
   disablePhotoPreview?: boolean;
-  initialHasNotes?: { general: boolean; cs: boolean; processor: boolean };
+  initialHasNotes?: { general: boolean; cs: boolean; processor: boolean; opr?: boolean };
   initialPhotoCount?: number;
   initialPhotoPaths?: string[];
   initialPendingCancellationRequest?: LeadCancellationRequest | null;
@@ -701,7 +701,7 @@ function LeadCard({
     initialPhotoCount !== undefined ? initialPhotoCount : 0
   );
   const [hasNotes, setHasNotes] = useState<{ general: boolean; cs: boolean; processor: boolean; opr: boolean }>(
-    initialHasNotes !== undefined ? { ...initialHasNotes } : {
+    initialHasNotes !== undefined ? { opr: false, ...initialHasNotes } : {
       general: false,
       cs: false,
       processor: false,
@@ -718,7 +718,7 @@ function LeadCard({
 
   useEffect(() => {
     if (initialHasNotes !== undefined) {
-      setHasNotes({ ...initialHasNotes });
+      setHasNotes({ opr: false, ...initialHasNotes });
     }
   }, [initialHasNotes]);
 

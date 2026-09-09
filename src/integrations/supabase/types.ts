@@ -990,7 +990,7 @@ export type Database = {
           id: string
           lead_id: string | null
           message: string
-          read: boolean | null
+          read: boolean
           title: string
           user_id: string
         }
@@ -999,7 +999,7 @@ export type Database = {
           id?: string
           lead_id?: string | null
           message: string
-          read?: boolean | null
+          read?: boolean
           title: string
           user_id: string
         }
@@ -1008,7 +1008,7 @@ export type Database = {
           id?: string
           lead_id?: string | null
           message?: string
-          read?: boolean | null
+          read?: boolean
           title?: string
           user_id?: string
         }
@@ -1762,6 +1762,16 @@ export type Database = {
       can_use_quick_chat: { Args: { _user_id: string }; Returns: boolean }
       cron_quo_reconcile_sync: { Args: never; Returns: undefined }
       cron_quo_sync_contacts: { Args: never; Returns: undefined }
+      delete_lead_by_admin: { Args: { target_lead_id: string }; Returns: Json }
+      dispatch_lead_status_notification: {
+        Args: {
+          p_lead_id: string
+          p_message: string
+          p_title: string
+          p_user_ids: string[]
+        }
+        Returns: number
+      }
       get_top_nearby_populated_areas: {
         Args: { _latitude: number; _longitude: number }
         Returns: {
