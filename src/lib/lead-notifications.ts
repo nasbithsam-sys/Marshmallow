@@ -221,7 +221,7 @@ export async function dispatchIncompleteDetailsNotification(params: {
   leadId: string;
   leadName: string;
   createdBy?: string | null;
-}): Promise<void> {
+}): Promise<boolean> {
   try {
     const recipients = new Set<string>();
     if (params.createdBy) recipients.add(params.createdBy);
@@ -233,7 +233,10 @@ export async function dispatchIncompleteDetailsNotification(params: {
       message: `Lead "${params.leadName}" is missing details - please complete the lead information`,
       userIds: [...recipients],
     });
+    return true;
   } catch (err) {
+    // Reported to the caller so the tag does not appear to have alerted anyone when it did not.
     console.warn("Failed to dispatch incomplete details notification:", err);
+    return false;
   }
 }

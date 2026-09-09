@@ -1264,11 +1264,15 @@ function LeadCard({
       console.error("Failed to sync tag update to Google Sheets", err);
     });
     if (newTag === "incomplete_details" && lead.cs_tag !== "incomplete_details") {
-      await dispatchIncompleteDetailsNotification({
+      const notified = await dispatchIncompleteDetailsNotification({
         leadId: lead.id,
         leadName: lead.customer_name,
         createdBy: lead.created_by,
       });
+
+      if (!notified) {
+        toast.error("Tag saved, but CS could not be notified. Tell them directly.");
+      }
     }
 
     toast.success(newTag ? `Tag: ${CS_TAG_LABELS[newTag]}` : "Tag cleared");

@@ -185,6 +185,25 @@ export default function NotificationBell() {
         async (payload) => {
           void fetchNotifications();
 
+          // Incomplete details is a nudge to fix the lead, so it gets a sound and a toast
+          // rather than only a silent bell badge.
+          if (role === 'customer_service' || role === 'cs_admin') {
+            const newRow = payload.new as { title?: string; message?: string; lead_id?: string } | undefined;
+            if (newRow?.title?.toLowerCase().includes('incomplete details')) {
+              playAssignmentSound();
+              toast('📝 Incomplete details', {
+                id: `incomplete-details-${newRow.lead_id ?? 'lead'}`,
+                description: newRow.message || 'A lead is missing details.',
+                duration: 10000,
+                closeButton: true,
+                position: 'top-center',
+                action: newRow.lead_id
+                  ? { label: 'Open lead', onClick: () => navigate(`/leads/${newRow.lead_id}`) }
+                  : undefined,
+              });
+            }
+          }
+
           // Play sound and show prominent toast for operator assignment notifications
           if (role === 'opr') {
             const newRow = payload.new as { title?: string; message?: string; lead_id?: string } | undefined;
@@ -205,7 +224,7 @@ export default function NotificationBell() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [fetchNotifications, role, user]);
+  }, [fetchNotifications, navigate, role, user]);
 
   const markAllRead = async () => {
     if (!user) return;
