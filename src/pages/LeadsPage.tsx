@@ -108,6 +108,8 @@ export default function LeadsPage() {
   const rawStatusFilter = searchParams.get("status") || "all";
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
+  // CS Admins create leads with the same access a CS has.
+  const canCreateLead = isAdmin || isCS || role === "cs_admin";
 
   const { filterLeads, allowedStatuses } = useAllowedStatuses();
 
@@ -679,7 +681,7 @@ export default function LeadsPage() {
             leads={leads}
           />
 
-          {(isAdmin || isCS) && (
+          {canCreateLead && (
             <Button onClick={() => setShowAddDialog(true)} className="gap-2">
               <Plus className="h-4 w-4" />
               New Lead

@@ -125,13 +125,18 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
 
   const [photos, setPhotos] = useState<File[]>([]);
   const [csOpen, setCsOpen] = useState(true);
-  const [processorOpen, setProcessorOpen] = useState(role !== "customer_service");
+  const [processorOpen, setProcessorOpen] = useState(role !== "customer_service" && role !== "cs_admin");
   const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const { isDuplicate, duplicateLeadName } = useDuplicatePhoneCheck(form.customer_phone);
 
   const isCS = role === "customer_service";
   const isProcessor = role === "processor";
+  // CS Admins create leads with the same access as a CS: same status choices, same defaults,
+  // and the new lead is assigned to them. Their wider status list applies to editing, not to
+  // creating, where most of those statuses cannot apply to a brand new lead anyway.
+  const createsAsCs = isCS || role === "cs_admin";
+  const creationRole = createsAsCs ? "customer_service" : role;
 
   const fieldClass =
     "h-11 rounded-xl border-border/60 bg-background text-foreground shadow-sm placeholder:text-muted-foreground/55";
@@ -174,7 +179,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
     });
     setPhotos([]);
     setCsOpen(true);
-    setProcessorOpen(role !== "customer_service");
+    setProcessorOpen(!createsAsCs);
     setScheduleOpen(false);
     setShouldResetOnClose(true);
   };
@@ -222,7 +227,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
       toast.error(`A lead with this phone number already exists (${duplicateLeadName})`);
       return;
     }
-    if (!canChangeStatus(role, form.status)) {
+    if (!canChangeStatus(creationRole, form.status)) {
       toast.error("You do not have permission to set that status");
       return;
     }
@@ -255,7 +260,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
       scheduled_time_end,
       created_by: user.id,
       created_by_name: currentUserName,
-      assigned_cs: isCS ? user.id : null,
+      assigned_cs: createsAsCs ? user.id : null,
 
       quote: form.quote || null,
       service_details: form.service_details || null,
@@ -780,7 +785,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {getChangeableStatuses(role)
+                      {getChangeableStatuses(creationRole)
                         .filter((key) => key !== "paid")
                         .map((key) => {
                           const cfg = LEAD_STATUS_CONFIG[key];
