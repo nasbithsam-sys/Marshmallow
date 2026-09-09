@@ -1,5 +1,5 @@
-﻿import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+﻿import { useMemo, useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ActivityLog } from "@/types";
 import { motion } from "framer-motion";
 
+const LOG_FETCH_LIMIT = 300;
 const PAGE_SIZE = 20;
 
 const actionIcons: Record<string, React.ElementType> = {
@@ -114,6 +115,8 @@ const getFieldLabel = (field: string) => FIELD_LABELS[field] || prettyText(field
 const ActivityLogs = () => {
   const [page, setPage] = useState(0);
 
+  const queryClient = useQueryClient();
+
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["activity-logs"],
     queryFn: async () => {
@@ -121,12 +124,38 @@ const ActivityLogs = () => {
         .from("activity_logs")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(300);
+        .limit(LOG_FETCH_LIMIT);
 
       if (error) throw error;
       return data as ActivityLog[];
     },
   });
+
+  // Activity logs are append-only, so an INSERT-only subscription is enough: prepend the new
+  // row and drop the tail to keep the list at the same size the query asks for. No refetch.
+  useEffect(() => {
+    const channel = supabase
+      .channel("activity-logs-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "activity_logs" },
+        (payload) => {
+          const row = payload.new as ActivityLog | undefined;
+          if (!row) return;
+
+          queryClient.setQueryData<ActivityLog[]>(["activity-logs"], (current) => {
+            if (!current) return current;
+            if (current.some((log) => log.id === row.id)) return current;
+            return [row, ...current].slice(0, LOG_FETCH_LIMIT);
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
 

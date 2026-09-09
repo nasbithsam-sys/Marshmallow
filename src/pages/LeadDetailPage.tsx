@@ -119,6 +119,9 @@ export default function LeadDetailPage() {
 
   const [leadId, setLeadId] = useState<string | null>(isNew ? null : id || null);
   const [originalLead, setOriginalLead] = useState<Lead | null>(null);
+  // Set by the realtime subscription when someone else saves this lead while it is open.
+  // Deliberately does not touch `form` — that would wipe whatever is being typed.
+  const [externalUpdateBy, setExternalUpdateBy] = useState<string | null>(null);
 
   const [jobId, setJobId] = useState("");
   const [createdBy, setCreatedBy] = useState("");
@@ -295,6 +298,7 @@ export default function LeadDetailPage() {
     }
 
     setLeadId(lead.id);
+    setExternalUpdateBy(null);
     const typedLead = { ...lead, status: lead.status as LeadStatus } as Lead;
     setOriginalLead(typedLead);
     setJobId(lead.job_id);
@@ -364,6 +368,39 @@ export default function LeadDetailPage() {
       void fetchPhotos(leadId);
     }
   }, [leadId]);
+
+  // Realtime for this one lead only: the filter keeps the server from sending us every other
+  // lead's changes, so an open detail page costs one row-scoped subscription and no polling.
+  useEffect(() => {
+    if (!leadId || isNew) return;
+
+    const channel = supabase
+      .channel(`lead-detail:${leadId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "leads", filter: `id=eq.${leadId}` },
+        (payload) => {
+          const row = payload.new as Lead | undefined;
+          if (!row) return;
+          // Our own save echoes back — no point telling the user their edit landed.
+          if (row.last_edited_by && row.last_edited_by === user?.id) return;
+          setExternalUpdateBy(row.last_edited_by_name || "Someone");
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "leads", filter: `id=eq.${leadId}` },
+        () => {
+          toast.error("This lead was deleted");
+          navigate("/leads");
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [leadId, isNew, user?.id, navigate]);
 
   const refreshPendingCancellationRequest = useCallback(async () => {
     if (!leadId) {
@@ -1026,6 +1063,26 @@ export default function LeadDetailPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      {externalUpdateBy && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-400/50 bg-amber-50 px-4 py-3 text-[13px] text-amber-900 dark:border-amber-400/30 dark:bg-amber-950/40 dark:text-amber-100">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1">
+            {externalUpdateBy} updated this lead. Your unsaved changes are untouched — reload to see theirs.
+          </span>
+          <Button size="sm" variant="outline" className="h-8 rounded-lg" onClick={() => void fetchLead()}>
+            Reload
+          </Button>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setExternalUpdateBy(null)}
+            className="rounded-lg p-1 text-amber-900/70 transition-colors hover:bg-amber-400/20 dark:text-amber-100/70"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}

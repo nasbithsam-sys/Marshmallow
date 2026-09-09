@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -242,9 +242,52 @@ export default function QuoDashboardPage() {
 
       return (data as ConversationRow[]) ?? [];
     },
-    refetchInterval: 15000,
+    // Realtime below carries the live updates; this is only a slow safety net for a dropped
+    // socket, so it no longer re-reads the whole conversation table every 15 seconds.
+    refetchInterval: 60000,
     refetchIntervalInBackground: false,
   });
+
+  // Merge conversation changes straight from the payload instead of refetching the table.
+  useEffect(() => {
+    const channel = supabase
+      .channel("quo-dashboard-conversations-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "quo_conversations" },
+        (payload) => {
+          const newRow = payload.new as ConversationRow | undefined;
+          const oldRow = payload.old as { id?: string } | undefined;
+
+          queryClient.setQueryData<ConversationRow[]>(
+            ["quo-dashboard-conversations"],
+            (current) => {
+              if (!current) return current;
+
+              if (payload.eventType === "INSERT" && newRow) {
+                if (current.some((c) => c.id === newRow.id)) return current;
+                return [newRow, ...current];
+              }
+
+              if (payload.eventType === "UPDATE" && newRow) {
+                return current.map((c) => (c.id === newRow.id ? { ...c, ...newRow } : c));
+              }
+
+              if (payload.eventType === "DELETE" && oldRow?.id) {
+                return current.filter((c) => c.id !== oldRow.id);
+              }
+
+              return current;
+            },
+          );
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const conversations = useMemo<ConversationRow[]>(() => {
     const numbersById = new Map(phoneNumbers.map((number) => [number.id, number]));

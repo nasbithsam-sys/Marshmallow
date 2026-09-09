@@ -79,6 +79,35 @@ export default function UrgentLeadPopup() {
     return () => clearInterval(interval);
   }, [fetchUrgent, eligible]);
 
+  // Realtime - surface the alert as it lands instead of up to POLL_MS later. Scoped to this
+  // user's own notification rows, matching the Job in Progress and Quote Updated popups.
+  useEffect(() => {
+    if (!user || !eligible) return;
+
+    const channel = supabase
+      .channel(`urgent-lead-popup:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const row = payload.new as { title?: string } | undefined;
+          if (row?.title?.toLowerCase().includes("urgent job")) {
+            void fetchUrgent();
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user, eligible, fetchUrgent]);
+
   // Collapse per lead — the same lead flipped to Urgent twice is still one lead.
   const groups = useMemo<UrgentLeadGroup[]>(() => {
     const byLead = new Map<string, UrgentLeadGroup>();
