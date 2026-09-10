@@ -24,6 +24,7 @@ import {
   ChevronDown,
   Image as ImageIcon,
   CalendarDays,
+  Ban,
   CalendarClock,
   ShieldCheck,
   Copy,
@@ -95,6 +96,8 @@ interface LeadCardProps {
   initialHasNotes?: { general: boolean; cs: boolean; processor: boolean; opr?: boolean };
   /** Techs recorded in the processor notes, shown on the collapsed row. */
   initialTechCount?: number;
+  /** Reason from the newest cancellation request, shown inline on a cancelled card. */
+  initialCancellationReason?: string | null;
   initialPhotoCount?: number;
   initialPhotoPaths?: string[];
   initialPendingCancellationRequest?: LeadCancellationRequest | null;
@@ -682,6 +685,7 @@ function LeadCard({
   disablePhotoPreview = false,
   initialHasNotes,
   initialTechCount,
+  initialCancellationReason,
   initialPhotoCount,
   initialPhotoPaths,
   initialPendingCancellationRequest,
@@ -1638,6 +1642,16 @@ function LeadCard({
               )}
             </div>
           </div>
+
+          {lead.status === "cancelled" && initialCancellationReason && (
+            <div className="mt-2 flex items-start gap-1.5 rounded-xl border border-rose-500/25 bg-rose-500/[0.07] px-2.5 py-1.5">
+              <Ban className="mt-[1px] h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" />
+              <p className="line-clamp-2 text-[11px] leading-4 text-rose-900/90 dark:text-rose-200/90">
+                <span className="font-semibold">Reason: </span>
+                {initialCancellationReason}
+              </p>
+            </div>
+          )}
 
           <div className="mt-2 grid gap-2">
             {detailRows.map(({ key, label, value, icon: Icon, wrap }) => (

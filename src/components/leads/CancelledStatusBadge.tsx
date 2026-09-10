@@ -59,6 +59,10 @@ export default function CancelledStatusBadge({ leadId, status, size = "sm" }: Pr
         <button
           type="button"
           onClick={(e) => e.stopPropagation()}
+          // Opens on hover as well as click, so the full detail needs no aiming on desktop
+          // while touch devices still have the tap.
+          onMouseEnter={() => void handleOpenChange(true)}
+          onFocus={() => void handleOpenChange(true)}
           aria-label="Show cancellation reason"
           className="inline-flex items-center gap-1 rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         >
@@ -71,6 +75,8 @@ export default function CancelledStatusBadge({ leadId, status, size = "sm" }: Pr
         align="end"
         className="w-72 p-0 text-left"
         onClick={(e) => e.stopPropagation()}
+        onMouseLeave={() => setOpen(false)}
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <div className="border-b border-border/40 px-3 py-2">
           <p className="text-[12px] font-semibold text-foreground">Cancellation reason</p>

@@ -103,6 +103,7 @@ export default function LeadsPage() {
     photoCount: number;
     photoPaths: string[];
     pendingCancellationRequest: LeadCancellationRequest | null;
+    cancellationReason: string | null;
   }>>({});
   const [metadataFallbackKey, setMetadataFallbackKey] = useState<string | null>(null);
   const deferredSearch = useDeferredValue(search);
@@ -376,11 +377,13 @@ export default function LeadsPage() {
             .select("lead_id, photo_url, created_at")
             .in("lead_id", pagedIds)
             .order("created_at", { ascending: true }),
+          // Not filtered to pending any more: the newest request per lead also supplies the
+          // reason shown on a cancelled card, without a second round trip.
           supabase
             .from("lead_cancellation_requests")
             .select("*")
             .in("lead_id", pagedIds)
-            .eq("status", "pending")
+            .order("created_at", { ascending: false })
         ]);
 
         if (!active) return;
@@ -393,6 +396,7 @@ export default function LeadsPage() {
           photoCount: number;
           photoPaths: string[];
           pendingCancellationRequest: LeadCancellationRequest | null;
+          cancellationReason: string | null;
         }> = {};
 
         pagedIds.forEach((id) => {
@@ -402,6 +406,7 @@ export default function LeadsPage() {
             photoCount: 0,
             photoPaths: [],
             pendingCancellationRequest: null,
+            cancellationReason: null,
           };
         });
 
@@ -442,16 +447,27 @@ export default function LeadsPage() {
         }
 
         if (cancelRes.data) {
+          // Rows arrive newest first, so the first one seen for a lead is its latest request.
+          const seenLatest = new Set<string>();
+
           cancelRes.data.forEach((req) => {
             const mapItem = metadataMap[req.lead_id];
-            if (mapItem) {
-              const requestCopy = { ...req } as unknown as LeadCancellationRequest;
-              if (requestCopy.requested_by) {
-                requestCopy.requester_name = profiles[requestCopy.requested_by] || requestCopy.requested_by_name || null;
-              } else {
-                requestCopy.requester_name = requestCopy.requested_by_name || null;
-              }
+            if (!mapItem) return;
+
+            const requestCopy = { ...req } as unknown as LeadCancellationRequest;
+            if (requestCopy.requested_by) {
+              requestCopy.requester_name = profiles[requestCopy.requested_by] || requestCopy.requested_by_name || null;
+            } else {
+              requestCopy.requester_name = requestCopy.requested_by_name || null;
+            }
+
+            if (requestCopy.status === "pending") {
               mapItem.pendingCancellationRequest = requestCopy;
+            }
+
+            if (!seenLatest.has(req.lead_id)) {
+              seenLatest.add(req.lead_id);
+              mapItem.cancellationReason = requestCopy.comment || null;
             }
           });
         }
@@ -1012,6 +1028,7 @@ export default function LeadsPage() {
                 onRefresh={handleRefresh}
                 initialHasNotes={metadata?.hasNotes}
                 initialTechCount={metadata?.techCount}
+                initialCancellationReason={metadata?.cancellationReason}
                 initialPhotoCount={metadata?.photoCount}
                 initialPhotoPaths={metadata?.photoPaths}
                 initialPendingCancellationRequest={metadata?.pendingCancellationRequest}
