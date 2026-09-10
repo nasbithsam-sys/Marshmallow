@@ -171,7 +171,7 @@ export const DOC_SECTIONS: DocSection[] = [
       { type: "p", text: "Tags are only meaningful on the pre-scheduling statuses (waiting_complete_details through needs_reschedule). Tag assignment is enforced by the enforce_lead_tag_role_access() trigger." },
       { type: "p", text: "Incomplete details is the exception: it applies on any status and sends an \"[Alert] Incomplete Details\" notification to the CS who created the lead and to every CS Admin. It does not change list ordering. Operators never see it - their tag visibility is limited to the four scheduling tags." },
       { type: "p", text: "Post-visit confirmation marks a lead where the tech has been out and CS still has to confirm with the customer that the visit happened and whether they want to proceed. It pins the lead to the top and blinks its card for the CS who created it and for CS Admins - the people who make that call - on any status." },
-      { type: "p", text: "Techs are recorded in the processor notes thread. \"Add tech\" opens a dialog for name, number and an optional short note, and writes one line - \"Tech 1: John - (305) 555-0123 - he is available\". Numbering continues past the highest already used, and the collapsed notes row shows the total so the count is visible without opening the thread." },
+      { type: "p", text: "Techs are recorded in the processor notes thread. \"Add tech\" opens a small form inside the thread for name, number and an optional short note, and writes one line - \"Tech 1: John - (305) 555-0123 - he is available\". Numbering continues past the highest already used, and the collapsed notes row shows the total so the count is visible without opening the thread." },
     ],
   },
   {

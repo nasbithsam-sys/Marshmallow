@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Send, Pencil, Check, X, UserPlus } from "lucide-react";
-import { countTechs, formatTechCount, nextTechNumber } from "@/lib/lead-techs";
-import AddTechDialog from "./AddTechDialog";
+import { Input } from "@/components/ui/input";
+import { buildTechEntry, countTechs, formatTechCount, nextTechNumber } from "@/lib/lead-techs";
+import { formatUSPhone } from "@/lib/phone";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
@@ -191,8 +192,11 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
   // Techs live in the processor thread as "Tech N" blocks. Numbering continues past the highest
   // one already used - including any in the draft that has not been sent yet.
   const isTechThread = noteType === "processor";
-  const [techDialogOpen, setTechDialogOpen] = useState(false);
+  const [techFormOpen, setTechFormOpen] = useState(false);
   const [addingTech, setAddingTech] = useState(false);
+  const [techName, setTechName] = useState("");
+  const [techPhone, setTechPhone] = useState("");
+  const [techNote, setTechNote] = useState("");
 
   const techCount = useMemo(
     () => (isTechThread ? countTechs(notes.map((n) => n.content)) : 0),
@@ -205,10 +209,23 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
     [notes, newNote],
   );
 
-  // Posted straight to the thread rather than dropped into the message box.
-  const handleAddTech = async (entry: string) => {
-    if (!user) return;
+  const closeTechForm = () => {
+    setTechFormOpen(false);
+    setTechName("");
+    setTechPhone("");
+    setTechNote("");
+  };
+
+  // Sent to the thread as an ordinary note, the same as typing one.
+  const submitTech = async () => {
+    if (!user || !techName.trim() || addingTech) return;
     setAddingTech(true);
+
+    const entry = buildTechEntry(nextTech, {
+      name: techName,
+      phone: techPhone,
+      note: techNote,
+    });
 
     const { error } = await supabase.from("lead_notes").insert({
       lead_id: leadId,
@@ -225,9 +242,19 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
       return;
     }
 
-    setTechDialogOpen(false);
+    closeTechForm();
     await fetchNotes();
     onNotesChanged?.();
+  };
+
+  const handleTechKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void submitTech();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeTechForm();
+    }
   };
 
   const handleSend = async () => {
@@ -390,21 +417,82 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
       {canWriteThread ? (
         <div className="border-t border-border/35 bg-[hsl(var(--background)/0.54)] p-2 dark:bg-[hsl(var(--background)/0.12)]">
           {isTechThread && (
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setTechDialogOpen(true)}
-                className="h-7 gap-1.5 rounded-lg border-sky-300/60 px-2 text-[11px] font-medium text-sky-700 hover:bg-sky-500/10 dark:border-sky-400/30 dark:text-sky-300"
-              >
-                <UserPlus className="h-3 w-3" />
-                Add tech
-              </Button>
-              {techCount > 0 && (
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  {formatTechCount(techCount)} in this thread
-                </span>
+            <div className="mb-1.5">
+              {techFormOpen ? (
+                /* Opens in the thread itself rather than over it: fill the three fields and
+                   send with the tick, exactly like writing a note. */
+                <div className="space-y-1.5 rounded-xl border border-sky-300/60 bg-sky-500/[0.07] p-2 dark:border-sky-400/30">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-sky-700 dark:text-sky-300">
+                      Tech {nextTech}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={closeTechForm}
+                      aria-label="Cancel adding tech"
+                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  <div className="flex gap-1.5">
+                    <Input
+                      value={techName}
+                      onChange={(e) => setTechName(e.target.value)}
+                      onKeyDown={handleTechKeyDown}
+                      placeholder="Name"
+                      autoFocus
+                      className="h-8 flex-1 rounded-lg text-[12px]"
+                    />
+                    <Input
+                      value={techPhone}
+                      // Formatted as it is typed, so it always reads (000) 000-0000.
+                      onChange={(e) => setTechPhone(formatUSPhone(e.target.value))}
+                      onKeyDown={handleTechKeyDown}
+                      placeholder="(000) 000-0000"
+                      inputMode="tel"
+                      className="h-8 flex-1 rounded-lg text-[12px]"
+                    />
+                  </div>
+
+                  <div className="flex gap-1.5">
+                    <Input
+                      value={techNote}
+                      onChange={(e) => setTechNote(e.target.value)}
+                      onKeyDown={handleTechKeyDown}
+                      placeholder="Note (optional)"
+                      className="h-8 flex-1 rounded-lg text-[12px]"
+                    />
+                    <Button
+                      size="icon"
+                      onClick={submitTech}
+                      disabled={addingTech || !techName.trim()}
+                      aria-label="Add tech to notes"
+                      className="h-8 w-8 shrink-0 rounded-lg"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTechFormOpen(true)}
+                    className="h-7 gap-1.5 rounded-lg border-sky-300/60 px-2 text-[11px] font-medium text-sky-700 hover:bg-sky-500/10 dark:border-sky-400/30 dark:text-sky-300"
+                  >
+                    <UserPlus className="h-3 w-3" />
+                    Add tech
+                  </Button>
+                  {techCount > 0 && (
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      {formatTechCount(techCount)} in this thread
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -434,15 +522,6 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
         </div>
       )}
 
-      {isTechThread && (
-        <AddTechDialog
-          open={techDialogOpen}
-          onOpenChange={setTechDialogOpen}
-          techNumber={nextTech}
-          saving={addingTech}
-          onAdd={handleAddTech}
-        />
-      )}
     </div>
   );
 }
