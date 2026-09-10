@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Send, Pencil, Check, X, UserPlus } from "lucide-react";
-import { buildTechTemplate, countTechs, formatTechCount, nextTechNumber } from "@/lib/lead-techs";
+import { countTechs, formatTechCount, nextTechNumber } from "@/lib/lead-techs";
+import AddTechDialog from "./AddTechDialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
@@ -190,15 +191,43 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
   // Techs live in the processor thread as "Tech N" blocks. Numbering continues past the highest
   // one already used - including any in the draft that has not been sent yet.
   const isTechThread = noteType === "processor";
+  const [techDialogOpen, setTechDialogOpen] = useState(false);
+  const [addingTech, setAddingTech] = useState(false);
 
   const techCount = useMemo(
     () => (isTechThread ? countTechs(notes.map((n) => n.content)) : 0),
     [isTechThread, notes],
   );
 
-  const handleAddTech = () => {
-    const template = buildTechTemplate(nextTechNumber([...notes.map((n) => n.content), newNote]));
-    setNewNote((prev) => (prev.trim() ? `${prev.replace(/\s+$/, "")}\n\n${template}` : template));
+  // Numbering continues past the highest already used, counting the unsent draft too.
+  const nextTech = useMemo(
+    () => nextTechNumber([...notes.map((n) => n.content), newNote]),
+    [notes, newNote],
+  );
+
+  // Posted straight to the thread rather than dropped into the message box.
+  const handleAddTech = async (entry: string) => {
+    if (!user) return;
+    setAddingTech(true);
+
+    const { error } = await supabase.from("lead_notes").insert({
+      lead_id: leadId,
+      user_id: user.id,
+      user_name: profile?.full_name || user.email || "Unknown user",
+      note_type: noteType,
+      content: entry,
+    });
+
+    setAddingTech(false);
+
+    if (error) {
+      toast.error("Failed to add tech: " + error.message);
+      return;
+    }
+
+    setTechDialogOpen(false);
+    await fetchNotes();
+    onNotesChanged?.();
   };
 
   const handleSend = async () => {
@@ -366,7 +395,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleAddTech}
+                onClick={() => setTechDialogOpen(true)}
                 className="h-7 gap-1.5 rounded-lg border-sky-300/60 px-2 text-[11px] font-medium text-sky-700 hover:bg-sky-500/10 dark:border-sky-400/30 dark:text-sky-300"
               >
                 <UserPlus className="h-3 w-3" />
@@ -403,6 +432,16 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
         <div className="border-t border-border/35 bg-[hsl(var(--background)/0.5)] px-4 py-2.5 text-[11px] text-muted-foreground dark:bg-[hsl(var(--background)/0.1)]">
           This note thread is view-only for your role.
         </div>
+      )}
+
+      {isTechThread && (
+        <AddTechDialog
+          open={techDialogOpen}
+          onOpenChange={setTechDialogOpen}
+          techNumber={nextTech}
+          saving={addingTech}
+          onAdd={handleAddTech}
+        />
       )}
     </div>
   );

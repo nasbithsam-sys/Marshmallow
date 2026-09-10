@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildTechTemplate,
+  buildTechEntry,
   countTechs,
   findTechNumbers,
   formatTechCount,
   nextTechNumber,
 } from "@/lib/lead-techs";
 
-const TECH_ONE = "Tech 1\nName: Alex\nNumber: 555-0100";
-const TECH_TWO = "Tech 2\nName: Sam\nNumber: 555-0111";
+const TECH_ONE = "Tech 1: Alex - (305) 555-0100 - he is available";
+const TECH_TWO = "Tech 2: Sam - (305) 555-0111 - call after 3pm";
 
 describe("finding techs in note text", () => {
   it("reads the numbers out of a note", () => {
@@ -16,8 +16,12 @@ describe("finding techs in note text", () => {
   });
 
   it("tolerates the spacing and casing people actually type", () => {
-    expect(findTechNumbers("  tech 4  \nName: Jo")).toEqual([4]);
-    expect(findTechNumbers("TECH#7\nName: Kim")).toEqual([7]);
+    expect(findTechNumbers("  tech 4: Jo")).toEqual([4]);
+    expect(findTechNumbers("TECH#7 - Kim")).toEqual([7]);
+  });
+
+  it("still reads entries written in the older heading-only shape", () => {
+    expect(findTechNumbers("Tech 4\nName: Jo\nNumber: 555-0100")).toEqual([4]);
   });
 
   it("ignores prose that merely mentions a tech", () => {
@@ -58,13 +62,7 @@ describe("numbering the next tech", () => {
 
   it("does not reuse a number when an earlier tech was deleted", () => {
     // Tech 2 removed, Tech 3 still on screen — the next one must be 4, not 3.
-    expect(nextTechNumber(["Tech 1\nName: Alex", "Tech 3\nName: Rae"])).toBe(4);
-  });
-
-  it("counts a draft that is still being typed", () => {
-    const draft = buildTechTemplate(nextTechNumber([TECH_ONE]));
-    expect(draft.startsWith("Tech 2")).toBe(true);
-    expect(nextTechNumber([TECH_ONE, draft])).toBe(3);
+    expect(nextTechNumber(["Tech 1: Alex", "Tech 3: Rae"])).toBe(4);
   });
 });
 
@@ -76,5 +74,41 @@ describe("formatTechCount", () => {
   it("uses the plural otherwise", () => {
     expect(formatTechCount(0)).toBe("0 techs");
     expect(formatTechCount(4)).toBe("4 techs");
+  });
+});
+
+describe("writing a tech entry", () => {
+  it("writes name, number and note as one readable line", () => {
+    expect(
+      buildTechEntry(1, { name: "John", phone: "(305) 555-0123", note: "he is available" }),
+    ).toBe("Tech 1: John - (305) 555-0123 - he is available");
+  });
+
+  it("drops an empty note rather than leaving a dangling dash", () => {
+    expect(buildTechEntry(2, { name: "John", phone: "(305) 555-0123" })).toBe(
+      "Tech 2: John - (305) 555-0123",
+    );
+  });
+
+  it("drops an empty number too", () => {
+    expect(buildTechEntry(3, { name: "John", note: "no number yet" })).toBe(
+      "Tech 3: John - no number yet",
+    );
+    expect(buildTechEntry(4, { name: "John" })).toBe("Tech 4: John");
+  });
+
+  it("trims what was typed", () => {
+    expect(buildTechEntry(5, { name: "  John  ", phone: " (305) 555-0123 ", note: " ok " })).toBe(
+      "Tech 5: John - (305) 555-0123 - ok",
+    );
+  });
+
+  it("produces entries the counter reads back", () => {
+    const first = buildTechEntry(1, { name: "John", phone: "(305) 555-0123" });
+    const second = buildTechEntry(nextTechNumber([first]), { name: "Rae" });
+
+    expect(second.startsWith("Tech 2:")).toBe(true);
+    expect(countTechs([first, second])).toBe(2);
+    expect(nextTechNumber([first, second])).toBe(3);
   });
 });
