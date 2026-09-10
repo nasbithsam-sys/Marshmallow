@@ -16,6 +16,7 @@ import { optimizeImageForUpload } from "@/lib/image-upload";
 import { logActivity } from "@/lib/activity";
 import { motion, AnimatePresence } from "framer-motion";
 import { deliverLeadNotification } from "@/lib/lead-notifications";
+import MultiDateTimePicker from "./MultiDateTimePicker";
 
 interface Props {
   open: boolean;
@@ -424,14 +425,13 @@ export default function AssignLeadToOperatorDialog({ open, onOpenChange, lead, o
                   />
                 </div>
                 <div>
-                  <Label htmlFor="assign-customer-schedule" className="text-[12px]">Customer Schedule Req.</Label>
-                  <Input
-                    id="assign-customer-schedule"
-                    value={customerScheduleRequirements}
-                    onChange={(e) => setCustomerScheduleRequirements(e.target.value)}
-                    placeholder="E.g. Mon-Fri morning only"
-                    className="mt-1 h-9 rounded-xl text-[13px]"
-                  />
+                  <Label className="text-[12px]">Customer Schedule Req.</Label>
+                  <div className="mt-1">
+                    <MultiDateTimePicker
+                      value={customerScheduleRequirements}
+                      onChange={setCustomerScheduleRequirements}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

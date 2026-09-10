@@ -47,6 +47,7 @@ import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { updateLeadById } from "@/lib/lead-updates";
 import StatusBadge from "@/components/leads/StatusBadge";
+import CancelledStatusBadge from "@/components/leads/CancelledStatusBadge";
 import CancellationRequestSheet from "@/components/leads/CancellationRequestSheet";
 import CancellationRequestPanel from "@/components/leads/CancellationRequestPanel";
 import QuoPhoneTrigger from "@/components/leads/QuoPhoneTrigger";
@@ -1106,7 +1107,11 @@ export default function LeadDetailPage() {
                 </h1>
                 <div className="mt-2 flex flex-wrap items-center gap-3">
                   {jobId && <p className="font-mono text-[13px] text-muted-foreground">{jobId}</p>}
-                  <StatusBadge status={form.status} />
+                  {leadId && !isNew ? (
+                    <CancelledStatusBadge leadId={leadId} status={form.status} size="md" />
+                  ) : (
+                    <StatusBadge status={form.status} />
+                  )}
                 </div>
                 <p className="mt-3 max-w-2xl text-[14px] leading-6 text-muted-foreground">
                   Keep customer intake, processor notes, schedule details, and photos organized in one readable workspace.

@@ -72,6 +72,49 @@ export async function fetchPendingCancellationRequest(leadId: string): Promise<L
   return request;
 }
 
+/**
+ * The most recent cancellation request for a lead, whatever its outcome.
+ *
+ * The reason a lead was cancelled only ever lived on the request row, so a cancelled lead had
+ * nothing to show for it. Reading the newest row back surfaces that reason for leads cancelled
+ * before this existed as well as new ones.
+ */
+export async function fetchLatestCancellationRequest(leadId: string): Promise<LeadCancellationRequest | null> {
+  const { data, error } = await cancellationRequestsTable()
+    .select("*")
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const request = data as unknown as LeadCancellationRequest;
+  const snapshotName = (data as { requested_by_name?: string | null }).requested_by_name || null;
+
+  const ids = [request.requested_by, request.reviewed_by].filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+
+  if (ids.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles_public" as never)
+      .select("id, full_name")
+      .in("id", ids);
+
+    const names = new Map(
+      ((profiles ?? []) as { id: string; full_name?: string | null }[]).map((p) => [p.id, p.full_name]),
+    );
+
+    request.requester_name = (request.requested_by ? names.get(request.requested_by) : null) || snapshotName;
+    request.reviewer_name = (request.reviewed_by ? names.get(request.reviewed_by) : null) || null;
+  } else {
+    request.requester_name = snapshotName;
+  }
+
+  return request;
+}
+
 export async function createCancellationRequest({
   lead,
   userId,

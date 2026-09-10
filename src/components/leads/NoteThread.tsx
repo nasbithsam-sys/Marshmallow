@@ -4,7 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Pencil, Check, X } from "lucide-react";
+import { Send, Pencil, Check, X, UserPlus } from "lucide-react";
+import { buildTechTemplate, countTechs, formatTechCount, nextTechNumber } from "@/lib/lead-techs";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
@@ -186,6 +187,20 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
   }, [notes]);
 
 
+  // Techs live in the processor thread as "Tech N" blocks. Numbering continues past the highest
+  // one already used - including any in the draft that has not been sent yet.
+  const isTechThread = noteType === "processor";
+
+  const techCount = useMemo(
+    () => (isTechThread ? countTechs(notes.map((n) => n.content)) : 0),
+    [isTechThread, notes],
+  );
+
+  const handleAddTech = () => {
+    const template = buildTechTemplate(nextTechNumber([...notes.map((n) => n.content), newNote]));
+    setNewNote((prev) => (prev.trim() ? `${prev.replace(/\s+$/, "")}\n\n${template}` : template));
+  };
+
   const handleSend = async () => {
     if (!canWriteThread || !newNote.trim() || !user) return;
     setSending(true);
@@ -344,23 +359,45 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
       </div>
 
       {canWriteThread ? (
-        <div className="flex gap-2 border-t border-border/35 bg-[hsl(var(--background)/0.54)] p-2 dark:bg-[hsl(var(--background)/0.12)]">
-          <Textarea
-            value={newNote}
-            onChange={(e) => setNewNote(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={`Add a note...`}
-            className="crm-lead-card-inner min-h-[36px] max-h-20 resize-none border-0 bg-transparent text-sm focus-visible:ring-0 shadow-none"
-            rows={1}
-          />
-          <Button
-            size="icon"
-            className="h-9 w-9 shrink-0 rounded-[14px] shadow-[0_12px_22px_-16px_hsl(var(--primary)/0.45)]"
-            onClick={handleSend}
-            disabled={sending || !newNote.trim()}
-          >
-            <Send className="h-3.5 w-3.5" />
-          </Button>
+        <div className="border-t border-border/35 bg-[hsl(var(--background)/0.54)] p-2 dark:bg-[hsl(var(--background)/0.12)]">
+          {isTechThread && (
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddTech}
+                className="h-7 gap-1.5 rounded-lg border-sky-300/60 px-2 text-[11px] font-medium text-sky-700 hover:bg-sky-500/10 dark:border-sky-400/30 dark:text-sky-300"
+              >
+                <UserPlus className="h-3 w-3" />
+                Add tech
+              </Button>
+              {techCount > 0 && (
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  {formatTechCount(techCount)} in this thread
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Textarea
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={`Add a note...`}
+              className="crm-lead-card-inner min-h-[36px] max-h-20 resize-none border-0 bg-transparent text-sm focus-visible:ring-0 shadow-none"
+              rows={1}
+            />
+            <Button
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-[14px] shadow-[0_12px_22px_-16px_hsl(var(--primary)/0.45)]"
+              onClick={handleSend}
+              disabled={sending || !newNote.trim()}
+            >
+              <Send className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="border-t border-border/35 bg-[hsl(var(--background)/0.5)] px-4 py-2.5 text-[11px] text-muted-foreground dark:bg-[hsl(var(--background)/0.1)]">

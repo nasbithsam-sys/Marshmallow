@@ -5,6 +5,7 @@ import { useDeferredValue } from "react";
 import { useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Lead, LeadStatus, STATUS_LABELS, STATUS_DOT_COLORS, ALL_LEAD_STATUSES, compareLeadDisplayPriority } from "@/lib/constants";
+import { countTechs } from "@/lib/lead-techs";
 import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +99,7 @@ export default function LeadsPage() {
   }, [search, searchParams, setSearchParams]);
   const [pagedMetadata, setPagedMetadata] = useState<Record<string, {
     hasNotes: { general: boolean; cs: boolean; processor: boolean; opr: boolean };
+    techCount: number;
     photoCount: number;
     photoPaths: string[];
     pendingCancellationRequest: LeadCancellationRequest | null;
@@ -357,10 +359,17 @@ export default function LeadsPage() {
       setMetadataFallbackKey(null);
 
       try {
-        const [notesRes, photosRes, cancelRes] = await Promise.all([
+        const [notesRes, techNotesRes, photosRes, cancelRes] = await Promise.all([
           supabase
             .from("lead_notes")
             .select("lead_id, note_type")
+            .in("lead_id", pagedIds),
+          // Bodies of the processor notes only, so the card can show how many techs are inside
+          // without pulling every note body on the page.
+          supabase
+            .from("lead_notes")
+            .select("lead_id, content")
+            .eq("note_type", "processor")
             .in("lead_id", pagedIds),
           supabase
             .from("lead_photos")
@@ -375,11 +384,12 @@ export default function LeadsPage() {
         ]);
 
         if (!active) return;
-        const batchError = notesRes.error || photosRes.error || cancelRes.error;
+        const batchError = notesRes.error || techNotesRes.error || photosRes.error || cancelRes.error;
         if (batchError) throw batchError;
 
         const metadataMap: Record<string, {
           hasNotes: { general: boolean; cs: boolean; processor: boolean; opr: boolean };
+          techCount: number;
           photoCount: number;
           photoPaths: string[];
           pendingCancellationRequest: LeadCancellationRequest | null;
@@ -388,6 +398,7 @@ export default function LeadsPage() {
         pagedIds.forEach((id) => {
           metadataMap[id] = {
             hasNotes: { general: false, cs: false, processor: false, opr: false },
+            techCount: 0,
             photoCount: 0,
             photoPaths: [],
             pendingCancellationRequest: null,
@@ -403,6 +414,20 @@ export default function LeadsPage() {
               else if (note.note_type === "processor") mapItem.hasNotes.processor = true;
               else if (note.note_type === "opr") mapItem.hasNotes.opr = true;
             }
+          });
+        }
+
+        if (techNotesRes.data) {
+          const byLead = new Map<string, string[]>();
+          (techNotesRes.data as { lead_id: string; content: string | null }[]).forEach((note) => {
+            const bodies = byLead.get(note.lead_id) ?? [];
+            bodies.push(note.content ?? "");
+            byLead.set(note.lead_id, bodies);
+          });
+
+          byLead.forEach((bodies, leadIdKey) => {
+            const mapItem = metadataMap[leadIdKey];
+            if (mapItem) mapItem.techCount = countTechs(bodies);
           });
         }
 
@@ -986,6 +1011,7 @@ export default function LeadsPage() {
                 profiles={profiles}
                 onRefresh={handleRefresh}
                 initialHasNotes={metadata?.hasNotes}
+                initialTechCount={metadata?.techCount}
                 initialPhotoCount={metadata?.photoCount}
                 initialPhotoPaths={metadata?.photoPaths}
                 initialPendingCancellationRequest={metadata?.pendingCancellationRequest}

@@ -49,6 +49,16 @@ import NoteThread from "./NoteThread";
 import PaymentDialog from "./PaymentDialog";
 import LeadShareDialog from "./LeadShareDialog";
 import StatusBadge from "./StatusBadge";
+import CancelledStatusBadge from "./CancelledStatusBadge";
+import MultiDateTimePicker from "./MultiDateTimePicker";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import CopyValueButton from "./CopyValueButton";
 import CancellationRequestSheet from "./CancellationRequestSheet";
 import QuoPhoneTrigger from "./QuoPhoneTrigger";
@@ -66,6 +76,7 @@ import { createPaymentRequest } from "@/lib/payment-requests";
 import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { getAssignableLeadTags, isQuotationMaster } from "@/lib/lead-tags";
+import { countTechs, formatTechCount } from "@/lib/lead-techs";
 import { dispatchLeadStatusNotification, dispatchIncompleteDetailsNotification } from "@/lib/lead-notifications";
 import BookingDateTimeDialog, { formatBookingCompact, isBookingExpired } from "./BookingDateTimeDialog";
 import AssignLeadToOperatorDialog from "./AssignLeadToOperatorDialog";
@@ -82,6 +93,8 @@ interface LeadCardProps {
   photoUrls?: string[];
   disablePhotoPreview?: boolean;
   initialHasNotes?: { general: boolean; cs: boolean; processor: boolean; opr?: boolean };
+  /** Techs recorded in the processor notes, shown on the collapsed row. */
+  initialTechCount?: number;
   initialPhotoCount?: number;
   initialPhotoPaths?: string[];
   initialPendingCancellationRequest?: LeadCancellationRequest | null;
@@ -468,6 +481,7 @@ interface NoteCollapsibleProps {
   noteType: "general" | "cs" | "processor" | "opr";
   tone?: "default" | "cs" | "processor" | "opr";
   hasNotes?: boolean;
+  techCount?: number;
   reduceMotion?: boolean;
   leadId: string;
   profiles: Record<string, string>;
@@ -483,6 +497,7 @@ function NoteCollapsible({
   noteType,
   tone = "default",
   hasNotes = false,
+  techCount = 0,
   reduceMotion,
   leadId,
   profiles,
@@ -597,7 +612,14 @@ function NoteCollapsible({
               <span className="font-medium">{label}</span>
             </span>
             {hasNotes && (
-              <span className={`text-[10px] font-semibold ${tone === "cs" ? "text-amber-600 dark:text-amber-300" : tone === "processor" ? "text-sky-600 dark:text-sky-300" : tone === "opr" ? "text-emerald-600 dark:text-emerald-300" : "text-primary"}`}>
+              <span className={`flex items-center gap-1.5 text-[10px] font-semibold ${tone === "cs" ? "text-amber-600 dark:text-amber-300" : tone === "processor" ? "text-sky-600 dark:text-sky-300" : tone === "opr" ? "text-emerald-600 dark:text-emerald-300" : "text-primary"}`}>
+                {/* Techs are recorded inside the processor thread, so the count is worth seeing
+                    without opening it. */}
+                {techCount > 0 && (
+                  <span className="rounded-full bg-sky-500/12 px-1.5 py-0.5 text-sky-700 dark:bg-sky-400/15 dark:text-sky-200">
+                    {formatTechCount(techCount)}
+                  </span>
+                )}
                 has notes
               </span>
             )}
@@ -659,6 +681,7 @@ function LeadCard({
   photoUrls,
   disablePhotoPreview = false,
   initialHasNotes,
+  initialTechCount,
   initialPhotoCount,
   initialPhotoPaths,
   initialPendingCancellationRequest,
@@ -670,6 +693,20 @@ function LeadCard({
   const [processorOpen, setProcessorOpen] = useState(false);
   const [generalOpen, setGeneralOpen] = useState(false);
   const [oprOpen, setOprOpen] = useState(false);
+  // Seeded from the list query so the collapsed row can show it, then recounted locally once
+  // the thread has been opened and edited.
+  const [techCount, setTechCount] = useState(initialTechCount ?? 0);
+
+  // Schedule requirement is editable straight from the card, so CS does not have to open the
+  // lead just to add a date.
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleDraft, setScheduleDraft] = useState("");
+  const [savingSchedule, setSavingSchedule] = useState(false);
+
+  useEffect(() => {
+    if (initialTechCount !== undefined) setTechCount(initialTechCount);
+  }, [initialTechCount]);
+
   const [generalPinned, setGeneralPinned] = useState(false);
   const [csPinned, setCsPinned] = useState(false);
   const [processorPinned, setProcessorPinned] = useState(false);
@@ -1231,6 +1268,40 @@ function LeadCard({
     }
   };
 
+  const openScheduleDialog = () => {
+    setScheduleDraft(lead.customer_schedule_requirements || "");
+    setScheduleOpen(true);
+  };
+
+  const saveScheduleRequirement = async () => {
+    setSavingSchedule(true);
+    const next = scheduleDraft.trim() ? scheduleDraft.trim() : null;
+    const patch = {
+      customer_schedule_requirements: next,
+      last_edited_by: user?.id,
+      last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
+      updated_at: new Date().toISOString(),
+      last_edited_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from("leads").update(patch as never).eq("id", lead.id);
+    setSavingSchedule(false);
+
+    if (error) {
+      toast.error("Failed to update schedule requirement");
+      return;
+    }
+
+    const { syncLeadUpsertToGoogleSheets } = await import("@/lib/google-sheets");
+    void syncLeadUpsertToGoogleSheets({ ...lead, ...patch } as never, undefined, lead.cs_tag ?? undefined).catch((err) => {
+      console.error("Failed to sync schedule requirement to Google Sheets", err);
+    });
+
+    toast.success(next ? "Schedule requirement updated" : "Schedule requirement cleared");
+    setScheduleOpen(false);
+    onRefresh();
+  };
+
   const persistCsTag = async (
     newTag: CsTag | null,
     opts: { bookedAt?: string | null } = {},
@@ -1340,6 +1411,7 @@ function LeadCard({
     noteType,
     tone = "default",
     hasNotes = false,
+    techCount = 0,
   }: {
     open: boolean;
     setOpen: (v: boolean) => void;
@@ -1349,6 +1421,7 @@ function LeadCard({
     noteType: "general" | "cs" | "processor" | "opr";
     tone?: "default" | "cs" | "processor" | "opr";
     hasNotes?: boolean;
+    techCount?: number;
   }) => (
     <NoteCollapsible
       open={open}
@@ -1359,6 +1432,7 @@ function LeadCard({
       noteType={noteType}
       tone={tone}
       hasNotes={hasNotes}
+      techCount={techCount}
       reduceMotion={reduceMotion}
       leadId={lead.id}
       profiles={profiles}
@@ -1477,16 +1551,51 @@ function LeadCard({
                   )}
                   {(() => {
                     const sched = formatScheduleRequirementCompact(lead.customer_schedule_requirements);
-                    if (!sched) return null;
+                    const chipClass =
+                      "inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/12 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:text-sky-300";
+
+                    if (!sched) {
+                      if (isOpr) return null;
+                      return (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openScheduleDialog();
+                          }}
+                          title="Add schedule requirement"
+                          className={`${chipClass} border-dashed opacity-80 transition-opacity hover:opacity-100`}
+                        >
+                          <CalendarClock className="h-3 w-3" />
+                          <span>Add schedule</span>
+                        </button>
+                      );
+                    }
+
+                    if (isOpr) {
+                      return (
+                        <span title={`Schedule Requirement: ${sched.full}`} className={chipClass}>
+                          <CalendarClock className="h-3 w-3" />
+                          <span className="opacity-80">Schedule Requirement:</span>
+                          <span>{sched.summary}</span>
+                        </span>
+                      );
+                    }
+
                     return (
-                      <span
-                        title={`Schedule Requirement: ${sched.full}`}
-                        className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/12 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:text-sky-300"
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openScheduleDialog();
+                        }}
+                        title={`Schedule Requirement: ${sched.full} - click to edit`}
+                        className={`${chipClass} transition-colors hover:bg-sky-500/20`}
                       >
                         <CalendarClock className="h-3 w-3" />
                         <span className="opacity-80">Schedule Requirement:</span>
                         <span>{sched.summary}</span>
-                      </span>
+                      </button>
                     );
                   })()}
                 </div>
@@ -1495,7 +1604,7 @@ function LeadCard({
 
 
             <div className="flex shrink-0 flex-col items-end gap-1.5">
-              <StatusBadge status={lead.status} size="sm" />
+              <CancelledStatusBadge leadId={lead.id} status={lead.status} size="sm" />
               {hasQuickChatAccess && lead.customer_phone && (
                 <QuoPhoneTrigger
                   contactName={lead.customer_name}
@@ -1737,6 +1846,7 @@ function LeadCard({
               noteType: "processor",
               tone: "processor",
               hasNotes: hasNotes.processor,
+              techCount,
             })}
           {(isProcessor || isAdmin || isOpr) &&
             renderCollapsible({
@@ -1920,6 +2030,28 @@ function LeadCard({
           mode={isAdmin ? "direct" : "request"}
           requesterLabel={isProcessor ? "Admin" : "Processor or Admin"}
         />
+
+        <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+          <DialogContent className="sm:max-w-[460px]" onClick={(e) => e.stopPropagation()}>
+            <DialogHeader>
+              <DialogTitle className="text-base">Customer Schedule Requirement</DialogTitle>
+              <DialogDescription className="text-xs">
+                {lead.customer_name} - add or remove the dates the customer is available.
+              </DialogDescription>
+            </DialogHeader>
+
+            <MultiDateTimePicker value={scheduleDraft} onChange={setScheduleDraft} />
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setScheduleOpen(false)} disabled={savingSchedule}>
+                Cancel
+              </Button>
+              <Button onClick={saveScheduleRequirement} disabled={savingSchedule}>
+                {savingSchedule ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <BookingDateTimeDialog
           open={bookingDialogOpen}

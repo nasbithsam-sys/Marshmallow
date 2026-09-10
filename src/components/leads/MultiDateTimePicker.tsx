@@ -5,9 +5,9 @@ import {
   Calendar as CalendarIcon,
   Clock,
   Check,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
@@ -111,15 +111,45 @@ export default function MultiDateTimePicker({
 
   const hasDateSelection = selectedDates && selectedDates.length > 0;
 
+  // Entries are one per line, which is how handleConfirm appends them.
+  const entries = (value || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const removeEntry = (index: number) => {
+    onChange(entries.filter((_, i) => i !== index).join("\n"));
+  };
+
   return (
     <div className="flex flex-col gap-2">
-      <Textarea
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        readOnly={readOnly}
-        className="min-h-[88px] resize-none text-[13px] leading-relaxed"
-        placeholder="Preferred times, availability (e.g. August 24, 2026 at 10:00 AM, Aug 12 to Aug 16, Anytime, etc.)..."
-      />
+      {/* The free-text box is gone: requirements are only ever added through the picker, so what
+          is stored always parses back into dates. */}
+      {entries.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {entries.map((entry, index) => (
+            <span
+              key={`${entry}-${index}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/40 px-2.5 py-1 text-[12px] text-foreground"
+            >
+              <CalendarIcon className="h-3 w-3 shrink-0 text-primary" />
+              {entry}
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => removeEntry(index)}
+                  aria-label={`Remove ${entry}`}
+                  className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[12px] text-muted-foreground">No schedule requirement yet.</p>
+      )}
 
       {!readOnly && (
         <div className="flex items-center justify-end">

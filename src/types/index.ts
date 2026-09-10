@@ -157,6 +157,7 @@ export interface LeadCancellationRequest {
   created_at: string;
   updated_at: string;
   requester_name?: string | null;
+  reviewer_name?: string | null;
 }
 
 export interface LeadUpdate {
