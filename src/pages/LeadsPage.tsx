@@ -6,6 +6,7 @@ import { useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Lead, LeadStatus, STATUS_LABELS, STATUS_DOT_COLORS, ALL_LEAD_STATUSES, compareLeadDisplayPriority } from "@/lib/constants";
 import { countTechs } from "@/lib/lead-techs";
+import SameAreaLeadsPanel from "@/components/leads/SameAreaLeadsPanel";
 import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -314,6 +315,8 @@ export default function LeadsPage() {
           l.job_id?.toLowerCase().includes(s) ||
           l.customer_phone?.toLowerCase().includes(s) ||
           l.address?.toLowerCase().includes(s) ||
+          l.city?.toLowerCase().includes(s) ||
+          l.state?.toLowerCase().includes(s) ||
           l.service_type?.toLowerCase().includes(s),
       );
     }
@@ -906,6 +909,14 @@ export default function LeadsPage() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
+            <SameAreaLeadsPanel
+              leads={currentLeads}
+              onFilterByArea={(city) => {
+                setSearch(city);
+                setPage(0);
+              }}
+            />
+
             <Select value={safeStatusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="crm-lead-card-inner h-11 w-full rounded-[18px] border-border/70 bg-transparent shadow-[0_18px_28px_-22px_rgba(56,189,248,0.2)] sm:w-[220px]">
                 <SlidersHorizontal className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
