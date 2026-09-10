@@ -13,6 +13,7 @@ describe("lead tag role access", () => {
       "ready_to_schedule",
       "waiting_schedule_confirmation",
       "incomplete_details",
+      "post_visit_confirmation",
     ]);
     expect(getAssignableLeadTags("admin")).toContain("ready_to_schedule");
     expect(getAssignableLeadTags("customer_service")).toContain("ready_to_schedule");
@@ -46,5 +47,22 @@ describe("incomplete details tag access", () => {
     expect(isScheduleTag("incomplete_details")).toBe(false);
     expect(isScheduleTag("booked")).toBe(true);
     expect(isScheduleTag(null)).toBe(false);
+  });
+});
+
+describe("post-visit confirmation tag access", () => {
+  it("is available to Admin, CS, CS Admin and Processor", () => {
+    expect(canAssignLeadTag("admin", "post_visit_confirmation")).toBe(true);
+    expect(canAssignLeadTag("customer_service", "post_visit_confirmation")).toBe(true);
+    expect(canAssignLeadTag("cs_admin", "post_visit_confirmation")).toBe(true);
+    expect(canAssignLeadTag("processor", "post_visit_confirmation")).toBe(true);
+  });
+
+  it("is not available to Operators", () => {
+    expect(canAssignLeadTag("opr", "post_visit_confirmation")).toBe(false);
+  });
+
+  it("is not a scheduling tag, so Operators do not pick it up", () => {
+    expect(isScheduleTag("post_visit_confirmation")).toBe(false);
   });
 });

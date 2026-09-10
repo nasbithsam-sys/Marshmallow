@@ -124,6 +124,11 @@ export function isLeadPinnedForUser(
   userId?: string | null,
   userRole?: string | null,
 ): boolean {
+  // Post-visit confirmation is work waiting on CS: did the tech actually visit, and does the
+  // customer want to proceed. Pinned for whoever has to make that call, whatever the status is.
+  if (lead.cs_tag === "post_visit_confirmation") {
+    return userRole === "cs_admin" || (Boolean(userId) && lead.created_by === userId);
+  }
   if (lead.status === "quote_updated") {
     return userRole === "cs_admin" || (Boolean(userId) && lead.quote_requested_by === userId);
   }

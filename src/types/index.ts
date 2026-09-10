@@ -1,6 +1,6 @@
 export type AppRole = 'admin' | 'processor' | 'customer_service' | 'opr' | 'cs_admin';
 
-export type CsTag = 'confirmation_sent' | 'waiting_schedule_confirmation' | 'booked' | 'ready_to_schedule' | 'incomplete_details';
+export type CsTag = 'confirmation_sent' | 'waiting_schedule_confirmation' | 'booked' | 'ready_to_schedule' | 'incomplete_details' | 'post_visit_confirmation';
 
 export const CS_TAG_LABELS: Record<CsTag, string> = {
   confirmation_sent: 'Confirmation sent to CX',
@@ -8,6 +8,7 @@ export const CS_TAG_LABELS: Record<CsTag, string> = {
   booked: 'Booked',
   ready_to_schedule: 'Ready to schedule',
   incomplete_details: 'Incomplete details',
+  post_visit_confirmation: 'Post-visit confirmation',
 };
 
 export type LeadStatus =

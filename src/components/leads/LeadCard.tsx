@@ -872,8 +872,15 @@ function LeadCard({
   const isActivateCustomer = lead.status === "activate_customer";
   const isQuoteUpdatedForMe = lead.status === "quote_updated" && (role === "cs_admin" || lead.quote_requested_by === user?.id);
   const isPendingQuoteForMaster = lead.status === "pending_to_send" && isQuotationMaster(role, profile?.is_quotation_master);
+  // Same rule as the pin: it blinks for whoever has to make the call.
+  const isPostVisitConfirmationForMe =
+    currentTag === "post_visit_confirmation" && (role === "cs_admin" || lead.created_by === user?.id);
   const baseShouldBlink =
-    needsScheduleBlink || isActivateCustomer || isQuoteUpdatedForMe || isPendingQuoteForMaster;
+    needsScheduleBlink ||
+    isActivateCustomer ||
+    isQuoteUpdatedForMe ||
+    isPendingQuoteForMaster ||
+    isPostVisitConfirmationForMe;
 
   // Suppress blink if schedule requirement date is more than 3 days in the future
   const isFarFutureSchedule = isScheduleRequirementFarFuture(lead.customer_schedule_requirements, 3);
@@ -1784,7 +1791,9 @@ function LeadCard({
                         ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-400/20 dark:text-indigo-200"
                         : currentTag === "incomplete_details"
                           ? "bg-rose-100 text-rose-800 dark:bg-rose-400/20 dark:text-rose-200"
-                          : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
+                          : currentTag === "post_visit_confirmation"
+                            ? "bg-violet-100 text-violet-800 dark:bg-violet-400/20 dark:text-violet-200"
+                            : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
                   }`}
                 >
                   📌 {CS_TAG_LABELS[currentTag]}

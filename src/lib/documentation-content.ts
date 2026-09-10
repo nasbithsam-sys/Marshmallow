@@ -165,10 +165,12 @@ export const DOC_SECTIONS: DocSection[] = [
           ["waiting_schedule_confirmation", "Waiting for CX for schedule confirmation", "Admin, CS, Processor"],
           ["booked", "Booked", "Admin, CS"],
           ["incomplete_details", "Incomplete details", "Admin, Processor, Quotation Master"],
+          ["post_visit_confirmation", "Post-visit confirmation", "Admin, CS, CS Admin, Processor"],
         ],
       },
       { type: "p", text: "Tags are only meaningful on the pre-scheduling statuses (waiting_complete_details through needs_reschedule). Tag assignment is enforced by the enforce_lead_tag_role_access() trigger." },
       { type: "p", text: "Incomplete details is the exception: it applies on any status and sends an \"[Alert] Incomplete Details\" notification to the CS who created the lead and to every CS Admin. It does not change list ordering. Operators never see it - their tag visibility is limited to the four scheduling tags." },
+      { type: "p", text: "Post-visit confirmation marks a lead where the tech has been out and CS still has to confirm with the customer that the visit happened and whether they want to proceed. It pins the lead to the top and blinks its card for the CS who created it and for CS Admins - the people who make that call - on any status." },
     ],
   },
   {
