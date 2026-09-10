@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, CornerDownRight, ArrowUpRight, Filter } from "lucide-react";
+import { MapPin, CornerDownRight, ArrowUpRight, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import StatusBadge from "./StatusBadge";
@@ -9,15 +9,17 @@ import type { LeadStatus } from "@/types";
 
 interface Props {
   leads: AreaLead[];
-  /** Drops the city into the search box so the main list shows just that area. */
-  onFilterByArea: (city: string) => void;
+  /** The area currently being viewed, so the open one can be marked. */
+  activeArea?: string | null;
+  /** Switches the list into the area view for this city. */
+  onSelectArea: (areaLabel: string) => void;
 }
 
 /**
  * Open leads that share a city, surfaced next to the search bar so several jobs in one area are
  * obvious rather than something you notice by chance while scrolling.
  */
-export default function SameAreaLeadsPanel({ leads, onFilterByArea }: Props) {
+export default function SameAreaLeadsPanel({ leads, activeArea, onSelectArea }: Props) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -53,14 +55,31 @@ export default function SameAreaLeadsPanel({ leads, onFilterByArea }: Props) {
         <div className="border-b border-border/40 px-3 py-2">
           <p className="text-[12px] font-semibold text-foreground">Leads in the same area</p>
           <p className="text-[11px] text-muted-foreground">
-            {groups.length === 1 ? "1 city" : `${groups.length} cities`} with more than one open lead
+            {groups.length === 1 ? "1 city" : `${groups.length} cities`} with more than one open
+            lead - open a city to see just those leads
           </p>
         </div>
 
         <div className="max-h-[380px] space-y-3 overflow-y-auto p-3">
           {groups.map((group) => (
-            <div key={group.key} className="rounded-xl border border-border/60 bg-muted/25 p-2.5">
-              <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div
+              key={group.key}
+              className={`rounded-xl border p-2.5 ${
+                activeArea && activeArea.toLowerCase() === group.label.toLowerCase()
+                  ? "border-amber-400/70 bg-amber-400/10"
+                  : "border-border/60 bg-muted/25"
+              }`}
+            >
+              {/* The city itself opens the area view - the whole list becomes this city. */}
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectArea(group.label);
+                  setOpen(false);
+                }}
+                title={`Open ${group.label} in the leads list`}
+                className="group mb-1.5 flex w-full items-center justify-between gap-2 rounded-lg px-1 py-0.5 text-left transition-colors hover:bg-background"
+              >
                 <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold text-foreground">
                   <MapPin className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />
                   <span className="truncate">{group.label}</span>
@@ -69,19 +88,11 @@ export default function SameAreaLeadsPanel({ leads, onFilterByArea }: Props) {
                   </span>
                 </span>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    onFilterByArea(group.city);
-                    setOpen(false);
-                  }}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  title={`Show only ${group.label} in the list`}
-                >
-                  <Filter className="h-3 w-3" />
-                  Show
-                </button>
-              </div>
+                <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+                  <LayoutGrid className="h-3 w-3" />
+                  Open
+                </span>
+              </button>
 
               {/* The chain makes the point visually: these are one trip, not three separate jobs. */}
               <ul className="relative space-y-0.5 pl-1">

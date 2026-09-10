@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   countGroupedLeads,
   groupLeadsByArea,
+  isLeadInArea,
   isOpenLead,
+  leadAreaLabel,
   resolveLeadArea,
   type AreaLead,
 } from "@/lib/lead-areas";
@@ -183,5 +185,38 @@ describe("falling back to the address", () => {
   it("does not lump unparseable leads together", () => {
     const groups = groupLeadsByArea([addressLead("a", ""), addressLead("b", "")]);
     expect(groups).toEqual([]);
+  });
+});
+
+describe("the ?area= label", () => {
+  it("matches the label a group is listed under", () => {
+    const groups = groupLeadsByArea([
+      lead("a", "Houston", "TX"),
+      lead("b", "Houston", "TX"),
+    ]);
+
+    expect(leadAreaLabel(lead("a", "Houston", "TX"))).toBe(groups[0].label);
+  });
+
+  it("is null for a lead with no usable location", () => {
+    expect(leadAreaLabel(lead("a", null, null))).toBeNull();
+  });
+
+  it("selects the leads of that area, ignoring case and spacing", () => {
+    const houston = lead("a", "Houston", "TX");
+    const austin = lead("b", "Austin", "TX");
+
+    expect(isLeadInArea(houston, "Houston, TX")).toBe(true);
+    expect(isLeadInArea(houston, "  houston, tx  ")).toBe(true);
+    expect(isLeadInArea(austin, "Houston, TX")).toBe(false);
+  });
+
+  it("selects address-only leads too", () => {
+    expect(isLeadInArea(addressLead("a", "1200 Main St, Houston, TX 77002"), "Houston, TX")).toBe(true);
+  });
+
+  it("keeps a closed lead in its area, so the view still shows it", () => {
+    // Closed leads do not form groups, but opening an area should not hide one that is there.
+    expect(isLeadInArea(lead("a", "Houston", "TX", "cancelled"), "Houston, TX")).toBe(true);
   });
 });

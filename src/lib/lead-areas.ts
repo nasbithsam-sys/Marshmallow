@@ -55,6 +55,22 @@ export function resolveLeadArea(lead: AreaLead): { city: string; state: string |
   return { city: derived, state: (lead.state ?? "").trim() || extractState(lead.address) };
 }
 
+/**
+ * The label a lead groups under - "Houston, TX" - and the value carried in the ?area= param so
+ * an area view can be linked to and reloaded. Null when the lead has no usable location.
+ */
+export function leadAreaLabel(lead: AreaLead): string | null {
+  const area = resolveLeadArea(lead);
+  if (!area) return null;
+  return area.state ? `${area.city}, ${area.state}` : area.city;
+}
+
+/** Case- and spacing-insensitive match against an ?area= value. */
+export function isLeadInArea(lead: AreaLead, areaLabel: string): boolean {
+  const label = leadAreaLabel(lead);
+  return Boolean(label) && normalise(label) === normalise(areaLabel);
+}
+
 export function isOpenLead(status: string | null | undefined): boolean {
   return Boolean(status) && !CLOSED_STATUSES.has(status as string);
 }

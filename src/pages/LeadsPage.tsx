@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Lead, LeadStatus, STATUS_LABELS, STATUS_DOT_COLORS, ALL_LEAD_STATUSES, compareLeadDisplayPriority } from "@/lib/constants";
 import { countTechs } from "@/lib/lead-techs";
 import SameAreaLeadsPanel from "@/components/leads/SameAreaLeadsPanel";
+import { isLeadInArea } from "@/lib/lead-areas";
 import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { type DateRange } from "react-day-picker";
 import { ScheduleDateFilter } from "@/components/leads/ScheduleDateFilter";
 import { doesLeadMatchScheduleDateRange } from "@/lib/schedule-date-filter";
-import { Plus, Search, Download, Share2, X, SlidersHorizontal, BarChart3, Puzzle, FileText, Calendar as CalendarIcon, LayoutGrid, List } from "lucide-react";
+import { Plus, Search, Download, Share2, X, SlidersHorizontal, BarChart3, Puzzle, FileText, Calendar as CalendarIcon, LayoutGrid, List, MapPin } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useNotepad } from "@/contexts/NotepadContext";
 import LeadCard from "@/components/leads/LeadCard";
@@ -110,6 +111,8 @@ export default function LeadsPage() {
   const deferredSearch = useDeferredValue(search);
 
   const rawStatusFilter = searchParams.get("status") || "all";
+  // Set by the Same area section: shows only that city's leads, as ordinary lead cards.
+  const areaFilter = searchParams.get("area");
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
   // CS Admins create leads with the same access a CS has.
@@ -303,6 +306,10 @@ export default function LeadsPage() {
   const filtered = useMemo(() => {
     let result = [...currentLeads];
 
+    if (areaFilter) {
+      result = result.filter((l) => isLeadInArea(l, areaFilter));
+    }
+
     if (safeStatusFilter !== "all") {
       result = result.filter((l) => l.status === safeStatusFilter);
     }
@@ -330,7 +337,7 @@ export default function LeadsPage() {
     result.sort((a, b) => compareLeadDisplayPriority(a, b, user?.id, role));
 
     return result;
-  }, [currentLeads, deferredSearch, safeStatusFilter, scheduleDateRange, user?.id, role]);
+  }, [areaFilter, currentLeads, deferredSearch, safeStatusFilter, scheduleDateRange, user?.id, role]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
@@ -911,8 +918,11 @@ export default function LeadsPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <SameAreaLeadsPanel
               leads={currentLeads}
-              onFilterByArea={(city) => {
-                setSearch(city);
+              activeArea={areaFilter}
+              onSelectArea={(label) => {
+                const params = new URLSearchParams(searchParams);
+                params.set("area", label);
+                setSearchParams(params);
                 setPage(0);
               }}
             />
@@ -979,6 +989,38 @@ export default function LeadsPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Area view: the Same area section drops ?area= here and the list becomes that city. */}
+      {areaFilter && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-amber-400/50 bg-amber-400/10 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300">
+              <MapPin className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[14px] font-semibold text-foreground">{areaFilter}</p>
+              <p className="text-[11.5px] text-muted-foreground">
+                {filtered.length === 1 ? "1 lead" : `${filtered.length} leads`} in this area
+              </p>
+            </div>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5 rounded-xl"
+            onClick={() => {
+              const params = new URLSearchParams(searchParams);
+              params.delete("area");
+              setSearchParams(params);
+              setPage(0);
+            }}
+          >
+            <X className="h-3.5 w-3.5" />
+            Back to all leads
+          </Button>
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
