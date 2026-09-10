@@ -98,6 +98,8 @@ interface LeadCardProps {
   initialTechCount?: number;
   /** Reason from the newest cancellation request, shown inline on a cancelled card. */
   initialCancellationReason?: string | null;
+  /** Lets the list drop the card immediately instead of waiting for the refetch. */
+  onDeleted?: (leadId: string) => void;
   initialPhotoCount?: number;
   initialPhotoPaths?: string[];
   initialPendingCancellationRequest?: LeadCancellationRequest | null;
@@ -686,6 +688,7 @@ function LeadCard({
   initialHasNotes,
   initialTechCount,
   initialCancellationReason,
+  onDeleted,
   initialPhotoCount,
   initialPhotoPaths,
   initialPendingCancellationRequest,
@@ -706,6 +709,7 @@ function LeadCard({
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState("");
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (initialTechCount !== undefined) setTechCount(initialTechCount);
@@ -1254,28 +1258,39 @@ function LeadCard({
   };
 
   const handleDelete = async () => {
+    setDeleting(true);
     try {
-      // 1. Immediately delete from Google Sheets while lead data (id & job_id) is fully available
-      try {
-        await syncLeadDeleteToGoogleSheets(lead.id, lead.job_id);
-      } catch (sheetErr) {
-        console.warn("Google Sheets delete sync warning:", sheetErr);
-      }
-
+      // The delete itself is the only thing worth waiting on. The Google Sheets sync used to run
+      // first, so the card sat there through a round trip to Google before anything happened.
       await adminApi.deleteLead(lead.id, lead.job_id);
 
-      await logActivity(user!.id, "deleted", "lead", lead.id, {
+      // Confirm and remove the card straight away rather than waiting for a refetch.
+      toast.success("Lead deleted", {
+        description: `"${lead.customer_name || lead.job_id}" was removed.`,
+      });
+      onDeleted?.(lead.id);
+      onRefresh();
+
+      // Bookkeeping runs after, on its own. A failed sheet sync or activity log must not make a
+      // delete that already happened look like it failed - which is what it did before, showing
+      // an error toast and skipping the refresh while the lead was gone from the database.
+      void syncLeadDeleteToGoogleSheets(lead.id, lead.job_id).catch((sheetErr) => {
+        console.warn("Google Sheets delete sync warning:", sheetErr);
+      });
+
+      void logActivity(user!.id, "deleted", "lead", lead.id, {
         target_name: lead.job_id,
         customer_name: lead.customer_name,
         job_id: lead.job_id,
         message: `${profiles[user!.id] || "Unknown"} deleted lead "${lead.customer_name}".`,
+      }).catch((logErr) => {
+        console.warn("Failed to log lead deletion:", logErr);
       });
-
-      toast.success("Lead deleted");
-      onRefresh();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
       toast.error("Failed to delete lead: " + message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -2026,8 +2041,12 @@ function LeadCard({
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                        Delete
+                      <AlertDialogAction
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="bg-destructive text-destructive-foreground"
+                      >
+                        {deleting ? "Deleting..." : "Delete"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

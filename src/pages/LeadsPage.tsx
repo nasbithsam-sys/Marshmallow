@@ -630,6 +630,13 @@ export default function LeadsPage() {
     }
   };
 
+  // Drops a deleted lead from the list at once, so the card goes when the toast appears rather
+  // than when the refetch lands.
+  const handleLeadDeleted = useCallback((leadId: string) => {
+    setLeads((prev) => prev.filter((l) => l.id !== leadId));
+    setSharedLeads((prev) => prev.filter((l) => l.id !== leadId));
+  }, []);
+
   const handleRefresh = useCallback(async () => {
     await fetchLeads();
     if (role === "customer_service") {
@@ -1079,6 +1086,7 @@ export default function LeadsPage() {
                 lead={lead}
                 profiles={profiles}
                 onRefresh={handleRefresh}
+                onDeleted={handleLeadDeleted}
                 initialHasNotes={metadata?.hasNotes}
                 initialTechCount={metadata?.techCount}
                 initialCancellationReason={metadata?.cancellationReason}
