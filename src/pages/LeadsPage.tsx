@@ -6,8 +6,8 @@ import { useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Lead, LeadStatus, STATUS_LABELS, STATUS_DOT_COLORS, ALL_LEAD_STATUSES, compareLeadDisplayPriority } from "@/lib/constants";
 import { countTechs } from "@/lib/lead-techs";
-import SameAreaLeadsPanel from "@/components/leads/SameAreaLeadsPanel";
-import { isLeadInArea } from "@/lib/lead-areas";
+import { buildNearbyUrgentMap, isUrgentLead } from "@/lib/lead-proximity";
+import { preloadZipDataset } from "@/lib/zipCentroids";
 import { useAllowedStatuses } from "@/hooks/useAllowedStatuses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,8 +111,6 @@ export default function LeadsPage() {
   const deferredSearch = useDeferredValue(search);
 
   const rawStatusFilter = searchParams.get("status") || "all";
-  // Set by the Same area section: shows only that city's leads, as ordinary lead cards.
-  const areaFilter = searchParams.get("area");
   const isAdmin = role === "admin";
   const isCS = role === "customer_service";
   // CS Admins create leads with the same access a CS has.
@@ -303,12 +301,34 @@ export default function LeadsPage() {
 
   const currentLeads = activeTab === "shared" ? visibleSharedLeads : visibleMyLeads;
 
+  // Distances come from the US ZIP centroid dataset, which is ~1.8MB and loaded lazily. Only
+  // pulled in when there are urgent leads to compare, and the flag re-runs the grouping below
+  // once it is in memory.
+  const [zipDataReady, setZipDataReady] = useState(false);
+  const hasUrgentLeads = useMemo(() => currentLeads.some((l) => isUrgentLead(l.status)), [currentLeads]);
+
+  useEffect(() => {
+    if (!hasUrgentLeads || zipDataReady) return;
+    let active = true;
+    void preloadZipDataset().then(() => {
+      if (active) setZipDataReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [hasUrgentLeads, zipDataReady]);
+
+  // Derived from the live leads state, so a status change anywhere updates every card in the
+  // cluster at once - the realtime subscription already keeps that state current.
+  const nearbyUrgentMap = useMemo(
+    () => buildNearbyUrgentMap(currentLeads),
+    // zipDataReady is not read here, but recomputing once the centroids land is the point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentLeads, zipDataReady],
+  );
+
   const filtered = useMemo(() => {
     let result = [...currentLeads];
-
-    if (areaFilter) {
-      result = result.filter((l) => isLeadInArea(l, areaFilter));
-    }
 
     if (safeStatusFilter !== "all") {
       result = result.filter((l) => l.status === safeStatusFilter);
@@ -337,7 +357,7 @@ export default function LeadsPage() {
     result.sort((a, b) => compareLeadDisplayPriority(a, b, user?.id, role));
 
     return result;
-  }, [areaFilter, currentLeads, deferredSearch, safeStatusFilter, scheduleDateRange, user?.id, role]);
+  }, [currentLeads, deferredSearch, safeStatusFilter, scheduleDateRange, user?.id, role]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
@@ -923,17 +943,6 @@ export default function LeadsPage() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <SameAreaLeadsPanel
-              leads={currentLeads}
-              activeArea={areaFilter}
-              onSelectArea={(label) => {
-                const params = new URLSearchParams(searchParams);
-                params.set("area", label);
-                setSearchParams(params);
-                setPage(0);
-              }}
-            />
-
             <Select value={safeStatusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="crm-lead-card-inner h-11 w-full rounded-[18px] border-border/70 bg-transparent shadow-[0_18px_28px_-22px_rgba(56,189,248,0.2)] sm:w-[220px]">
                 <SlidersHorizontal className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
@@ -997,38 +1006,6 @@ export default function LeadsPage() {
         </div>
       </motion.div>
 
-      {/* Area view: the Same area section drops ?area= here and the list becomes that city. */}
-      {areaFilter && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-amber-400/50 bg-amber-400/10 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300">
-              <MapPin className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-[14px] font-semibold text-foreground">{areaFilter}</p>
-              <p className="text-[11.5px] text-muted-foreground">
-                {filtered.length === 1 ? "1 lead" : `${filtered.length} leads`} in this area
-              </p>
-            </div>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1.5 rounded-xl"
-            onClick={() => {
-              const params = new URLSearchParams(searchParams);
-              params.delete("area");
-              setSearchParams(params);
-              setPage(0);
-            }}
-          >
-            <X className="h-3.5 w-3.5" />
-            Back to all leads
-          </Button>
-        </div>
-      )}
-
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -1087,6 +1064,7 @@ export default function LeadsPage() {
                 profiles={profiles}
                 onRefresh={handleRefresh}
                 onDeleted={handleLeadDeleted}
+                nearbyUrgentLeads={nearbyUrgentMap.get(lead.id)}
                 initialHasNotes={metadata?.hasNotes}
                 initialTechCount={metadata?.techCount}
                 initialCancellationReason={metadata?.cancellationReason}

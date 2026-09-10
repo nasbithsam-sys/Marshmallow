@@ -1,4 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  NEARBY_RADIUS_MILES,
+  buildUrgentClusters,
+  countLeadsInSharedAreas,
+  type ProximityLead,
+} from "@/lib/lead-proximity";
+import { preloadZipDataset } from "@/lib/zipCentroids";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,6 +51,43 @@ const Analytics = () => {
       return (data ?? []) as AnalyticsLeadRow[];
     },
   });
+
+  // Urgent leads carry the fields needed to place them; the main query above deliberately
+  // leaves addresses out, and this set is small.
+  const { data: urgentLeads = [] } = useQuery<ProximityLead[]>({
+    queryKey: ["analytics-urgent-areas"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("id, customer_name, status, address, city, state, zip_code, job_id")
+        .eq("status", "urgent_job");
+      if (error) throw error;
+      return (data ?? []) as ProximityLead[];
+    },
+    refetchInterval: 60000,
+  });
+
+  const [zipDataReady, setZipDataReady] = useState(false);
+
+  useEffect(() => {
+    if (urgentLeads.length === 0 || zipDataReady) return;
+    let active = true;
+    void preloadZipDataset().then(() => {
+      if (active) setZipDataReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [urgentLeads.length, zipDataReady]);
+
+  const urgentClusters = useMemo(
+    () => buildUrgentClusters(urgentLeads),
+    // Recompute once the centroids are in memory.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [urgentLeads, zipDataReady],
+  );
+
+  const urgentLeadsInSharedAreas = countLeadsInSharedAreas(urgentClusters);
 
   // Fetch profiles list to map CS Agent UUIDs to names
   const { data: profiles = [] } = useQuery({
@@ -612,6 +656,59 @@ const Analytics = () => {
       {/* Main Layout Rows */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.5fr_1fr]">
         <div className="space-y-6">
+          {/* Urgent leads sharing an area */}
+          <Card className="rounded-[28px] border border-slate-800 bg-[#15161c] shadow-[0_18px_52px_-34px_rgba(0,0,0,0.42)]">
+            <CardContent className="p-6">
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-slate-200">
+                    Urgent Leads Sharing an Area
+                  </h3>
+                  <p className="mt-1 text-[12px] text-slate-400">
+                    Urgent jobs in the same city or within {NEARBY_RADIUS_MILES} miles of each other.
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <p className="text-[28px] font-semibold leading-none tabular-nums text-red-400">
+                    {urgentLeadsInSharedAreas}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    across {urgentClusters.length === 1 ? "1 area" : `${urgentClusters.length} areas`}
+                  </p>
+                </div>
+              </div>
+
+              {urgentClusters.length === 0 ? (
+                <p className="rounded-2xl border border-slate-800 bg-[#101118] px-4 py-6 text-center text-[12px] text-slate-400">
+                  No urgent leads are sharing an area right now.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {urgentClusters.map((cluster) => (
+                    <div
+                      key={cluster.key}
+                      className="flex items-start justify-between gap-3 rounded-2xl border border-slate-800 bg-[#101118] px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-medium text-slate-200">{cluster.label}</p>
+                        <p className="truncate text-[11px] text-slate-400">
+                          {cluster.leads
+                            .map((lead) => lead.customer_name || lead.job_id || "Lead")
+                            .join(", ")}
+                        </p>
+                      </div>
+
+                      <span className="shrink-0 rounded-full bg-red-500/15 px-2.5 py-0.5 text-[12px] font-semibold tabular-nums text-red-400">
+                        {cluster.leads.length}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Daily Leads Volume */}
           <Card className="rounded-[28px] border border-slate-800 bg-[#15161c] shadow-[0_18px_52px_-34px_rgba(0,0,0,0.42)]">
             <CardContent className="p-6">

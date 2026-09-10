@@ -20,6 +20,11 @@ describe("extractCity", () => {
     expect(extractCity("500 Congress Ave, Austin, Texas")).toBe("Austin");
   });
 
+  it("handles a spelled-out state with no zip after it", () => {
+    expect(extractCity("815 Allerton St Redwood City, California")).toBe("Redwood City");
+    expect(extractCity("Houston, Texas")).toBe("Houston");
+  });
+
   it("strips a variety of street types", () => {
     expect(extractCity("88 Oak Avenue Beverly Hills, CA 90210")).toBe("Beverly Hills");
     expect(extractCity("12 Sunset Boulevard Los Angeles, CA 90028")).toBe("Los Angeles");

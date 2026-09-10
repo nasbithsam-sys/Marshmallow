@@ -51,6 +51,8 @@ import PaymentDialog from "./PaymentDialog";
 import LeadShareDialog from "./LeadShareDialog";
 import StatusBadge from "./StatusBadge";
 import CancelledStatusBadge from "./CancelledStatusBadge";
+import NearbyUrgentLeads from "./NearbyUrgentLeads";
+import type { ProximityLead } from "@/lib/lead-proximity";
 import MultiDateTimePicker from "./MultiDateTimePicker";
 import {
   Dialog,
@@ -100,6 +102,8 @@ interface LeadCardProps {
   initialCancellationReason?: string | null;
   /** Lets the list drop the card immediately instead of waiting for the refetch. */
   onDeleted?: (leadId: string) => void;
+  /** Other urgent leads in this one's area. Computed by the list so it stays live. */
+  nearbyUrgentLeads?: ProximityLead[];
   initialPhotoCount?: number;
   initialPhotoPaths?: string[];
   initialPendingCancellationRequest?: LeadCancellationRequest | null;
@@ -689,6 +693,7 @@ function LeadCard({
   initialTechCount,
   initialCancellationReason,
   onDeleted,
+  nearbyUrgentLeads,
   initialPhotoCount,
   initialPhotoPaths,
   initialPendingCancellationRequest,
@@ -1664,6 +1669,10 @@ function LeadCard({
               )}
             </div>
           </div>
+
+          {isUrgent && nearbyUrgentLeads && nearbyUrgentLeads.length > 0 && (
+            <NearbyUrgentLeads nearby={nearbyUrgentLeads} />
+          )}
 
           {lead.status === "cancelled" && initialCancellationReason && (
             <div className="mt-2 flex items-start gap-1.5 rounded-xl border border-rose-500/25 bg-rose-500/[0.07] px-2.5 py-1.5">

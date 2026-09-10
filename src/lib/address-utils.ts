@@ -18,6 +18,8 @@ const ZIP = /\b\d{5}(?:-\d{4})?\b/;
 function looksLikeStateSegment(segment: string, totalSegments: number): boolean {
   if (ZIP.test(segment)) return true;
   if (/^[A-Za-z]{2}$/.test(segment)) return true;
+  // A spelled-out state is a state wherever it appears, e.g. "... Redwood City, California".
+  if (STATE_NAMES[segment.trim().toLowerCase()]) return true;
   return totalSegments >= 3 && /^[A-Za-z][A-Za-z\s.]*$/.test(segment);
 }
 
