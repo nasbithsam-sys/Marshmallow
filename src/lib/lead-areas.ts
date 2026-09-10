@@ -1,3 +1,4 @@
+import { extractCity, extractState } from "@/lib/address-utils";
 import type { Lead, LeadStatus } from "@/types";
 
 /**
@@ -15,7 +16,9 @@ const CLOSED_STATUSES: ReadonlySet<string> = new Set<LeadStatus>([
   "scammed",
 ]);
 
-export type AreaLead = Pick<Lead, "id" | "customer_name" | "status" | "city" | "state"> & {
+export type AreaLead = Pick<Lead, "id" | "customer_name" | "status"> & {
+  city?: string | null;
+  state?: string | null;
   job_id?: string | null;
   address?: string | null;
   created_at?: string;
@@ -35,6 +38,23 @@ function normalise(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
 }
 
+/**
+ * Where a lead is. The `city` column is only filled in by some intake paths, so the address is
+ * parsed as a fallback — the same approach the Areas page takes. Returns null when neither
+ * source yields a real city.
+ */
+export function resolveLeadArea(lead: AreaLead): { city: string; state: string | null } | null {
+  const column = (lead.city ?? "").trim();
+  if (column) {
+    return { city: column, state: (lead.state ?? "").trim() || extractState(lead.address) };
+  }
+
+  const derived = extractCity(lead.address);
+  if (!derived || derived === "Unknown") return null;
+
+  return { city: derived, state: (lead.state ?? "").trim() || extractState(lead.address) };
+}
+
 export function isOpenLead(status: string | null | undefined): boolean {
   return Boolean(status) && !CLOSED_STATUSES.has(status as string);
 }
@@ -47,11 +67,13 @@ export function groupLeadsByArea(leads: AreaLead[]): LeadAreaGroup[] {
   const byCity = new Map<string, LeadAreaGroup>();
 
   for (const lead of leads) {
-    const city = normalise(lead.city);
-    if (!city) continue;
     if (!isOpenLead(lead.status)) continue;
 
-    const state = normalise(lead.state);
+    const area = resolveLeadArea(lead);
+    if (!area) continue;
+
+    const city = normalise(area.city);
+    const state = normalise(area.state);
     const key = state ? `${city}|${state}` : city;
     const existing = byCity.get(key);
 
@@ -60,14 +82,11 @@ export function groupLeadsByArea(leads: AreaLead[]): LeadAreaGroup[] {
       continue;
     }
 
-    const cityLabel = (lead.city ?? "").trim();
-    const stateLabel = (lead.state ?? "").trim();
-
     byCity.set(key, {
       key,
-      label: stateLabel ? `${cityLabel}, ${stateLabel}` : cityLabel,
-      city: cityLabel,
-      state: stateLabel || null,
+      label: area.state ? `${area.city}, ${area.state}` : area.city,
+      city: area.city,
+      state: area.state,
       leads: [lead],
     });
   }

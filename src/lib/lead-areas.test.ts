@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { countGroupedLeads, groupLeadsByArea, isOpenLead, type AreaLead } from "@/lib/lead-areas";
+import {
+  countGroupedLeads,
+  groupLeadsByArea,
+  isOpenLead,
+  resolveLeadArea,
+  type AreaLead,
+} from "@/lib/lead-areas";
 import type { LeadStatus } from "@/types";
 
 function lead(id: string, city: string | null, state: string | null, status: LeadStatus = "needs_quote"): AreaLead {
@@ -120,5 +126,62 @@ describe("isOpenLead", () => {
   it("handles missing status", () => {
     expect(isOpenLead(null)).toBe(false);
     expect(isOpenLead(undefined)).toBe(false);
+  });
+});
+
+function addressLead(id: string, address: string, status: LeadStatus = "needs_quote"): AreaLead {
+  return { id, customer_name: `Customer ${id}`, status, city: null, state: null, address };
+}
+
+describe("falling back to the address", () => {
+  // The city column is only populated by some intake paths, so most leads carry the location
+  // in the address string alone.
+  it("reads the city out of a full US address", () => {
+    expect(resolveLeadArea(addressLead("a", "815 Allerton St Redwood City, California 94063, USA"))).toEqual({
+      city: "Redwood City",
+      state: "CA",
+    });
+  });
+
+  it("reads the city and state code out of an address", () => {
+    expect(resolveLeadArea(addressLead("a", "1200 Main St, Houston, TX 77002"))).toEqual({
+      city: "Houston",
+      state: "TX",
+    });
+  });
+
+  it("groups leads that only have addresses", () => {
+    const groups = groupLeadsByArea([
+      addressLead("a", "1200 Main St, Houston, TX 77002"),
+      addressLead("b", "88 Oak Ave, Houston, TX 77004"),
+      addressLead("c", "5 Pine Rd, Austin, TX 78701"),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].label).toBe("Houston, TX");
+    expect(groups[0].leads.map((l) => l.id)).toEqual(["a", "b"]);
+  });
+
+  it("prefers the column when it is filled", () => {
+    const withBoth: AreaLead = {
+      id: "a",
+      customer_name: "Customer a",
+      status: "needs_quote",
+      city: "Houston",
+      state: "TX",
+      address: "1200 Main St, Austin, TX 78701",
+    };
+
+    expect(resolveLeadArea(withBoth)).toEqual({ city: "Houston", state: "TX" });
+  });
+
+  it("gives up when there is no usable address", () => {
+    expect(resolveLeadArea(addressLead("a", ""))).toBeNull();
+    expect(resolveLeadArea({ id: "b", customer_name: "b", status: "needs_quote" })).toBeNull();
+  });
+
+  it("does not lump unparseable leads together", () => {
+    const groups = groupLeadsByArea([addressLead("a", ""), addressLead("b", "")]);
+    expect(groups).toEqual([]);
   });
 });
