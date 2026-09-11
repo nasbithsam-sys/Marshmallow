@@ -146,6 +146,26 @@ export function buildNearbyUrgentMap(
   return result;
 }
 
+/**
+ * The urgent leads near one lead, for a page that shows a single lead rather than a list.
+ * Same rule as buildNearbyUrgentMap, so the detail page and the card never disagree.
+ */
+export function findNearbyUrgentLeads(
+  target: ProximityLead,
+  leads: ProximityLead[],
+  radiusMiles: number = NEARBY_RADIUS_MILES,
+): ProximityLead[] {
+  if (!isUrgentLead(target.status)) return [];
+
+  const targetPoint = resolveLeadPoint(target);
+  return leads.filter(
+    (lead) =>
+      lead.id !== target.id &&
+      isUrgentLead(lead.status) &&
+      areLeadsNearby(targetPoint, resolveLeadPoint(lead), radiusMiles),
+  );
+}
+
 export interface UrgentCluster {
   key: string;
   /** "Houston, TX" — where the cluster is, taken from its first lead. */

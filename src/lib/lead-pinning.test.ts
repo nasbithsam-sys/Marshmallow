@@ -46,34 +46,21 @@ describe("statuses that do pin", () => {
   });
 });
 
-describe("post-visit confirmation tag", () => {
-  const tagged = { ...baseLead, cs_tag: "post_visit_confirmation" };
+describe("post-visit confirmation status", () => {
+  const lead = { ...baseLead, status: "post_visit_confirmation" as LeadStatus };
 
-  it("pins the lead for the CS who created it", () => {
-    expect(isLeadPinnedForUser(tagged, CS_USER, "customer_service")).toBe(true);
+  it("does not pin the lead for its CS or for CS Admins", () => {
+    expect(isLeadPinnedForUser(lead, CS_USER, "customer_service")).toBe(false);
+    expect(isLeadPinnedForUser(lead, OTHER_USER, "cs_admin")).toBe(false);
   });
 
-  it("pins the lead for CS Admins", () => {
-    expect(isLeadPinnedForUser(tagged, OTHER_USER, "cs_admin")).toBe(true);
-  });
-
-  it("does not pin it for anyone else", () => {
-    expect(isLeadPinnedForUser(tagged, OTHER_USER, "customer_service")).toBe(false);
-    expect(isLeadPinnedForUser(tagged, OTHER_USER, "processor")).toBe(false);
-  });
-
-  it("sorts a tagged lead above a newer untagged one for its CS", () => {
+  it("sorts like any other lead - a newer lead still comes first", () => {
     const newer = { ...baseLead, created_at: "2026-09-08T10:00:00.000Z" };
 
-    const sorted = [newer, tagged].sort((a, b) =>
+    const sorted = [lead, newer].sort((a, b) =>
       compareLeadDisplayPriority(a, b, CS_USER, "customer_service"),
     );
 
-    expect(sorted[0]).toBe(tagged);
-  });
-
-  it("pins whatever the status is", () => {
-    const scheduled = { ...tagged, status: "scheduled" as LeadStatus };
-    expect(isLeadPinnedForUser(scheduled, CS_USER, "customer_service")).toBe(true);
+    expect(sorted[0]).toBe(newer);
   });
 });

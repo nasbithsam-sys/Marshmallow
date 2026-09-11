@@ -7,6 +7,7 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   urgent_job: "Urgent Job",
   quote_sent_waiting: "Quote Sent - Waiting",
   post_visit_quote_sent_waiting: "Post Visit-Quote Sent-Waiting",
+  post_visit_confirmation: "Post Visit Confirmation",
   activate_customer: "Activate Customer",
   quote_sent_need_follow_up: "Quote Sent - Need Follow Up",
   needs_quote: "Needs Quote",
@@ -34,6 +35,7 @@ export const STATUS_COLORS: Record<LeadStatus, string> = {
   urgent_job: "bg-red-100 text-red-800 border-red-200",
   quote_sent_waiting: "bg-blue-100 text-blue-800 border-blue-200",
   post_visit_quote_sent_waiting: "bg-slate-100 text-slate-800 border-slate-200",
+  post_visit_confirmation: "bg-teal-100 text-teal-800 border-teal-200",
   activate_customer: "bg-emerald-100 text-emerald-800 border-emerald-200",
   quote_sent_need_follow_up: "bg-orange-100 text-orange-800 border-orange-200",
   needs_quote: "bg-purple-100 text-purple-800 border-purple-200",
@@ -61,6 +63,7 @@ export const STATUS_DOT_COLORS: Record<LeadStatus, string> = {
   urgent_job: "bg-red-500",
   quote_sent_waiting: "bg-blue-400",
   post_visit_quote_sent_waiting: "bg-slate-400",
+  post_visit_confirmation: "bg-teal-400",
   activate_customer: "bg-emerald-500",
   quote_sent_need_follow_up: "bg-orange-400",
   needs_quote: "bg-purple-400",
@@ -88,6 +91,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "urgent_job",
   "quote_sent_waiting",
   "post_visit_quote_sent_waiting",
+  "post_visit_confirmation",
   "activate_customer",
   "quote_sent_need_follow_up",
   "needs_quote",
@@ -124,11 +128,6 @@ export function isLeadPinnedForUser(
   userId?: string | null,
   userRole?: string | null,
 ): boolean {
-  // Post-visit confirmation is work waiting on CS: did the tech actually visit, and does the
-  // customer want to proceed. Pinned for whoever has to make that call, whatever the status is.
-  if (lead.cs_tag === "post_visit_confirmation") {
-    return userRole === "cs_admin" || (Boolean(userId) && lead.created_by === userId);
-  }
   if (lead.status === "quote_updated") {
     return userRole === "cs_admin" || (Boolean(userId) && lead.quote_requested_by === userId);
   }
@@ -146,6 +145,7 @@ const TAG_ELIGIBLE_STATUSES: Partial<Record<LeadStatus, true>> = {
   urgent_job: true,
   quote_sent_waiting: true,
   post_visit_quote_sent_waiting: true,
+  post_visit_confirmation: true,
   activate_customer: true,
   quote_sent_need_follow_up: true,
   needs_quote: true,
@@ -214,9 +214,11 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "cancelled",
     "partial_paid",
     "pending_to_send",
+    "post_visit_confirmation",
   ],
   processor: [
     "post_visit_quote_sent_waiting",
+    "post_visit_confirmation",
     "activate_customer",
     "tech_making_quote",
     "quote_change",
@@ -241,6 +243,7 @@ const STATUS_CHANGE_ACCESS: Record<AppRole, LeadStatus[]> = {
     "waiting_complete_details",
     "quote_sent_waiting",
     "post_visit_quote_sent_waiting",
+    "post_visit_confirmation",
     "activate_customer",
     "quote_sent_need_follow_up",
     "needs_quote",

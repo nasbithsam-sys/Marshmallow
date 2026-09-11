@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAccessNavItem, getDefaultNavAccess } from "@/lib/access";
+import { canAccessNavItem, canSeeTechDetails, getDefaultNavAccess } from "@/lib/access";
 import type { NavigationPermission } from "@/types";
 
 describe("cancellation request navigation access", () => {
@@ -44,5 +44,17 @@ describe("quo monitor navigation access", () => {
 
     expect(canAccessNavItem("processor", "quo_monitor", allowedOverride)).toBe(true);
     expect(canAccessNavItem("customer_service", "quo_monitor", allowedOverride)).toBe(true);
+  });
+});
+
+describe("technician details", () => {
+  it("are hidden from CS Admins", () => {
+    expect(canSeeTechDetails("cs_admin")).toBe(false);
+  });
+
+  it("stay visible to everyone else", () => {
+    for (const role of ["admin", "processor", "customer_service", "opr"] as const) {
+      expect(canSeeTechDetails(role)).toBe(true);
+    }
   });
 });

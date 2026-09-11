@@ -31,6 +31,7 @@ import {
   Clock3,
   BadgeDollarSign,
   Sparkles,
+  MessageSquare,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import MultiDateTimePicker from "@/components/leads/MultiDateTimePicker";
@@ -48,6 +49,10 @@ import { optimizeImageForUpload } from "@/lib/image-upload";
 import { updateLeadById } from "@/lib/lead-updates";
 import StatusBadge from "@/components/leads/StatusBadge";
 import CancelledStatusBadge from "@/components/leads/CancelledStatusBadge";
+import NearbyUrgentLeads from "@/components/leads/NearbyUrgentLeads";
+import LeadTagControl from "@/components/leads/LeadTagControl";
+import { useNearbyUrgentLeads } from "@/hooks/useNearbyUrgentLeads";
+import { canSeeTechDetails } from "@/lib/access";
 import CancellationRequestSheet from "@/components/leads/CancellationRequestSheet";
 import CancellationRequestPanel from "@/components/leads/CancellationRequestPanel";
 import QuoPhoneTrigger from "@/components/leads/QuoPhoneTrigger";
@@ -104,7 +109,7 @@ const SectionHeader = ({
 export default function LeadDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, role, profile } = useAuth();
+  const { user, role, profile, canAccess } = useAuth();
 
   const isNew = id === "new";
   const isCS = role === "customer_service";
@@ -113,6 +118,10 @@ export default function LeadDetailPage() {
   const isAdmin = role === "admin";
   const isCsAdmin = role === "cs_admin";
   const hideProcessorDetails = isCS || isCsAdmin;
+  // Same quick chats as the lead card. Tech chat is hidden from CS Admins, who do not see
+  // technician details anywhere.
+  const hasQuickChatAccess = canAccess("quick_chat");
+  const hasTechQuickChatAccess = canAccess("tech_quick_chat") && canSeeTechDetails(role);
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -123,6 +132,8 @@ export default function LeadDetailPage() {
   // Set by the realtime subscription when someone else saves this lead while it is open.
   // Deliberately does not touch `form` — that would wipe whatever is being typed.
   const [externalUpdateBy, setExternalUpdateBy] = useState<string | null>(null);
+  // Other urgent leads in this one's area - the same notice the lead card shows.
+  const nearbyUrgentLeads = useNearbyUrgentLeads(isNew ? null : originalLead);
 
   const [jobId, setJobId] = useState("");
   const [createdBy, setCreatedBy] = useState("");
@@ -1112,10 +1123,37 @@ export default function LeadDetailPage() {
                   ) : (
                     <StatusBadge status={form.status} />
                   )}
+                  {!isNew && hasQuickChatAccess && originalLead?.customer_phone && (
+                    <QuoPhoneTrigger
+                      contactName={originalLead.customer_name || "Lead"}
+                      phone={originalLead.customer_phone}
+                      chatType="customer"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary no-underline shadow-sm transition-all hover:bg-primary/20"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      <span>CX Quick Chat</span>
+                    </QuoPhoneTrigger>
+                  )}
+                  {!isNew && hasTechQuickChatAccess && originalLead?.tech_number && (
+                    <QuoPhoneTrigger
+                      contactName={originalLead.tech_name || "Technician"}
+                      phone={originalLead.tech_number}
+                      chatType="tech"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/12 px-2.5 py-1 text-[11px] font-semibold text-amber-700 no-underline shadow-sm transition-all hover:bg-amber-500/22 dark:text-amber-300"
+                    >
+                      <Wrench className="h-3.5 w-3.5" />
+                      <span>Tech Quick Chat</span>
+                    </QuoPhoneTrigger>
+                  )}
                 </div>
                 <p className="mt-3 max-w-2xl text-[14px] leading-6 text-muted-foreground">
                   Keep customer intake, processor notes, schedule details, and photos organized in one readable workspace.
                 </p>
+                {nearbyUrgentLeads.length > 0 && (
+                  <div className="max-w-md">
+                    <NearbyUrgentLeads nearby={nearbyUrgentLeads} />
+                  </div>
+                )}
               </motion.div>
             </div>
 
@@ -1575,6 +1613,18 @@ export default function LeadDetailPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {!isNew && originalLead && originalLead.status !== "scheduled" && (
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>
+                    Lead Tag <span className="font-normal normal-case tracking-normal text-muted-foreground">(saves immediately)</span>
+                  </Label>
+                  <LeadTagControl
+                    lead={originalLead}
+                    onSaved={(patch) => setOriginalLead((prev) => (prev ? { ...prev, ...patch } : prev))}
+                  />
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label className={labelClass}>Job Scheduled For</Label>

@@ -84,3 +84,10 @@ export function getDefaultVisibleStatuses(role: AppRole | null | undefined): Set
   return new Set<LeadStatus>(ALL_LEAD_STATUSES.filter((s) => !baseExclude.includes(s)));
 }
 
+/**
+ * Technician name, number and details. Hidden from CS Admins wherever a lead is shown - the
+ * lead card, the lead detail page, and the Schedule page (64a67ac) - so the rule lives here once.
+ */
+export function canSeeTechDetails(role: AppRole | null | undefined): boolean {
+  return role !== "cs_admin";
+}

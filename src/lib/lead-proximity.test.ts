@@ -25,6 +25,7 @@ const {
   buildNearbyUrgentMap,
   buildUrgentClusters,
   countLeadsInSharedAreas,
+  findNearbyUrgentLeads,
   haversineMiles,
   resolveLeadPoint,
 } = await import("@/lib/lead-proximity");
@@ -192,5 +193,39 @@ describe("buildUrgentClusters", () => {
   it("is empty when nothing is clustered", () => {
     expect(buildUrgentClusters([urgent("a", { zip_code: "77002" })])).toEqual([]);
     expect(countLeadsInSharedAreas([])).toBe(0);
+  });
+});
+
+describe("findNearbyUrgentLeads", () => {
+  it("lists the urgent leads near one lead", () => {
+    const target = urgent("a", { zip_code: "77002" });
+    const leads = [target, urgent("b", { zip_code: "77494" }), urgent("c", { zip_code: "78701" })];
+    expect(findNearbyUrgentLeads(target, leads).map((l) => l.id)).toEqual(["b"]);
+  });
+
+  it("never lists the lead itself", () => {
+    const target = urgent("a", { zip_code: "77002" });
+    expect(findNearbyUrgentLeads(target, [target])).toEqual([]);
+  });
+
+  it("returns nothing for a lead that is not urgent", () => {
+    const target = { ...urgent("a", { zip_code: "77002" }), status: "scheduled" as const };
+    expect(findNearbyUrgentLeads(target, [urgent("b", { zip_code: "77002" })])).toEqual([]);
+  });
+
+  it("agrees with the map the lead card uses", () => {
+    const leads = [
+      urgent("a", { zip_code: "77002" }),
+      urgent("b", { zip_code: "77494" }),
+      urgent("c", { zip_code: "77002" }),
+      urgent("d", { zip_code: "78701" }),
+    ];
+    const map = buildNearbyUrgentMap(leads);
+
+    for (const lead of leads) {
+      const fromDetail = findNearbyUrgentLeads(lead, leads).map((l) => l.id).sort();
+      const fromCard = (map.get(lead.id) ?? []).map((l) => l.id).sort();
+      expect(fromDetail).toEqual(fromCard);
+    }
   });
 });

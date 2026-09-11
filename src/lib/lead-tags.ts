@@ -9,16 +9,11 @@ export const SCHEDULE_TAGS: CsTag[] = [
 ];
 
 const TAGS_BY_ROLE: Record<AppRole, CsTag[]> = {
-  admin: [...SCHEDULE_TAGS, "incomplete_details", "post_visit_confirmation"],
-  customer_service: [...SCHEDULE_TAGS, "post_visit_confirmation"],
-  processor: [
-    "ready_to_schedule",
-    "waiting_schedule_confirmation",
-    "incomplete_details",
-    "post_visit_confirmation",
-  ],
+  admin: [...SCHEDULE_TAGS, "incomplete_details"],
+  customer_service: [...SCHEDULE_TAGS],
+  processor: ["ready_to_schedule", "waiting_schedule_confirmation", "incomplete_details"],
   opr: [],
-  cs_admin: [...SCHEDULE_TAGS, "post_visit_confirmation"],
+  cs_admin: [...SCHEDULE_TAGS],
 };
 
 /**

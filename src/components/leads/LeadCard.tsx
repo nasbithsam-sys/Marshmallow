@@ -80,7 +80,9 @@ import type { LeadCancellationRequest } from "@/types";
 import { optimizeImageForUpload } from "@/lib/image-upload";
 import { getAssignableLeadTags, isQuotationMaster } from "@/lib/lead-tags";
 import { countTechs, formatTechCount } from "@/lib/lead-techs";
-import { dispatchLeadStatusNotification, dispatchIncompleteDetailsNotification } from "@/lib/lead-notifications";
+import { dispatchLeadStatusNotification } from "@/lib/lead-notifications";
+import { saveLeadTag } from "@/lib/lead-tag-actions";
+import { canSeeTechDetails } from "@/lib/access";
 import BookingDateTimeDialog, { formatBookingCompact, isBookingExpired } from "./BookingDateTimeDialog";
 import AssignLeadToOperatorDialog from "./AssignLeadToOperatorDialog";
 import ActivateCustomerNoteDialog from "./ActivateCustomerNoteDialog";
@@ -858,7 +860,8 @@ function LeadCard({
 
   const isAdmin = role === "admin";
   const hasQuickChatAccess = canAccess("quick_chat");
-  const hasTechQuickChatAccess = canAccess("tech_quick_chat");
+  // CS Admins never see technician details, so no tech chat either.
+  const hasTechQuickChatAccess = canAccess("tech_quick_chat") && canSeeTechDetails(role);
   const isCS = role === "customer_service";
   const isCsAdmin = role === "cs_admin";
   const isProcessor = role === "processor";
@@ -881,15 +884,8 @@ function LeadCard({
   const isActivateCustomer = lead.status === "activate_customer";
   const isQuoteUpdatedForMe = lead.status === "quote_updated" && (role === "cs_admin" || lead.quote_requested_by === user?.id);
   const isPendingQuoteForMaster = lead.status === "pending_to_send" && isQuotationMaster(role, profile?.is_quotation_master);
-  // Same rule as the pin: it blinks for whoever has to make the call.
-  const isPostVisitConfirmationForMe =
-    currentTag === "post_visit_confirmation" && (role === "cs_admin" || lead.created_by === user?.id);
   const baseShouldBlink =
-    needsScheduleBlink ||
-    isActivateCustomer ||
-    isQuoteUpdatedForMe ||
-    isPendingQuoteForMaster ||
-    isPostVisitConfirmationForMe;
+    needsScheduleBlink || isActivateCustomer || isQuoteUpdatedForMe || isPendingQuoteForMaster;
 
   // Suppress blink if schedule requirement date is more than 3 days in the future
   const isFarFutureSchedule = isScheduleRequirementFarFuture(lead.customer_schedule_requirements, 3);
@@ -967,13 +963,18 @@ function LeadCard({
       icon: MapPin,
       wrap: true,
     },
-    {
-      key: "technician",
-      label: "Technician",
-      value: [lead.tech_name, lead.tech_number].filter(Boolean).join(" · "),
-      icon: UserRound,
-      wrap: true,
-    },
+    // CS Admins never see technician details.
+    ...(canSeeTechDetails(role)
+      ? [
+        {
+          key: "technician",
+          label: "Technician",
+          value: [lead.tech_name, lead.tech_number].filter(Boolean).join(" · "),
+          icon: UserRound,
+          wrap: true,
+        },
+        ]
+      : []),
     {
       key: "source_url",
       label: "Source URL",
@@ -1337,49 +1338,15 @@ function LeadCard({
     newTag: CsTag | null,
     opts: { bookedAt?: string | null } = {},
   ) => {
-    const patch: Record<string, unknown> = {
-      cs_tag: newTag,
-      last_edited_by: user?.id,
-      last_edited_by_name: profile?.full_name || user?.email || "Unknown user",
-      updated_at: new Date().toISOString(),
-      last_edited_at: new Date().toISOString(),
-    };
-    // Only touch booked_at when the tag transition affects it: on "booked" save
-    // the picked timestamp; on any move away from booked, clear it.
-    if (Object.prototype.hasOwnProperty.call(opts, "bookedAt")) {
-      patch.booked_at = opts.bookedAt;
-    } else if (newTag !== "booked" && lead.cs_tag === "booked") {
-      patch.booked_at = null;
-    }
-
-    const { error } = await supabase
-      .from("leads")
-      .update(patch as never)
-      .eq("id", lead.id);
-    if (error) {
-      toast.error("Failed to update tag");
-      return false;
-    }
-
-    const { syncLeadUpsertToGoogleSheets } = await import("@/lib/google-sheets");
-    void syncLeadUpsertToGoogleSheets({ ...lead, ...patch } as never, undefined, lead.cs_tag ?? undefined).catch((err) => {
-      console.error("Failed to sync tag update to Google Sheets", err);
+    // Shared with the lead detail page, so a tag saves the same way from either place.
+    const { ok } = await saveLeadTag({
+      lead,
+      newTag,
+      editor: { id: user?.id, name: profile?.full_name || user?.email || "Unknown user" },
+      options: opts,
     });
-    if (newTag === "incomplete_details" && lead.cs_tag !== "incomplete_details") {
-      const notified = await dispatchIncompleteDetailsNotification({
-        leadId: lead.id,
-        leadName: lead.customer_name,
-        createdBy: lead.created_by,
-      });
-
-      if (!notified) {
-        toast.error("Tag saved, but CS could not be notified. Tell them directly.");
-      }
-    }
-
-    toast.success(newTag ? `Tag: ${CS_TAG_LABELS[newTag]}` : "Tag cleared");
-    onRefresh();
-    return true;
+    if (ok) onRefresh();
+    return ok;
   };
 
   const handleCsTagChange = async (value: string) => {
@@ -1795,7 +1762,7 @@ function LeadCard({
                 </SelectItem>
                 {currentTag && !assignableTags.includes(currentTag) && (
                   <SelectItem value={currentTag} disabled className="text-[12px]">
-                    {CS_TAG_LABELS[currentTag]} (view only)
+                    {CS_TAG_LABELS[currentTag] ?? currentTag} (view only)
                   </SelectItem>
                 )}
                 {assignableTags.map((tag) => (
@@ -1815,12 +1782,10 @@ function LeadCard({
                         ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-400/20 dark:text-indigo-200"
                         : currentTag === "incomplete_details"
                           ? "bg-rose-100 text-rose-800 dark:bg-rose-400/20 dark:text-rose-200"
-                          : currentTag === "post_visit_confirmation"
-                            ? "bg-violet-100 text-violet-800 dark:bg-violet-400/20 dark:text-violet-200"
-                            : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
+                          : "bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-200"
                   }`}
                 >
-                  📌 {CS_TAG_LABELS[currentTag]}
+                  📌 {CS_TAG_LABELS[currentTag] ?? currentTag}
                 </p>
                 {currentTag === "booked" && lead.booked_at && (
                   isOpr ? (
