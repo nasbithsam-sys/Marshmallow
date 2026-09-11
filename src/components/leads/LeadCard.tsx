@@ -956,6 +956,14 @@ function LeadCard({
       icon: Phone,
       wrap: false,
     },
+    // A second number, marked so nobody tries to text it.
+    {
+      key: "landline",
+      label: "Contact",
+      value: lead.customer_landline ?? "",
+      icon: Phone,
+      wrap: false,
+    },
     {
       key: "address",
       label: "Address",
@@ -1669,6 +1677,19 @@ function LeadCard({
                     <a href={`tel:${value}`} className={`mt-1 text-[13px] font-medium leading-5 text-primary hover:underline inline-block ${wrap ? "break-words" : "truncate"}`} onClick={(e) => e.stopPropagation()}>
                       {value}
                     </a>
+                  ) : key === "landline" ? (
+                    <div className="mt-1 flex min-w-0 items-center gap-1.5">
+                      <span className="shrink-0 rounded-full border border-border/70 bg-muted/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Landline
+                      </span>
+                      <a
+                        href={`tel:${value}`}
+                        className="truncate text-[13px] font-medium leading-5 text-primary hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {value}
+                      </a>
+                    </div>
                   ) : key === "technician" && lead.tech_number ? (
                     <div className={`mt-1 text-[13px] leading-5 text-foreground/90 ${wrap ? "break-words" : "truncate"}`}>
                       {lead.tech_name ? <span>{lead.tech_name} {" · "}</span> : null}

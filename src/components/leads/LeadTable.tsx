@@ -43,7 +43,9 @@ export default function LeadTable({ leads }: LeadTableProps) {
                     <span className="font-medium">{lead.customer_name}</span>
                     <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                       <Phone className="h-3 w-3" />
-                      {formatUSPhone(lead.customer_phone || "")}
+                      {lead.customer_phone || !lead.customer_landline
+                        ? formatUSPhone(lead.customer_phone || "")
+                        : `${formatUSPhone(lead.customer_landline)} (Landline)`}
                     </span>
                   </div>
                 </TableCell>

@@ -120,6 +120,16 @@ export async function saveGoogleSheetsConfig(config: GoogleSheetsConfig): Promis
 /**
  * Format a Lead into the 17 exact columns requested
  */
+/**
+ * The sheet has one phone column. It carries the cell phone; a lead reachable only by landline
+ * shows that number instead, marked, so the column is not blank for a lead that has a number.
+ */
+export function formatSheetPhone(lead: { customer_phone?: string | null; customer_landline?: string | null }): string {
+  if (lead.customer_phone) return formatUSPhone(lead.customer_phone);
+  if (lead.customer_landline) return `${formatUSPhone(lead.customer_landline)} (Landline)`;
+  return "";
+}
+
 export function formatLeadForGoogleSheet(
   lead: Lead,
   noteSummary?: NoteSummary,
@@ -161,7 +171,7 @@ export function formatLeadForGoogleSheet(
     "Lead ID": lead.job_id || lead.id,
     "Lead Creation Date": leadCreationDate,
     "Customer Name": lead.customer_name || "",
-    "Customer Phone No": lead.customer_phone ? formatUSPhone(lead.customer_phone) : "",
+    "Customer Phone No": formatSheetPhone(lead),
     Address: fullAddress,
     "Service Type": lead.service_type || "",
     "Service Details": lead.service_details || "",

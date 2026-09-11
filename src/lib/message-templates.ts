@@ -43,7 +43,9 @@ export const renderLeadTemplate = (
       ? `-\n(Give the reference of "${normalize(extras.reference_name || lead.reference_name)}" if customer ask)`
       : "",
     customer_name: normalize(lead.customer_name),
-    customer_phone: normalize(lead.customer_phone),
+    customer_phone:
+      normalize(lead.customer_phone) ||
+      (normalize(lead.customer_landline) ? `${normalize(lead.customer_landline)} (Landline)` : ""),
     customer_address: normalize(lead.address),
     address: normalize(lead.address),
     service_details: normalize(lead.service_details || lead.service_type),

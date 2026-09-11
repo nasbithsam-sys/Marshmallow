@@ -89,3 +89,7 @@ export async function copyToClipboard(value: string): Promise<boolean> {
   }
 }
 
+/** A lead needs a way to reach the customer: a cell phone, a landline, or both. */
+export function hasContactNumber(cell?: string | null, landline?: string | null): boolean {
+  return stripPhone(cell ?? "").length > 0 || stripPhone(landline ?? "").length > 0;
+}

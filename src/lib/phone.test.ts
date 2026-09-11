@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatUSPhone, normalizePhoneE164 } from "@/lib/phone";
+import { formatUSPhone, hasContactNumber, normalizePhoneE164 } from "@/lib/phone";
 
 describe("formatUSPhone", () => {
   it("formats a 10-digit US phone number", () => {
@@ -27,5 +27,25 @@ describe("normalizePhoneE164", () => {
 
   it("returns null when the country code cannot be inferred safely", () => {
     expect(normalizePhoneE164("12345")).toBeNull();
+  });
+});
+
+describe("hasContactNumber", () => {
+  it("accepts a cell phone on its own", () => {
+    expect(hasContactNumber("(305) 555-0123", "")).toBe(true);
+  });
+
+  it("accepts a landline on its own", () => {
+    expect(hasContactNumber("", "(212) 555-0100")).toBe(true);
+  });
+
+  it("accepts both", () => {
+    expect(hasContactNumber("(305) 555-0123", "(212) 555-0100")).toBe(true);
+  });
+
+  it("rejects a lead with neither", () => {
+    expect(hasContactNumber("", "")).toBe(false);
+    expect(hasContactNumber(null, undefined)).toBe(false);
+    expect(hasContactNumber("   ", "()")).toBe(false);
   });
 });

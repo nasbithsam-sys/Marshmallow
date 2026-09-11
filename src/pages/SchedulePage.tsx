@@ -599,6 +599,10 @@ export default function SchedulePage() {
                                     <QuoPhoneTrigger contactName={lead.customer_name} phone={lead.customer_phone} className="text-sm">
                                       {lead.customer_phone}
                                     </QuoPhoneTrigger>
+                                  ) : lead.customer_landline ? (
+                                    <a href={`tel:${lead.customer_landline}`} className="text-sm hover:underline">
+                                      {lead.customer_landline} (Landline)
+                                    </a>
                                   ) : (
                                     "—"
                                   )}

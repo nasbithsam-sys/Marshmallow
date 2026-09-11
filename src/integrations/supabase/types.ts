@@ -755,6 +755,7 @@ export type Database = {
           cs_notes: string | null
           cs_tag: string | null
           customer_email: string | null
+          customer_landline: string | null
           customer_name: string
           customer_phone: string
           customer_schedule_requirements: string | null
@@ -809,6 +810,7 @@ export type Database = {
           cs_notes?: string | null
           cs_tag?: string | null
           customer_email?: string | null
+          customer_landline?: string | null
           customer_name: string
           customer_phone: string
           customer_schedule_requirements?: string | null
@@ -863,6 +865,7 @@ export type Database = {
           cs_notes?: string | null
           cs_tag?: string | null
           customer_email?: string | null
+          customer_landline?: string | null
           customer_name?: string
           customer_phone?: string
           customer_schedule_requirements?: string | null

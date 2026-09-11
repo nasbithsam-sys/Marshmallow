@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { logActivity } from "@/lib/activity";
 import { dispatchLeadStatusNotification } from "@/lib/lead-notifications";
-import { formatUSPhone } from "@/lib/phone";
+import { formatUSPhone, hasContactNumber } from "@/lib/phone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -163,6 +163,7 @@ export default function LeadDetailPage() {
     customer_name: "",
     customer_phone: "",
     customer_email: "",
+    customer_landline: "",
     number_name: "",
     address: "",
     city: "",
@@ -259,6 +260,7 @@ export default function LeadDetailPage() {
       customer_name: lead.customer_name || "",
       customer_phone: lead.customer_phone ? formatUSPhone(lead.customer_phone) : "",
       customer_email: lead.customer_email || "",
+      customer_landline: lead.customer_landline ? formatUSPhone(lead.customer_landline) : "",
       number_name: lead.number_name || "",
       address: lead.address || "",
       city: lead.city || "",
@@ -434,7 +436,7 @@ export default function LeadDetailPage() {
   }, [leadId]);
 
   const update = (key: string, value: string) => {
-    if (key === "customer_phone" || key === "tech_number") {
+    if (key === "customer_phone" || key === "customer_landline" || key === "tech_number") {
       setForm((prev) => ({ ...prev, [key]: formatUSPhone(value) }));
       return;
     }
@@ -622,8 +624,9 @@ export default function LeadDetailPage() {
       return;
     }
 
-    if (!form.customer_phone.trim()) {
-      toast.error("Phone Number is required");
+    // A cell phone or a landline - either one is enough.
+    if (!hasContactNumber(form.customer_phone, form.customer_landline)) {
+      toast.error("Enter a cell phone or a landline");
       return;
     }
 
@@ -659,8 +662,11 @@ export default function LeadDetailPage() {
 
     const payload = {
       customer_name: form.customer_name,
-      customer_phone: form.customer_phone || null,
+      customer_phone: form.customer_phone || "",
       customer_email: form.customer_email || null,
+      ...(form.customer_landline || originalLead?.customer_landline
+        ? { customer_landline: form.customer_landline || null }
+        : {}),
       number_name: form.number_name || null,
       address: form.address || null,
       city: form.city || null,
@@ -946,6 +952,7 @@ export default function LeadDetailPage() {
       customer_name: form.customer_name,
       customer_phone: form.customer_phone || null,
       customer_email: form.customer_email || null,
+      customer_landline: form.customer_landline || null,
       number_name: form.number_name || null,
       address: form.address || null,
       city: form.city || null,
@@ -1184,10 +1191,19 @@ export default function LeadDetailPage() {
                 <QuoPhoneTrigger contactName={form.customer_name || "Lead"} phone={form.customer_phone} chatType="customer" className="mt-2 text-sm font-semibold">
                   {form.customer_phone}
                 </QuoPhoneTrigger>
-              ) : (
+              ) : !form.customer_landline ? (
                 <p className="mt-2 text-sm font-semibold text-foreground">Phone pending</p>
+              ) : null}
+              {form.customer_landline && (
+                <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  <span className="rounded-full border border-border/70 bg-muted/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Landline
+                  </span>
+                  <a href={`tel:${form.customer_landline}`} className="hover:underline">
+                    {form.customer_landline}
+                  </a>
+                </p>
               )}
-              <p className="mt-1 text-[12px] text-muted-foreground">{form.customer_email || "No email added yet"}</p>
             </div>
             <div className="crm-lead-card-inner rounded-2xl px-4 py-3">
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -1271,7 +1287,7 @@ export default function LeadDetailPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className={labelClass}>Phone Number *</Label>
+                <Label className={labelClass}>Cell Phone</Label>
                 <Input
                   value={form.customer_phone}
                   onChange={(e) => update("customer_phone", e.target.value)}
@@ -1299,13 +1315,15 @@ export default function LeadDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className={labelClass}>Email</Label>
+                <Label className={labelClass}>Landline</Label>
                 <Input
-                  value={form.customer_email}
-                  onChange={(e) => update("customer_email", e.target.value)}
+                  value={form.customer_landline}
+                  onChange={(e) => update("customer_landline", e.target.value)}
+                  maxLength={14}
                   className={fieldClass}
                   readOnly={isProcessor || isOpr}
                 />
+                <p className="text-[11px] text-muted-foreground">A cell phone or a landline is required.</p>
               </div>
             </div>
           </div>

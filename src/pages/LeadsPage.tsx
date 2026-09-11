@@ -341,6 +341,7 @@ export default function LeadsPage() {
           l.customer_name?.toLowerCase().includes(s) ||
           l.job_id?.toLowerCase().includes(s) ||
           l.customer_phone?.toLowerCase().includes(s) ||
+          l.customer_landline?.toLowerCase().includes(s) ||
           l.address?.toLowerCase().includes(s) ||
           l.city?.toLowerCase().includes(s) ||
           l.state?.toLowerCase().includes(s) ||

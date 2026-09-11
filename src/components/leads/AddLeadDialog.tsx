@@ -26,7 +26,7 @@ import {
 import { LEAD_STATUS_CONFIG, type LeadStatus } from "@/types";
 import { getChangeableStatuses, canChangeStatus } from "@/lib/constants";
 import { useDuplicatePhoneCheck } from "@/hooks/useDuplicatePhoneCheck";
-import { formatUSPhone } from "@/lib/phone";
+import { formatUSPhone, hasContactNumber } from "@/lib/phone";
 import { logActivity } from "@/lib/activity";
 import { dispatchLeadStatusNotification } from "@/lib/lead-notifications";
 import { optimizeImageForUpload } from "@/lib/image-upload";
@@ -48,6 +48,7 @@ interface Props {
 const initialFormState = {
   customer_name: "",
   customer_phone: "",
+  customer_landline: "",
   number_name: "",
   direction: "" as "" | "incoming" | "outgoing",
   address: "",
@@ -145,7 +146,7 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
 
   const update = (key: string, value: string) => {
     setShouldResetOnClose(false);
-    if (key === "customer_phone" || key === "tech_number") {
+    if (key === "customer_phone" || key === "customer_landline" || key === "tech_number") {
       setForm((prev) => ({ ...prev, [key]: formatUSPhone(value) }));
     } else {
       setForm((prev) => ({ ...prev, [key]: value }));
@@ -211,8 +212,9 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
       toast.error("Customer Name is required");
       return;
     }
-    if (!form.customer_phone.trim()) {
-      toast.error("Phone Number is required");
+    // A cell phone or a landline - either one is enough.
+    if (!hasContactNumber(form.customer_phone, form.customer_landline)) {
+      toast.error("Enter a cell phone or a landline");
       return;
     }
     if (!form.number_name.trim()) {
@@ -248,7 +250,8 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
     const insertData = {
       job_id: jobId,
       customer_name: form.customer_name,
-      customer_phone: form.customer_phone || null,
+      customer_phone: form.customer_phone || "",
+      ...(form.customer_landline ? { customer_landline: form.customer_landline } : {}),
       number_name: form.number_name || null,
       direction: form.direction || null,
       address: form.address || null,
@@ -502,24 +505,38 @@ const AddLeadDialog = ({ open, onOpenChange, onSuccess, initialData }: Props) =>
               </div>
             </div>
 
-            <div className="mt-4 space-y-1.5">
-              <Label className={labelClass}>Phone Number *</Label>
-              <Input
-                value={form.customer_phone}
-                onChange={(e) => update("customer_phone", e.target.value)}
-                placeholder="(555) 123-4567"
-                maxLength={14}
-                className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive/40" : ""}`}
-              />
-              {isDuplicate && (
-                <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-destructive/15 bg-destructive/[0.07] px-2.5 py-1 text-[11px] text-destructive">
-                  <AlertCircle className="h-3 w-3" />
-                  <span>
-                    Duplicate: <strong>{duplicateLeadName}</strong>
-                  </span>
-                </div>
-              )}
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Cell Phone</Label>
+                <Input
+                  value={form.customer_phone}
+                  onChange={(e) => update("customer_phone", e.target.value)}
+                  placeholder="(555) 123-4567"
+                  maxLength={14}
+                  className={`${fieldClass} ${isDuplicate ? "border-destructive ring-1 ring-destructive/40" : ""}`}
+                />
+                {isDuplicate && (
+                  <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-destructive/15 bg-destructive/[0.07] px-2.5 py-1 text-[11px] text-destructive">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>
+                      Duplicate: <strong>{duplicateLeadName}</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Landline</Label>
+                <Input
+                  value={form.customer_landline}
+                  onChange={(e) => update("customer_landline", e.target.value)}
+                  placeholder="(555) 123-4567"
+                  maxLength={14}
+                  className={fieldClass}
+                />
+              </div>
             </div>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">A cell phone or a landline is required.</p>
 
             <div className="mt-4 space-y-1.5">
               <Label className={labelClass}>Direction *</Label>

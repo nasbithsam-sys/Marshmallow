@@ -68,6 +68,7 @@ const FIELD_LABELS: Record<string, string> = {
   customer_name: "Customer name",
   customer_email: "Customer email",
   customer_phone: "Customer phone",
+  customer_landline: "Landline",
   service_type: "Service type",
   address: "Address",
   city: "City",

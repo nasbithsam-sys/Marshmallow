@@ -87,6 +87,8 @@ export interface Lead {
   customer_name: string;
   customer_email: string;
   customer_phone: string;
+  /** Optional second number. A lead needs a cell phone, a landline, or both. */
+  customer_landline?: string | null;
   service_type: string;
   address: string;
   city: string;
