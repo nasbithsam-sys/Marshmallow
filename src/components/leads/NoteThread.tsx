@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Pencil, Check, X, UserPlus } from "lucide-react";
+import { Send, Pencil, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { buildTechEntry, countTechs, formatTechCount, nextTechNumber } from "@/lib/lead-techs";
 import { formatUSPhone } from "@/lib/phone";
@@ -189,10 +189,9 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
   }, [notes]);
 
 
-  // Techs live in the processor thread as "Tech N" blocks. Numbering continues past the highest
-  // one already used - including any in the draft that has not been sent yet.
+  // Techs live in the processor thread as "Tech N" entries, written through the form that is
+  // always open at the bottom of the thread.
   const isTechThread = noteType === "processor";
-  const [techFormOpen, setTechFormOpen] = useState(false);
   const [addingTech, setAddingTech] = useState(false);
   const [techName, setTechName] = useState("");
   const [techPhone, setTechPhone] = useState("");
@@ -203,14 +202,11 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
     [isTechThread, notes],
   );
 
-  // Numbering continues past the highest already used, counting the unsent draft too.
-  const nextTech = useMemo(
-    () => nextTechNumber([...notes.map((n) => n.content), newNote]),
-    [notes, newNote],
-  );
+  // Numbering continues past the highest already used. The processor thread has no free-text
+  // composer any more, so only saved notes count.
+  const nextTech = useMemo(() => nextTechNumber(notes.map((n) => n.content)), [notes]);
 
-  const closeTechForm = () => {
-    setTechFormOpen(false);
+  const resetTechForm = () => {
     setTechName("");
     setTechPhone("");
     setTechNote("");
@@ -242,7 +238,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
       return;
     }
 
-    closeTechForm();
+    resetTechForm();
     await fetchNotes();
     onNotesChanged?.();
   };
@@ -253,7 +249,7 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
       void submitTech();
     } else if (e.key === "Escape") {
       e.preventDefault();
-      closeTechForm();
+      resetTechForm();
     }
   };
 
@@ -416,105 +412,79 @@ export default function NoteThread({ leadId, noteType, label, profiles = {}, onN
 
       {canWriteThread ? (
         <div className="border-t border-border/35 bg-[hsl(var(--background)/0.54)] p-2 dark:bg-[hsl(var(--background)/0.12)]">
-          {isTechThread && (
-            <div className="mb-1.5">
-              {techFormOpen ? (
-                /* Opens in the thread itself rather than over it: fill the three fields and
-                   send with the tick, exactly like writing a note. */
-                <div className="space-y-1.5 rounded-xl border border-sky-300/60 bg-sky-500/[0.07] p-2 dark:border-sky-400/30">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-sky-700 dark:text-sky-300">
-                      Tech {nextTech}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={closeTechForm}
-                      aria-label="Cancel adding tech"
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
+          {isTechThread ? (
+            /* Processor notes are written as techs: the form is always open and is the only
+               composer in this thread. Fill the fields and send with the tick. */
+            <div className="space-y-1.5 rounded-xl border border-sky-300/60 bg-sky-500/[0.07] p-2 dark:border-sky-400/30">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-sky-700 dark:text-sky-300">
+                  Tech {nextTech}
+                </span>
+                {techCount > 0 && (
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    {formatTechCount(techCount)} in this thread
+                  </span>
+                )}
+              </div>
 
-                  <div className="flex gap-1.5">
-                    <Input
-                      value={techName}
-                      onChange={(e) => setTechName(e.target.value)}
-                      onKeyDown={handleTechKeyDown}
-                      placeholder="Name"
-                      autoFocus
-                      className="h-8 flex-1 rounded-lg text-[12px]"
-                    />
-                    <Input
-                      value={techPhone}
-                      // Formatted as it is typed, so it always reads (000) 000-0000.
-                      onChange={(e) => setTechPhone(formatUSPhone(e.target.value))}
-                      onKeyDown={handleTechKeyDown}
-                      placeholder="(000) 000-0000"
-                      inputMode="tel"
-                      className="h-8 flex-1 rounded-lg text-[12px]"
-                    />
-                  </div>
+              <div className="flex gap-1.5">
+                <Input
+                  value={techName}
+                  onChange={(e) => setTechName(e.target.value)}
+                  onKeyDown={handleTechKeyDown}
+                  placeholder="Name"
+                  className="h-8 flex-1 rounded-lg text-[12px]"
+                />
+                <Input
+                  value={techPhone}
+                  // Formatted as it is typed, so it always reads (000) 000-0000.
+                  onChange={(e) => setTechPhone(formatUSPhone(e.target.value))}
+                  onKeyDown={handleTechKeyDown}
+                  placeholder="(000) 000-0000"
+                  inputMode="tel"
+                  className="h-8 flex-1 rounded-lg text-[12px]"
+                />
+              </div>
 
-                  <div className="flex gap-1.5">
-                    <Input
-                      value={techNote}
-                      onChange={(e) => setTechNote(e.target.value)}
-                      onKeyDown={handleTechKeyDown}
-                      placeholder="Note (optional)"
-                      className="h-8 flex-1 rounded-lg text-[12px]"
-                    />
-                    <Button
-                      size="icon"
-                      onClick={submitTech}
-                      disabled={addingTech || !techName.trim()}
-                      aria-label="Add tech to notes"
-                      className="h-8 w-8 shrink-0 rounded-lg"
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setTechFormOpen(true)}
-                    className="h-7 gap-1.5 rounded-lg border-sky-300/60 px-2 text-[11px] font-medium text-sky-700 hover:bg-sky-500/10 dark:border-sky-400/30 dark:text-sky-300"
-                  >
-                    <UserPlus className="h-3 w-3" />
-                    Add tech
-                  </Button>
-                  {techCount > 0 && (
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      {formatTechCount(techCount)} in this thread
-                    </span>
-                  )}
-                </div>
-              )}
+              <div className="flex gap-1.5">
+                <Input
+                  value={techNote}
+                  onChange={(e) => setTechNote(e.target.value)}
+                  onKeyDown={handleTechKeyDown}
+                  placeholder="Note (optional)"
+                  className="h-8 flex-1 rounded-lg text-[12px]"
+                />
+                <Button
+                  size="icon"
+                  onClick={submitTech}
+                  disabled={addingTech || !techName.trim()}
+                  aria-label="Add tech to notes"
+                  className="h-8 w-8 shrink-0 rounded-lg"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Textarea
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={`Add a note...`}
+                className="crm-lead-card-inner min-h-[36px] max-h-20 resize-none border-0 bg-transparent text-sm focus-visible:ring-0 shadow-none"
+                rows={1}
+              />
+              <Button
+                size="icon"
+                className="h-9 w-9 shrink-0 rounded-[14px] shadow-[0_12px_22px_-16px_hsl(var(--primary)/0.45)]"
+                onClick={handleSend}
+                disabled={sending || !newNote.trim()}
+              >
+                <Send className="h-3.5 w-3.5" />
+              </Button>
             </div>
           )}
-
-          <div className="flex gap-2">
-            <Textarea
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={`Add a note...`}
-              className="crm-lead-card-inner min-h-[36px] max-h-20 resize-none border-0 bg-transparent text-sm focus-visible:ring-0 shadow-none"
-              rows={1}
-            />
-            <Button
-              size="icon"
-              className="h-9 w-9 shrink-0 rounded-[14px] shadow-[0_12px_22px_-16px_hsl(var(--primary)/0.45)]"
-              onClick={handleSend}
-              disabled={sending || !newNote.trim()}
-            >
-              <Send className="h-3.5 w-3.5" />
-            </Button>
-          </div>
         </div>
       ) : (
         <div className="border-t border-border/35 bg-[hsl(var(--background)/0.5)] px-4 py-2.5 text-[11px] text-muted-foreground dark:bg-[hsl(var(--background)/0.1)]">
