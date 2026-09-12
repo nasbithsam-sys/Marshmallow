@@ -717,6 +717,8 @@ function LeadCard({
   const [scheduleDraft, setScheduleDraft] = useState("");
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Service details shows on the card surface, clamped until the user expands it.
+  const [serviceDetailsExpanded, setServiceDetailsExpanded] = useState(false);
 
   useEffect(() => {
     if (initialTechCount !== undefined) setTechCount(initialTechCount);
@@ -991,6 +993,11 @@ function LeadCard({
       wrap: true,
     },
   ].filter((row): row is { key: string; label: string; value: string; icon: LucideIcon; wrap: boolean } => Boolean(row.value));
+
+  // Service details live on the card surface. They can be long, so the preview is
+  // clamped and only gets a toggle when the text actually overflows the clamp.
+  const serviceDetails = lead.service_details?.trim() ?? "";
+  const serviceDetailsLong = serviceDetails.length > 120 || serviceDetails.includes("\n");
 
   // Reload key can be kept in case we need it to force updates
   const [reloadKey] = useState(0);
@@ -1713,6 +1720,39 @@ function LeadCard({
               </div>
             ))}
           </div>
+
+          {serviceDetails && (
+            <div className="crm-lead-card-inner mt-2 flex items-start gap-3 rounded-[20px] px-3 py-2.5 text-[13px] text-foreground/88 shadow-[0_16px_24px_-22px_rgba(59,130,246,0.12),inset_0_1px_0_rgba(255,255,255,0.75)] dark:shadow-none">
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-primary/12 bg-primary/[0.06] dark:border-primary/18 dark:bg-primary/[0.08]">
+                <Clipboard className="h-3.5 w-3.5 text-primary/70" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/72">Service Details</p>
+                  <CopyValueButton value={serviceDetails} label="Service Details" className="h-6 w-6 rounded-full" />
+                </div>
+                <p
+                  className={`mt-1 whitespace-pre-wrap break-words text-[13px] leading-5 text-foreground/90 ${
+                    serviceDetailsExpanded ? "" : "line-clamp-2"
+                  }`}
+                >
+                  {serviceDetails}
+                </p>
+                {serviceDetailsLong && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setServiceDetailsExpanded((v) => !v);
+                    }}
+                    className="mt-1 text-[11px] font-semibold text-primary hover:underline"
+                  >
+                    {serviceDetailsExpanded ? "Show less" : "Show more"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {(lead.payment_screenshot_url || photoPaths.length > 0) && (

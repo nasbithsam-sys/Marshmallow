@@ -99,9 +99,6 @@ export interface Lead {
   scheduled_time_end: string | null;
   expected_completion_date?: string | null;
   amount: number | null;
-  cs_notes: string | null;
-  processor_notes: string | null;
-  general_notes: string | null;
   created_by: string | null;
   quote_requested_by?: string | null;
   assigned_cs: string | null;

@@ -66,7 +66,6 @@ export default function ActivateCustomerNoteDialog({
       const statusUpdate: Record<string, unknown> = {
         status: "activate_customer",
         cs_tag: null, // clear schedule tags when changing status
-        cs_notes: trimmedNote,
         last_edited_by: user.id,
         last_edited_by_name: currentUserName,
         updated_at: new Date().toISOString(),

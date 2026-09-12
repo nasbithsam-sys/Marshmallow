@@ -281,9 +281,11 @@ export default function LeadDetailPage() {
       service_details: lead.service_details || "",
       customer_schedule_requirements: lead.customer_schedule_requirements || "",
       reference_name: lead.reference_name || "",
-      cs_notes: lead.cs_notes || "",
-      processor_notes: lead.processor_notes || "",
-      general_notes: lead.general_notes || "",
+      // Notes live in the lead_notes thread system. These form fields only seed the
+      // initial-note inputs shown while creating a lead, so they always start empty.
+      cs_notes: "",
+      processor_notes: "",
+      general_notes: "",
 
       tech_name: lead.tech_name || "",
       tech_number: lead.tech_number ? formatUSPhone(lead.tech_number) : "",
@@ -683,9 +685,6 @@ export default function LeadDetailPage() {
       service_details: form.service_details || null,
       customer_schedule_requirements: form.customer_schedule_requirements || null,
       reference_name: form.reference_name || null,
-      cs_notes: (!isProcessor || form.status === "activate_customer") ? form.cs_notes || null : (originalLead?.cs_notes ?? null),
-      processor_notes: !hideProcessorDetails ? form.processor_notes || null : (originalLead?.processor_notes ?? null),
-      general_notes: form.general_notes || null,
 
       tech_name: !hideProcessorDetails ? form.tech_name || null : (originalLead?.tech_name ?? null),
       tech_number: !hideProcessorDetails ? form.tech_number || null : (originalLead?.tech_number ?? null),
@@ -975,9 +974,6 @@ export default function LeadDetailPage() {
       material_amount: form.material_amount ? parseFloat(form.material_amount) : null,
       for_you_amount: form.for_you_amount ? parseFloat(form.for_you_amount) : null,
       for_us_amount: form.for_us_amount ? parseFloat(form.for_us_amount) : null,
-      general_notes: originalLead?.general_notes || null,
-      cs_notes: originalLead?.cs_notes || null,
-      processor_notes: originalLead?.processor_notes || null,
       created_by: originalLead?.created_by || user?.id || null,
       created_by_name: originalLead?.created_by_name || profile?.full_name || user?.email || null,
       created_at: originalLead?.created_at || new Date().toISOString(),
