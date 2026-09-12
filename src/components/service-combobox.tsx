@@ -7,6 +7,7 @@ import {
   filterServiceCategories,
   isExistingService,
   normalizeServiceSearch,
+  type FilteredServiceCategory,
 } from "@/data/service-options";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,12 @@ type ServiceComboboxProps = {
   error?: string;
   className?: string;
 };
+
+/**
+ * The catalogue runs to a couple of thousand services, so the list only renders this many at a
+ * time. Searching still looks at every service - typing narrows the matches down into view.
+ */
+const MAX_RENDERED_SERVICES = 150;
 
 type ServiceListItem =
   | {
@@ -56,10 +63,24 @@ export function ServiceCombobox({
   const [contentWidth, setContentWidth] = useState<number | undefined>();
 
   const filteredCategories = useMemo(() => filterServiceCategories(value), [value]);
+  const { visibleCategories, totalMatches } = useMemo(() => {
+    const total = filteredCategories.reduce((count, group) => count + group.services.length, 0);
+    if (total <= MAX_RENDERED_SERVICES) return { visibleCategories: filteredCategories, totalMatches: total };
+
+    const groups: FilteredServiceCategory[] = [];
+    let remaining = MAX_RENDERED_SERVICES;
+    for (const group of filteredCategories) {
+      if (remaining <= 0) break;
+      groups.push({ category: group.category, services: group.services.slice(0, remaining) });
+      remaining -= Math.min(group.services.length, remaining);
+    }
+    return { visibleCategories: groups, totalMatches: total };
+  }, [filteredCategories]);
+  const hiddenMatches = totalMatches - visibleCategories.reduce((count, group) => count + group.services.length, 0);
   const customValue = value.trim();
   const showCustomAction = customValue.length > 0 && !isExistingService(customValue);
   const items = useMemo<ServiceListItem[]>(() => {
-    const serviceItems = filteredCategories.flatMap((group) =>
+    const serviceItems = visibleCategories.flatMap((group) =>
       group.services.map((service) => ({
         type: "service" as const,
         category: group.category,
@@ -69,7 +90,7 @@ export function ServiceCombobox({
     return showCustomAction
       ? [{ type: "custom", value: customValue }, ...serviceItems]
       : serviceItems;
-  }, [customValue, filteredCategories, showCustomAction]);
+  }, [customValue, showCustomAction, visibleCategories]);
 
   const activeItemId =
     open && items[highlightedIndex] ? `${listboxId}-item-${highlightedIndex}` : undefined;
@@ -203,12 +224,12 @@ export function ServiceCombobox({
                 Use &quot;{customValue}&quot;
               </ServiceOptionButton>
             ) : null}
-            {filteredCategories.length > 0 ? (
-              filteredCategories.map((group) => {
+            {visibleCategories.length > 0 ? (
+              visibleCategories.map((group) => {
                 const serviceStartIndex =
                   (showCustomAction ? 1 : 0) +
-                  filteredCategories
-                    .slice(0, filteredCategories.indexOf(group))
+                  visibleCategories
+                    .slice(0, visibleCategories.indexOf(group))
                     .reduce((count, category) => count + category.services.length, 0);
 
                 return (
@@ -239,6 +260,11 @@ export function ServiceCombobox({
                 No matching services
               </div>
             )}
+            {hiddenMatches > 0 ? (
+              <div className="px-2 py-2 text-center text-[11px] text-muted-foreground">
+                {hiddenMatches} more services - keep typing to narrow the list
+              </div>
+            ) : null}
           </div>
          </div>
 </PopoverPrimitive.Content>
