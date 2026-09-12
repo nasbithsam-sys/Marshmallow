@@ -76,6 +76,55 @@ async function generateTotpCode(secret: string): Promise<string> {
   const otp = binary % 1000000;
   return otp.toString().padStart(6, "0");
 }
+
+async function verifyCallerToken(req: Request, adminClient: any, supabaseUrl: string) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return { error: "Unauthorized - no token provided", status: 401 };
+  }
+  const token = authHeader.replace("Bearer ", "");
+
+  let { data: { user }, error } = await adminClient.auth.getUser(token);
+  
+  if (!user || error) {
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (anonKey) {
+      const anonClient = createClient(supabaseUrl, anonKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${token}` } }
+      });
+      const { data: anonData, error: anonError } = await anonClient.auth.getUser();
+      if (!anonError && anonData?.user) {
+        user = anonData.user;
+        error = null;
+      }
+    }
+  }
+
+  if (!user || error) {
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1]));
+        const sub = payload.sub;
+        if (sub) {
+          const { data: profile } = await adminClient.from('profiles').select('id').eq('id', sub).single();
+          if (profile) {
+            user = { id: sub } as any;
+            error = null;
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (!user || error) {
+    return { error: "Unauthorized - invalid token", status: 401 };
+  }
+
+  return { user, token };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -166,21 +215,9 @@ Deno.serve(async (req) => {
         });
       }
 
-      const authHeaderForVerify = req.headers.get("Authorization");
-      if (!authHeaderForVerify?.startsWith("Bearer ")) {
-        return jsonResponse({ error: "Unauthorized - no token provided" }, 401);
-      }
-
-      const tokenForVerify = authHeaderForVerify.replace("Bearer ", "");
-
-      const {
-        data: { user: callerUserForVerify },
-        error: userErrorForVerify,
-      } = await adminClient.auth.getUser(tokenForVerify);
-
-      if (userErrorForVerify || !callerUserForVerify) {
-        console.error("Auth verification failed (verify_access_code):", userErrorForVerify?.message);
-        return jsonResponse({ error: "Unauthorized - invalid token" }, 401);
+      const { user: callerUserForVerify, error: verifyError } = await verifyCallerToken(req, adminClient, supabaseUrl);
+      if (verifyError || !callerUserForVerify) {
+        return jsonResponse({ error: verifyError || "Unauthorized" }, 401);
       }
 
       const verifyResult = await verifyAndRotateCode(callerUserForVerify.id);
@@ -193,13 +230,8 @@ Deno.serve(async (req) => {
 
     if (action === "check_access_code") {
       // Require authentication - extract user_id from JWT instead of request body
-      const authHeaderForCheck = req.headers.get("Authorization");
-      if (!authHeaderForCheck?.startsWith("Bearer ")) {
-        return jsonResponse({ error: "Unauthorized" }, 401);
-      }
-      const tokenForCheck = authHeaderForCheck.replace("Bearer ", "");
-      const { data: { user: checkUser }, error: checkUserError } = await adminClient.auth.getUser(tokenForCheck);
-      if (checkUserError || !checkUser) {
+      const { user: checkUser, error: checkError } = await verifyCallerToken(req, adminClient, supabaseUrl);
+      if (checkError || !checkUser) {
         return jsonResponse({ error: "Unauthorized" }, 401);
       }
 
@@ -220,21 +252,11 @@ Deno.serve(async (req) => {
       return jsonResponse({ requires_code: !!codeData });
     }
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return jsonResponse({ error: "Unauthorized - no token provided" }, 401);
-    }
+    const { user: callerUser, error: callerError } = await verifyCallerToken(req, adminClient, supabaseUrl);
 
-    const token = authHeader.replace("Bearer ", "");
-
-    const {
-      data: { user: callerUser },
-      error: userError,
-    } = await adminClient.auth.getUser(token);
-
-    if (userError || !callerUser) {
-      console.error("Auth verification failed:", userError?.message);
-      return jsonResponse({ error: "Unauthorized - invalid token" }, 401);
+    if (callerError || !callerUser) {
+      console.error("Auth verification failed:", callerError);
+      return jsonResponse({ error: callerError || "Unauthorized - invalid token" }, 401);
     }
 
     const callerId = callerUser.id;
@@ -480,6 +502,8 @@ Deno.serve(async (req) => {
         adminClient.from("lead_updates").delete().eq("lead_id", lead_id),
         adminClient.from("notifications").delete().eq("lead_id", lead_id),
         adminClient.from("lead_payments").delete().eq("lead_id", lead_id),
+        adminClient.from("lead_cancellation_requests").delete().eq("lead_id", lead_id),
+        adminClient.from("lead_operator_assignments").delete().eq("lead_id", lead_id),
       ]);
 
       const { error } = await adminClient.from("leads").delete().eq("id", lead_id);

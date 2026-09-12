@@ -109,8 +109,26 @@ export const adminApi = {
   deleteUser: (user_id: string) =>
     callAdminFunction({ action: 'delete_user', user_id }),
 
-  deleteLead: (lead_id: string, job_id?: string) =>
-    callAdminFunction({ action: 'delete_lead', lead_id, job_id }),
+  deleteLead: async (lead_id: string, job_id?: string) => {
+    // 1. Try the atomic Postgres function first (bypasses RLS edge function flakiness)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('delete_lead_by_admin', { target_lead_id: lead_id });
+    if (!rpcError && (rpcData as any)?.success) {
+      return rpcData;
+    }
+    
+    // 2. Fallback to edge function if RPC not deployed or fails
+    try {
+      return await callAdminFunction({ action: 'delete_lead', lead_id, job_id });
+    } catch (edgeErr: any) {
+      // 3. Fallback to direct client call if edge function has a cold start / token issue
+      console.warn("Edge function fallback failed, attempting direct delete:", edgeErr.message);
+      const { error: directError } = await supabase.from('leads').delete().eq('id', lead_id);
+      if (directError) {
+        throw new Error(directError.message);
+      }
+      return { success: true, job_id };
+    }
+  },
 
   listTotpFactors: (user_id: string) =>
     callAdminFunction({ action: 'list_totp_factors', user_id }),

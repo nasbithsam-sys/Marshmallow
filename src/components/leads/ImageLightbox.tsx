@@ -48,14 +48,14 @@ export default function ImageLightbox({ images, initialIndex = 0, open, onOpenCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 bg-black/95 border-none overflow-hidden">
+      <DialogContent hideClose className="max-w-[90vw] max-h-[90vh] p-0 bg-black/95 border-none overflow-hidden">
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-3 right-3 z-50 text-white/70 hover:text-white hover:bg-white/10"
+          className="absolute top-3 right-3 z-50 text-white/70 hover:text-white hover:bg-white/10 [&_svg]:size-5"
           onClick={() => onOpenChange(false)}
         >
-          <X className="h-5 w-5" />
+          <X />
         </Button>
 
         <div className="flex items-center justify-center min-h-[60vh] relative">
