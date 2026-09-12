@@ -1927,6 +1927,7 @@ export const SERVICE_CATEGORIES = [
       "Carpet Cleaning",
       "Rug Cleaning",
       "Upholstery Cleaning",
+      "Couch/Sofa Cleaning",
       "Tile and Grout Cleaning",
       "Hardwood Floor Cleaning",
       "Window Cleaning",
